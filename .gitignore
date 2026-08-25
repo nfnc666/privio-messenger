@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.env
+*.log
+
+# Server runtime data (client-encrypted blobs)
+.data/
+
+# Flutter / Dart
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/ios/Pods/
+app/ios/.symlinks/
+app/android/.gradle/
+app/android/local.properties
+app/**/GeneratedPluginRegistrant.*
+**/*.iml
+
+.DS_Store

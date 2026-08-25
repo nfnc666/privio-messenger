@@ -1,0 +1,30 @@
+name: privio
+description: Privio — privacy-first secure messenger.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Talks to the Privio API. Nothing leaves the device unencrypted.
+  http: ^1.2.2
+  # Keychain on iOS, EncryptedSharedPreferences/Keystore on Android.
+  flutter_secure_storage: ^9.2.2
+  # Face ID / Touch ID / Android biometric prompt for the app lock.
+  local_auth: ^2.3.0
+  # Renders the invite deep link as a QR code, on-device.
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo/
