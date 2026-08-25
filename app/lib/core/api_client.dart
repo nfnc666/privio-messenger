@@ -1,0 +1,209 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+/// A failed API call, carrying the server's stable error code.
+class ApiException implements Exception {
+  ApiException(this.statusCode, this.code, this.message, {this.missingDevices = const []});
+
+  final int statusCode;
+  final String code;
+  final String message;
+
+  /// Present on `device_mismatch`: the recipient devices the client did not
+  /// seal a copy for. Re-fetch their prekey bundles and send again.
+  final List<String> missingDevices;
+
+  @override
+  String toString() => 'ApiException($statusCode, $code): $message';
+}
+
+/// Thin transport over the Privio API.
+///
+/// Everything this class sends is already sealed by the crypto layer: message
+/// bodies, group names, attachments and backups are opaque bytes by the time
+/// they get here. Keep it that way — no plaintext content may be passed to any
+/// method that is not explicitly a public profile field.
+class PrivioApiClient {
+  PrivioApiClient({required this.baseUrl, http.Client? client})
+      : _client = client ?? http.Client();
+
+  final Uri baseUrl;
+  final http.Client _client;
+
+  String? _token;
+
+  bool get isAuthenticated => _token != null;
+
+  void useToken(String? token) => _token = token;
+
+  Map<String, String> get _headers => {
+        'content-type': 'application/json',
+        if (_token != null) 'authorization': 'Bearer $_token',
+      };
+
+  Uri _url(String path, [Map<String, String>? query]) =>
+      baseUrl.replace(path: path, queryParameters: query);
+
+  Future<Map<String, dynamic>> _decode(http.Response response) async {
+    final body = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      throw ApiException(
+        response.statusCode,
+        body['error'] as String? ?? 'unknown_error',
+        body['message'] as String? ?? 'Request failed',
+        missingDevices: (body['missingDevices'] as List<dynamic>? ?? const [])
+            .cast<String>(),
+      );
+    }
+    return body;
+  }
+
+  Future<Map<String, dynamic>> _send(
+    String method,
+    String path, {
+    Object? body,
+    Map<String, String>? query,
+  }) async {
+    final request = http.Request(method, _url(path, query))
+      ..headers.addAll(_headers);
+    if (body != null) request.body = jsonEncode(body);
+    final streamed = await _client.send(request);
+    return _decode(await http.Response.fromStream(streamed));
+  }
+
+  // --- Accounts -------------------------------------------------------------
+
+  /// Registers an account. Note what is *not* here: no phone number, no email.
+  Future<Map<String, dynamic>> register({
+    required String username,
+    required String password,
+    required Map<String, dynamic> device,
+    String? displayName,
+  }) =>
+      _send('POST', '/v1/accounts', body: {
+        'username': username,
+        'password': password,
+        if (displayName != null) 'displayName': displayName,
+        'device': device,
+      },);
+
+  Future<Map<String, dynamic>> login({
+    required String username,
+    required String password,
+    required Map<String, dynamic> device,
+    String? totpCode,
+  }) =>
+      _send('POST', '/v1/sessions', body: {
+        'username': username,
+        'password': password,
+        if (totpCode != null) 'totpCode': totpCode,
+        'device': device,
+      },);
+
+  Future<Map<String, dynamic>> me() => _send('GET', '/v1/accounts/me');
+
+  Future<void> logout() async => _send('DELETE', '/v1/sessions/current');
+
+  Future<Map<String, dynamic>> updatePrivacy(Map<String, dynamic> privacy) =>
+      _send('PATCH', '/v1/accounts/me', body: {'privacy': privacy});
+
+  // --- Contacts -------------------------------------------------------------
+
+  Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
+
+  Future<Map<String, dynamic>> addContact(String username, {String? alias}) =>
+      _send('POST', '/v1/contacts', body: {
+        'username': username,
+        if (alias != null) 'alias': alias,
+      },);
+
+  Future<Map<String, dynamic>> lookup(String username) =>
+      _send('GET', '/v1/users/$username');
+
+  Future<Map<String, dynamic>> invite() => _send('GET', '/v1/contacts/invite');
+
+  Future<void> block(String accountId) async =>
+      _send('POST', '/v1/blocks', body: {'accountId': accountId});
+
+  // --- Keys and messages ----------------------------------------------------
+
+  /// One prekey bundle per device of [username], for opening Signal sessions.
+  Future<Map<String, dynamic>> preKeyBundles(String username) =>
+      _send('GET', '/v1/keys/$username');
+
+  /// [messages] holds one sealed copy per recipient device.
+  Future<Map<String, dynamic>> sendMessage({
+    required String username,
+    required List<Map<String, dynamic>> messages,
+  }) =>
+      _send('POST', '/v1/messages', body: {
+        'username': username,
+        'messages': messages,
+      },);
+
+  Future<Map<String, dynamic>> sendGroupMessage({
+    required String groupId,
+    required List<Map<String, dynamic>> messages,
+  }) =>
+      _send('POST', '/v1/messages/group/$groupId', body: {'messages': messages});
+
+  Future<Map<String, dynamic>> fetchEnvelopes({int limit = 100}) =>
+      _send('GET', '/v1/messages', query: {'limit': '$limit'});
+
+  /// Envelopes are redelivered until this is called, so only acknowledge what
+  /// has actually been decrypted and written to the local database.
+  Future<void> acknowledge(int upToId) async =>
+      _send('DELETE', '/v1/messages', query: {'upTo': '$upToId'});
+
+  // --- Devices --------------------------------------------------------------
+
+  Future<Map<String, dynamic>> devices() => _send('GET', '/v1/devices');
+
+  Future<void> revokeDevice(String deviceId) async =>
+      _send('DELETE', '/v1/devices/$deviceId');
+
+  Future<void> registerPushToken({
+    required String provider,
+    required String token,
+  }) async =>
+      _send('PUT', '/v1/devices/current/push', body: {
+        'provider': provider,
+        'token': token,
+      },);
+
+  // --- Media and backup -----------------------------------------------------
+
+  /// Uploads bytes that are already encrypted; returns the object id to put in
+  /// the message alongside the key.
+  Future<String> uploadMedia(List<int> sealedBytes) async {
+    final response = await _client.post(
+      _url('/v1/media'),
+      headers: {..._headers, 'content-type': 'application/octet-stream'},
+      body: sealedBytes,
+    );
+    final body = await _decode(response);
+    return body['id'] as String;
+  }
+
+  Future<List<int>> downloadMedia(String id) async {
+    final response = await _client.get(_url('/v1/media/$id'), headers: _headers);
+    if (response.statusCode >= 400) await _decode(response);
+    return response.bodyBytes;
+  }
+
+  Future<Map<String, dynamic>> uploadBackup(List<int> sealedBytes) async {
+    final response = await _client.put(
+      _url('/v1/backup'),
+      headers: {..._headers, 'content-type': 'application/octet-stream'},
+      body: sealedBytes,
+    );
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> backupInfo() => _send('GET', '/v1/backup');
+
+  void close() => _client.close();
+}

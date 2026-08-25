@@ -128,16 +128,21 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  /** Every active device in the group, so the sender can seal one copy per device. */
+  /**
+   * Every device that must receive a copy of the next message: all members'
+   * active devices, including the sender's *other* devices so multi-device stays
+   * in sync, but never the calling device itself. This is exactly the set the
+   * send endpoint expects back.
+   */
   app.get('/v1/groups/:id/devices', requireAuth, async (request) => {
-    const { accountId } = auth(request);
+    const { accountId, deviceId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMembership(params.id, accountId);
     const { rows } = await pool.query(
       `SELECT d.id, d.account_id, d.registration_id, d.identity_key
        FROM group_members m JOIN devices d ON d.account_id = m.account_id AND d.revoked_at IS NULL
-       WHERE m.group_id = $1 ORDER BY d.id`,
-      [params.id],
+       WHERE m.group_id = $1 AND d.id <> $2 ORDER BY d.id`,
+      [params.id, deviceId],
     );
     return {
       devices: rows.map((r) => ({

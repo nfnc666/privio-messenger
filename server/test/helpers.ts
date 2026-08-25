@@ -13,6 +13,7 @@ import { deviceRegistrationSchema } from '../src/services/devices.js';
 export interface TestHarness {
   app: FastifyInstance;
   push: LoggingPushSender;
+  storage: LocalFileStorage;
   close: () => Promise<void>;
 }
 
@@ -25,11 +26,13 @@ export async function createHarness(): Promise<TestHarness> {
   const dir = await mkdtemp(join(tmpdir(), 'privio-test-'));
   const bus = new InProcessBus();
   const push = new LoggingPushSender();
-  const app = await buildApp({ bus, push, storage: new LocalFileStorage(dir) });
+  const storage = new LocalFileStorage(dir);
+  const app = await buildApp({ bus, push, storage });
   await app.ready();
   return {
     app,
     push,
+    storage,
     close: async () => {
       await app.close();
       await bus.close();

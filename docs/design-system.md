@@ -28,6 +28,7 @@ Sampled from the mockups (JPEG, so values are normalised to clean hex).
 | `accentBright` | `#4ADE80` | Pressed/hover states, the neon glow on the splash and loading screens |
 | `accentDim` | `#166534` | Disabled accent, outgoing bubble fill, subtle borders |
 | `accentSurface` | `#0F2A1A` | Accent-tinted panels: the E2EE banner, voice-note bubbles |
+| `bubbleOutgoing` | `#0B3B21` | Outgoing message bubbles (measured at ~#043019 in the mockups, lifted a shade for text crispness) |
 
 ### Neutrals
 
@@ -116,7 +117,9 @@ without a rewrite.
   accent pill. Attachment previews are prefixed with a small type icon.
 - **Chat screen:** an accent-tinted E2EE notice sits above the first message of
   a conversation. Incoming bubbles use `surfaceRaised`, outgoing use `accentDim`,
-  both radius 18 with one squared corner on the tail side. Delivery ticks are
+  both radius 18 with one squared corner on the tail side. Outgoing uses
+  `bubbleOutgoing`, not `accentDim` — the mockups' bubbles are much darker than
+  the accent. Delivery ticks are
   `textTertiary` when sent and `accent` when read. Voice notes render a waveform
   inside an `accentSurface` bubble.
 - **PIN entry:** four dots, a 3×4 keypad on `surface` circles, and a fingerprint
