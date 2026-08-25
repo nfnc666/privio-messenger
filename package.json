@@ -1,0 +1,11 @@
+{
+  "name": "privio",
+  "private": true,
+  "description": "Privio — privacy-first secure messenger (monorepo root)",
+  "workspaces": ["server"],
+  "scripts": {
+    "build": "npm --workspace server run build",
+    "test": "npm --workspace server test",
+    "dev": "npm --workspace server run dev"
+  }
+}
