@@ -16,7 +16,7 @@ library that implements it.
 | Password hashing | Argon2id, 64 MiB, t=3, p=1 | `@node-rs/argon2` (RustCrypto) |
 | Session tokens | 256-bit random, stored as SHA-256 | `node:crypto` |
 | Transport | TLS 1.3 | Platform TLS |
-| Local database | SQLCipher (AES-256) | Client, V1 milestone |
+| Local history | AES-256-GCM | `package:cryptography` on the client |
 | Attachments | AES-256-GCM with a per-file random key | Client |
 | Backups | AES-256-GCM under a key from a recovery phrase | Client |
 | Two-factor | TOTP, RFC 6238 | `otplib` |
@@ -132,11 +132,13 @@ naming what is missing today.
    goes through `PrivioCrypto`, so that swap is contained to one file — but
    until it happens, this is the single largest caveat on Privio's central
    claim, and it should be stated to users rather than glossed.
-2. **Decrypted messages are held in memory only.** There is no local database
-   yet, so history does not survive a restart — and when one lands it must be
-   encrypted (SQLCipher) from the first commit, because that store holds the
-   only readable copy of a conversation. The keystore already protects the
-   session token and all key material.
+2. **The local history is one sealed blob, not a database.** Conversations
+   survive a relaunch and are sealed at rest with AES-256-GCM under a 256-bit
+   key held in the platform keystore — the archive is ciphertext, down to the
+   contact names. What it is not is a database: it is rewritten whole on every
+   change, so it will not scale to a long history, and a keystore is not built
+   for bulk data. SQLCipher is the destination; `ArchiveStorage` is the port
+   that keeps that swap to one file.
 3. **The PIN is compared, not stretched.** It is stored in the platform
    keystore, which is the security boundary; V2 moves it into the native crypto
    layer where it derives a key-encryption key with Argon2id.

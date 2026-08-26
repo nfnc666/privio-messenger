@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-57%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-73%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -74,9 +74,10 @@ reply — the Double Ratchet running in both directions.
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/screenshots/e2e-01-sent.png" width="220"><br><sub><b>1.</b> Clara sends. The server takes bytes it cannot read.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/e2e-02-arrived.png" width="220"><br><sub><b>2.</b> It arrives at Finn, who had never heard of Clara.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/e2e-03-conversation.png" width="220"><br><sub><b>3.</b> His reply comes back decrypted.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/e2e-01-sent.png" width="220"><br><sub><b>1.</b> Clara sends. The server takes bytes it cannot read.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/e2e-02-arrived.png" width="220"><br><sub><b>2.</b> It arrives at Finn, who had never heard of Clara.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/e2e-03-conversation.png" width="220"><br><sub><b>3.</b> His reply comes back decrypted.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/e2e-04-after-restart.png" width="220"><br><sub><b>4.</b> After a relaunch it is still there — read back from the encrypted archive, not re-fetched.</sub></td>
 </tr>
 </table>
 
@@ -103,7 +104,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Device management** | ✅ | List, remote logout, per-device sessions |
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
-| **Message history survives a restart** | 🔧 | Held in memory; SQLCipher is the next milestone |
+| **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Realtime over WebSocket** | 🔧 | The server pushes; the client still polls every 3s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
 | **Channels** | 📋 | V2 |
@@ -161,6 +162,7 @@ sequenceDiagram
 | Widgets | `app/lib/widgets/` | Rows, bubbles, avatars, the brand mark |
 | Theme | `app/lib/theme/` | The measured design tokens |
 | Messaging | `app/lib/services/` | The only place plaintext meets the transport |
+| **Archive** | `app/lib/data/` | The decrypted history, sealed at rest |
 | **Crypto** | `app/lib/crypto/` | X3DH, the Double Ratchet, the key store |
 | Transport | `app/lib/core/` | HTTP client, keystore, app state |
 | API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, media, backup |
@@ -202,6 +204,7 @@ implementations of established protocols.
 | Transport | TLS 1.3 |
 | Attachments | AES-256-GCM, random key per file |
 | Backups | AES-256-GCM under a key from your recovery phrase |
+| Local history | AES-256-GCM under a key in the platform keystore |
 | Two-factor | TOTP, RFC 6238 |
 
 ### The caveats, stated plainly
@@ -213,8 +216,10 @@ A privacy product that overstates itself is worse than one that says nothing.
    the ciphertext cannot open it. But it runs on `libsignal_protocol_dart`, a
    pure-Dart port rather than the official audited Rust `libsignal`. Moving to
    the official library behind FFI is a **pre-launch requirement**.
-2. **The local database is not yet encrypted.** SQLCipher is a V1 milestone. The
-   keychain already protects the session token and all key material.
+2. **The local history is one sealed blob, not a database.** It is encrypted
+   correctly, but rewritten whole on every change, so it will not scale to a
+   long history. Moving it to SQLCipher is planned; the storage port exists so
+   that swap touches one file.
 3. **No sealed sender.** Envelopes name the sender, which the server uses for
    blocking and rate limiting.
 4. **No independent audit.** Before any public release the crypto integration
@@ -263,10 +268,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  35 passing
+#  36 passing
 
 cd app && flutter analyze && flutter test
-#  22 passing
+#  37 passing
 ```
 
 Among the things those tests assert:
@@ -276,6 +281,8 @@ Among the things those tests assert:
 - the same plaintext **never** produces the same ciphertext twice
 - a used one-time prekey is **deleted**, so forward secrecy holds
 - a **swapped identity key is refused on send** — the attack this all exists to stop
+- the history at rest is **ciphertext** — not the messages, not even the contact names
+- a different key **cannot** read that archive, and a tampered one is discarded
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender
 

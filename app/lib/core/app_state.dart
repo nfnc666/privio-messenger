@@ -189,9 +189,10 @@ class AppState extends ChangeNotifier {
   }
 
   void _onSignedIn() {
-    // Start draining the queue and top up prekeys, but never block the UI on it.
+    // Read the sealed history back first, then start draining the queue and top
+    // up prekeys — but never block the UI on any of it.
     final controller = conversations;
-    controller.start();
+    unawaited(controller.restore().then((_) => controller.start()));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
   }
@@ -220,7 +221,9 @@ class AppState extends ChangeNotifier {
   /// Re-locks on backgrounding, so a shoulder-surfer gets the PIN pad.
   void lock() {
     if (_stage == AppStage.ready) {
-      _conversations?.stop();
+      _conversations
+        ?..stop()
+        ..flush();
       _stage = AppStage.locked;
       notifyListeners();
     }
@@ -235,6 +238,7 @@ class AppState extends ChangeNotifier {
     }
     services.api.useToken(null);
     services.store.clear();
+    await services.archive.clear();
     await _store.wipe();
     _username = null;
     _accountId = null;
