@@ -269,7 +269,7 @@ void main() {
       final key = (await service.keyFor(channel.id))!;
       final link = ChannelService.linkForChannel(channel.inviteCode!);
 
-      expect(link, 'https://privio.app/c/${channel.inviteCode}');
+      expect(link, 'https://privio.channel/c/${channel.inviteCode}');
       expect(link, isNot(contains('#')));
       expect(link, isNot(contains(base64Url.encode(key))));
       expect(link, isNot(contains(base64Encode(key))));
@@ -286,9 +286,9 @@ void main() {
     });
 
     test('rubbish is rejected rather than half-accepted', () {
-      expect(ChannelService.parseInviteLink('https://privio.app/'), isNull);
+      expect(ChannelService.parseInviteLink('https://privio.channel/'), isNull);
       expect(ChannelService.parseInviteLink('not a link at all'), isNull);
-      expect(ChannelService.parseInviteLink('https://privio.app/c/'), isNull);
+      expect(ChannelService.parseInviteLink('https://privio.channel/c/'), isNull);
     });
   });
 
