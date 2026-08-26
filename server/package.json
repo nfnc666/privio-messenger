@@ -13,6 +13,7 @@
     "test": "NODE_ENV=test DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres@localhost:5432/privio_test} tsx --test --test-concurrency=1 test/*.test.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^10.1.0",
     "@fastify/rate-limit": "^10.2.2",
     "@fastify/websocket": "^11.0.2",
     "@node-rs/argon2": "^2.0.2",

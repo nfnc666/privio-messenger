@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../data/demo_data.dart';
-import '../models/models.dart';
+import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
 
-/// Screen 6: one conversation.
+/// One conversation. Everything shown here was decrypted on this device, and
+/// everything typed here is sealed before it leaves it.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({required this.chat, super.key});
+  const ChatScreen({
+    required this.accountId,
+    required this.title,
+    super.key,
+    this.isGroup = false,
+  });
 
-  final ChatSummary chat;
+  final String accountId;
+  final String title;
+  final bool isGroup;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -19,7 +26,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scroll = ScrollController();
-  late List<Message> _messages = DemoData.conversation(widget.chat.id);
 
   @override
   void dispose() {
@@ -28,89 +34,113 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  /// Appends locally and optimistically. The real send seals one copy per
-  /// recipient device and only then flips the state to `sent`.
-  void _send() {
+  Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _messages = [
-        ..._messages,
-        Message(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          body: text,
-          sentAt: DateTime.now(),
-          isMine: true,
-          state: DeliveryState.sending,
-        ),
-      ];
-      _composer.clear();
-    });
+    _composer.clear();
+    await PrivioScope.of(context).conversations.send(widget.accountId, text);
+    _scrollToEnd();
+  }
+
+  void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final state = PrivioScope.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            PrivioAvatar(
-              label: widget.chat.title,
-              size: 34,
-              seed: widget.chat.avatarSeed,
-              isGroup: widget.chat.isGroup,
-            ),
-            const SizedBox(width: PrivioSpacing.md),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+    return ListenableBuilder(
+      listenable: state.conversations,
+      builder: (context, _) {
+        final messages = state.conversations.messagesWith(widget.accountId);
+
+        return Scaffold(
+          appBar: AppBar(
+            titleSpacing: 0,
+            title: Row(
               children: [
-                Text(widget.chat.title, style: theme.textTheme.titleMedium),
-                Text(
-                  widget.chat.presence == Presence.online ? 'Online' : 'Last seen recently',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: widget.chat.presence == Presence.online
-                        ? PrivioColors.accent
-                        : PrivioColors.textTertiary,
+                PrivioAvatar(
+                  label: widget.title,
+                  size: 34,
+                  seed: widget.accountId.hashCode.abs(),
+                  isGroup: widget.isGroup,
+                ),
+                const SizedBox(width: PrivioSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      Text(
+                        'End-to-end encrypted',
+                        style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accent),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ],
-        ),
-        actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.videocam_outlined), tooltip: 'Video call'),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert_rounded), tooltip: 'Chat options'),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scroll,
-              padding: const EdgeInsets.only(bottom: PrivioSpacing.md),
-              itemCount: _messages.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) return const EncryptionNotice();
-                return MessageBubble(message: _messages[index - 1]);
-              },
-            ),
+            actions: [
+              IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
+              IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert_rounded), tooltip: 'Chat options'),
+            ],
           ),
-          _Composer(controller: _composer, onSend: _send),
-        ],
+          body: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.only(bottom: PrivioSpacing.md),
+                  itemCount: messages.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) return const EncryptionNotice();
+                    return MessageBubble(message: messages[index - 1]);
+                  },
+                ),
+              ),
+              if (state.conversations.error != null)
+                _ErrorBanner(message: state.conversations.error!),
+              _Composer(controller: _composer, onSend: _send),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: PrivioColors.danger.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: PrivioSpacing.gutter,
+        vertical: PrivioSpacing.sm,
+      ),
+      child: Text(
+        message,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
       ),
     );
   }

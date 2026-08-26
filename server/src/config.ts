@@ -17,6 +17,12 @@ const schema = z.object({
   MAX_ENVELOPE_BYTES: z.coerce.number().int().positive().default(64 * 1024),
   MAX_MEDIA_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
   MAX_BACKUP_BYTES: z.coerce.number().int().positive().default(512 * 1024 * 1024),
+  /**
+   * Comma-separated origins allowed to call the API from a browser. The mobile
+   * apps are not subject to CORS; this exists for local development and for a
+   * future web client. Empty means no browser origin is allowed.
+   */
+  CORS_ORIGINS: z.string().default(''),
   LOG_LEVEL: z.string().default('info'),
 });
 

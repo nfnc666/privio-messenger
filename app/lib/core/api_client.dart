@@ -37,8 +37,9 @@ class PrivioApiClient {
 
   void useToken(String? token) => _token = token;
 
+  /// Auth only. A content-type is added by the caller when there is a body:
+  /// declaring JSON on a bodiless GET or DELETE makes the server reject it.
   Map<String, String> get _headers => {
-        'content-type': 'application/json',
         if (_token != null) 'authorization': 'Bearer $_token',
       };
 
@@ -69,7 +70,10 @@ class PrivioApiClient {
   }) async {
     final request = http.Request(method, _url(path, query))
       ..headers.addAll(_headers);
-    if (body != null) request.body = jsonEncode(body);
+    if (body != null) {
+      request.headers['content-type'] = 'application/json';
+      request.body = jsonEncode(body);
+    }
     final streamed = await _client.send(request);
     return _decode(await http.Response.fromStream(streamed));
   }
@@ -122,6 +126,11 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> lookup(String username) =>
       _send('GET', '/v1/users/$username');
+
+  /// Resolves an account id to a profile, so a message from someone not yet in
+  /// your contacts can show who sent it.
+  Future<Map<String, dynamic>> lookupById(String accountId) =>
+      _send('GET', '/v1/users/id/$accountId');
 
   Future<Map<String, dynamic>> invite() => _send('GET', '/v1/contacts/invite');
 

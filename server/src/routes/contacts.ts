@@ -38,6 +38,30 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  /**
+   * Resolve an account id to a profile.
+   *
+   * Needed so a message from someone not yet in your contacts can show who sent
+   * it. This is not an enumeration route: account ids are random UUIDs, and the
+   * only way to learn one is to have received something from that account.
+   */
+  app.get('/v1/users/id/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ accountId: uuidSchema }), request.params);
+    const { rows } = await pool.query<AccountRow>(
+      'SELECT * FROM accounts WHERE id = $1 AND deleted_at IS NULL',
+      [params.accountId],
+    );
+    const target = rows[0];
+    if (!target) throw ApiError.notFound('user_not_found', 'No such user');
+    return {
+      id: target.id,
+      username: target.username,
+      displayName: target.display_name,
+      lastSeenAt: await visibleLastSeen(accountId, target),
+    };
+  });
+
   /** A shareable invite the client renders as a link and a QR code. */
   app.get('/v1/contacts/invite', requireAuth, async (request) => {
     const { username } = auth(request);

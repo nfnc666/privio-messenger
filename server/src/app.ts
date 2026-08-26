@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
@@ -77,6 +78,17 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     // Authenticated clients are limited per device, anonymous ones per address.
     keyGenerator: (request) => request.auth?.deviceId ?? request.ip,
   });
+  // Browsers only. An empty allowlist means no origin is permitted, which is
+  // the right default for a server whose clients are native apps.
+  const allowedOrigins = config.CORS_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  await app.register(cors, {
+    origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+    credentials: false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
+
   await app.register(websocket);
   await app.register(authPlugin);
 

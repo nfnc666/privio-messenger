@@ -132,8 +132,11 @@ naming what is missing today.
    goes through `PrivioCrypto`, so that swap is contained to one file — but
    until it happens, this is the single largest caveat on Privio's central
    claim, and it should be stated to users rather than glossed.
-2. **The local database is not yet encrypted.** SQLCipher integration is a V1
-   milestone. The Keychain already protects the session token.
+2. **Decrypted messages are held in memory only.** There is no local database
+   yet, so history does not survive a restart — and when one lands it must be
+   encrypted (SQLCipher) from the first commit, because that store holds the
+   only readable copy of a conversation. The keystore already protects the
+   session token and all key material.
 3. **The PIN is compared, not stretched.** It is stored in the platform
    keystore, which is the security boundary; V2 moves it into the native crypto
    layer where it derives a key-encryption key with Argon2id.

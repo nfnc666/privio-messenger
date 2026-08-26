@@ -92,4 +92,21 @@ describe('contacts and privacy', () => {
     const cleared = await h.app.inject({ method: 'GET', url: '/v1/blocks', headers: bearer(alice) });
     assert.equal(cleared.json().blocked.length, 0);
   });
+
+  it('resolves an account id to a profile, so an incoming message has a name', async () => {
+    const byId = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${bob.accountId}`,
+      headers: bearer(alice),
+    });
+    assert.equal(byId.statusCode, 200);
+    assert.equal(byId.json().username, 'bob');
+
+    const unknown = await h.app.inject({
+      method: 'GET',
+      url: '/v1/users/id/00000000-0000-4000-8000-000000000000',
+      headers: bearer(alice),
+    });
+    assert.equal(unknown.statusCode, 404);
+  });
 });
