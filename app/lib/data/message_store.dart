@@ -49,6 +49,7 @@ class GroupInfo {
     required this.role,
     this.name,
     this.groupKey,
+    this.inviteCode,
     this.memberIds = const [],
   });
 
@@ -64,16 +65,27 @@ class GroupInfo {
   /// encrypted messages — the server stores the sealed name and no key for it.
   final String? groupKey;
 
+  /// The code in the group's join link. Null on a group this device only heard
+  /// about through a message.
+  final String? inviteCode;
+
   final List<String> memberIds;
 
   bool get isAdmin => role == 'admin';
 
-  GroupInfo merge({String? name, String? groupKey, List<String>? memberIds, String? role}) =>
+  GroupInfo merge({
+    String? name,
+    String? groupKey,
+    List<String>? memberIds,
+    String? role,
+    String? inviteCode,
+  }) =>
       GroupInfo(
         groupId: groupId,
         role: role ?? this.role,
         name: name ?? this.name,
         groupKey: groupKey ?? this.groupKey,
+        inviteCode: inviteCode ?? this.inviteCode,
         memberIds: memberIds ?? this.memberIds,
       );
 }
@@ -132,7 +144,12 @@ class InMemoryMessageStore implements MessageStore {
 
   @override
   List<Conversation> conversations() {
-    final all = _conversations.values.where((c) => c.messages.isNotEmpty).toList();
+    // A group with nothing said in it still belongs in the list — someone who
+    // joined by a link has to be able to find it before anyone speaks. An empty
+    // direct conversation is just a contact, and belongs under Contacts.
+    final all = _conversations.values
+        .where((c) => c.messages.isNotEmpty || c.isGroup)
+        .toList();
     // Most recent first, which is the order the chat list shows.
     all.sort((a, b) {
       final left = a.lastMessage?.sentAt ?? DateTime(0);

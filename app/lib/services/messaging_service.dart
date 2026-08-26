@@ -125,7 +125,9 @@ class MessagingService {
   /// Attaches this account's profile key, which is how contacts become able to
   /// open its profile picture without the server ever learning the key.
   Future<MessagePayload> _withProfileKey(MessagePayload payload) async {
-    if (payload.profileKey != null) return payload;
+    // A key delivery carries no profile key and no body; rebuilding it as text
+    // would quietly throw the key away.
+    if (payload.isKeyDelivery || payload.profileKey != null) return payload;
     final key = base64Encode(await _crypto.profileKey());
     return payload.isMedia
         ? MessagePayload.media(
@@ -194,6 +196,22 @@ class MessagingService {
     );
     return result['deliveredTo'] as int? ?? sealed.length;
   }
+
+  /// Hands a channel or group key to everyone's devices for one account.
+  ///
+  /// The request that prompted this comes from a single device, but the key
+  /// belongs to the account's membership, so every device of theirs gets it:
+  /// otherwise their phone could read the channel and their laptop could not.
+  Future<void> deliverKey({
+    required String username,
+    required String scope,
+    required String scopeId,
+    required String base64Key,
+  }) =>
+      sendPayload(
+        username,
+        MessagePayload.key(keyScope: scope, keyScopeId: scopeId, deliveredKey: base64Key),
+      );
 
   /// Drains the queue, decrypts, and acknowledges only what was handled.
   ///
@@ -301,6 +319,7 @@ class MessagingService {
       role: 'admin',
       name: name,
       groupKey: base64Encode(keyBytes),
+      inviteCode: created['inviteCode'] as String?,
       memberIds: [
         for (final member in created['members'] as List<dynamic>)
           (member as Map<String, dynamic>)['id'] as String,
@@ -327,6 +346,7 @@ class MessagingService {
           groupId: groupId,
           role: entry['role'] as String,
           groupKey: knownKey,
+          inviteCode: entry['inviteCode'] as String?,
           name: knownKey == null || sealed == null
               ? null
               : await _openGroupName(sealed, knownKey),
@@ -334,6 +354,55 @@ class MessagingService {
       );
     }
     return groups;
+  }
+
+  /// Joins a group with the code from its link.
+  ///
+  /// The link carries no key, so the group's name stays sealed until a member
+  /// delivers it — the same handshake channels use.
+  Future<GroupInfo> joinGroupByCode(String code) async {
+    final found = await _api.groupByInvite(code);
+    final groupId = found['id'] as String;
+    await _api.joinGroup(groupId, code);
+    return GroupInfo(groupId: groupId, role: 'member', inviteCode: code);
+  }
+
+  /// Answers everyone waiting for a group's name key. Returns how many accounts
+  /// were served.
+  Future<int> deliverGroupKeys(String groupId, String base64Key) async {
+    final response = await _api.groupKeyRequests(groupId);
+    final requests = [
+      for (final raw in response['requests'] as List<dynamic>? ?? const [])
+        raw as Map<String, dynamic>,
+    ];
+    if (requests.isEmpty) return 0;
+
+    final byUsername = <String, List<String>>{};
+    for (final request in requests) {
+      byUsername
+          .putIfAbsent(request['username'] as String, () => [])
+          .add(request['deviceId'] as String);
+    }
+
+    var served = 0;
+    for (final entry in byUsername.entries) {
+      try {
+        await deliverKey(
+          username: entry.key,
+          scope: 'group',
+          scopeId: groupId,
+          base64Key: base64Key,
+        );
+        for (final deviceId in entry.value) {
+          await _api.clearGroupKeyRequest(groupId, deviceId);
+        }
+        served++;
+      } on Object {
+        // Retried on the next refresh rather than blocking the others.
+        continue;
+      }
+    }
+    return served;
   }
 
   /// Seals [plaintext] once per member device and posts it to the group.

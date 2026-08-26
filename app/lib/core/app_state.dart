@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'api_client.dart';
 import 'biometric_gate.dart';
+import 'channel_controller.dart';
 import 'conversation_controller.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
@@ -30,6 +31,7 @@ class AppState extends ChangeNotifier {
 
   PrivioServices? _services;
   ConversationController? _conversations;
+  ChannelController? _channels;
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -61,6 +63,8 @@ class AppState extends ChangeNotifier {
   ConversationController get conversations {
     return _conversations ??= ConversationController(services);
   }
+
+  ChannelController get channels => _channels ??= ChannelController(services);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and finds out
@@ -242,6 +246,8 @@ class AppState extends ChangeNotifier {
     services.api.useToken(null);
     _sessionToken = null;
     services.store.clear();
+    _channels?.dispose();
+    _channels = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -252,6 +258,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _channels?.dispose();
     _conversations?.dispose();
     _services?.dispose();
     super.dispose();

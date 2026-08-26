@@ -56,6 +56,31 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 
+  /// Opens a group join link. The link carries no key; the group's name stays
+  /// sealed until a member's device sends the key over.
+  Future<void> _joinByLink(BuildContext context, AppState state) async {
+    final link = await showDialog<String>(
+      context: context,
+      builder: (_) => const _JoinGroupDialog(),
+    );
+    if (link == null || link.isEmpty || !context.mounted) return;
+
+    final groupId = await state.conversations.joinGroupByLink(link);
+    if (!context.mounted) return;
+    if (groupId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(state.conversations.error ?? 'Could not open that link')),
+      );
+      return;
+    }
+    final title = state.conversations.groupInfo(groupId)?.name ?? 'Group';
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(accountId: groupId, title: title, isGroup: true),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +106,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 onPressed: () => state.conversations.drain(),
                 icon: const Icon(Icons.refresh_rounded),
                 tooltip: 'Check for messages',
+              ),
+              IconButton(
+                onPressed: () => _joinByLink(context, state),
+                icon: const Icon(Icons.link_rounded),
+                tooltip: 'Join a group with a link',
               ),
               IconButton(
                 onPressed: () => _startGroup(context, state),
@@ -179,6 +209,55 @@ class _EmptyChats extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _JoinGroupDialog extends StatefulWidget {
+  const _JoinGroupDialog();
+
+  @override
+  State<_JoinGroupDialog> createState() => _JoinGroupDialogState();
+}
+
+class _JoinGroupDialogState extends State<_JoinGroupDialog> {
+  final TextEditingController _link = TextEditingController();
+
+  @override
+  void dispose() {
+    _link.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: PrivioColors.surfaceRaised,
+      title: const Text('Join a group'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _link,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'https://privio.app/g/…'),
+          ),
+          const SizedBox(height: PrivioSpacing.md),
+          Text(
+            'The link gets you in. The key to the group name is sent to your '
+            'device afterwards, encrypted, by someone already in the group.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_link.text),
+          child: const Text('Join'),
+        ),
+      ],
     );
   }
 }

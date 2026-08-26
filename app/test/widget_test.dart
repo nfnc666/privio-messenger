@@ -17,6 +17,7 @@ import 'package:privio/screens/chats_screen.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
+import 'package:privio/services/channel_service.dart';
 import 'package:privio/widgets/chat_list_row.dart';
 import 'package:privio/widgets/message_bubble.dart';
 
@@ -30,10 +31,12 @@ Future<PrivioServices> quietServices() async {
       ),);
   final api = PrivioApiClient(baseUrl: Uri.parse('https://api.test'), client: client);
   final crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
+  final messaging = MessagingService(api: api, crypto: crypto);
   return PrivioServices(
     api: api,
     crypto: crypto,
-    messaging: MessagingService(api: api, crypto: crypto),
+    messaging: messaging,
+    channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
     store: InMemoryMessageStore(),
     secureStore: InMemorySecureStore(),
   );

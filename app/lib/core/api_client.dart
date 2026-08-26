@@ -186,8 +186,39 @@ class PrivioApiClient {
   Future<void> updateGroupMetadata(String groupId, String encryptedMetadata) async =>
       _send('PATCH', '/v1/groups/$groupId', body: {'encryptedMetadata': encryptedMetadata});
 
+  /// Look a group up by the code in a join link.
+  Future<Map<String, dynamic>> groupByInvite(String code) =>
+      _send('GET', '/v1/groups/invite/$code');
+
+  Future<Map<String, dynamic>> joinGroup(String groupId, String inviteCode) =>
+      _send('POST', '/v1/groups/$groupId/join', body: {'inviteCode': inviteCode});
+
   Future<void> leaveGroup(String groupId, String accountId) async =>
       _send('DELETE', '/v1/groups/$groupId/members/$accountId');
+
+  // --- Key delivery ---------------------------------------------------------
+  //
+  // A join link carries no key, so a device that has just joined says so here
+  // and a member who holds the key answers with an ordinary sealed message.
+  // Nothing in these calls carries key material.
+
+  Future<void> requestChannelKey(String channelId) async =>
+      _send('POST', '/v1/channels/$channelId/key-requests');
+
+  Future<Map<String, dynamic>> channelKeyRequests(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/key-requests');
+
+  Future<void> clearChannelKeyRequest(String channelId, String deviceId) async =>
+      _send('DELETE', '/v1/channels/$channelId/key-requests/$deviceId');
+
+  Future<void> requestGroupKey(String groupId) async =>
+      _send('POST', '/v1/groups/$groupId/key-requests');
+
+  Future<Map<String, dynamic>> groupKeyRequests(String groupId) =>
+      _send('GET', '/v1/groups/$groupId/key-requests');
+
+  Future<void> clearGroupKeyRequest(String groupId, String deviceId) async =>
+      _send('DELETE', '/v1/groups/$groupId/key-requests/$deviceId');
 
   Future<Map<String, dynamic>> fetchEnvelopes({int limit = 100}) =>
       _send('GET', '/v1/messages', query: {'limit': '$limit'});
@@ -196,6 +227,114 @@ class PrivioApiClient {
   /// has actually been decrypted and written to the local database.
   Future<void> acknowledge(int upToId) async =>
       _send('DELETE', '/v1/messages', query: {'upTo': '$upToId'});
+
+  // --- Channels -------------------------------------------------------------
+
+  /// Creates a channel. The channel key never appears in this call — the
+  /// caller generates it, keeps it, and hands it out in the invite link.
+  Future<Map<String, dynamic>> createChannel({
+    required String visibility,
+    String? handle,
+    String? title,
+    String? description,
+    String? category,
+    String? encryptedMetadata,
+    bool restrictSaving = false,
+  }) =>
+      _send('POST', '/v1/channels', body: {
+        'visibility': visibility,
+        if (handle != null) 'handle': handle,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        if (category != null) 'category': category,
+        if (encryptedMetadata != null) 'encryptedMetadata': encryptedMetadata,
+        'restrictSaving': restrictSaving,
+      },);
+
+  Future<Map<String, dynamic>> myChannels() => _send('GET', '/v1/channels');
+
+  /// Search over public channels only. A private channel is never listed here.
+  Future<Map<String, dynamic>> discoverChannels({String? query, String? category}) =>
+      _send('GET', '/v1/channels/discover', query: {
+        if (query != null && query.isNotEmpty) 'q': query,
+        if (category != null && category.isNotEmpty) 'category': category,
+      },);
+
+  /// The only way to reach a private channel.
+  Future<Map<String, dynamic>> channelByInvite(String code) =>
+      _send('GET', '/v1/channels/invite/$code');
+
+  Future<Map<String, dynamic>> channel(String channelId) =>
+      _send('GET', '/v1/channels/$channelId');
+
+  Future<Map<String, dynamic>> joinChannel(String channelId, {String? inviteCode}) =>
+      _send('POST', '/v1/channels/$channelId/join', body: {
+        if (inviteCode != null) 'inviteCode': inviteCode,
+      },);
+
+  Future<void> leaveChannel(String channelId) async =>
+      _send('DELETE', '/v1/channels/$channelId/members/me');
+
+  Future<Map<String, dynamic>> channelMembers(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/members');
+
+  /// Promote or demote a member. The server refuses to grant a permission the
+  /// caller does not hold, so a rejection here is a real answer, not a bug.
+  Future<Map<String, dynamic>> setChannelRole({
+    required String channelId,
+    required String accountId,
+    required String role,
+    Map<String, dynamic>? permissions,
+  }) =>
+      _send('PUT', '/v1/channels/$channelId/members/$accountId/role', body: {
+        'role': role,
+        if (permissions != null) 'permissions': permissions,
+      },);
+
+  Future<void> removeChannelMember(String channelId, String accountId) async =>
+      _send('DELETE', '/v1/channels/$channelId/members/$accountId');
+
+  Future<Map<String, dynamic>> updateChannel(
+    String channelId, {
+    String? title,
+    String? description,
+    String? category,
+    String? encryptedMetadata,
+    bool? restrictSaving,
+  }) =>
+      _send('PATCH', '/v1/channels/$channelId', body: {
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        if (category != null) 'category': category,
+        if (encryptedMetadata != null) 'encryptedMetadata': encryptedMetadata,
+        if (restrictSaving != null) 'restrictSaving': restrictSaving,
+      },);
+
+  Future<void> deleteChannel(String channelId) async =>
+      _send('DELETE', '/v1/channels/$channelId');
+
+  /// [content] is base64 of the sealed post; the server stores it unread.
+  Future<Map<String, dynamic>> publishPost({
+    required String channelId,
+    required String content,
+    String? mediaId,
+  }) =>
+      _send('POST', '/v1/channels/$channelId/posts', body: {
+        'content': content,
+        if (mediaId != null) 'mediaId': mediaId,
+      },);
+
+  Future<Map<String, dynamic>> channelPosts(String channelId, {int? before, int limit = 50}) =>
+      _send('GET', '/v1/channels/$channelId/posts', query: {
+        if (before != null) 'before': '$before',
+        'limit': '$limit',
+      },);
+
+  Future<void> pinPost(String channelId, int postId, {required bool pinned}) async =>
+      _send('PUT', '/v1/channels/$channelId/posts/$postId/pin', body: {'pinned': pinned});
+
+  Future<void> deletePost(String channelId, int postId) async =>
+      _send('DELETE', '/v1/channels/$channelId/posts/$postId');
 
   // --- Devices --------------------------------------------------------------
 

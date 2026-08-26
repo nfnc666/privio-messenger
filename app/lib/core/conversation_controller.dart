@@ -7,6 +7,8 @@ import '../data/message_store.dart';
 import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
+import '../models/channel.dart';
+import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
 import '../models/models.dart';
@@ -325,10 +327,58 @@ class ConversationController extends ChangeNotifier {
       }
       _error = null;
       notifyListeners();
+      unawaited(_deliverGroupKeys());
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
     }
+  }
+
+  /// Hands the group name key to anyone who joined by a link.
+  ///
+  /// A group message would carry the key too, but only once somebody speaks;
+  /// this way a new member sees the group's name straight away.
+  Future<void> _deliverGroupKeys() async {
+    for (final conversation in _services.store.conversations()) {
+      final group = conversation.group;
+      final key = group?.groupKey;
+      if (group == null || key == null) continue;
+      try {
+        await _services.messaging.deliverGroupKeys(group.groupId, key);
+      } on Object {
+        continue;
+      }
+    }
+  }
+
+  /// Joins a group from a link and opens it. Returns the group id, or null with
+  /// [error] set.
+  Future<String?> joinGroupByLink(String link) async {
+    final invite = ChannelService.parseInviteLink(link);
+    if (invite == null || invite.kind != InviteKind.group) {
+      _error = 'That does not look like a Privio group link.';
+      notifyListeners();
+      return null;
+    }
+    try {
+      final group = await _services.messaging.joinGroupByCode(invite.code);
+      _services.store.upsertGroup(group);
+      await refreshGroups();
+      return group.groupId;
+    } on ApiException catch (failure) {
+      _error = failure.code == 'group_not_found'
+          ? 'That group does not exist, or the link is wrong.'
+          : failure.message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// The link to share for a group, or null if this device does not know the
+  /// code. Safe to post anywhere: it carries no key.
+  String? groupInviteLink(String groupId) {
+    final code = groupInfo(groupId)?.inviteCode;
+    return code == null ? null : ChannelService.linkForGroup(code);
   }
 
   GroupInfo? groupInfo(String groupId) => _services.store.conversationWith(groupId)?.group;
@@ -408,6 +458,9 @@ class ConversationController extends ChangeNotifier {
     _draining = true;
     try {
       await _fileResult(await _services.messaging.receive());
+      // Draining is the one thing that happens regularly, so it is also where
+      // someone waiting on a group key gets answered.
+      unawaited(_deliverGroupKeys());
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
@@ -431,6 +484,13 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> _fileIncoming(IncomingMessage incoming) async {
+    // A key delivery is machinery, not conversation: it unlocks a channel or a
+    // group name and leaves no trace in the chat.
+    if (incoming.payload.isKeyDelivery) {
+      await _storeDeliveredKey(incoming.payload);
+      return;
+    }
+
     final groupId = incoming.groupId;
     if (groupId != null) {
       await _fileGroupMessage(groupId, incoming);
@@ -473,6 +533,30 @@ class ConversationController extends ChangeNotifier {
             : null,
       ),
     );
+  }
+
+  /// Files a key that someone sealed to this device after it joined by a link.
+  ///
+  /// The sender is not checked against a list of admins: only someone who could
+  /// already read the thing has the key to send, and a key that does not open
+  /// the content is simply a key that never gets used.
+  Future<void> _storeDeliveredKey(MessagePayload payload) async {
+    final scopeId = payload.keyScopeId;
+    final key = payload.deliveredKey;
+    if (scopeId == null || key == null) return;
+
+    if (payload.keyScope == 'channel') {
+      // rememberKey signals the channel screens, so a feed of padlocks unlocks
+      // where the reader is already looking at it.
+      await _services.channels.rememberKey(scopeId, Uint8List.fromList(base64Decode(key)));
+      return;
+    }
+    if (payload.keyScope == 'group') {
+      _services.store.upsertGroup(
+        GroupInfo(groupId: scopeId, role: 'member', groupKey: key),
+      );
+      unawaited(refreshGroups());
+    }
   }
 
   /// Files a message that arrived through a group.

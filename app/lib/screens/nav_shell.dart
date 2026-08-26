@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/privio_colors.dart';
 import 'account_screen.dart';
 import 'calls_screen.dart';
+import 'channels_screen.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
 
@@ -23,9 +24,9 @@ class NavDestination {
 
 /// The tabbed shell.
 ///
-/// The brief lists five tabs, the mockups show four; Calls and Channels are both
-/// V2. The destinations are data, so shipping a new tab is one entry here rather
-/// than a rewrite. Screens keep their state across tab switches via [IndexedStack].
+/// The five tabs from the brief. The destinations are data, so shipping a new
+/// tab is one entry here rather than a rewrite. Screens keep their state across
+/// tab switches via [IndexedStack].
 class NavShell extends StatefulWidget {
   const NavShell({super.key});
 
@@ -35,6 +36,12 @@ class NavShell extends StatefulWidget {
       icon: Icons.chat_bubble_outline_rounded,
       activeIcon: Icons.chat_bubble_rounded,
       builder: (_) => const ChatsScreen(),
+    ),
+    NavDestination(
+      label: 'Channels',
+      icon: Icons.campaign_outlined,
+      activeIcon: Icons.campaign_rounded,
+      builder: (_) => const ChannelsScreen(),
     ),
     NavDestination(
       label: 'Calls',

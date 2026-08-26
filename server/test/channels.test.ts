@@ -532,4 +532,117 @@ describe('channels', () => {
     });
     assert.equal(again.statusCode, 409);
   });
+  it('a joiner is queued for the key, and a member who holds it can see the request', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'schluessel',
+      title: 'Schlüssel',
+    })).json();
+
+    await join(reader, channel.id);
+
+    // The owner sees exactly one device waiting — the reader's.
+    const pending = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/key-requests`,
+      headers: bearer(owner),
+    });
+    assert.equal(pending.statusCode, 200);
+    const requests = pending.json().requests;
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].accountId, reader.accountId);
+    assert.equal(requests[0].deviceId, reader.deviceId);
+
+    // Nothing in the request reveals a key: the server only routes the ask.
+    assert.ok(!JSON.stringify(requests[0]).includes('key'));
+
+    // Once the sealed key is on its way, the request is cleared.
+    const cleared = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/key-requests/${reader.deviceId}`,
+      headers: bearer(owner),
+    });
+    assert.equal(cleared.statusCode, 200);
+
+    const after = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/key-requests`,
+      headers: bearer(owner),
+    });
+    assert.equal(after.json().requests.length, 0);
+  });
+
+  it('does not offer its own device a key it is already waiting for', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'selbst',
+      title: 'Selbst',
+    })).json();
+    await join(reader, channel.id);
+
+    // The reader asking who is waiting must not be told about themselves.
+    const pending = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/key-requests`,
+      headers: bearer(reader),
+    });
+    assert.equal(pending.json().requests.length, 0);
+  });
+
+  it('drops a key request when the member leaves', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'weggegangen',
+      title: 'Weggegangen',
+    })).json();
+    await join(reader, channel.id);
+    await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/members/me`,
+      headers: bearer(reader),
+    });
+
+    const pending = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/key-requests`,
+      headers: bearer(owner),
+    });
+    assert.equal(pending.json().requests.length, 0);
+  });
+
+  it('refuses key requests from someone who is not a member', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'fremder',
+      title: 'Fremder',
+    })).json();
+    const response = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/key-requests`,
+      headers: bearer(reader),
+    });
+    assert.equal(response.statusCode, 403);
+  });
+  it('tells a member what they may do, not just what they are called', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'rechte',
+      title: 'Rechte',
+    })).json();
+    await join(reader, channel.id);
+
+    const mine = await h.app.inject({ method: 'GET', url: '/v1/channels', headers: bearer(owner) });
+    const listed = mine.json().channels.find((c: { id: string }) => c.id === channel.id);
+    // Without permissions on the listing a client cannot tell the owner of a
+    // channel from someone who may only read it.
+    assert.equal(listed.role, 'owner');
+    assert.equal(listed.permissions.canPost, true);
+    assert.equal(listed.permissions.canDeleteChannel, true);
+    assert.ok(listed.inviteCode, 'the link is shareable by anyone in the channel');
+
+    const theirs = await h.app.inject({ method: 'GET', url: '/v1/channels', headers: bearer(reader) });
+    const asReader = theirs.json().channels.find((c: { id: string }) => c.id === channel.id);
+    assert.equal(asReader.permissions.canPost, false);
+    assert.equal(asReader.permissions.canManageMembers, false);
+  });
 });

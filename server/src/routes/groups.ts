@@ -1,10 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction } from '../db/pool.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
+import {
+  clearKeyRequest,
+  clearKeyRequestsFor,
+  pendingKeyRequests,
+  recordKeyRequest,
+} from '../services/key_requests.js';
 
 const MAX_MEMBERS = 512;
 
@@ -58,8 +65,9 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     const invitees = [...new Set(body.memberIds)].filter((id) => id !== accountId);
     const groupId = await withTransaction(async (client) => {
       const { rows } = await client.query<{ id: string }>(
-        'INSERT INTO groups (creator_account_id, encrypted_metadata) VALUES ($1, $2) RETURNING id',
-        [accountId, body.encryptedMetadata ?? null],
+        `INSERT INTO groups (creator_account_id, encrypted_metadata, invite_code)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [accountId, body.encryptedMetadata ?? null, randomBytes(9).toString('base64url')],
       );
       const id = rows[0]!.id;
       await client.query(
@@ -85,14 +93,22 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
       return id;
     });
 
+    const { rows: codeRows } = await pool.query<{ invite_code: string }>(
+      'SELECT invite_code FROM groups WHERE id = $1',
+      [groupId],
+    );
     reply.code(201);
-    return { id: groupId, members: await membersOf(groupId) };
+    return {
+      id: groupId,
+      inviteCode: codeRows[0]!.invite_code,
+      members: await membersOf(groupId),
+    };
   });
 
   app.get('/v1/groups', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
-      `SELECT g.id, g.encrypted_metadata, g.created_at, m.role,
+      `SELECT g.id, g.encrypted_metadata, g.created_at, g.invite_code, m.role,
               (SELECT count(*) FROM group_members x WHERE x.group_id = g.id) AS member_count
        FROM group_members m JOIN groups g ON g.id = m.group_id
        WHERE m.account_id = $1 AND g.deleted_at IS NULL
@@ -103,6 +119,7 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
       groups: rows.map((r) => ({
         id: r.id,
         role: r.role,
+        inviteCode: r.invite_code,
         memberCount: Number(r.member_count),
         encryptedMetadata: r.encrypted_metadata ? (r.encrypted_metadata as Buffer).toString('base64') : null,
         createdAt: (r.created_at as Date).toISOString(),
@@ -115,13 +132,14 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const role = await requireMembership(params.id, accountId);
     const { rows } = await pool.query(
-      'SELECT id, encrypted_metadata, created_at FROM groups WHERE id = $1',
+      'SELECT id, encrypted_metadata, created_at, invite_code FROM groups WHERE id = $1',
       [params.id],
     );
     const group = rows[0]!;
     return {
       id: group.id,
       role,
+      inviteCode: group.invite_code,
       encryptedMetadata: group.encrypted_metadata ? (group.encrypted_metadata as Buffer).toString('base64') : null,
       createdAt: (group.created_at as Date).toISOString(),
       members: await membersOf(params.id),
@@ -217,6 +235,7 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
       [params.id, params.accountId],
     );
     if (!rowCount) throw ApiError.notFound('member_not_found', 'Not a member of this group');
+    await clearKeyRequestsFor('group', params.id, params.accountId);
 
     // Never strand a group without an admin: promote the longest-standing member.
     await pool.query(
@@ -252,6 +271,95 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     );
     if (!rowCount) throw ApiError.notFound('member_not_found', 'Not a member of this group');
     return { role: body.role };
+  });
+
+  /**
+   * Look a group up by its invite code.
+   *
+   * Answers with the sealed metadata and nothing else: the name of the group is
+   * encrypted, so this tells a stranger only that the code is valid.
+   */
+  app.get('/v1/groups/invite/:code', requireAuth, async (request) => {
+    auth(request);
+    const params = parse(z.object({ code: z.string().min(4).max(64) }), request.params);
+    const { rows } = await pool.query(
+      `SELECT id, encrypted_metadata, created_at,
+              (SELECT count(*) FROM group_members m WHERE m.group_id = groups.id) AS member_count
+       FROM groups WHERE invite_code = $1 AND deleted_at IS NULL`,
+      [params.code],
+    );
+    const group = rows[0];
+    if (!group) throw ApiError.notFound('group_not_found', 'No such group');
+    return {
+      id: group.id,
+      memberCount: Number(group.member_count),
+      encryptedMetadata: group.encrypted_metadata
+        ? (group.encrypted_metadata as Buffer).toString('base64')
+        : null,
+      createdAt: (group.created_at as Date).toISOString(),
+    };
+  });
+
+  /**
+   * Join with an invite code.
+   *
+   * The code is the whole of the authorisation — a group has no public
+   * directory, so holding the link is what it means to have been invited. The
+   * key to the group's name is not here; the joining device asks for it below.
+   */
+  app.post('/v1/groups/:id/join', requireAuth, async (request) => {
+    const { accountId, deviceId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(z.object({ inviteCode: z.string().min(4).max(64) }), request.body);
+
+    const { rows } = await pool.query<{ invite_code: string | null }>(
+      'SELECT invite_code FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    if (!rows[0] || rows[0].invite_code !== body.inviteCode) {
+      // A wrong code is answered the same way as a group that does not exist.
+      throw ApiError.notFound('group_not_found', 'No such group');
+    }
+
+    const { rows: sizeRows } = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM group_members WHERE group_id = $1',
+      [params.id],
+    );
+    if (Number(sizeRows[0]!.count) >= MAX_MEMBERS) {
+      throw ApiError.conflict('group_full', `Groups hold at most ${MAX_MEMBERS} members`);
+    }
+
+    const { rowCount } = await pool.query(
+      'INSERT INTO group_members (group_id, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [params.id, accountId],
+    );
+    await recordKeyRequest('group', params.id, accountId, deviceId);
+    return { joined: (rowCount ?? 0) > 0, members: await membersOf(params.id) };
+  });
+
+  // --- Key delivery ---------------------------------------------------------
+
+  app.post('/v1/groups/:id/key-requests', requireAuth, async (request) => {
+    const { accountId, deviceId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMembership(params.id, accountId);
+    await recordKeyRequest('group', params.id, accountId, deviceId);
+    return { requested: true };
+  });
+
+  app.get('/v1/groups/:id/key-requests', requireAuth, async (request) => {
+    const { accountId, deviceId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMembership(params.id, accountId);
+    return { requests: await pendingKeyRequests('group', params.id, deviceId) };
+  });
+
+  app.delete('/v1/groups/:id/key-requests/:deviceId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema, deviceId: uuidSchema }), request.params);
+    await requireMembership(params.id, accountId);
+    await clearKeyRequest('group', params.id, params.deviceId);
+    return { cleared: true };
   });
 
   app.delete('/v1/groups/:id', requireAuth, async (request) => {

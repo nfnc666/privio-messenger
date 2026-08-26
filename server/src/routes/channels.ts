@@ -7,6 +7,12 @@ import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
 import {
+  clearKeyRequest,
+  clearKeyRequestsFor,
+  pendingKeyRequests,
+  recordKeyRequest,
+} from '../services/key_requests.js';
+import {
   DEFAULT_ADMIN_PERMISSIONS,
   NO_PERMISSIONS,
   OWNER_PERMISSIONS,
@@ -176,7 +182,9 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
   app.get('/v1/channels', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
-      `SELECT c.*, m.role FROM channel_members m
+      `SELECT c.*, m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
+              m.can_manage_members, m.can_delete_channel
+       FROM channel_members m
        JOIN channels c ON c.id = m.channel_id
        WHERE m.account_id = $1 AND c.deleted_at IS NULL
        ORDER BY c.created_at DESC`,
@@ -186,8 +194,11 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       channels: rows.map((row) => ({
         ...publicView(row),
         role: row.role,
-        // Only someone who can invite needs the code.
-        inviteCode: row.role === 'subscriber' ? null : row.invite_code,
+        // Without these the client cannot tell an owner from a reader, and would
+        // hide the controls of someone who holds every permission there is.
+        permissions: permissionsFromRow(row),
+        // Anyone may pass the link on; it carries no key.
+        inviteCode: row.invite_code,
       })),
     };
   });
@@ -260,13 +271,14 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
   /**
    * Join.
    *
-   * Joining gets you the membership, not the key: the key travels in the invite
-   * link's fragment or from an admin, never through here. A client that joins a
-   * public channel it found by search still has to be given the key before any
-   * post means anything.
+   * Joining gets you the membership, not the key. An invite link is meant to be
+   * shared in public, so it carries no key; the joining device records a key
+   * request instead, and a member who already holds the key answers it with an
+   * ordinary sealed message. Until that lands, the posts stay unreadable — to
+   * the joiner and to the server alike.
    */
   app.post('/v1/channels/:id/join', requireAuth, async (request) => {
-    const { accountId } = auth(request);
+    const { accountId, deviceId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const body = parse(
       z.object({ inviteCode: z.string().min(4).max(64).optional() }),
@@ -299,6 +311,9 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     });
 
     const member = await membership(params.id, accountId);
+    // Ask for the key straight away rather than waiting for the client to think
+    // of it: a member who cannot read the channel is the common case here.
+    await recordKeyRequest('channel', params.id, accountId, deviceId);
     return { joined, role: member?.role ?? null, permissions: member?.permissions ?? null };
   });
 
@@ -322,6 +337,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
         [params.id],
       );
     });
+    await clearKeyRequestsFor('channel', params.id, accountId);
     return { left: true };
   });
 
@@ -440,6 +456,8 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
         [params.id],
       );
     });
+    // A request from someone who is no longer a member must not be answered.
+    await clearKeyRequestsFor('channel', params.id, params.accountId);
     // Removing someone does not take back what they have already read: the
     // channel key is not rotated. See docs/security-model.md.
     return { removed: true };
@@ -489,6 +507,43 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     await requirePermission(params.id, accountId, 'canDeleteChannel');
     await pool.query('UPDATE channels SET deleted_at = now() WHERE id = $1', [params.id]);
     return { deleted: true };
+  });
+
+  // --- Key delivery ---------------------------------------------------------
+
+  /** "My device still has no key for this channel." */
+  app.post('/v1/channels/:id/key-requests', requireAuth, async (request) => {
+    const { accountId, deviceId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMember(params.id, accountId);
+    await recordKeyRequest('channel', params.id, accountId, deviceId);
+    return { requested: true };
+  });
+
+  /**
+   * Who is waiting for the key.
+   *
+   * Open to any member, not just admins: the key is held by everyone who can
+   * read the channel, and making delivery wait for an admin to open the app
+   * would leave new members staring at padlocks for days.
+   */
+  app.get('/v1/channels/:id/key-requests', requireAuth, async (request) => {
+    const { accountId, deviceId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMember(params.id, accountId);
+    return { requests: await pendingKeyRequests('channel', params.id, deviceId) };
+  });
+
+  /** Called by whoever answered the request, once the sealed key is on its way. */
+  app.delete('/v1/channels/:id/key-requests/:deviceId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, deviceId: uuidSchema }),
+      request.params,
+    );
+    await requireMember(params.id, accountId);
+    await clearKeyRequest('channel', params.id, params.deviceId);
+    return { cleared: true };
   });
 
   // --- Posts ----------------------------------------------------------------
