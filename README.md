@@ -139,7 +139,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
-| **Attachments in the chat** | 🔧 | Send, receive and display work; the OS file dialog is untested (see below) |
+| **Attachments in the chat** | 🔧 | 1:1 and groups; send, receive and display work; the OS file dialog is untested (see below) |
 | **Profile pictures** | 🔧 | Encrypted end to end; same untested file dialog |
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
@@ -410,6 +410,7 @@ Among the things those tests assert:
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
 - a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away
+- a photo sent to a **group** is uploaded **once**, not once per member, and scrubbed just the same
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender

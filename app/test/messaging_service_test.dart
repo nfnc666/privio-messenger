@@ -615,6 +615,44 @@ void main() {
     expect(received.messages, isEmpty);
     expect(received.failures, hasLength(1));
   });
+  test('a photo sent to a group is uploaded once and scrubbed once', () async {
+    final group = await alice.messaging.createGroup('Wandergruppe', [bob.accountId]);
+    final photo = File('test/fixtures/photo_with_exif.jpg').readAsBytesSync();
+
+    final report = await alice.messaging.sendGroupAttachment(
+      group.groupId,
+      file: photo,
+      fileName: 'gipfel.jpg',
+      groupKey: group.groupKey,
+    );
+    expect(report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
+
+    // One upload, however many members: only the pointer is fanned out.
+    expect(server.media.length, 1);
+    final storedText = utf8.decode(server.media.values.single, allowMalformed: true);
+    expect(storedText, isNot(contains('ACME')));
+    expect(storedText, isNot(contains('gipfel.jpg')));
+
+    final envelope = server.envelopes.single;
+    expect(envelope['groupId'], group.groupId);
+    expect(
+      utf8.decode(base64Decode(envelope['content'] as String), allowMalformed: true),
+      isNot(contains('gipfel.jpg')),
+      reason: 'the file name rides inside the sealed payload',
+    );
+
+    final received = await bob.messaging.receive();
+    final payload = received.messages.single.payload;
+    expect(received.messages.single.groupId, group.groupId);
+    expect(payload.isMedia, isTrue);
+    expect(payload.fileName, 'gipfel.jpg');
+    expect(payload.groupKey, group.groupKey, reason: 'a new member still learns the name key');
+
+    final opened = await bob.messaging.openAttachment(payload);
+    expect(utf8.decode(opened, allowMalformed: true), isNot(contains('SN-4711-XYZ')));
+    expect(opened.sublist(0, 2), [0xFF, 0xD8], reason: 'still a usable JPEG');
+  });
+
   test('a group send does not burn a prekey when a session already exists', () async {
     final group = await alice.messaging.createGroup('Sparsam', [bob.accountId]);
     final before = server.accounts['bob']!.devices.single.preKeys.length;

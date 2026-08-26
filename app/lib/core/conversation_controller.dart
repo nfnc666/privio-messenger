@@ -393,9 +393,7 @@ class ConversationController extends ChangeNotifier {
     String caption = '',
   }) async {
     final conversation = _services.store.conversationWith(conversationId);
-    // Group attachments need the same per-device fan-out as group text, which
-    // is not wired yet; refusing is better than a message that never arrives.
-    if (conversation == null || conversation.isGroup) return null;
+    if (conversation == null) return null;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
     final placeholder = Message(
@@ -410,11 +408,20 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final report = await _services.messaging.sendAttachment(
-        conversation.user!.username,
-        file: file,
-        fileName: fileName,
-      );
+      // The file is uploaded once either way; what differs is whether the
+      // pointer and its key go to one account or to every member's devices.
+      final report = conversation.isGroup
+          ? await _services.messaging.sendGroupAttachment(
+              conversationId,
+              file: file,
+              fileName: fileName,
+              groupKey: conversation.group?.groupKey,
+            )
+          : await _services.messaging.sendAttachment(
+              conversation.user!.username,
+              file: file,
+              fileName: fileName,
+            );
       _services.store.updateState(conversationId, messageId, DeliveryState.sent);
       _error = null;
       _persist();
@@ -581,14 +588,25 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
+    final payload = incoming.payload;
     _services.store.append(
       groupId,
       Message(
         id: 'envelope-${incoming.envelopeId}',
-        body: incoming.payload.body,
+        body: payload.body,
         sentAt: incoming.receivedAt.toLocal(),
         isMine: false,
         senderName: senderName ?? 'Someone',
+        kind: payload.isMedia ? _kindFor(payload.mediaType!) : MessageKind.text,
+        attachment: payload.isMedia
+            ? Attachment(
+                mediaId: payload.mediaId!,
+                mediaKey: payload.mediaKey!,
+                mediaType: payload.mediaType!,
+                byteSize: payload.byteSize!,
+                fileName: payload.fileName,
+              )
+            : null,
       ),
     );
   }

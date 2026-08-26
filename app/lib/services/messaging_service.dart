@@ -405,16 +405,52 @@ class MessagingService {
     return served;
   }
 
-  /// Seals [plaintext] once per member device and posts it to the group.
+  /// Sends text to a group.
   ///
   /// There is no group-wide message key: every device gets its own Signal
   /// ciphertext, so removing a member removes their ability to read what comes
   /// after, without re-keying anything.
-  Future<int> sendToGroup(String groupId, String plaintext, {String? groupKey}) async {
-    final payload = await _withProfileKey(
-      MessagePayload.text(plaintext, groupKey: groupKey),
+  Future<int> sendToGroup(String groupId, String plaintext, {String? groupKey}) =>
+      sendPayloadToGroup(
+        groupId,
+        MessagePayload.text(plaintext, groupKey: groupKey),
+      );
+
+  /// Sends a file to a group.
+  ///
+  /// The file itself is uploaded once, sealed under its own key; only the
+  /// pointer and that key are fanned out per device. So a photo costs one
+  /// upload however many members there are, and the server still holds bytes it
+  /// cannot open.
+  Future<ScrubReport> sendGroupAttachment(
+    String groupId, {
+    required Uint8List file,
+    String? fileName,
+    String? declaredType,
+    String caption = '',
+    String? groupKey,
+  }) async {
+    final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
+    final mediaId = await _api.uploadMedia(sealed.bytes);
+
+    await sendPayloadToGroup(
+      groupId,
+      MessagePayload.media(
+        mediaId: mediaId,
+        mediaKey: base64Encode(sealed.key),
+        mediaType: sealed.report.mediaType,
+        byteSize: sealed.plainLength,
+        fileName: fileName,
+        body: caption,
+        groupKey: groupKey,
+      ),
     );
-    final encoded = payload.encode();
+    return sealed.report;
+  }
+
+  /// Seals [payload] once per member device and posts it to the group.
+  Future<int> sendPayloadToGroup(String groupId, MessagePayload payload) async {
+    final encoded = (await _withProfileKey(payload)).encode();
 
     final devices = await _api.groupDevices(groupId);
     final targets = [
