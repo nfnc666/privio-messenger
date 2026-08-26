@@ -26,6 +26,8 @@ export interface StoredEnvelope {
   type: EnvelopeType;
   senderAccountId: string | null;
   senderDeviceId: string | null;
+  /** The sender's per-account index, which is how the protocol names a session. */
+  senderDeviceIndex: number | null;
   groupId: string | null;
   content: string; // base64
   createdAt: string;
@@ -85,8 +87,11 @@ export class DeliveryService {
   /** Returns queued envelopes for a device, oldest first. */
   async fetch(deviceId: string, limit = 100): Promise<StoredEnvelope[]> {
     const { rows } = await pool.query(
-      `SELECT id, envelope_type, sender_account_id, sender_device_id, group_id, content, created_at
-       FROM envelopes WHERE recipient_device_id = $1 ORDER BY id ASC LIMIT $2`,
+      `SELECT e.id, e.envelope_type, e.sender_account_id, e.sender_device_id,
+              s.device_index AS sender_device_index, e.group_id, e.content, e.created_at
+       FROM envelopes e
+       LEFT JOIN devices s ON s.id = e.sender_device_id
+       WHERE e.recipient_device_id = $1 ORDER BY e.id ASC LIMIT $2`,
       [deviceId, limit],
     );
     return rows.map((r) => ({
@@ -94,6 +99,7 @@ export class DeliveryService {
       type: r.envelope_type as EnvelopeType,
       senderAccountId: r.sender_account_id,
       senderDeviceId: r.sender_device_id,
+      senderDeviceIndex: r.sender_device_index,
       groupId: r.group_id,
       content: (r.content as Buffer).toString('base64'),
       createdAt: (r.created_at as Date).toISOString(),

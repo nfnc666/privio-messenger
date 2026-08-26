@@ -160,6 +160,16 @@ class PrivioApiClient {
 
   // --- Devices --------------------------------------------------------------
 
+  /// How many one-time prekeys the server still holds for this device.
+  Future<int> preKeyCount() async =>
+      (await _send('GET', '/v1/keys/count'))['remaining'] as int;
+
+  Future<void> uploadPreKeys(List<Map<String, dynamic>> keys) async =>
+      _send('POST', '/v1/keys/one-time', body: {'keys': keys});
+
+  Future<void> rotateSignedPreKey(Map<String, dynamic> signedPreKey) async =>
+      _send('PUT', '/v1/keys/signed-prekey', body: signedPreKey);
+
   Future<Map<String, dynamic>> devices() => _send('GET', '/v1/devices');
 
   Future<void> revokeDevice(String deviceId) async =>

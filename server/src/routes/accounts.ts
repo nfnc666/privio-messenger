@@ -57,8 +57,8 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
           throw err;
         });
       const accountId = rows[0]!.id;
-      const deviceId = await registerDevice(client, accountId, body.device);
-      return { accountId, deviceId };
+      const device = await registerDevice(client, accountId, body.device);
+      return { accountId, ...device };
     });
 
     const session = await createSession(result.accountId, result.deviceId, request.headers['user-agent']);
@@ -66,6 +66,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return {
       accountId: result.accountId,
       deviceId: result.deviceId,
+      deviceIndex: result.deviceIndex,
       username: body.username,
       token: session.token,
       expiresAt: session.expiresAt.toISOString(),
@@ -98,11 +99,12 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const deviceId = await withTransaction((client) => registerDevice(client, account.id, body.device));
-    const session = await createSession(account.id, deviceId, request.headers['user-agent']);
+    const device = await withTransaction((client) => registerDevice(client, account.id, body.device));
+    const session = await createSession(account.id, device.deviceId, request.headers['user-agent']);
     return {
       accountId: account.id,
-      deviceId,
+      deviceId: device.deviceId,
+      deviceIndex: device.deviceIndex,
       username: account.username,
       token: session.token,
       expiresAt: session.expiresAt.toISOString(),
