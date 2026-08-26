@@ -185,4 +185,37 @@ describe('messaging', () => {
     });
     assert.equal(oversized.statusCode, 400);
   });
+  it('gives every device a stable index that survives revocation', async () => {
+    const erin = await registerUser(h.app, 'erin');
+    const second = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      payload: { username: 'erin', password: 'correct-horse-battery', device: deviceBody(deviceFixture()) },
+    });
+    assert.equal(second.json().deviceIndex, 2);
+
+    await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/devices/${second.json().deviceId}`,
+      headers: bearer(erin),
+    });
+    const third = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      payload: { username: 'erin', password: 'correct-horse-battery', device: deviceBody(deviceFixture()) },
+    });
+    assert.equal(
+      third.json().deviceIndex,
+      3,
+      'a retired index is never reused, or an old session would address a new device',
+    );
+  });
+
+  it('tells the recipient which device a message came from', async () => {
+    const frank = await registerUser(h.app, 'frank');
+    await send(alice, 'frank', [frank.deviceId], 'sealed');
+    const inbox = await h.app.inject({ method: 'GET', url: '/v1/messages', headers: bearer(frank) });
+    const envelope = inbox.json().envelopes[0];
+    assert.equal(envelope.senderDeviceIndex, 1, 'the index names the session to decrypt with');
+  });
 });

@@ -30,11 +30,20 @@ export type DeviceRegistration = z.infer<typeof deviceRegistrationSchema>;
 
 export const MAX_DEVICES_PER_ACCOUNT = 5;
 
+export interface RegisteredDevice {
+  deviceId: string;
+  deviceIndex: number;
+}
+
 export async function registerDevice(
   client: PoolClient,
   accountId: string,
   input: DeviceRegistration,
-): Promise<string> {
+): Promise<RegisteredDevice> {
+  // Serialise concurrent registrations for this account so two devices cannot
+  // race onto the same index.
+  await client.query('SELECT id FROM accounts WHERE id = $1 FOR UPDATE', [accountId]);
+
   const { rows: existing } = await client.query<{ count: string }>(
     'SELECT count(*) FROM devices WHERE account_id = $1 AND revoked_at IS NULL',
     [accountId],
@@ -43,15 +52,29 @@ export async function registerDevice(
     throw ApiError.conflict('too_many_devices', `At most ${MAX_DEVICES_PER_ACCOUNT} active devices`);
   }
 
+  const deviceIndex = await nextDeviceIndex(client, accountId);
   const { rows } = await client.query<{ id: string }>(
-    `INSERT INTO devices (account_id, name, platform, registration_id, identity_key)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [accountId, input.name, input.platform, input.registrationId, input.identityKey],
+    `INSERT INTO devices (account_id, name, platform, registration_id, identity_key, device_index)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [accountId, input.name, input.platform, input.registrationId, input.identityKey, deviceIndex],
   );
   const deviceId = rows[0]!.id;
   await storeSignedPreKey(client, deviceId, input.signedPreKey);
   await storeOneTimePreKeys(client, deviceId, input.oneTimePreKeys);
-  return deviceId;
+  return { deviceId, deviceIndex };
+}
+
+/**
+ * The lowest index not already taken on this account, counting revoked devices:
+ * reusing a retired index would let an old Signal session address a new device.
+ */
+async function nextDeviceIndex(client: PoolClient, accountId: string): Promise<number> {
+  const { rows } = await client.query<{ next_index: number }>(
+    `SELECT COALESCE(max(device_index), 0) + 1 AS next_index
+     FROM devices WHERE account_id = $1`,
+    [accountId],
+  );
+  return rows[0]!.next_index;
 }
 
 export async function storeSignedPreKey(
@@ -92,6 +115,8 @@ export async function storeOneTimePreKeys(
 
 export interface PreKeyBundle {
   deviceId: string;
+  /** Stable per-account index used to build the Signal address. */
+  deviceIndex: number;
   registrationId: number;
   identityKey: string;
   signedPreKey: { keyId: number; publicKey: string; signature: string };
@@ -106,7 +131,7 @@ export interface PreKeyBundle {
  */
 export async function fetchPreKeyBundles(accountId: string): Promise<PreKeyBundle[]> {
   const { rows: devices } = await pool.query(
-    `SELECT d.id, d.registration_id, d.identity_key,
+    `SELECT d.id, d.device_index, d.registration_id, d.identity_key,
             s.key_id AS spk_id, s.public_key AS spk_pub, s.signature AS spk_sig
      FROM devices d
      JOIN signed_prekeys s ON s.device_id = d.id
@@ -128,6 +153,7 @@ export async function fetchPreKeyBundles(accountId: string): Promise<PreKeyBundl
     );
     bundles.push({
       deviceId: device.id,
+      deviceIndex: device.device_index,
       registrationId: device.registration_id,
       identityKey: (device.identity_key as Buffer).toString('base64'),
       signedPreKey: {

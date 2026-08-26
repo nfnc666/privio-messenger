@@ -43,6 +43,8 @@ Layers, outermost first:
 | Layer | Location | Responsibility |
 | --- | --- | --- |
 | Screens | `lib/screens/` | One file per mockup screen |
+| Messaging | `lib/services/` | The only place plaintext meets the transport |
+| Crypto | `lib/crypto/` | X3DH, the Double Ratchet, and the key store |
 | Widgets | `lib/widgets/` | Shared components: rows, bubbles, avatars, the mark |
 | Theme | `lib/theme/` | The design tokens from `docs/design-system.md` |
 | State | `lib/core/app_state.dart` | Session and lock stage, via `ChangeNotifier` |
@@ -88,6 +90,8 @@ implements.
 
 1. **Sender** looks up the recipient's devices and fetches a prekey bundle for
    each (`GET /v1/keys/:username`). A one-time prekey is consumed per fetch.
+   Each bundle carries the device's stable per-account index, which is how a
+   Signal session is addressed — the UUID is only for routing.
 2. **Sender** runs X3DH per device, then seals the message once *per device*
    with the Double Ratchet. Five devices means five ciphertexts.
 3. **Sender** posts all copies in one request (`POST /v1/messages`). If the
@@ -96,8 +100,9 @@ implements.
    a retry than a phone that silently never receives the message.
 4. **Server** writes one envelope row per recipient device, publishes a wake-up
    on the bus, and sends a contentless push to devices without a live socket.
-5. **Recipient** drains its queue over the WebSocket or `GET /v1/messages`,
-   decrypts locally, writes to its local database, and only then acknowledges
+5. **Recipient** drains its queue over the WebSocket or `GET /v1/messages`.
+   Each envelope names the sender's device index, which is what identifies the
+   session to decrypt with. The recipient decrypts locally, writes to its local database, and only then acknowledges
    with `DELETE /v1/messages?upTo=`. Delivery is at-least-once until that ack,
    so a crash mid-decrypt costs a duplicate, never a lost message.
 

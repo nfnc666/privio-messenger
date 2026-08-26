@@ -26,14 +26,18 @@ protected and what is **not yet** protected, and
 
 The server implements the V1 API and is covered by 33 tests against a real
 PostgreSQL database. The client implements the V1 screens against the design
-system, verified with `flutter analyze`, widget tests, and rendered screenshots
-compared to the mockups.
+system plus the encryption layer, covered by 22 tests, and is verified with
+`flutter analyze` and rendered screenshots compared to the mockups.
 
-**Not yet done, and it matters:** the Signal Protocol layer is not wired into the
-client, so messages are not end-to-end encrypted today. The server contract for
-it — prekey bundles, per-device envelopes, opaque ciphertext — is complete and
-tested, and the client transport already speaks it. Until `libsignal` lands in
-the client, no build should go to users. See the known-gaps list in
+Messages are end-to-end encrypted: the client performs X3DH and the Double
+Ratchet, and the round trip is covered by tests asserting that a third party
+holding the ciphertext cannot open it, that a tampered envelope will not
+decrypt, and that a swapped identity key is refused.
+
+**The caveat that matters:** it runs on `libsignal_protocol_dart`, a pure-Dart
+port of libsignal rather than the official audited Rust build. Moving to the
+official library behind FFI is a pre-launch requirement, not a nice-to-have. See
+the known-gaps list in
 [`docs/security-model.md`](docs/security-model.md#known-gaps-in-the-current-implementation);
 it is deliberately blunt.
 

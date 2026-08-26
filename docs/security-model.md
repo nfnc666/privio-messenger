@@ -12,7 +12,7 @@ library that implements it.
 
 | Purpose | Choice | Where |
 | --- | --- | --- |
-| Message encryption | Signal Protocol (X3DH + Double Ratchet) | `libsignal` on the client |
+| Message encryption | Signal Protocol (X3DH + Double Ratchet) | `libsignal_protocol_dart` on the client — see gap 1 |
 | Password hashing | Argon2id, 64 MiB, t=3, p=1 | `@node-rs/argon2` (RustCrypto) |
 | Session tokens | 256-bit random, stored as SHA-256 | `node:crypto` |
 | Transport | TLS 1.3 | Platform TLS |
@@ -87,15 +87,22 @@ password. It never leaves the device.
 
 ## Key management
 
-Each device has a long-term identity key, a rotating signed prekey, and a pool
-of one-time prekeys. The server stores public halves only and hands out one
+Each device has a stable per-account index, a long-term identity key, a
+rotating signed prekey, and a pool of one-time prekeys. The index is what the
+protocol addresses a session by; it is never reused, even after a device is
+revoked, so an old session can never be pointed at a new device. The server stores public halves only and hands out one
 bundle per device on request, deleting the one-time prekey atomically so it is
 never reused. An exhausted pool still yields a usable bundle from the signed
 prekey — weaker forward secrecy for those sessions until the client tops up,
 which clients do well before the pool empties.
 
-Adding a device produces a `key_change` envelope so peers can surface a safety
-number change rather than silently trusting a new key.
+Peer identity keys are trusted on first use and pinned thereafter. A key that
+changes afterwards is **refused on send** — a server that swaps in its own key
+cannot silently read the conversation, because the user has to accept the new
+safety number first. Incoming messages from a changed key are still accepted, so
+a peer who reinstalled can reach you, and the change is surfaced rather than
+hidden. This is tested: see `a swapped identity key is refused on send` in
+`app/test/crypto_test.dart`.
 
 ## Data retention
 
@@ -113,12 +120,18 @@ number change rather than silently trusting a new key.
 These are real and tracked. Nothing here is hand-waved as "future work" without
 naming what is missing today.
 
-1. **The Signal Protocol layer is not yet wired in.** The server's contract —
-   prekey bundles, per-device envelopes, opaque ciphertext — is complete and
-   tested, and the client's transport speaks it. What is not yet in the client
-   is `libsignal` performing X3DH and the Double Ratchet, so V1 messaging is not
-   end-to-end encrypted *until that lands*. It is the next milestone and no
-   build should be shipped to users before it.
+1. **The protocol implementation is a port, not the audited original.**
+   Messages *are* end-to-end encrypted: `app/lib/crypto/` performs X3DH and the
+   Double Ratchet, and the round trip is covered by tests that assert a third
+   party holding the ciphertext cannot open it. But it runs on
+   `libsignal_protocol_dart`, a pure-Dart port of libsignal rather than the
+   official audited Rust build. A port can diverge from the original in ways
+   that matter, and this one has not been audited.
+
+   The pre-launch target is the official `libsignal` behind FFI. Every call site
+   goes through `PrivioCrypto`, so that swap is contained to one file — but
+   until it happens, this is the single largest caveat on Privio's central
+   claim, and it should be stated to users rather than glossed.
 2. **The local database is not yet encrypted.** SQLCipher integration is a V1
    milestone. The Keychain already protects the session token.
 3. **The PIN is compared, not stretched.** It is stored in the platform
