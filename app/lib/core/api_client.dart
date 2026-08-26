@@ -28,6 +28,7 @@ class PrivioApiClient {
   PrivioApiClient({required this.baseUrl, http.Client? client})
       : _client = client ?? http.Client();
 
+  /// Where the API lives. The realtime socket is derived from it.
   final Uri baseUrl;
   final http.Client _client;
 

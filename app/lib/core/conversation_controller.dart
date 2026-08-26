@@ -6,6 +6,7 @@ import '../data/message_store.dart';
 import '../media/attachment.dart';
 import '../media/metadata_scrubber.dart';
 import '../services/messaging_service.dart';
+import '../services/realtime_connection.dart';
 import '../models/models.dart';
 import 'api_client.dart';
 import 'privio_services.dart';
@@ -21,11 +22,17 @@ class ConversationController extends ChangeNotifier {
 
   final PrivioServices _services;
 
-  /// How often the queue is drained. The server also pushes over a WebSocket;
-  /// wiring that up replaces this poll and is the next step for realtime.
-  static const Duration pollInterval = Duration(seconds: 3);
+  /// How often the queue is drained *without* the socket having said anything.
+  ///
+  /// Delivery is pushed, so this is only a safety net: it covers a socket that
+  /// is connected but not delivering, and the gap between app start and the
+  /// handshake completing. Long, because the radio waking every few seconds is
+  /// exactly what the socket exists to avoid.
+  static const Duration fallbackPollInterval = Duration(minutes: 2);
 
   Timer? _poller;
+  RealtimeConnection? _realtime;
+  StreamSubscription<List<dynamic>>? _realtimeEnvelopes;
   Timer? _saveDebounce;
   bool _draining = false;
 
@@ -110,15 +117,48 @@ class ConversationController extends ChangeNotifier {
     await _services.archive.save(_services.store.conversations());
   }
 
-  /// Starts draining the queue. Safe to call more than once.
-  void start() {
-    _poller ??= Timer.periodic(pollInterval, (_) => drain());
+  /// Whether the realtime socket is currently up.
+  ValueListenable<bool>? get connected => _realtime?.connected;
+
+  /// Opens the realtime socket and starts the fallback poll. Safe to call more
+  /// than once.
+  void start({String? token}) {
+    _poller ??= Timer.periodic(fallbackPollInterval, (_) => drain());
+    if (token != null) _openRealtime(token);
     unawaited(drain());
+  }
+
+  void _openRealtime(String token) {
+    if (_realtime != null) return;
+    final realtime = RealtimeConnection(
+      baseUrl: _services.api.baseUrl,
+      token: token,
+    );
+    _realtime = realtime;
+    _realtimeEnvelopes = realtime.envelopes.listen(_onPushedEnvelopes);
+    realtime.start();
+  }
+
+  /// Envelopes pushed down the socket. Acknowledged on the same socket, and
+  /// only once they have been decrypted and filed.
+  Future<void> _onPushedEnvelopes(List<dynamic> envelopes) async {
+    try {
+      final result = await _services.messaging.decryptEnvelopes(envelopes);
+      await _fileResult(result);
+      if (result.highestHandled > 0) _realtime?.acknowledge(result.highestHandled);
+    } on Object catch (failure) {
+      _error = failure is ApiException ? failure.message : 'Could not read a message';
+      notifyListeners();
+    }
   }
 
   void stop() {
     _poller?.cancel();
     _poller = null;
+    unawaited(_realtimeEnvelopes?.cancel());
+    _realtimeEnvelopes = null;
+    unawaited(_realtime?.close());
+    _realtime = null;
   }
 
   @override
@@ -305,23 +345,27 @@ class ConversationController extends ChangeNotifier {
     if (_draining) return;
     _draining = true;
     try {
-      final result = await _services.messaging.receive();
-      if (result.messages.isEmpty && result.failures.isEmpty) return;
-
-      for (final incoming in result.messages) {
-        await _fileIncoming(incoming);
-      }
-      if (result.messages.isNotEmpty) _persist();
-      if (result.failures.isNotEmpty) {
-        _error = '${result.failures.length} message(s) could not be decrypted';
-      }
-      notifyListeners();
+      await _fileResult(await _services.messaging.receive());
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
     } finally {
       _draining = false;
     }
+  }
+
+  /// Files a decrypted batch, whichever channel it arrived on.
+  Future<void> _fileResult(ReceiveResult result) async {
+    if (result.messages.isEmpty && result.failures.isEmpty) return;
+
+    for (final incoming in result.messages) {
+      await _fileIncoming(incoming);
+    }
+    if (result.messages.isNotEmpty) _persist();
+    if (result.failures.isNotEmpty) {
+      _error = '${result.failures.length} message(s) could not be decrypted';
+    }
+    notifyListeners();
   }
 
   Future<void> _fileIncoming(IncomingMessage incoming) async {

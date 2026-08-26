@@ -35,6 +35,7 @@ class AppState extends ChangeNotifier {
   String? _username;
   String? _accountId;
   double _initProgress = 0;
+  String? _sessionToken;
   bool _biometricsAvailable = false;
   bool _busy = false;
   String? _authError;
@@ -85,6 +86,7 @@ class AppState extends ChangeNotifier {
       _stage = AppStage.welcome;
     } else {
       services.api.useToken(token);
+      _sessionToken = token;
       _stage = hasPin ? AppStage.locked : AppStage.ready;
       if (_stage == AppStage.ready) _onSignedIn();
     }
@@ -129,6 +131,7 @@ class AppState extends ChangeNotifier {
     try {
       final result = await call();
       final token = result['token'] as String;
+      _sessionToken = token;
       _username = result['username'] as String;
       _accountId = result['accountId'] as String;
       services.api.useToken(token);
@@ -192,7 +195,7 @@ class AppState extends ChangeNotifier {
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations;
-    unawaited(controller.restore().then((_) => controller.start()));
+    unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
   }
@@ -237,6 +240,7 @@ class AppState extends ChangeNotifier {
       // A dead session on the server is no reason to keep one on the device.
     }
     services.api.useToken(null);
+    _sessionToken = null;
     services.store.clear();
     await services.archive.clear();
     await _store.wipe();

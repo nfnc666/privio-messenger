@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-111%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-121%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -99,7 +99,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Groups** | ✅ | Membership, admin roles, encrypted group metadata |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Sealed with a recovery key the server never sees |
-| **Realtime delivery** | ✅ | WebSocket with at-least-once semantics |
+| **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | ✅ | Contentless wake-ups; APNs/FCM see no metadata |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
@@ -108,7 +108,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
 | **Attachments in the chat** | 🔧 | Send, receive and display work; the OS file dialog is untested (see below) |
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
-| **Realtime over WebSocket** | 🔧 | The server pushes; the client still polls every 3s |
+| **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
 | **Channels** | 📋 | V2 |
 | **Disguise mode** | 📋 | V2 — the calculator skin |
@@ -311,10 +311,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  36 passing
+#  37 passing
 
 cd app && flutter analyze && flutter test
-#  75 passing
+#  84 passing
 ```
 
 Among the things those tests assert:
@@ -330,6 +330,7 @@ Among the things those tests assert:
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
 - a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away
+- a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender
 

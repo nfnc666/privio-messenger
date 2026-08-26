@@ -144,6 +144,10 @@ in a breach.
   and an unknown user still pays an Argon2 verification so the timing matches.
 - Sessions are opaque 256-bit tokens; the database stores only SHA-256. A
   database leak yields no usable session.
+- The realtime socket carries its token in the query string, because a browser
+  cannot set a header on a WebSocket handshake. The server redacts it from
+  request logs — a token written into a log file outlives the request and grants
+  a working session to whoever reads it.
 - Rate limits: 10 attempts per 5 minutes per address on the auth endpoints, 300
   per minute per device elsewhere.
 
