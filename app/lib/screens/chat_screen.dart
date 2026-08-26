@@ -1,9 +1,13 @@
+import 'dart:async';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/scrub_notice.dart';
 
 /// One conversation. Everything shown here was decrypted on this device, and
 /// everything typed here is sealed before it leaves it.
@@ -40,6 +44,45 @@ class _ChatScreenState extends State<ChatScreen> {
     _composer.clear();
     await PrivioScope.of(context).conversations.send(widget.accountId, text);
     _scrollToEnd();
+  }
+
+  /// Picks a file and sends it. The bytes are read into memory rather than
+  /// handed over as a path, because they have to be scrubbed and sealed before
+  /// anything leaves the device.
+  Future<void> _attach() async {
+    FilePickerResult? picked;
+    try {
+      // A platform whose picker is missing answers with a future that never
+      // completes, which looks to the user like a button that does nothing. The
+      // timeout turns that into a message they can act on.
+      picked = await FilePicker.pickFiles(withData: true)
+          .timeout(const Duration(minutes: 2));
+    } on TimeoutException {
+      if (mounted) _showError('The file picker did not respond.');
+      return;
+    } on Object catch (failure) {
+      if (mounted) _showError('Could not open the file picker: $failure');
+      return;
+    }
+
+    final file = picked?.files.singleOrNull;
+    if (file == null || !mounted) return;
+    if (file.bytes == null) {
+      _showError('Could not read ${file.name}.');
+      return;
+    }
+
+    final report = await PrivioScope.of(context).conversations.sendAttachment(
+          widget.accountId,
+          file: file.bytes!,
+          fileName: file.name,
+        );
+    _scrollToEnd();
+    if (report != null && mounted) ScrubNotice.show(context, report);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _scrollToEnd() {
@@ -115,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               if (state.conversations.error != null)
                 _ErrorBanner(message: state.conversations.error!),
-              _Composer(controller: _composer, onSend: _send),
+              _Composer(controller: _composer, onSend: _send, onAttach: _attach),
             ],
           ),
         );
@@ -147,10 +190,15 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 class _Composer extends StatelessWidget {
-  const _Composer({required this.controller, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.onSend,
+    required this.onAttach,
+  });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +218,9 @@ class _Composer extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              onPressed: () {},
+              onPressed: onAttach,
               icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
-              tooltip: 'Attach',
+              tooltip: 'Attach a file',
             ),
             Expanded(
               child: TextField(

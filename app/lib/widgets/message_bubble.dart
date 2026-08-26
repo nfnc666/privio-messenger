@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
+import '../core/app_state.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 
@@ -52,9 +55,13 @@ class MessageBubble extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(color: PrivioColors.accentBright),
                 ),
               ),
-            if (message.kind == MessageKind.voice)
+            if (message.attachment != null) ...[
+              _AttachmentView(attachment: message.attachment!),
+              if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+            ],
+            if (message.kind == MessageKind.voice && message.attachment == null)
               _VoiceNote(duration: message.voiceDuration ?? Duration.zero, mine: mine)
-            else
+            else if (message.body.isNotEmpty)
               Text(message.body, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 3),
             Row(
@@ -79,6 +86,121 @@ class MessageBubble extends StatelessWidget {
 
   static String _formatTime(DateTime time) =>
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+}
+
+/// Renders an attachment: images inline once decrypted, everything else as a
+/// file row. Nothing is fetched until the bubble is on screen, and nothing is
+/// ever written to disk in the clear.
+class _AttachmentView extends StatelessWidget {
+  const _AttachmentView({required this.attachment});
+
+  final Attachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = PrivioScope.of(context).conversations;
+
+    return FutureBuilder<Uint8List?>(
+      future: controller.attachmentBytes(attachment),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _AttachmentPlaceholder(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        final bytes = snapshot.data;
+        if (bytes == null) {
+          return _FileRow(attachment: attachment, failed: true);
+        }
+        if (!attachment.isImage) {
+          return _FileRow(attachment: attachment);
+        }
+        return ClipRRect(
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            // A file that claims to be an image but is not must not take the
+            // bubble down with it.
+            errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AttachmentPlaceholder extends StatelessWidget {
+  const _AttachmentPlaceholder({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 180,
+        height: 120,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: PrivioColors.surfaceHigh,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        child: child,
+      );
+}
+
+class _FileRow extends StatelessWidget {
+  const _FileRow({required this.attachment, this.failed = false});
+
+  final Attachment attachment;
+  final bool failed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: PrivioColors.surfaceHigh,
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+          child: Icon(
+            failed
+                ? Icons.error_outline_rounded
+                : attachment.isVideo
+                    ? Icons.videocam_outlined
+                    : Icons.insert_drive_file_outlined,
+            size: 20,
+            color: failed ? PrivioColors.danger : PrivioColors.textSecondary,
+          ),
+        ),
+        const SizedBox(width: PrivioSpacing.sm),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 180),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                attachment.fileName ?? 'File',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                failed ? 'Could not open' : attachment.readableSize,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: failed ? PrivioColors.danger : PrivioColors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Sent is a single grey tick, delivered two, read two in accent green.

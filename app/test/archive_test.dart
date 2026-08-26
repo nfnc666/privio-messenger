@@ -140,4 +140,65 @@ void main() {
     expect(first, isNot(second), reason: 'reusing a GCM nonce would be catastrophic');
     expect(AesGcm.with256bits().nonceLength, 12);
   });
+  test('an attachment survives a restart with its key', () async {
+    final withFile = [
+      Conversation(
+        user: const KnownUser(accountId: 'acc-bob', username: 'bob'),
+        messages: [
+          Message(
+            id: '1',
+            body: 'Schau mal',
+            sentAt: DateTime.utc(2026, 3, 4, 18, 32),
+            isMine: false,
+            kind: MessageKind.photo,
+            attachment: const Attachment(
+              mediaId: 'media-77',
+              mediaKey: 'a2V5LWJhc2U2NA==',
+              mediaType: 'image/jpeg',
+              byteSize: 20481,
+              fileName: 'urlaub.jpg',
+            ),
+          ),
+        ],
+      ),
+    ];
+
+    await archive.save(withFile);
+    final restored = await archive.load();
+    final attachment = restored.single.messages.single.attachment!;
+
+    // Without the key the file is gone forever, so it has to be persisted too.
+    expect(attachment.mediaId, 'media-77');
+    expect(attachment.mediaKey, 'a2V5LWJhc2U2NA==');
+    expect(attachment.fileName, 'urlaub.jpg');
+    expect(attachment.readableSize, '20 KB');
+    expect(restored.single.messages.single.kind, MessageKind.photo);
+  });
+
+  test('an attachment key is not readable at rest either', () async {
+    await archive.save([
+      Conversation(
+        user: const KnownUser(accountId: 'acc-bob', username: 'bob'),
+        messages: [
+          Message(
+            id: '1',
+            body: '',
+            sentAt: DateTime.utc(2026, 3, 4),
+            isMine: true,
+            attachment: const Attachment(
+              mediaId: 'media-77',
+              mediaKey: 'SEHR-GEHEIMER-SCHLUESSEL',
+              mediaType: 'image/jpeg',
+              byteSize: 10,
+              fileName: 'reisepass.jpg',
+            ),
+          ),
+        ],
+      ),
+    ]);
+
+    final atRest = utf8.decode(storage.bytes!, allowMalformed: true);
+    expect(atRest, isNot(contains('SEHR-GEHEIMER-SCHLUESSEL')));
+    expect(atRest, isNot(contains('reisepass')));
+  });
 }

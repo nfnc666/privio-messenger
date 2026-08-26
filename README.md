@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-106%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-111%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -106,6 +106,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
+| **Attachments in the chat** | 🔧 | Send, receive and display work; the OS file dialog is untested (see below) |
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime over WebSocket** | 🔧 | The server pushes; the client still polls every 3s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
@@ -222,6 +223,11 @@ paragraph. Every payload is padded into a doubling bucket before it is sealed, s
 the server observes a handful of sizes instead of a continuum — and a text
 message is indistinguishable from a photo being sent.
 
+Attachments are padded the same way. Be precise about what that buys: for short
+messages it is near-total, since everything under 256 bytes looks identical. For
+a large file it means an observer learns the size only to within a factor of two,
+which is a real improvement over the exact byte count but is not invisibility.
+
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.
 
@@ -308,7 +314,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  36 passing
 
 cd app && flutter analyze && flutter test
-#  70 passing
+#  75 passing
 ```
 
 Among the things those tests assert:
@@ -322,6 +328,8 @@ Among the things those tests assert:
 - a different key **cannot** read that archive, and a tampered one is discarded
 - a photo's **GPS, camera model and serial number** are gone from what the recipient receives
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
+- a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
+- a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender
 

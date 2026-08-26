@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
@@ -15,7 +17,9 @@ import 'package:privio/services/messaging_service.dart';
 class FakeServer {
   final Map<String, FakeAccount> accounts = {};
   final List<Map<String, dynamic>> envelopes = [];
+  final Map<String, List<int>> media = {};
   int _nextEnvelopeId = 1;
+  int _nextMediaId = 1;
 
   /// How many of the next sends answer with a stale-device-list rejection.
   int mismatchesToServe = 0;
@@ -41,6 +45,20 @@ class FakeServer {
   http.Client clientFor(String deviceId) => MockClient((request) async {
         final path = request.url.path;
         final method = request.method;
+
+        if (method == 'POST' && path == '/v1/media') {
+          final id = 'media-${_nextMediaId++}';
+          media[id] = request.bodyBytes;
+          return _json({'id': id, 'byteSize': request.bodyBytes.length}, status: 201);
+        }
+
+        if (method == 'GET' && path.startsWith('/v1/media/')) {
+          final id = path.split('/').last;
+          final stored = media[id];
+          if (stored == null) return _json({'error': 'media_not_found'}, status: 404);
+          return http.Response.bytes(stored, 200,
+              headers: {'content-type': 'application/octet-stream'},);
+        }
 
         if (method == 'GET' && path.startsWith('/v1/keys/count')) {
           final device = _deviceById(deviceId);
@@ -309,5 +327,85 @@ void main() {
     final device = server.accounts['alice']!.devices.single;
     final ids = device.preKeys.map((k) => k['keyId'] as int).toList();
     expect(ids.toSet(), hasLength(ids.length), reason: 'no reused prekey ids');
+  });
+  test('a photo arrives with its metadata stripped', () async {
+    final photo = File('test/fixtures/photo_with_exif.jpg').readAsBytesSync();
+    // The fixture really does carry a camera model, a serial number and GPS.
+    expect(utf8.decode(photo, allowMalformed: true), contains('ACME Ultra 12 Pro'));
+
+    final report = await alice.messaging.sendAttachment(
+      'bob',
+      file: photo,
+      fileName: 'urlaub.jpg',
+    );
+    expect(report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
+
+    // What the server now holds must give nothing away.
+    final stored = server.media.values.single;
+    final storedText = utf8.decode(stored, allowMalformed: true);
+    expect(storedText, isNot(contains('ACME')));
+    expect(storedText, isNot(contains('urlaub.jpg')));
+    expect(utf8.decode(base64Decode(server.envelopes.single['content'] as String),
+        allowMalformed: true,), isNot(contains('urlaub.jpg')),);
+
+    final received = await bob.messaging.receive();
+    final payload = received.messages.single.payload;
+    expect(payload.isMedia, isTrue);
+    expect(payload.fileName, 'urlaub.jpg', reason: 'the name rides inside the sealed message');
+    expect(payload.mediaType, 'image/jpeg');
+
+    final opened = await bob.messaging.openAttachment(payload);
+    final openedText = utf8.decode(opened, allowMalformed: true);
+    expect(openedText, isNot(contains('ACME')), reason: 'no camera or serial number');
+    expect(openedText, isNot(contains('SN-4711-XYZ')));
+    expect(opened.sublist(0, 2), [0xFF, 0xD8], reason: 'still a usable JPEG');
+  });
+
+  test('upload size is a bucket, never the file’s real size', () async {
+    // Files of different real sizes that land in the same bucket become
+    // indistinguishable; the exact size is never on the wire.
+    for (final length in [40, 100, 200]) {
+      await alice.messaging.sendAttachment(
+        'bob',
+        file: Uint8List.fromList(List.filled(length, 7)),
+        fileName: 'datei-$length.bin',
+      );
+    }
+
+    final sizes = server.media.values.map((bytes) => bytes.length).toSet();
+    expect(sizes, hasLength(1), reason: '40, 100 and 200 bytes all look the same');
+    expect(sizes.single, isNot(anyOf(40, 100, 200)));
+
+    // A larger file steps to the next bucket rather than revealing its length:
+    // an observer learns the size only to within a factor of two.
+    await alice.messaging.sendAttachment(
+      'bob',
+      file: Uint8List.fromList(List.filled(300, 9)),
+      fileName: 'groesser.bin',
+    );
+    final withLarger = server.media.values.map((bytes) => bytes.length).toSet();
+    expect(withLarger, hasLength(2));
+    expect(withLarger.reduce((a, b) => a > b ? a : b), isNot(300));
+  });
+
+  test('a file the server tampered with will not open', () async {
+    final payloadSource = await alice.messaging.sendAttachment(
+      'bob',
+      file: File('test/fixtures/image_with_text.png').readAsBytesSync(),
+      fileName: 'bild.png',
+    );
+    expect(payloadSource.recognised, isTrue);
+
+    final id = server.media.keys.single;
+    final tampered = [...server.media[id]!];
+    tampered[tampered.length ~/ 2] ^= 0xFF;
+    server.media[id] = tampered;
+
+    final received = await bob.messaging.receive();
+    await expectLater(
+      bob.messaging.openAttachment(received.messages.single.payload),
+      throwsA(isA<Exception>()),
+      reason: 'a modified file must fail rather than be shown as genuine',
+    );
   });
 }

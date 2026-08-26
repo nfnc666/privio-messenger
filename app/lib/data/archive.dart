@@ -193,10 +193,29 @@ class EncryptedMessageArchive implements MessageArchive {
                   'kind': message.kind.name,
                   'state': message.state.name,
                   if (message.senderName != null) 'senderName': message.senderName,
+                  if (message.attachment != null)
+                    'attachment': {
+                      'mediaId': message.attachment!.mediaId,
+                      'mediaKey': message.attachment!.mediaKey,
+                      'mediaType': message.attachment!.mediaType,
+                      'byteSize': message.attachment!.byteSize,
+                      if (message.attachment!.fileName != null)
+                        'fileName': message.attachment!.fileName,
+                    },
                 },
             ],
           },
       ];
+
+  static Attachment? _decodeAttachment(Map<String, dynamic>? raw) => raw == null
+      ? null
+      : Attachment(
+          mediaId: raw['mediaId'] as String,
+          mediaKey: raw['mediaKey'] as String,
+          mediaType: raw['mediaType'] as String,
+          byteSize: raw['byteSize'] as int,
+          fileName: raw['fileName'] as String?,
+        );
 
   static List<Conversation> _decode(List<dynamic> raw) => [
         for (final entry in raw.cast<Map<String, dynamic>>())
@@ -216,6 +235,7 @@ class EncryptedMessageArchive implements MessageArchive {
                   kind: MessageKind.values.byName(message['kind'] as String? ?? 'text'),
                   state: DeliveryState.values.byName(message['state'] as String? ?? 'read'),
                   senderName: message['senderName'] as String?,
+                  attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
                 ),
             ],
           )..unreadCount = entry['unreadCount'] as int? ?? 0,
