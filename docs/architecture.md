@@ -44,7 +44,8 @@ Layers, outermost first:
 | --- | --- | --- |
 | Screens | `lib/screens/` | One file per mockup screen |
 | Messaging | `lib/services/` | The only place plaintext meets the transport |
-| Conversations | `lib/core/conversation_controller.dart` | Drives the screens; polls the queue every 3s |
+| Conversations | `lib/core/conversation_controller.dart` | Drives the screens and files what arrives |
+| Realtime | `lib/services/realtime_connection.dart` | The delivery socket, with reconnect and backoff |
 | Crypto | `lib/crypto/` | X3DH, the Double Ratchet, and the key store |
 | Archive | `lib/data/` | The decrypted history, sealed at rest with AES-256-GCM |
 | Media | `lib/media/` | Metadata scrubbing, per-file encryption, size padding |
@@ -83,6 +84,11 @@ membership, the envelope queue, and pointers to blobs. Read `migrations/001_init
 top to bottom: every column that could carry content is a `bytea` the server
 cannot interpret.
 
+The socket authenticates with the session token in the query string, because a
+browser cannot set a header on a WebSocket handshake. The server redacts that
+parameter from its request logs, so a token cannot outlive its request by being
+written down.
+
 **Redis** is optional. Without it the delivery bus runs in-process, which is
 correct for a single instance. Add it when the second instance goes up.
 
@@ -105,9 +111,10 @@ implements.
    a retry than a phone that silently never receives the message.
 4. **Server** writes one envelope row per recipient device, publishes a wake-up
    on the bus, and sends a contentless push to devices without a live socket.
-5. **Recipient** drains its queue with `GET /v1/messages` (the client polls
-   every three seconds today; the WebSocket the server already serves replaces
-   that poll next).
+5. **Recipient** receives the envelopes pushed down its WebSocket, and
+   acknowledges on that same socket once they are decrypted and filed. A slow
+   poll (every two minutes) stays as a safety net for a socket that is connected
+   but not delivering, and to cover the gap before the handshake completes.
    Each envelope names the sender's device index, which is what identifies the
    session to decrypt with. The recipient decrypts locally, writes to its local database, and only then acknowledges
    with `DELETE /v1/messages?upTo=`. Delivery is at-least-once until that ack,

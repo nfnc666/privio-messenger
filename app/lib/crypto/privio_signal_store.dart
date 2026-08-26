@@ -46,6 +46,14 @@ class PrivioSignalStore extends SignalProtocolStore {
   static const _preKeyPrefix = 'prekey/';
   static const _signedPreKeyPrefix = 'signed_prekey/';
   static const _trustedPrefix = 'trusted/';
+  static const _profileKeyKey = 'profile_key';
+
+  Future<Uint8List?> readProfileKey() async {
+    final stored = await _storage.readBytes(_profileKeyKey);
+    return stored == null ? null : Uint8List.fromList(stored);
+  }
+
+  Future<void> writeProfileKey(Uint8List key) => _storage.writeBytes(_profileKeyKey, key);
 
   String _addressKey(String prefix, SignalProtocolAddress address) =>
       '$prefix${address.getName()}.${address.getDeviceId()}';

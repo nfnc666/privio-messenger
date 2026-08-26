@@ -85,6 +85,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             leading: PrivioAvatar(
                               label: contact.displayName,
                               seed: contact.avatarSeed,
+                              imageBytes: contact.avatarBytes,
                             ),
                             title: Text(
                               contact.displayName,

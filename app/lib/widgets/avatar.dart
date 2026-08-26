@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -15,6 +17,7 @@ class PrivioAvatar extends StatelessWidget {
     this.seed = 0,
     this.presence = Presence.hidden,
     this.isGroup = false,
+    this.imageBytes,
   });
 
   final String label;
@@ -22,6 +25,10 @@ class PrivioAvatar extends StatelessWidget {
   final int seed;
   final Presence presence;
   final bool isGroup;
+
+  /// The decrypted profile picture. Null until this device has both the pointer
+  /// and the owner's profile key, which is the normal state for a stranger.
+  final Uint8List? imageBytes;
 
   static const List<Color> _tints = [
     Color(0xFF1F2937),
@@ -55,17 +62,22 @@ class PrivioAvatar extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+            clipBehavior: Clip.antiAlias,
             alignment: Alignment.center,
-            child: isGroup
-                ? Icon(Icons.group_rounded, size: size * 0.5, color: PrivioColors.textSecondary)
-                : Text(
-                    _initials,
-                    style: TextStyle(
-                      fontSize: size * 0.36,
-                      fontWeight: FontWeight.w600,
-                      color: PrivioColors.textPrimary,
-                    ),
-                  ),
+            child: switch (this) {
+              _ when imageBytes != null => Image.memory(
+                  imageBytes!,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  // A picture that will not decode falls back to initials
+                  // rather than a broken box.
+                  errorBuilder: (_, __, ___) => _Initials(text: _initials, size: size),
+                ),
+              _ when isGroup =>
+                Icon(Icons.group_rounded, size: size * 0.5, color: PrivioColors.textSecondary),
+              _ => _Initials(text: _initials, size: size),
+            },
           ),
           if (presence == Presence.online)
             Positioned(
@@ -85,4 +97,21 @@ class PrivioAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+class _Initials extends StatelessWidget {
+  const _Initials({required this.text, required this.size});
+
+  final String text;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: TextStyle(
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w600,
+          color: PrivioColors.textPrimary,
+        ),
+      );
 }

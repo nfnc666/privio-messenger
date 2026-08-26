@@ -26,9 +26,30 @@ export interface AppDependencies {
   storage?: BlobStorage;
 }
 
+/** Replaces the value of any credential-bearing query parameter with a marker. */
+export function redactSecrets(url: string): string {
+  return url.replace(/([?&](?:token|access_token)=)[^&]*/gi, '$1REDACTED');
+}
+
 export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: { level: config.LOG_LEVEL },
+    logger: {
+      level: config.LOG_LEVEL,
+      serializers: {
+        // Browsers cannot set headers on a WebSocket handshake, so the session
+        // token has to ride in the query string. It must not then be copied into
+        // the logs, where it would outlive the request and grant whoever reads
+        // them a working session.
+        req(request) {
+          return {
+            method: request.method,
+            url: redactSecrets(request.url),
+            host: request.headers.host,
+            remoteAddress: request.ip,
+          };
+        },
+      },
+    },
     // Client IPs matter for rate limiting; trust the reverse proxy in front.
     trustProxy: true,
     bodyLimit: config.MAX_ENVELOPE_BYTES * 300,

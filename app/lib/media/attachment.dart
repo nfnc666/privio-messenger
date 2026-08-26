@@ -50,18 +50,32 @@ abstract final class AttachmentCipher {
     String? declaredType,
   }) async {
     final scrubbed = MetadataScrubber.scrub(file, declaredType: declaredType);
-    final padded = MessagePadding.pad(scrubbed.bytes);
-
     final key = await _cipher.newSecretKey();
-    final box = await _cipher.encrypt(padded, secretKey: key);
-
     return SealedAttachment(
-      bytes: Uint8List.fromList(
-        [_formatVersion, ...box.nonce, ...box.cipherText, ...box.mac.bytes],
-      ),
+      bytes: await _sealScrubbed(scrubbed.bytes, key),
       key: Uint8List.fromList(await key.extractBytes()),
       report: scrubbed.report,
       plainLength: scrubbed.bytes.length,
+    );
+  }
+
+  /// Seals under a caller-supplied key.
+  ///
+  /// Used for profile pictures, where every contact must be able to open the
+  /// same file and so a fresh per-file key would defeat the purpose.
+  static Future<Uint8List> sealWithKey(
+    Uint8List file, {
+    required Uint8List key,
+    String? declaredType,
+  }) async {
+    final scrubbed = MetadataScrubber.scrub(file, declaredType: declaredType);
+    return _sealScrubbed(scrubbed.bytes, SecretKey(key));
+  }
+
+  static Future<Uint8List> _sealScrubbed(Uint8List scrubbed, SecretKey key) async {
+    final box = await _cipher.encrypt(MessagePadding.pad(scrubbed), secretKey: key);
+    return Uint8List.fromList(
+      [_formatVersion, ...box.nonce, ...box.cipherText, ...box.mac.bytes],
     );
   }
 
@@ -93,7 +107,7 @@ abstract final class AttachmentCipher {
 /// Serialised, padded and sealed as one unit, so the server cannot tell a photo
 /// from a sentence — only that something was sent.
 class MessagePayload {
-  const MessagePayload.text(this.body)
+  const MessagePayload.text(this.body, {this.profileKey})
       : mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -107,6 +121,7 @@ class MessagePayload {
     required int this.byteSize,
     this.fileName,
     this.body = '',
+    this.profileKey,
   });
 
   factory MessagePayload.decode(String raw) {
@@ -120,6 +135,7 @@ class MessagePayload {
     }
     if (json == null || json['v'] != 1) return MessagePayload.text(raw);
 
+    final profileKey = json['pk'] as String?;
     if (json['t'] == 'media') {
       return MessagePayload.media(
         mediaId: json['id'] as String,
@@ -128,9 +144,10 @@ class MessagePayload {
         byteSize: json['s'] as int,
         fileName: json['n'] as String?,
         body: json['b'] as String? ?? '',
+        profileKey: profileKey,
       );
     }
-    return MessagePayload.text(json['b'] as String? ?? '');
+    return MessagePayload.text(json['b'] as String? ?? '', profileKey: profileKey);
   }
 
   /// A caption, or the message text.
@@ -147,12 +164,20 @@ class MessagePayload {
   final String? mediaType;
   final int? byteSize;
 
+  /// The sender's profile key, base64, attached to every message they send.
+  ///
+  /// This is how a contact comes to be able to open your profile picture: it
+  /// rides inside the sealed payload, so the server never learns it and only
+  /// people you have actually written to can use it.
+  final String? profileKey;
+
   bool get isMedia => mediaId != null;
 
   String encode() => jsonEncode({
         'v': 1,
         't': isMedia ? 'media' : 'text',
         'b': body,
+        if (profileKey != null) 'pk': profileKey,
         if (isMedia) ...{
           'id': mediaId,
           'k': mediaKey,

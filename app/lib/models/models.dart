@@ -12,6 +12,7 @@ class Contact {
     required this.displayName,
     this.presence = Presence.hidden,
     this.avatarSeed = 0,
+    this.avatarBytes,
   });
 
   final String id;
@@ -19,6 +20,9 @@ class Contact {
   final String displayName;
   final Presence presence;
   final int avatarSeed;
+
+  /// Set once the picture has been downloaded and decrypted on this device.
+  final Uint8List? avatarBytes;
 
   String get initials {
     final parts = displayName.trim().split(RegExp(r'\s+'));
@@ -123,6 +127,7 @@ class ChatSummary {
     this.previewKind = MessageKind.text,
     this.presence = Presence.hidden,
     this.avatarSeed = 0,
+    this.avatarBytes,
   });
 
   final String id;
@@ -138,6 +143,9 @@ class ChatSummary {
   final MessageKind previewKind;
   final Presence presence;
   final int avatarSeed;
+
+  /// The decrypted profile picture, when this device has it.
+  final Uint8List? avatarBytes;
 }
 
 enum CallDirection { incoming, outgoing, missed }

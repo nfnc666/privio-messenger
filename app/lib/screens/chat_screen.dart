@@ -116,6 +116,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   size: 34,
                   seed: widget.accountId.hashCode.abs(),
                   isGroup: widget.isGroup,
+                  imageBytes: state.conversations.avatarFor(widget.accountId),
                 ),
                 const SizedBox(width: PrivioSpacing.md),
                 Expanded(

@@ -28,6 +28,7 @@ class PrivioApiClient {
   PrivioApiClient({required this.baseUrl, http.Client? client})
       : _client = client ?? http.Client();
 
+  /// Where the API lives. The realtime socket is derived from it.
   final Uri baseUrl;
   final http.Client _client;
 
@@ -113,6 +114,12 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> updatePrivacy(Map<String, dynamic> privacy) =>
       _send('PATCH', '/v1/accounts/me', body: {'privacy': privacy});
+
+  /// Points the account at an already-uploaded, already-sealed picture.
+  Future<void> setAvatar(String mediaId) async =>
+      _send('PUT', '/v1/accounts/me/avatar', body: {'mediaId': mediaId});
+
+  Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
   // --- Contacts -------------------------------------------------------------
 

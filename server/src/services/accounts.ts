@@ -10,6 +10,8 @@ export interface AccountRow {
   totp_enabled_at: Date | null;
   wipe_code_hash: string | null;
   privacy: PrivacySettings;
+  avatar_media_id: string | null;
+  avatar_updated_at: Date | null;
   created_at: Date;
   last_seen_at: Date;
 }
@@ -99,5 +101,8 @@ export function publicProfile(account: AccountRow) {
     id: account.id,
     username: account.username,
     displayName: account.display_name,
+    // A pointer to ciphertext. Without the owner's profile key it opens nothing.
+    avatarMediaId: account.avatar_media_id,
+    avatarUpdatedAt: account.avatar_updated_at?.toISOString() ?? null,
   };
 }

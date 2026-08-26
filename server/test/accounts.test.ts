@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { authenticator } from 'otplib';
+import { redactSecrets } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import { bearer, closePool, createHarness, deviceBody, deviceFixture, registerUser, type TestHarness } from './helpers.js';
 
@@ -189,5 +190,18 @@ describe('accounts', () => {
     assert.equal(stale.statusCode, 401);
     const current = await h.app.inject({ method: 'GET', url: '/v1/accounts/me', headers: bearer(user) });
     assert.equal(current.statusCode, 200, 'the session that made the change survives');
+  });
+  it('never writes a session token into the logs', async () => {
+    // The realtime socket has to carry its token in the query string, because a
+    // browser cannot set a header on a WebSocket handshake.
+    assert.equal(
+      redactSecrets('/v1/ws?token=super-secret-value'),
+      '/v1/ws?token=REDACTED',
+    );
+    assert.equal(
+      redactSecrets('/v1/ws?other=1&token=abc&more=2'),
+      '/v1/ws?other=1&token=REDACTED&more=2',
+    );
+    assert.equal(redactSecrets('/v1/messages?limit=100'), '/v1/messages?limit=100');
   });
 });
