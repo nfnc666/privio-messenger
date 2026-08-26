@@ -243,7 +243,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
             controller: _link,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'https://${ChannelService.linkHost}/g/…',
+              hintText: 'https://${ChannelService.groupLinkHost}/g/…',
             ),
           ),
           const SizedBox(height: PrivioSpacing.md),

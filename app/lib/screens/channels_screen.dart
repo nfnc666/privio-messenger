@@ -282,7 +282,7 @@ class _JoinByLinkDialogState extends State<_JoinByLinkDialog> {
             controller: _link,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'https://${ChannelService.linkHost}/c/…',
+              hintText: 'https://${ChannelService.channelLinkHost}/c/…',
             ),
           ),
           const SizedBox(height: PrivioSpacing.md),

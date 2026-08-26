@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-186%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-187%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -277,9 +277,9 @@ A post is sealed once under a channel key, so the server stores something it
 cannot read, search or hand over. What that does *not* do is keep a public
 channel secret from its own audience: if anyone may join, anyone may hold the
 key. What matters is that the key never passes through the server. A join link
-(`https://privio.channel/c/<code>`, or `/g/<code>` for a group) is meant to be
-shared — posted on a website, sent through another messenger — so it carries no
-key at all, only the code that names the channel. The key follows
+(`https://privio.channel/c/<code>`, or `https://privio.group/g/<code>` for a
+group) is meant to be shared — posted on a website, sent through another
+messenger — so it carries no key at all, only the code that names the channel. The key follows
 separately: the joining device records a request, and a member who already holds
 the key seals it to that device over the Signal session between the two
 accounts. The server routes both halves and can read neither, which is what
@@ -326,12 +326,16 @@ A privacy product that overstates itself is worse than one that says nothing.
    that swap touches one file.
 3. **No sealed sender.** Envelopes name the sender, which the server uses for
    blocking and rate limiting.
-4. **`privio.channel` is not a delegated top-level domain.** Join links are
-   generated and parsed against that host, but nothing resolves it on the open
-   internet today; the app reads the code out of the path and never fetches the
-   URL, so links work between Privio users regardless. Registering a real
-   domain, or shipping a `privio://` deep link alongside it, is a launch task.
-   The host is one constant, `ChannelService.linkHost`.
+4. **The link domains are not registered.** Links are generated against
+   `privio.channel` and `privio.group`, neither of which this project owns, so
+   nothing on the open internet answers them. It costs nothing in security —
+   the app reads the invite code out of the link's *path* and never fetches the
+   URL, so a link works between Privio users either way, and the parser accepts
+   a link that has been shortened or re-hosted for the same reason. But a link
+   a recipient cannot click is a worse link. Registering the domains (and
+   confirming both TLDs are actually available) and shipping a `privio://` deep
+   link beside them is a launch task; each host is one constant,
+   `ChannelService.channelLinkHost` and `groupLinkHost`.
 5. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
@@ -381,7 +385,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  70 passing
 
 cd app && flutter analyze && flutter test
-#  116 passing
+#  117 passing
 ```
 
 Among the things those tests assert:

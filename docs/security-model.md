@@ -342,15 +342,19 @@ naming what is missing today.
 8. **Attachment ids are the download capability.** Any authenticated user who
    learns an id can fetch the (encrypted) bytes. Ids are unguessable and objects
    expire, but per-recipient authorisation would be stronger.
-9. **The join-link host does not resolve.** Links are generated and parsed
-   against `privio.channel`, which is not a delegated top-level domain, so
-   nothing on the open internet answers it. This is not a security hole — the
-   app reads the invite code out of the link's path and never fetches the URL,
-   so a link works between Privio users either way, and the code it carries is
-   the same unguessable capability it always was. But a link a recipient cannot
-   click is a worse link. Registering a real domain and shipping a `privio://`
-   deep link beside it is a launch task; the host is one constant,
-   `ChannelService.linkHost`.
+9. **The link domains are not registered.** Links are generated against
+   `privio.channel` for channels and `privio.group` for groups, neither of
+   which this project owns, so nothing on the open internet answers them. This
+   is not a security hole: the app reads the invite code out of the link's
+   *path* and never fetches the URL, so a link works between Privio users
+   either way, and the code it carries is the same unguessable capability it
+   always was. It is also why the parser keys off `/c/` and `/g/` rather than
+   the host — a link that has been shortened, wrapped by a mail scanner or
+   re-hosted still names the same channel, and the host was never the
+   authorisation. But a link a recipient cannot click is a worse link.
+   Registering the domains, confirming both TLDs are available, and shipping a
+   `privio://` deep link beside them is a launch task; each host is one
+   constant, `ChannelService.channelLinkHost` and `groupLinkHost`.
 10. **No independent audit.** Before any public release, the crypto integration
     needs review by someone who was not involved in writing it.
 

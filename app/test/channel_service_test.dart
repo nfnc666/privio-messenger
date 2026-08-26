@@ -279,10 +279,21 @@ void main() {
       final channelLink = ChannelService.linkForChannel('abc123');
       final groupLink = ChannelService.linkForGroup('xyz789');
 
+      expect(channelLink, 'https://privio.channel/c/abc123');
+      expect(groupLink, 'https://privio.group/g/xyz789');
+
       expect(ChannelService.parseInviteLink(channelLink)!.code, 'abc123');
       expect(ChannelService.parseInviteLink(channelLink)!.kind, InviteKind.channel);
       expect(ChannelService.parseInviteLink(groupLink)!.code, 'xyz789');
       expect(ChannelService.parseInviteLink(groupLink)!.kind, InviteKind.group);
+    });
+
+    test('the path decides the kind, not the host', () {
+      // A link that has been shortened, wrapped or re-hosted still names the
+      // same thing, so the parser reads /c/ and /g/ rather than the domain.
+      final wrapped = ChannelService.parseInviteLink('https://example.test/g/xyz789')!;
+      expect(wrapped.kind, InviteKind.group);
+      expect(wrapped.code, 'xyz789');
     });
 
     test('rubbish is rejected rather than half-accepted', () {
