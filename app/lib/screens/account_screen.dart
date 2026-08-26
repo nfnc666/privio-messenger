@@ -15,6 +15,7 @@ class AccountScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final username = PrivioScope.of(context).username ?? 'privio_user';
+    final accountId = PrivioScope.of(context).accountId;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,7 +59,7 @@ class AccountScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: PrivioSpacing.md),
-                Text('John Doe', style: theme.textTheme.titleLarge),
+                Text(username, style: theme.textTheme.titleLarge),
                 Text('@$username', style: theme.textTheme.bodySmall),
               ],
             ),
@@ -72,7 +73,11 @@ class AccountScreen extends StatelessWidget {
                 label: 'Status',
                 value: 'Hey there! I am using Privio.',
               ),
-              const SettingsRow(icon: Icons.badge_outlined, label: 'Account Type', value: 'Standard'),
+              SettingsRow(
+                icon: Icons.fingerprint_rounded,
+                label: 'Account ID',
+                value: accountId == null ? '—' : '${accountId.substring(0, 8)}…',
+              ),
             ],
           ),
           const SizedBox(height: PrivioSpacing.lg),

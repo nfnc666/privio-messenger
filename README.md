@@ -66,6 +66,24 @@ No phone number. No email. No address-book upload. You are a username.
 
 > These are real screenshots of the running app, captured at 390×844, not mockups.
 
+### It actually works
+
+Two accounts, two devices, one real server. Clara adds Finn by username, sends a
+message, Finn's client decrypts it, replies, and Clara's client decrypts the
+reply — the Double Ratchet running in both directions.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/e2e-01-sent.png" width="220"><br><sub><b>1.</b> Clara sends. The server takes bytes it cannot read.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/e2e-02-arrived.png" width="220"><br><sub><b>2.</b> It arrives at Finn, who had never heard of Clara.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/e2e-03-conversation.png" width="220"><br><sub><b>3.</b> His reply comes back decrypted.</sub></td>
+</tr>
+</table>
+
+That run found a real bug: the client was declaring a JSON content type on
+requests with no body, which a strict server rejects — so the receive loop had
+been failing silently every three seconds. It is fixed and covered by a test.
+
 ---
 
 ## What works today
@@ -84,7 +102,9 @@ No phone number. No email. No address-book upload. You are a username.
 | **Push notifications** | ✅ | Contentless wake-ups; APNs/FCM see no metadata |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
-| **Chat UI wired to crypto** | 🔧 | The screens still show demo data |
+| **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
+| **Message history survives a restart** | 🔧 | Held in memory; SQLCipher is the next milestone |
+| **Realtime over WebSocket** | 🔧 | The server pushes; the client still polls every 3s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
 | **Channels** | 📋 | V2 |
 | **Disguise mode** | 📋 | V2 — the calculator skin |

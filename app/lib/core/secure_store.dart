@@ -1,15 +1,41 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Wraps the platform keystore: Keychain on iOS, Keystore-backed encrypted
-/// preferences on Android. This is where the session token and the app-lock
-/// state live — never in shared preferences, never on disk in the clear.
-class SecureStore {
-  const SecureStore([this._storage = const FlutterSecureStorage()]);
+/// Where the session and the app-lock state live.
+///
+/// An interface for the same reason [CryptoStorage] is one: the code above it
+/// must never depend on a platform plugin, so tests can run it and so a
+/// different backing store can be swapped in without touching call sites.
+abstract interface class SecureStore {
+  Future<String?> readToken();
+  Future<String?> readUsername();
+  Future<String?> readAccountId();
+  Future<void> writeSession({
+    required String token,
+    required String username,
+    required String accountId,
+  });
+
+  Future<void> setPin(String pin);
+  Future<bool> hasPin();
+  Future<bool> verifyPin(String pin);
+
+  Future<bool> biometricsEnabled();
+  Future<void> setBiometricsEnabled(bool enabled);
+
+  /// Used by sign-out and by the wipe code: leaves nothing recoverable behind.
+  Future<void> wipe();
+}
+
+/// The platform keystore: Keychain on iOS, Keystore-backed encrypted
+/// preferences on Android. Never shared preferences, never a plain file.
+class KeystoreSecureStore implements SecureStore {
+  const KeystoreSecureStore([this._storage = const FlutterSecureStorage()]);
 
   final FlutterSecureStorage _storage;
 
   static const _tokenKey = 'privio.session.token';
   static const _usernameKey = 'privio.session.username';
+  static const _accountIdKey = 'privio.session.account_id';
   static const _pinKey = 'privio.lock.pin';
   static const _biometricsKey = 'privio.lock.biometrics';
 
@@ -18,78 +44,100 @@ class SecureStore {
   );
   static const _androidOptions = AndroidOptions(encryptedSharedPreferences: true);
 
-  Future<String?> readToken() => _storage.read(
-        key: _tokenKey,
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      );
+  Future<String?> _read(String key) =>
+      _storage.read(key: key, iOptions: _iosOptions, aOptions: _androidOptions);
 
-  Future<void> writeSession({required String token, required String username}) async {
-    await _storage.write(
-      key: _tokenKey,
-      value: token,
-      iOptions: _iosOptions,
-      aOptions: _androidOptions,
-    );
-    await _storage.write(
-      key: _usernameKey,
-      value: username,
-      iOptions: _iosOptions,
-      aOptions: _androidOptions,
-    );
+  Future<void> _write(String key, String value) =>
+      _storage.write(key: key, value: value, iOptions: _iosOptions, aOptions: _androidOptions);
+
+  @override
+  Future<String?> readToken() => _read(_tokenKey);
+
+  @override
+  Future<String?> readUsername() => _read(_usernameKey);
+
+  @override
+  Future<String?> readAccountId() => _read(_accountIdKey);
+
+  @override
+  Future<void> writeSession({
+    required String token,
+    required String username,
+    required String accountId,
+  }) async {
+    await _write(_tokenKey, token);
+    await _write(_usernameKey, username);
+    await _write(_accountIdKey, accountId);
   }
-
-  Future<String?> readUsername() => _storage.read(
-        key: _usernameKey,
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      );
 
   /// The PIN is a *local* lock on an already-encrypted database, and the
   /// keychain is the security boundary that protects it. It is deliberately not
   /// stretched here: V2 moves PIN handling into the native crypto layer, where
   /// it derives a key-encryption key with Argon2id instead of being compared.
-  Future<void> setPin(String pin) => _storage.write(
-        key: _pinKey,
-        value: pin,
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      );
+  @override
+  Future<void> setPin(String pin) => _write(_pinKey, pin);
 
-  Future<bool> hasPin() async => (await _storage.read(
-        key: _pinKey,
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      )) !=
-      null;
+  @override
+  Future<bool> hasPin() async => await _read(_pinKey) != null;
 
+  @override
   Future<bool> verifyPin(String pin) async {
-    final stored = await _storage.read(
-      key: _pinKey,
-      iOptions: _iosOptions,
-      aOptions: _androidOptions,
-    );
+    final stored = await _read(_pinKey);
     return stored != null && stored == pin;
   }
 
-  Future<bool> biometricsEnabled() async =>
-      (await _storage.read(
-        key: _biometricsKey,
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      )) ==
-      'true';
+  @override
+  Future<bool> biometricsEnabled() async => await _read(_biometricsKey) == 'true';
 
-  Future<void> setBiometricsEnabled(bool enabled) => _storage.write(
-        key: _biometricsKey,
-        value: '$enabled',
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      );
+  @override
+  Future<void> setBiometricsEnabled(bool enabled) => _write(_biometricsKey, '$enabled');
 
-  /// Used by sign-out and by the wipe code: leaves nothing recoverable behind.
-  Future<void> wipe() => _storage.deleteAll(
-        iOptions: _iosOptions,
-        aOptions: _androidOptions,
-      );
+  @override
+  Future<void> wipe() =>
+      _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
+}
+
+/// In-memory store for tests. Never used in a shipped build.
+class InMemorySecureStore implements SecureStore {
+  final Map<String, String> _entries = {};
+
+  @override
+  Future<String?> readToken() async => _entries['token'];
+
+  @override
+  Future<String?> readUsername() async => _entries['username'];
+
+  @override
+  Future<String?> readAccountId() async => _entries['accountId'];
+
+  @override
+  Future<void> writeSession({
+    required String token,
+    required String username,
+    required String accountId,
+  }) async {
+    _entries
+      ..['token'] = token
+      ..['username'] = username
+      ..['accountId'] = accountId;
+  }
+
+  @override
+  Future<void> setPin(String pin) async => _entries['pin'] = pin;
+
+  @override
+  Future<bool> hasPin() async => _entries.containsKey('pin');
+
+  @override
+  Future<bool> verifyPin(String pin) async => _entries['pin'] == pin;
+
+  @override
+  Future<bool> biometricsEnabled() async => _entries['biometrics'] == 'true';
+
+  @override
+  Future<void> setBiometricsEnabled(bool enabled) async =>
+      _entries['biometrics'] = '$enabled';
+
+  @override
+  Future<void> wipe() async => _entries.clear();
 }

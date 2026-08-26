@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'screens/auth_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
 import 'screens/splash_screen.dart';
@@ -63,6 +64,12 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
 class _StageRouter extends StatelessWidget {
   const _StageRouter();
 
+  void _openAuth(BuildContext context, AuthMode mode) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => AuthScreen(mode: mode)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
@@ -72,10 +79,10 @@ class _StageRouter extends StatelessWidget {
       child: switch (state.stage) {
         AppStage.splash || AppStage.initialising => const SplashScreen(),
         AppStage.welcome => WelcomeScreen(
-            // Registration is a V1 milestone still in flight; until it lands,
-            // Get Started drops into the app so the shell can be reviewed.
-            onGetStarted: () => state.completeOnboarding('privio_user'),
-            onImportBackup: () => state.completeOnboarding('privio_user'),
+            onGetStarted: () => _openAuth(context, AuthMode.signUp),
+            // Restoring an account starts by signing back into it; importing an
+            // encrypted backup on top of that is still to come.
+            onImportBackup: () => _openAuth(context, AuthMode.signIn),
           ),
         AppStage.locked => const PinScreen(),
         AppStage.ready => const NavShell(),
