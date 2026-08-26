@@ -9,6 +9,7 @@ import contactRoutes from './routes/contacts.js';
 import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
 import groupRoutes from './routes/groups.js';
+import channelRoutes from './routes/channels.js';
 import { mediaRoutes } from './routes/media.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
@@ -128,6 +129,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes);
+  await app.register(channelRoutes);
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));

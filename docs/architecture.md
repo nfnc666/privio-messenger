@@ -71,6 +71,7 @@ blob store, so instances scale horizontally behind a load balancer.
 | `routes/contacts.ts` | Username lookup, contacts, blocking, invites |
 | `routes/messages.ts` | Per-device envelope send, fetch and acknowledge |
 | `routes/groups.ts` | Membership, roles, fan-out device lists |
+| `routes/channels.ts` | Channels, discovery, posts, roles |
 | `routes/media.ts` | Encrypted attachment upload and download |
 | `routes/backup.ts` | Encrypted backup upload and restore |
 | `routes/ws.ts` | Realtime delivery socket |
@@ -122,6 +123,14 @@ implements.
 
 Groups work the same way, with the fan-out list coming from
 `GET /v1/groups/:id/devices`.
+
+A **channel** post takes a different route, because a channel is one author and
+many readers: it is sealed once under a channel key and stored once, rather than
+sealed per recipient device. Readers pull the feed. The server never holds the
+channel key — it reaches members in an invite link's fragment or from an admin
+over an encrypted message — so it stores posts it cannot read. What it does hold
+in the clear, for a public channel only, is the handle, title, description and
+category, because discovery cannot search ciphertext.
 
 ## Notifications
 

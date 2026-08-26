@@ -161,6 +161,44 @@ The limits, stated: a member who is removed keeps the group key, so they could
 still open a name they already had — and the name is not re-keyed on removal.
 Group membership itself is visible to the server, as it must be for delivery.
 
+### Channels, and what "public and encrypted" can honestly mean
+
+A channel is one author and many readers, so a post is sealed **once**, under a
+channel key, rather than once per member device. That is what makes a channel
+cheap to run, and it decides everything else about its security.
+
+**What encryption buys here:** the server cannot read a post. It stores
+ciphertext, cannot search it, cannot scan it, and cannot hand over its contents.
+That holds for public and private channels alike.
+
+**What it does not buy:** secrecy from the audience. If anybody may join, then
+anybody may hold the key — that is not a flaw in the design, it is what
+"broadcast" means. A public channel's contents are as public as its membership.
+
+**Why the server still cannot join.** Joining grants membership, not the key.
+The key never passes through the server: it rides in the fragment of an invite
+link — the part after `#`, which browsers and apps do not transmit — or is
+handed over by an admin inside an end-to-end encrypted message. A client that
+finds a public channel by searching still needs to be given the key before a
+single post means anything. Were the key delivered by the API instead, the
+server could simply subscribe to everything, and the encryption would be
+decoration.
+
+**What is deliberately in the clear.** Search cannot run over ciphertext, so a
+public channel's handle, title, description and category are plaintext columns.
+Nothing else is: the posts are not, and a private channel's title is sealed like
+a group's. A private channel is also never listed, never searchable, and answers
+a stranger asking about it exactly as it answers about a channel that does not
+exist.
+
+**The limits, stated plainly:**
+
+- A member who leaves keeps the key, and so keeps every post they could already
+  read. Rotating the key on removal and re-sharing it is not implemented.
+- Membership is visible to the server, as it must be for delivery.
+- "Restrict saving" is a hint the client honours. Anyone who can read a post can
+  copy it; it raises effort and is not a security control.
+
 ### File names stay inside the envelope
 
 The upload is bytes and nothing else. The name, the type and the key travel
