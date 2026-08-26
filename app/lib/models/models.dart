@@ -34,6 +34,38 @@ extension on String {
 
 enum MessageKind { text, voice, photo, video, file }
 
+/// An attachment a message points at.
+///
+/// The id addresses ciphertext on the server; the key opens it and exists only
+/// here and inside the sealed message that delivered it. The file name is the
+/// sender's, and it never travelled outside the encrypted envelope.
+@immutable
+class Attachment {
+  const Attachment({
+    required this.mediaId,
+    required this.mediaKey,
+    required this.mediaType,
+    required this.byteSize,
+    this.fileName,
+  });
+
+  final String mediaId;
+  final String mediaKey;
+  final String mediaType;
+  final int byteSize;
+  final String? fileName;
+
+  bool get isImage => mediaType.startsWith('image/');
+  bool get isVideo => mediaType.startsWith('video/');
+
+  /// A readable size for the file row.
+  String get readableSize {
+    if (byteSize < 1024) return '$byteSize B';
+    if (byteSize < 1024 * 1024) return '${(byteSize / 1024).toStringAsFixed(0)} KB';
+    return '${(byteSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
 /// Delivery state of an outgoing message, mirrored in the tick marks.
 enum DeliveryState { sending, sent, delivered, read }
 
@@ -48,6 +80,7 @@ class Message {
     this.state = DeliveryState.read,
     this.voiceDuration,
     this.senderName,
+    this.attachment,
   });
 
   final String id;
@@ -60,6 +93,21 @@ class Message {
 
   /// Only set in groups, where the sender has to be labelled.
   final String? senderName;
+
+  /// Set when this message carries a file rather than only text.
+  final Attachment? attachment;
+
+  Message copyWith({DeliveryState? state}) => Message(
+        id: id,
+        body: body,
+        sentAt: sentAt,
+        isMine: isMine,
+        kind: kind,
+        state: state ?? this.state,
+        voiceDuration: voiceDuration,
+        senderName: senderName,
+        attachment: attachment,
+      );
 }
 
 @immutable

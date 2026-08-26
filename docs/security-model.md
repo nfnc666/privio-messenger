@@ -108,8 +108,14 @@ link, and a repeated exchange of fixed-size messages is a fingerprint in itself.
 Every payload is padded to a bucket before it is sealed, using ISO/IEC 7816-4
 padding (a `0x80` marker, then zeros). Buckets start at 256 bytes and double,
 capping the overhead at under 2x while collapsing observable sizes to a handful
-of values. Attachments are padded the same way, so file size cannot be used to
-identify a known file.
+of values.
+
+Be precise about what this buys. For messages it is close to total: everything
+under 256 bytes — which is most of what people send — is byte-for-byte
+indistinguishable. For a large attachment, doubling buckets mean an observer
+learns the size only to within a factor of two. That is a real improvement over
+an exact byte count, and it defeats matching against a catalogue of known file
+sizes, but it is not invisibility and should not be described as such.
 
 Because text and attachment messages share one payload format, and both are
 padded, the server cannot tell a sentence from a photo — only that something was
@@ -208,13 +214,21 @@ naming what is missing today.
    cleaned on every send. WebP, GIF, PDF and Office documents are passed through
    as they are — the app reports that it could not clean them, but reporting is
    not the same as fixing.
-6. **TOTP secrets are stored in plaintext in the database.** They should be
+6. **The file-picking step is unverified.** Everything after it — scrubbing,
+   padding, sealing, upload, download, decryption and display — is covered by
+   tests that run the real code paths. The OS file dialog itself is a platform
+   plugin: its native iOS and Android implementations cannot run in the
+   development sandbox, and its web implementation did not register there. The
+   call is guarded by a timeout so a picker that never answers surfaces an error
+   instead of a button that silently does nothing, but it needs checking on a
+   real device before release.
+7. **TOTP secrets are stored in plaintext in the database.** They should be
    encrypted with a server-held key so a database leak alone does not defeat the
    second factor.
-7. **Attachment ids are the download capability.** Any authenticated user who
+8. **Attachment ids are the download capability.** Any authenticated user who
    learns an id can fetch the (encrypted) bytes. Ids are unguessable and objects
    expire, but per-recipient authorisation would be stronger.
-8. **No independent audit.** Before any public release, the crypto integration
+9. **No independent audit.** Before any public release, the crypto integration
    needs review by someone who was not involved in writing it.
 
 ## Reporting a vulnerability

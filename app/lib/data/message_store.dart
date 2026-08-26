@@ -95,17 +95,7 @@ class InMemoryMessageStore implements MessageStore {
     if (conversation == null) return;
     final index = conversation.messages.indexWhere((m) => m.id == messageId);
     if (index == -1) return;
-    final message = conversation.messages[index];
-    conversation.messages[index] = Message(
-      id: message.id,
-      body: message.body,
-      sentAt: message.sentAt,
-      isMine: message.isMine,
-      kind: message.kind,
-      state: state,
-      voiceDuration: message.voiceDuration,
-      senderName: message.senderName,
-    );
+    conversation.messages[index] = conversation.messages[index].copyWith(state: state);
   }
 
   @override

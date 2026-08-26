@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/message_store.dart';
+import '../media/attachment.dart';
+import '../media/metadata_scrubber.dart';
 import '../services/messaging_service.dart';
 import '../models/models.dart';
 import 'api_client.dart';
@@ -48,12 +50,27 @@ class ConversationController extends ChangeNotifier {
     return ChatSummary(
       id: conversation.user.accountId,
       title: conversation.user.label,
-      preview: last?.body ?? '',
+      preview: _previewOf(last),
       timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
       unreadCount: conversation.unreadCount,
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.user.accountId.hashCode.abs(),
     );
+  }
+
+  /// A file with no caption still needs a line in the list.
+  static String _previewOf(Message? message) {
+    if (message == null) return '';
+    if (message.body.isNotEmpty) return message.body;
+    final attachment = message.attachment;
+    if (attachment == null) return '';
+    return attachment.fileName ??
+        switch (message.kind) {
+          MessageKind.photo => 'Photo',
+          MessageKind.video => 'Video',
+          MessageKind.voice => 'Voice message',
+          _ => 'File',
+        };
   }
 
   static String _formatTimestamp(DateTime when) {
@@ -108,6 +125,7 @@ class ConversationController extends ChangeNotifier {
   void dispose() {
     stop();
     _saveDebounce?.cancel();
+    _attachmentCache.clear();
     super.dispose();
   }
 
@@ -215,6 +233,73 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sends a file. Its metadata is stripped and it is sealed under its own key
+  /// before it leaves the device; the returned report says what was removed so
+  /// the UI can show it rather than leaving the user to assume.
+  Future<ScrubReport?> sendAttachment(
+    String accountId, {
+    required Uint8List file,
+    String? fileName,
+    String caption = '',
+  }) async {
+    final conversation = _services.store.conversationWith(accountId);
+    if (conversation == null) return null;
+
+    final messageId = DateTime.now().microsecondsSinceEpoch.toString();
+    final placeholder = Message(
+      id: messageId,
+      body: caption,
+      sentAt: DateTime.now(),
+      isMine: true,
+      kind: MessageKind.file,
+      state: DeliveryState.sending,
+    );
+    _services.store.append(accountId, placeholder);
+    notifyListeners();
+
+    try {
+      final report = await _services.messaging.sendAttachment(
+        conversation.user.username,
+        file: file,
+        fileName: fileName,
+      );
+      _services.store.updateState(accountId, messageId, DeliveryState.sent);
+      _error = null;
+      _persist();
+      notifyListeners();
+      return report;
+    } on Object catch (failure) {
+      _error = failure is ApiException ? failure.message : 'Could not send file';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Downloads and decrypts an attachment, keeping it for as long as the screen
+  /// is open. Nothing is written to disk in the clear.
+  final Map<String, Uint8List> _attachmentCache = {};
+
+  Future<Uint8List?> attachmentBytes(Attachment attachment) async {
+    final cached = _attachmentCache[attachment.mediaId];
+    if (cached != null) return cached;
+    try {
+      final bytes = await _services.messaging.openAttachment(
+        MessagePayload.media(
+          mediaId: attachment.mediaId,
+          mediaKey: attachment.mediaKey,
+          mediaType: attachment.mediaType,
+          byteSize: attachment.byteSize,
+          fileName: attachment.fileName,
+        ),
+      );
+      return _attachmentCache[attachment.mediaId] = bytes;
+    } on Object catch (failure) {
+      _error = failure is ApiException ? failure.message : 'Could not open the file';
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Fetches, decrypts and files whatever is queued for this device.
   Future<void> drain() async {
     if (_draining) return;
@@ -246,13 +331,24 @@ class ConversationController extends ChangeNotifier {
     if (_services.store.conversationWith(incoming.senderAccountId) == null) {
       await _resolveSender(incoming.senderAccountId);
     }
+    final payload = incoming.payload;
     _services.store.append(
       incoming.senderAccountId,
       Message(
         id: 'envelope-${incoming.envelopeId}',
-        body: incoming.body,
+        body: payload.body,
         sentAt: incoming.receivedAt.toLocal(),
         isMine: false,
+        kind: payload.isMedia ? _kindFor(payload.mediaType!) : MessageKind.text,
+        attachment: payload.isMedia
+            ? Attachment(
+                mediaId: payload.mediaId!,
+                mediaKey: payload.mediaKey!,
+                mediaType: payload.mediaType!,
+                byteSize: payload.byteSize!,
+                fileName: payload.fileName,
+              )
+            : null,
       ),
     );
   }
@@ -274,6 +370,13 @@ class ConversationController extends ChangeNotifier {
         KnownUser(accountId: accountId, username: accountId.substring(0, 8)),
       );
     }
+  }
+
+  static MessageKind _kindFor(String mediaType) {
+    if (mediaType.startsWith('image/')) return MessageKind.photo;
+    if (mediaType.startsWith('video/')) return MessageKind.video;
+    if (mediaType.startsWith('audio/')) return MessageKind.voice;
+    return MessageKind.file;
   }
 
   void markRead(String accountId) {
