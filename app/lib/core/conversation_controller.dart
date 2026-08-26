@@ -57,14 +57,15 @@ class ConversationController extends ChangeNotifier {
   ChatSummary _summarise(Conversation conversation) {
     final last = conversation.lastMessage;
     return ChatSummary(
-      id: conversation.user.accountId,
-      title: conversation.user.label,
-      avatarBytes: _avatarCache[conversation.user.accountId],
+      id: conversation.id,
+      title: conversation.title,
+      isGroup: conversation.isGroup,
+      avatarBytes: _avatarCache[conversation.id],
       preview: _previewOf(last),
       timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
       unreadCount: conversation.unreadCount,
       previewKind: last?.kind ?? MessageKind.text,
-      avatarSeed: conversation.user.accountId.hashCode.abs(),
+      avatarSeed: conversation.id.hashCode.abs(),
     );
   }
 
@@ -175,13 +176,13 @@ class ConversationController extends ChangeNotifier {
   Future<void> refreshContacts() async {
     try {
       final response = await _services.api.contacts();
+      final entries = response['contacts'] as List<dynamic>? ?? const [];
       _contacts = [
-        for (final raw in response['contacts'] as List<dynamic>)
-          _toContact(raw as Map<String, dynamic>),
+        for (final raw in entries) _toContact(raw as Map<String, dynamic>),
       ];
       // Knowing a contact is enough to show their name against an incoming
       // message, before any conversation exists.
-      for (final raw in response['contacts'] as List<dynamic>) {
+      for (final raw in entries) {
         final contact = raw as Map<String, dynamic>;
         _services.store.upsertUser(
           KnownUser(
@@ -245,7 +246,7 @@ class ConversationController extends ChangeNotifier {
       );
       notifyListeners();
       unawaited(_loadAvatars());
-      return conversation.user.accountId;
+      return conversation.id;
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
@@ -257,13 +258,13 @@ class ConversationController extends ChangeNotifier {
   ///
   /// The message appears immediately as `sending` and only becomes `sent` once
   /// the server has taken it, so the UI never claims delivery it cannot back up.
-  Future<void> send(String accountId, String text) async {
-    final conversation = _services.store.conversationWith(accountId);
+  Future<void> send(String conversationId, String text) async {
+    final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null || text.trim().isEmpty) return;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
     _services.store.append(
-      accountId,
+      conversationId,
       Message(
         id: messageId,
         body: text.trim(),
@@ -275,8 +276,16 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _services.messaging.sendToUser(conversation.user.username, text.trim());
-      _services.store.updateState(accountId, messageId, DeliveryState.sent);
+      if (conversation.isGroup) {
+        await _services.messaging.sendToGroup(
+          conversationId,
+          text.trim(),
+          groupKey: conversation.group!.groupKey,
+        );
+      } else {
+        await _services.messaging.sendToUser(conversation.user!.username, text.trim());
+      }
+      _services.store.updateState(conversationId, messageId, DeliveryState.sent);
       _error = null;
       _persist();
     } on Object catch (failure) {
@@ -286,17 +295,57 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Groups ---------------------------------------------------------------
+
+  /// Creates a group and tells the members about it.
+  ///
+  /// The name is sealed with a group key that the server never sees; the key
+  /// itself reaches members inside end-to-end encrypted messages, the same way
+  /// a profile key does.
+  Future<String?> createGroup(String name, List<String> memberIds) async {
+    try {
+      final created = await _services.messaging.createGroup(name, memberIds);
+      _services.store.upsertGroup(created);
+      _persist();
+      notifyListeners();
+      return created.groupId;
+    } on Object catch (failure) {
+      _error = failure is ApiException ? failure.message : 'Could not create the group';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Reads the groups this account belongs to, opening the names it has keys
+  /// for. A group whose key has not arrived yet shows as "Group" until it does.
+  Future<void> refreshGroups() async {
+    try {
+      for (final group in await _services.messaging.listGroups(_services.store)) {
+        _services.store.upsertGroup(group);
+      }
+      _error = null;
+      notifyListeners();
+    } on ApiException catch (failure) {
+      _error = failure.message;
+      notifyListeners();
+    }
+  }
+
+  GroupInfo? groupInfo(String groupId) => _services.store.conversationWith(groupId)?.group;
+
   /// Sends a file. Its metadata is stripped and it is sealed under its own key
   /// before it leaves the device; the returned report says what was removed so
   /// the UI can show it rather than leaving the user to assume.
   Future<ScrubReport?> sendAttachment(
-    String accountId, {
+    String conversationId, {
     required Uint8List file,
     String? fileName,
     String caption = '',
   }) async {
-    final conversation = _services.store.conversationWith(accountId);
-    if (conversation == null) return null;
+    final conversation = _services.store.conversationWith(conversationId);
+    // Group attachments need the same per-device fan-out as group text, which
+    // is not wired yet; refusing is better than a message that never arrives.
+    if (conversation == null || conversation.isGroup) return null;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
     final placeholder = Message(
@@ -307,16 +356,16 @@ class ConversationController extends ChangeNotifier {
       kind: MessageKind.file,
       state: DeliveryState.sending,
     );
-    _services.store.append(accountId, placeholder);
+    _services.store.append(conversationId, placeholder);
     notifyListeners();
 
     try {
       final report = await _services.messaging.sendAttachment(
-        conversation.user.username,
+        conversation.user!.username,
         file: file,
         fileName: fileName,
       );
-      _services.store.updateState(accountId, messageId, DeliveryState.sent);
+      _services.store.updateState(conversationId, messageId, DeliveryState.sent);
       _error = null;
       _persist();
       notifyListeners();
@@ -382,6 +431,12 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> _fileIncoming(IncomingMessage incoming) async {
+    final groupId = incoming.groupId;
+    if (groupId != null) {
+      await _fileGroupMessage(groupId, incoming);
+      return;
+    }
+
     // First contact from someone not in the address book: the envelope carries
     // only the account id, so the name has to be resolved before the message
     // can be shown against anything but a UUID.
@@ -416,6 +471,40 @@ class ConversationController extends ChangeNotifier {
                 fileName: payload.fileName,
               )
             : null,
+      ),
+    );
+  }
+
+  /// Files a message that arrived through a group.
+  ///
+  /// A group message can be the first thing this device hears about the group,
+  /// so the listing is refreshed rather than the message dropped.
+  Future<void> _fileGroupMessage(String groupId, IncomingMessage incoming) async {
+    if (_services.store.conversationWith(groupId) == null) {
+      await refreshGroups();
+      _services.store.upsertGroup(GroupInfo(groupId: groupId, role: 'member'));
+    }
+    if (incoming.payload.groupKey != null) {
+      _services.store.upsertGroup(
+        GroupInfo(groupId: groupId, role: 'member', groupKey: incoming.payload.groupKey),
+      );
+      unawaited(refreshGroups());
+    }
+
+    // In a group the sender is often someone not in your contacts, and a
+    // message labelled "Someone" is barely a message at all.
+    if (_services.store.conversationWith(incoming.senderAccountId)?.user == null) {
+      await _resolveSender(incoming.senderAccountId);
+    }
+    final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
+    _services.store.append(
+      groupId,
+      Message(
+        id: 'envelope-${incoming.envelopeId}',
+        body: incoming.payload.body,
+        sentAt: incoming.receivedAt.toLocal(),
+        isMine: false,
+        senderName: senderName ?? 'Someone',
       ),
     );
   }
@@ -464,6 +553,7 @@ class ConversationController extends ChangeNotifier {
     var loaded = false;
     for (final conversation in _services.store.conversations()) {
       final user = conversation.user;
+      if (user == null) continue;
       if (!user.hasAvatar || _avatarCache.containsKey(user.accountId)) continue;
       try {
         _avatarCache[user.accountId] = await _services.messaging.openAvatar(

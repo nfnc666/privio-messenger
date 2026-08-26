@@ -9,6 +9,7 @@ import 'package:privio/core/api_client.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:image/image.dart' as img;
+import 'package:privio/data/message_store.dart';
 import 'package:privio/media/avatar.dart';
 import 'package:privio/services/messaging_service.dart';
 
@@ -21,6 +22,8 @@ class FakeServer {
   final List<Map<String, dynamic>> envelopes = [];
   final Map<String, List<int>> media = {};
   final Map<String, String> avatars = {};
+  final Map<String, Map<String, dynamic>> groups = {};
+  int _nextGroupId = 1;
   int _nextEnvelopeId = 1;
   int _nextMediaId = 1;
 
@@ -48,6 +51,81 @@ class FakeServer {
   http.Client clientFor(String deviceId) => MockClient((request) async {
         final path = request.url.path;
         final method = request.method;
+
+        if (method == 'POST' && path == '/v1/groups') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final id = 'group-${_nextGroupId++}';
+          final creator = _deviceById(deviceId);
+          groups[id] = {
+            'id': id,
+            'role': 'admin',
+            'encryptedMetadata': body['encryptedMetadata'],
+            'memberIds': [_accountIdOf(creator), ...(body['memberIds'] as List<dynamic>)],
+          };
+          return _json({
+            'id': id,
+            'members': [
+              for (final member in groups[id]!['memberIds'] as List<dynamic>) {'id': member},
+            ],
+          }, status: 201,);
+        }
+
+        if (method == 'GET' && path == '/v1/groups') {
+          return _json({
+            'groups': [
+              for (final group in groups.values)
+                {
+                  'id': group['id'],
+                  'role': group['role'],
+                  'encryptedMetadata': group['encryptedMetadata'],
+                  'memberCount': (group['memberIds'] as List<dynamic>).length,
+                },
+            ],
+          });
+        }
+
+        if (method == 'GET' && path.endsWith('/devices')) {
+          final groupId = path.split('/')[3];
+          final memberIds = (groups[groupId]!['memberIds'] as List<dynamic>).cast<String>();
+          final sender = _deviceById(deviceId);
+          return _json({
+            'devices': [
+              for (final entry in accounts.entries)
+                if (memberIds.contains(entry.value.id))
+                  for (final device in entry.value.devices)
+                    if (device.deviceId != sender.deviceId)
+                      {
+                        'deviceId': device.deviceId,
+                        'accountId': entry.value.id,
+                        'username': entry.key,
+                        'deviceIndex': device.deviceIndex,
+                        'registrationId': device.registrationId,
+                        'identityKey': device.identityKey,
+                      },
+            ],
+          });
+        }
+
+        if (method == 'POST' && path.startsWith('/v1/messages/group/')) {
+          final groupId = path.split('/').last;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final sender = _deviceById(deviceId);
+          final messages = (body['messages'] as List<dynamic>).cast<Map<String, dynamic>>();
+          for (final message in messages) {
+            envelopes.add({
+              'id': _nextEnvelopeId++,
+              'recipientDeviceId': message['deviceId'],
+              'type': message['type'],
+              'senderAccountId': _accountIdOf(sender),
+              'senderDeviceId': sender.deviceId,
+              'senderDeviceIndex': sender.deviceIndex,
+              'groupId': groupId,
+              'content': message['content'],
+              'createdAt': DateTime.now().toUtc().toIso8601String(),
+            });
+          }
+          return _json({'accepted': true, 'deliveredTo': messages.length}, status: 202);
+        }
 
         if (method == 'PUT' && path == '/v1/accounts/me/avatar') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -460,5 +538,94 @@ void main() {
 
     // And it was inside the sealed payload, not next to it.
     expect(onTheWire, isNot(contains(key)));
+  });
+  test('the server stores a group it cannot name', () async {
+    final group = await alice.messaging.createGroup('Familie', [bob.accountId]);
+
+    expect(group.name, 'Familie');
+    expect(group.groupKey, isNotNull);
+
+    // What the server holds is the sealed name and no key for it.
+    final stored = server.groups[group.groupId]!['encryptedMetadata'] as String;
+    expect(
+      utf8.decode(base64Decode(stored), allowMalformed: true),
+      isNot(contains('Familie')),
+    );
+  });
+
+  test('a member with the key reads the name; without it, they do not', () async {
+    final group = await alice.messaging.createGroup('Projekt X', [bob.accountId]);
+
+    // Bob lists groups before the key has reached him.
+    final store = InMemoryMessageStore();
+    final beforeKey = await bob.messaging.listGroups(store);
+    expect(beforeKey.single.groupId, group.groupId);
+    expect(beforeKey.single.name, isNull, reason: 'no key, no name');
+
+    // Once he has it, the same listing opens.
+    store.upsertGroup(GroupInfo(
+      groupId: group.groupId,
+      role: 'member',
+      groupKey: group.groupKey,
+    ),);
+    final afterKey = await bob.messaging.listGroups(store);
+    expect(afterKey.single.name, 'Projekt X');
+  });
+
+  test('a group message reaches every member device, sealed per device', () async {
+    final group = await alice.messaging.createGroup('Team', [bob.accountId]);
+    final delivered = await alice.messaging.sendToGroup(
+      group.groupId,
+      'Morgen um neun',
+      groupKey: group.groupKey,
+    );
+
+    expect(delivered, 1, reason: 'Bob has one device');
+    final envelope = server.envelopes.single;
+    expect(envelope['groupId'], group.groupId);
+    expect(
+      utf8.decode(base64Decode(envelope['content'] as String), allowMalformed: true),
+      isNot(contains('Morgen')),
+    );
+
+    final received = await bob.messaging.receive();
+    expect(received.messages.single.body, 'Morgen um neun');
+    expect(received.messages.single.groupId, group.groupId);
+  });
+
+  test('the group key travels on the group’s messages', () async {
+    final group = await alice.messaging.createGroup('Verein', [bob.accountId]);
+    await alice.messaging.sendToGroup(group.groupId, 'hallo', groupKey: group.groupKey);
+
+    final received = await bob.messaging.receive();
+    expect(received.messages.single.payload.groupKey, group.groupKey);
+  });
+
+  test('a group message from a stranger’s device does not decrypt', () async {
+    final group = await alice.messaging.createGroup('Privat', [bob.accountId]);
+    await alice.messaging.sendToGroup(group.groupId, 'geheim', groupKey: group.groupKey);
+
+    final mallory = Participant('mallory', 'account-mallory', 1);
+    await mallory.join(server);
+
+    // Point the envelope at Mallory's device: holding the ciphertext is not
+    // membership.
+    server.envelopes.single['recipientDeviceId'] = mallory.deviceId;
+    final received = await mallory.messaging.receive();
+    expect(received.messages, isEmpty);
+    expect(received.failures, hasLength(1));
+  });
+  test('a group send does not burn a prekey when a session already exists', () async {
+    final group = await alice.messaging.createGroup('Sparsam', [bob.accountId]);
+    final before = server.accounts['bob']!.devices.single.preKeys.length;
+
+    // First send has no session and legitimately fetches a bundle.
+    await alice.messaging.sendToGroup(group.groupId, 'eins', groupKey: group.groupKey);
+    final afterFirst = server.accounts['bob']!.devices.single.preKeys.length;
+    expect(afterFirst, before - 1);
+
+    // The second reuses the session rather than draining the pool.
+    await alice.messaging.sendToGroup(group.groupId, 'zwei', groupKey: group.groupKey);
+    expect(server.accounts['bob']!.devices.single.preKeys.length, afterFirst);
   });
 }

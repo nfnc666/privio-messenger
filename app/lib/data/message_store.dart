@@ -42,15 +42,67 @@ class KnownUser {
       );
 }
 
-/// One conversation and everything this device holds of it.
-class Conversation {
-  Conversation({required this.user, List<Message>? messages})
-      : messages = messages ?? <Message>[];
+/// A group, as this device understands it.
+class GroupInfo {
+  const GroupInfo({
+    required this.groupId,
+    required this.role,
+    this.name,
+    this.groupKey,
+    this.memberIds = const [],
+  });
 
-  final KnownUser user;
+  final String groupId;
+
+  /// 'admin' or 'member'.
+  final String role;
+
+  /// Decrypted from the group's sealed metadata. Null until the key arrives.
+  final String? name;
+
+  /// Base64. Seals the group's name, and reaches members inside end-to-end
+  /// encrypted messages — the server stores the sealed name and no key for it.
+  final String? groupKey;
+
+  final List<String> memberIds;
+
+  bool get isAdmin => role == 'admin';
+
+  GroupInfo merge({String? name, String? groupKey, List<String>? memberIds, String? role}) =>
+      GroupInfo(
+        groupId: groupId,
+        role: role ?? this.role,
+        name: name ?? this.name,
+        groupKey: groupKey ?? this.groupKey,
+        memberIds: memberIds ?? this.memberIds,
+      );
+}
+
+/// One conversation and everything this device holds of it.
+///
+/// Either a direct chat with a person or a group; the screens treat both the
+/// same, which is why they share a type.
+class Conversation {
+  Conversation.direct(KnownUser this.user, {List<Message>? messages})
+      : group = null,
+        messages = messages ?? <Message>[];
+
+  Conversation.group(GroupInfo this.group, {List<Message>? messages})
+      : user = null,
+        messages = messages ?? <Message>[];
+
+  final KnownUser? user;
+  final GroupInfo? group;
   final List<Message> messages;
 
   int unreadCount = 0;
+
+  bool get isGroup => group != null;
+
+  /// Addressed by account id for a person, group id for a group.
+  String get id => group?.groupId ?? user!.accountId;
+
+  String get title => group != null ? (group!.name ?? 'Group') : user!.label;
 
   Message? get lastMessage => messages.isEmpty ? null : messages.last;
 }
@@ -63,10 +115,11 @@ class Conversation {
 /// UI will not notice when that lands.
 abstract interface class MessageStore {
   List<Conversation> conversations();
-  Conversation? conversationWith(String accountId);
+  Conversation? conversationWith(String id);
   Conversation upsertUser(KnownUser user);
-  void append(String accountId, Message message);
-  void markRead(String accountId);
+  Conversation upsertGroup(GroupInfo group);
+  void append(String id, Message message);
+  void markRead(String id);
   void updateState(String accountId, String messageId, DeliveryState state);
 
   /// Replaces the contents with what was read back from the archive.
@@ -90,43 +143,63 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
-  Conversation? conversationWith(String accountId) => _conversations[accountId];
+  Conversation? conversationWith(String id) => _conversations[id];
 
   @override
   Conversation upsertUser(KnownUser user) {
     final existing = _conversations[user.accountId];
-    if (existing == null) {
-      return _conversations[user.accountId] = Conversation(user: user);
+    if (existing?.user == null) {
+      return _conversations[user.accountId] = Conversation.direct(user);
     }
 
     // Facts about a person arrive piecemeal — a username from the contact list,
     // a profile key from a message, an avatar pointer from a lookup. Merge them
     // rather than letting the newest partial answer overwrite the rest.
-    final merged = existing.user.merge(
+    final merged = existing!.user!.merge(
       username: user.username == 'unknown' ? null : user.username,
       displayName: user.displayName,
       avatarMediaId: user.avatarMediaId,
       profileKey: user.profileKey,
     );
-    final replacement = Conversation(user: merged, messages: existing.messages)
+    final replacement = Conversation.direct(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount;
     return _conversations[user.accountId] = replacement;
   }
 
   @override
-  void append(String accountId, Message message) {
-    final conversation = _conversations[accountId];
+  Conversation upsertGroup(GroupInfo group) {
+    final existing = _conversations[group.groupId];
+    if (existing?.group == null) {
+      return _conversations[group.groupId] = Conversation.group(group);
+    }
+
+    // Group facts arrive piecemeal too: the id and role from the listing, the
+    // name only once the key has been shared.
+    final merged = existing!.group!.merge(
+      name: group.name,
+      groupKey: group.groupKey,
+      memberIds: group.memberIds.isEmpty ? null : group.memberIds,
+      role: group.role,
+    );
+    final replacement = Conversation.group(merged, messages: existing.messages)
+      ..unreadCount = existing.unreadCount;
+    return _conversations[group.groupId] = replacement;
+  }
+
+  @override
+  void append(String id, Message message) {
+    final conversation = _conversations[id];
     if (conversation == null) return;
     conversation.messages.add(message);
     if (!message.isMine) conversation.unreadCount += 1;
   }
 
   @override
-  void markRead(String accountId) => _conversations[accountId]?.unreadCount = 0;
+  void markRead(String id) => _conversations[id]?.unreadCount = 0;
 
   @override
-  void updateState(String accountId, String messageId, DeliveryState state) {
-    final conversation = _conversations[accountId];
+  void updateState(String id, String messageId, DeliveryState state) {
+    final conversation = _conversations[id];
     if (conversation == null) return;
     final index = conversation.messages.indexWhere((m) => m.id == messageId);
     if (index == -1) return;
@@ -138,7 +211,7 @@ class InMemoryMessageStore implements MessageStore {
     _conversations
       ..clear()
       ..addEntries(
-        conversations.map((conversation) => MapEntry(conversation.user.accountId, conversation)),
+        conversations.map((conversation) => MapEntry(conversation.id, conversation)),
       );
   }
 

@@ -166,6 +166,29 @@ class PrivioApiClient {
   }) =>
       _send('POST', '/v1/messages/group/$groupId', body: {'messages': messages});
 
+  Future<Map<String, dynamic>> createGroup({
+    required List<String> memberIds,
+    String? encryptedMetadata,
+  }) =>
+      _send('POST', '/v1/groups', body: {
+        'memberIds': memberIds,
+        if (encryptedMetadata != null) 'encryptedMetadata': encryptedMetadata,
+      },);
+
+  Future<Map<String, dynamic>> groups() => _send('GET', '/v1/groups');
+
+  Future<Map<String, dynamic>> group(String groupId) => _send('GET', '/v1/groups/$groupId');
+
+  /// Every device that must receive a copy of the next group message.
+  Future<Map<String, dynamic>> groupDevices(String groupId) =>
+      _send('GET', '/v1/groups/$groupId/devices');
+
+  Future<void> updateGroupMetadata(String groupId, String encryptedMetadata) async =>
+      _send('PATCH', '/v1/groups/$groupId', body: {'encryptedMetadata': encryptedMetadata});
+
+  Future<void> leaveGroup(String groupId, String accountId) async =>
+      _send('DELETE', '/v1/groups/$groupId/members/$accountId');
+
   Future<Map<String, dynamic>> fetchEnvelopes({int limit = 100}) =>
       _send('GET', '/v1/messages', query: {'limit': '$limit'});
 

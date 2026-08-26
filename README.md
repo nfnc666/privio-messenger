@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-138%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-144%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -47,7 +47,7 @@ No phone number. No email. No address-book upload. You are a username.
 <td align="center"><img src="docs/screenshots/13-devices.png" width="200"><br><sub><b>Devices</b><br>See what is logged in, log it out</sub></td>
 <td align="center"><img src="docs/screenshots/15-backup.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold</sub></td>
 <td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Push carries no content at all</sub></td>
-<td align="center"><img src="docs/screenshots/04-calls.png" width="200"><br><sub><b>Calls</b><br>History today, WebRTC in V2</sub></td>
+<td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
 </table>
 
@@ -96,7 +96,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Two-factor auth** | ✅ | TOTP (RFC 6238), enforced at login |
 | **Wipe code** | ✅ | Duress code that destroys everything and looks like a typo |
 | **Contacts & blocking** | ✅ | Exact-username lookup, invisible blocking |
-| **Groups** | ✅ | Membership, admin roles, encrypted group metadata |
+| **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Sealed with a recovery key the server never sees |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
@@ -325,7 +325,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  41 passing
 
 cd app && flutter analyze && flutter test
-#  97 passing
+#  103 passing
 ```
 
 Among the things those tests assert:
@@ -339,6 +339,8 @@ Among the things those tests assert:
 - a different key **cannot** read that archive, and a tampered one is discarded
 - a photo's **GPS, camera model and serial number** are gone from what the recipient receives
 - an avatar on the server is **not a picture** — a stranger's key opens nothing
+- a group's **name is ciphertext** to the server; only members with the key read it
+- a second group message **reuses the session** instead of draining prekeys
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
 - a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away

@@ -3,6 +3,9 @@ import 'dart:typed_data';
 
 import '../core/api_client.dart';
 import '../crypto/privio_crypto.dart';
+import 'package:cryptography/cryptography.dart';
+
+import '../data/message_store.dart';
 import '../media/attachment.dart';
 import '../media/metadata_scrubber.dart';
 
@@ -133,8 +136,9 @@ class MessagingService {
             fileName: payload.fileName,
             body: payload.body,
             profileKey: key,
+            groupKey: payload.groupKey,
           )
-        : MessagePayload.text(payload.body, profileKey: key);
+        : MessagePayload.text(payload.body, profileKey: key, groupKey: payload.groupKey);
   }
 
   /// Seals a profile picture under this account's profile key and uploads it.
@@ -274,6 +278,144 @@ class MessagingService {
     }
 
     return ReceiveResult(messages, failures, more, highestHandled: highestHandled);
+  }
+
+  // --- Groups ---------------------------------------------------------------
+
+  /// Creates a group with a sealed name.
+  ///
+  /// The name is encrypted with a fresh group key before it is uploaded, so the
+  /// server stores a group it cannot name. The key then reaches members on the
+  /// group's messages.
+  Future<GroupInfo> createGroup(String name, List<String> memberIds) async {
+    final key = await AesGcm.with256bits().newSecretKey();
+    final keyBytes = Uint8List.fromList(await key.extractBytes());
+
+    final created = await _api.createGroup(
+      memberIds: memberIds,
+      encryptedMetadata: base64Encode(await _sealGroupName(name, keyBytes)),
+    );
+
+    return GroupInfo(
+      groupId: created['id'] as String,
+      role: 'admin',
+      name: name,
+      groupKey: base64Encode(keyBytes),
+      memberIds: [
+        for (final member in created['members'] as List<dynamic>)
+          (member as Map<String, dynamic>)['id'] as String,
+      ],
+    );
+  }
+
+  /// The groups this account belongs to, with names opened where the key for
+  /// them is already known.
+  Future<List<GroupInfo>> listGroups(MessageStore store) async {
+    final response = await _api.groups();
+    final groups = <GroupInfo>[];
+
+    // A missing key is not a crash: the network boundary is exactly where a
+    // surprise should be absorbed rather than propagated into the UI.
+    for (final raw in response['groups'] as List<dynamic>? ?? const []) {
+      final entry = raw as Map<String, dynamic>;
+      final groupId = entry['id'] as String;
+      final knownKey = store.conversationWith(groupId)?.group?.groupKey;
+      final sealed = entry['encryptedMetadata'] as String?;
+
+      groups.add(
+        GroupInfo(
+          groupId: groupId,
+          role: entry['role'] as String,
+          groupKey: knownKey,
+          name: knownKey == null || sealed == null
+              ? null
+              : await _openGroupName(sealed, knownKey),
+        ),
+      );
+    }
+    return groups;
+  }
+
+  /// Seals [plaintext] once per member device and posts it to the group.
+  ///
+  /// There is no group-wide message key: every device gets its own Signal
+  /// ciphertext, so removing a member removes their ability to read what comes
+  /// after, without re-keying anything.
+  Future<int> sendToGroup(String groupId, String plaintext, {String? groupKey}) async {
+    final payload = await _withProfileKey(
+      MessagePayload.text(plaintext, groupKey: groupKey),
+    );
+    final encoded = payload.encode();
+
+    final devices = await _api.groupDevices(groupId);
+    final targets = [
+      for (final raw in devices['devices'] as List<dynamic>? ?? const [])
+        raw as Map<String, dynamic>,
+    ];
+    if (targets.isEmpty) return 0;
+
+    // Open sessions only where one is missing. Fetching a prekey bundle
+    // consumes a one-time prekey, so doing it per send would drain the pool for
+    // no reason — most group sends already have a session for every device.
+    final needBundles = <String>{};
+    for (final device in targets) {
+      final hasSession = await _crypto.hasSessionWith(
+        device['accountId'] as String,
+        device['deviceIndex'] as int,
+      );
+      if (!hasSession) needBundles.add(device['username'] as String);
+    }
+    for (final username in needBundles) {
+      final response = await _api.preKeyBundles(username);
+      final accountId = response['accountId'] as String;
+      for (final raw in response['devices'] as List<dynamic>) {
+        await _crypto.ensureSession(
+          accountId,
+          DeviceBundle.fromJson(raw as Map<String, dynamic>),
+        );
+      }
+    }
+
+    final sealed = <Map<String, dynamic>>[];
+    for (final device in targets) {
+      final copy = await _crypto.seal(
+        accountId: device['accountId'] as String,
+        deviceId: device['deviceId'] as String,
+        deviceIndex: device['deviceIndex'] as int,
+        registrationId: device['registrationId'] as int,
+        plaintext: encoded,
+      );
+      sealed.add(copy.toJson());
+    }
+
+    final result = await _api.sendGroupMessage(groupId: groupId, messages: sealed);
+    return result['deliveredTo'] as int? ?? sealed.length;
+  }
+
+  static final AesGcm _groupCipher = AesGcm.with256bits();
+
+  static Future<Uint8List> _sealGroupName(String name, Uint8List key) async {
+    final box = await _groupCipher.encrypt(utf8.encode(name), secretKey: SecretKey(key));
+    return Uint8List.fromList([...box.nonce, ...box.cipherText, ...box.mac.bytes]);
+  }
+
+  static Future<String?> _openGroupName(String sealed, String base64Key) async {
+    try {
+      final bytes = base64Decode(sealed);
+      final macLength = _groupCipher.macAlgorithm.macLength;
+      final plain = await _groupCipher.decrypt(
+        SecretBox(
+          bytes.sublist(12, bytes.length - macLength),
+          nonce: bytes.sublist(0, 12),
+          mac: Mac(bytes.sublist(bytes.length - macLength)),
+        ),
+        secretKey: SecretKey(base64Decode(base64Key)),
+      );
+      return utf8.decode(plain);
+    } on Object {
+      // A name we cannot open is not a reason to hide the group.
+      return null;
+    }
   }
 
   /// Republishes one-time prekeys when the server's pool runs low.

@@ -107,7 +107,7 @@ abstract final class AttachmentCipher {
 /// Serialised, padded and sealed as one unit, so the server cannot tell a photo
 /// from a sentence — only that something was sent.
 class MessagePayload {
-  const MessagePayload.text(this.body, {this.profileKey})
+  const MessagePayload.text(this.body, {this.profileKey, this.groupKey})
       : mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -122,6 +122,7 @@ class MessagePayload {
     this.fileName,
     this.body = '',
     this.profileKey,
+    this.groupKey,
   });
 
   factory MessagePayload.decode(String raw) {
@@ -136,6 +137,7 @@ class MessagePayload {
     if (json == null || json['v'] != 1) return MessagePayload.text(raw);
 
     final profileKey = json['pk'] as String?;
+    final groupKey = json['gk'] as String?;
     if (json['t'] == 'media') {
       return MessagePayload.media(
         mediaId: json['id'] as String,
@@ -145,9 +147,14 @@ class MessagePayload {
         fileName: json['n'] as String?,
         body: json['b'] as String? ?? '',
         profileKey: profileKey,
+        groupKey: groupKey,
       );
     }
-    return MessagePayload.text(json['b'] as String? ?? '', profileKey: profileKey);
+    return MessagePayload.text(
+      json['b'] as String? ?? '',
+      profileKey: profileKey,
+      groupKey: groupKey,
+    );
   }
 
   /// A caption, or the message text.
@@ -171,6 +178,10 @@ class MessagePayload {
   /// people you have actually written to can use it.
   final String? profileKey;
 
+  /// The key that opens a group's sealed name, attached to group messages so a
+  /// member learns it without the server ever holding it.
+  final String? groupKey;
+
   bool get isMedia => mediaId != null;
 
   String encode() => jsonEncode({
@@ -178,6 +189,7 @@ class MessagePayload {
         't': isMedia ? 'media' : 'text',
         'b': body,
         if (profileKey != null) 'pk': profileKey,
+        if (groupKey != null) 'gk': groupKey,
         if (isMedia) ...{
           'id': mediaId,
           'k': mediaKey,

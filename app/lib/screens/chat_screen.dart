@@ -81,6 +81,15 @@ class _ChatScreenState extends State<ChatScreen> {
     if (report != null && mounted) ScrubNotice.show(context, report);
   }
 
+  /// Members, and whether this device can read the group's name yet.
+  String _groupSubtitle(AppState state) {
+    final group = state.conversations.groupInfo(widget.accountId);
+    if (group == null) return 'End-to-end encrypted';
+    if (group.groupKey == null) return 'Waiting for the group key';
+    final count = group.memberIds.length;
+    return count > 0 ? '$count members · encrypted' : 'End-to-end encrypted';
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -131,7 +140,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         style: theme.textTheme.titleMedium,
                       ),
                       Text(
-                        'End-to-end encrypted',
+                        widget.isGroup
+                            ? _groupSubtitle(state)
+                            : 'End-to-end encrypted',
                         style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accent),
                       ),
                     ],
@@ -159,7 +170,14 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               if (state.conversations.error != null)
                 _ErrorBanner(message: state.conversations.error!),
-              _Composer(controller: _composer, onSend: _send, onAttach: _attach),
+              _Composer(
+                controller: _composer,
+                onSend: _send,
+                // Group attachments need the same per-device fan-out as group
+                // text, which is not wired yet; a button that silently does
+                // nothing is worse than no button.
+                onAttach: widget.isGroup ? null : _attach,
+              ),
             ],
           ),
         );
@@ -199,7 +217,7 @@ class _Composer extends StatelessWidget {
 
   final TextEditingController controller;
   final VoidCallback onSend;
-  final VoidCallback onAttach;
+  final VoidCallback? onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -220,8 +238,13 @@ class _Composer extends StatelessWidget {
           children: [
             IconButton(
               onPressed: onAttach,
-              icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
-              tooltip: 'Attach a file',
+              icon: Icon(
+                Icons.add_rounded,
+                color: onAttach == null
+                    ? PrivioColors.surfaceHigh
+                    : PrivioColors.textSecondary,
+              ),
+              tooltip: onAttach == null ? 'Files in groups are not ready yet' : 'Attach a file',
             ),
             Expanded(
               child: TextField(

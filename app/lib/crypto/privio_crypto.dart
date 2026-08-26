@@ -208,6 +208,13 @@ class PrivioCrypto {
   SignalProtocolAddress _address(String accountId, int deviceIndex) =>
       SignalProtocolAddress(accountId, deviceIndex);
 
+  /// Whether a session already exists with that device.
+  ///
+  /// Checked before fetching a prekey bundle, because fetching one consumes a
+  /// one-time prekey from the other side's pool.
+  Future<bool> hasSessionWith(String accountId, int deviceIndex) =>
+      _store.containsSession(_address(accountId, deviceIndex));
+
   /// Opens a session from a server-issued prekey bundle. Safe to call when a
   /// session already exists — it is a no-op then.
   Future<void> ensureSession(String accountId, DeviceBundle bundle) async {
