@@ -8,8 +8,7 @@ import 'package:privio/data/message_store.dart';
 import 'package:privio/models/models.dart';
 
 List<Conversation> sampleHistory() {
-  final conversation = Conversation(
-    user: const KnownUser(accountId: 'acc-alice', username: 'alice', displayName: 'Alice'),
+  final conversation = Conversation.direct( const KnownUser(accountId: 'acc-alice', username: 'alice', displayName: 'Alice'),
     messages: [
       Message(
         id: '1',
@@ -45,8 +44,8 @@ void main() {
     final restored = await archive.load();
 
     expect(restored, hasLength(1));
-    expect(restored.single.user.username, 'alice');
-    expect(restored.single.user.displayName, 'Alice');
+    expect(restored.single.user!.username, 'alice');
+    expect(restored.single.user!.displayName, 'Alice');
     expect(restored.single.unreadCount, 1);
     expect(restored.single.messages.map((m) => m.body), [
       'Treffen um 19 Uhr am üblichen Ort',
@@ -142,8 +141,8 @@ void main() {
   });
   test('an attachment survives a restart with its key', () async {
     final withFile = [
-      Conversation(
-        user: const KnownUser(accountId: 'acc-bob', username: 'bob'),
+      Conversation.direct(
+        const KnownUser(accountId: 'acc-bob', username: 'bob'),
         messages: [
           Message(
             id: '1',
@@ -177,8 +176,8 @@ void main() {
 
   test('an attachment key is not readable at rest either', () async {
     await archive.save([
-      Conversation(
-        user: const KnownUser(accountId: 'acc-bob', username: 'bob'),
+      Conversation.direct(
+        const KnownUser(accountId: 'acc-bob', username: 'bob'),
         messages: [
           Message(
             id: '1',

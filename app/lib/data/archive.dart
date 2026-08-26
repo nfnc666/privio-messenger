@@ -179,14 +179,29 @@ class EncryptedMessageArchive implements MessageArchive {
   static List<Map<String, dynamic>> _encode(List<Conversation> conversations) => [
         for (final conversation in conversations)
           {
-            'accountId': conversation.user.accountId,
-            'username': conversation.user.username,
-            'displayName': conversation.user.displayName,
-            if (conversation.user.avatarMediaId != null)
-              'avatarMediaId': conversation.user.avatarMediaId,
-            if (conversation.user.profileKey != null)
-              'profileKey': conversation.user.profileKey,
+            'id': conversation.id,
             'unreadCount': conversation.unreadCount,
+            if (conversation.user != null)
+              'user': {
+                'accountId': conversation.user!.accountId,
+                'username': conversation.user!.username,
+                'displayName': conversation.user!.displayName,
+                if (conversation.user!.avatarMediaId != null)
+                  'avatarMediaId': conversation.user!.avatarMediaId,
+                if (conversation.user!.profileKey != null)
+                  'profileKey': conversation.user!.profileKey,
+              },
+            if (conversation.group != null)
+              'group': {
+                'groupId': conversation.group!.groupId,
+                'role': conversation.group!.role,
+                if (conversation.group!.name != null) 'name': conversation.group!.name,
+                // Without the group key the name is unreadable after a restart,
+                // so it belongs in the archive — which is itself sealed.
+                if (conversation.group!.groupKey != null)
+                  'groupKey': conversation.group!.groupKey,
+                'memberIds': conversation.group!.memberIds,
+              },
             'messages': [
               for (final message in conversation.messages)
                 {
@@ -221,29 +236,57 @@ class EncryptedMessageArchive implements MessageArchive {
           fileName: raw['fileName'] as String?,
         );
 
-  static List<Conversation> _decode(List<dynamic> raw) => [
-        for (final entry in raw.cast<Map<String, dynamic>>())
-          Conversation(
-            user: KnownUser(
-              accountId: entry['accountId'] as String,
-              username: entry['username'] as String,
-              displayName: entry['displayName'] as String?,
-              avatarMediaId: entry['avatarMediaId'] as String?,
-              profileKey: entry['profileKey'] as String?,
-            ),
-            messages: [
-              for (final message in (entry['messages'] as List<dynamic>).cast<Map<String, dynamic>>())
-                Message(
-                  id: message['id'] as String,
-                  body: message['body'] as String,
-                  sentAt: DateTime.parse(message['sentAt'] as String),
-                  isMine: message['isMine'] as bool,
-                  kind: MessageKind.values.byName(message['kind'] as String? ?? 'text'),
-                  state: DeliveryState.values.byName(message['state'] as String? ?? 'read'),
-                  senderName: message['senderName'] as String?,
-                  attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
-                ),
-            ],
-          )..unreadCount = entry['unreadCount'] as int? ?? 0,
+  static List<Conversation> _decode(List<dynamic> raw) {
+    final conversations = <Conversation>[];
+
+    for (final entry in raw.cast<Map<String, dynamic>>()) {
+      final messages = [
+        for (final message in (entry['messages'] as List<dynamic>).cast<Map<String, dynamic>>())
+          Message(
+            id: message['id'] as String,
+            body: message['body'] as String,
+            sentAt: DateTime.parse(message['sentAt'] as String),
+            isMine: message['isMine'] as bool,
+            kind: MessageKind.values.byName(message['kind'] as String? ?? 'text'),
+            state: DeliveryState.values.byName(message['state'] as String? ?? 'read'),
+            senderName: message['senderName'] as String?,
+            attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
+          ),
       ];
+
+      final group = entry['group'] as Map<String, dynamic>?;
+      if (group != null) {
+        conversations.add(
+          Conversation.group(
+            GroupInfo(
+              groupId: group['groupId'] as String,
+              role: group['role'] as String? ?? 'member',
+              name: group['name'] as String?,
+              groupKey: group['groupKey'] as String?,
+              memberIds: (group['memberIds'] as List<dynamic>? ?? const []).cast<String>(),
+            ),
+            messages: messages,
+          )..unreadCount = entry['unreadCount'] as int? ?? 0,
+        );
+        continue;
+      }
+
+      // Archives written before groups existed stored the user fields at the
+      // top level; read either shape rather than losing the history.
+      final user = (entry['user'] as Map<String, dynamic>?) ?? entry;
+      conversations.add(
+        Conversation.direct(
+          KnownUser(
+            accountId: user['accountId'] as String,
+            username: user['username'] as String,
+            displayName: user['displayName'] as String?,
+            avatarMediaId: user['avatarMediaId'] as String?,
+            profileKey: user['profileKey'] as String?,
+          ),
+          messages: messages,
+        )..unreadCount = entry['unreadCount'] as int? ?? 0,
+      );
+    }
+    return conversations;
+  }
 }

@@ -139,8 +139,10 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMembership(params.id, accountId);
     const { rows } = await pool.query(
-      `SELECT d.id, d.account_id, d.device_index, d.registration_id, d.identity_key
-       FROM group_members m JOIN devices d ON d.account_id = m.account_id AND d.revoked_at IS NULL
+      `SELECT d.id, d.account_id, a.username, d.device_index, d.registration_id, d.identity_key
+       FROM group_members m
+       JOIN devices d ON d.account_id = m.account_id AND d.revoked_at IS NULL
+       JOIN accounts a ON a.id = m.account_id
        WHERE m.group_id = $1 AND d.id <> $2 ORDER BY d.id`,
       [params.id, deviceId],
     );
@@ -148,6 +150,10 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
       devices: rows.map((r) => ({
         deviceId: r.id,
         accountId: r.account_id,
+        // So a sender missing a session can fetch that member's prekey bundle.
+        // Bundles are deliberately not returned here: they consume a one-time
+        // prekey, and most sends already have a session for every device.
+        username: r.username,
         deviceIndex: r.device_index,
         registrationId: r.registration_id,
         identityKey: (r.identity_key as Buffer).toString('base64'),

@@ -7,6 +7,7 @@ import '../widgets/chat_list_row.dart';
 import '../widgets/search_field.dart';
 import 'chat_screen.dart';
 import 'contacts_screen.dart';
+import 'new_group_screen.dart';
 
 /// The home list, built from the conversations this device has decrypted.
 class ChatsScreen extends StatefulWidget {
@@ -39,6 +40,30 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }).toList();
   }
 
+  /// Creating a group drops straight into it, which is what someone who just
+  /// named a group and picked its members expects to happen.
+  Future<void> _startGroup(BuildContext context, AppState state) async {
+    final groupId = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(builder: (_) => const NewGroupScreen()),
+    );
+    if (groupId == null || !context.mounted) return;
+
+    final title = state.conversations.groupInfo(groupId)?.name ?? 'Group';
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(accountId: groupId, title: title, isGroup: true),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => PrivioScope.of(context).conversations.refreshGroups(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
@@ -56,6 +81,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 onPressed: () => state.conversations.drain(),
                 icon: const Icon(Icons.refresh_rounded),
                 tooltip: 'Check for messages',
+              ),
+              IconButton(
+                onPressed: () => _startGroup(context, state),
+                icon: const Icon(Icons.group_add_outlined),
+                tooltip: 'New group',
               ),
               IconButton(
                 onPressed: () => Navigator.of(context).push(
@@ -100,6 +130,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                     builder: (_) => ChatScreen(
                                       accountId: chat.id,
                                       title: chat.title,
+                                      isGroup: chat.isGroup,
                                     ),
                                   ),
                                 );
