@@ -174,60 +174,245 @@ describe('channels', () => {
     );
   });
 
-  it('only owners and admins publish', async () => {
+  const join = (user: TestUser, channelId: string, inviteCode?: string) =>
+    h.app.inject({
+      method: 'POST',
+      url: `/v1/channels/${channelId}/join`,
+      headers: bearer(user),
+      payload: inviteCode ? { inviteCode } : {},
+    });
+
+  const setRole = (
+    actor: TestUser,
+    channelId: string,
+    target: TestUser,
+    payload: Record<string, unknown>,
+  ) =>
+    h.app.inject({
+      method: 'PUT',
+      url: `/v1/channels/${channelId}/members/${target.accountId}/role`,
+      headers: bearer(actor),
+      payload,
+    });
+
+  it('a subscriber cannot publish until they are given the permission', async () => {
     const channel = (await createChannel(owner, {
       visibility: 'public',
       handle: 'lesen',
       title: 'Lesen',
     })).json();
-    await h.app.inject({
-      method: 'POST',
-      url: `/v1/channels/${channel.id}/join`,
-      headers: bearer(reader),
-      payload: {},
-    });
+    await join(reader, channel.id);
 
-    const asSubscriber = await post(reader, channel.id, 'darf-ich-nicht');
-    assert.equal(asSubscriber.statusCode, 403);
+    assert.equal((await post(reader, channel.id, 'darf-ich-nicht')).statusCode, 403);
 
-    const promoted = await h.app.inject({
-      method: 'PUT',
-      url: `/v1/channels/${channel.id}/members/${reader.accountId}/role`,
-      headers: bearer(owner),
-      payload: { role: 'admin' },
-    });
+    const promoted = await setRole(owner, channel.id, reader, { role: 'admin' });
     assert.equal(promoted.statusCode, 200);
+    assert.equal(promoted.json().permissions.canPost, true);
+    assert.equal(
+      promoted.json().permissions.canManageMembers,
+      false,
+      'a new admin does not get to hand out permissions by default',
+    );
     assert.equal((await post(reader, channel.id, 'jetzt-schon')).statusCode, 201);
   });
 
-  it('only the owner changes roles, so a channel cannot be taken over', async () => {
+  it('an admin who may manage members can appoint another admin', async () => {
     const channel = (await createChannel(owner, {
       visibility: 'public',
-      handle: 'uebernahme',
-      title: 'Uebernahme',
+      handle: 'ernennen',
+      title: 'Ernennen',
     })).json();
-    for (const user of [reader, stranger]) {
-      await h.app.inject({
-        method: 'POST',
-        url: `/v1/channels/${channel.id}/join`,
-        headers: bearer(user),
-        payload: {},
-      });
-    }
-    await h.app.inject({
-      method: 'PUT',
-      url: `/v1/channels/${channel.id}/members/${reader.accountId}/role`,
-      headers: bearer(owner),
-      payload: { role: 'admin' },
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canPost: true, canManageMembers: true },
     });
 
-    const adminPromotingAdmin = await h.app.inject({
-      method: 'PUT',
-      url: `/v1/channels/${channel.id}/members/${stranger.accountId}/role`,
-      headers: bearer(reader),
-      payload: { role: 'admin' },
+    const appointed = await setRole(reader, channel.id, stranger, {
+      role: 'admin',
+      permissions: { canPost: true },
     });
-    assert.equal(adminPromotingAdmin.statusCode, 403);
+    assert.equal(appointed.statusCode, 200, 'this is what the owner delegated');
+    assert.equal((await post(stranger, channel.id, 'ich-auch')).statusCode, 201);
+  });
+
+  it('an admin cannot grant a permission they do not hold themselves', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'grenzen',
+      title: 'Grenzen',
+    })).json();
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+
+    // Can appoint admins, but cannot delete the channel.
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canPost: true, canManageMembers: true },
+    });
+
+    const overreach = await setRole(reader, channel.id, stranger, {
+      role: 'admin',
+      permissions: { canDeleteChannel: true },
+    });
+    assert.equal(overreach.statusCode, 403);
+    assert.equal(overreach.json().error, 'cannot_grant_what_you_lack');
+  });
+
+  it('an admin cannot demote someone who outranks them', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'rangordnung',
+      title: 'Rangordnung',
+    })).json();
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canManageMembers: true },
+    });
+    await setRole(owner, channel.id, stranger, {
+      role: 'admin',
+      permissions: { canManageMembers: true, canDeleteChannel: true },
+    });
+
+    const attempt = await setRole(reader, channel.id, stranger, { role: 'subscriber' });
+    assert.equal(attempt.statusCode, 403);
+    assert.equal(attempt.json().error, 'target_outranks_you');
+  });
+
+  it('nobody may change the owner, and nobody may change themselves', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'eigentuemer',
+      title: 'Eigentuemer',
+    })).json();
+    await join(reader, channel.id);
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canManageMembers: true },
+    });
+
+    const againstOwner = await setRole(reader, channel.id, owner, { role: 'subscriber' });
+    assert.equal(againstOwner.statusCode, 403);
+
+    const selfPromotion = await setRole(reader, channel.id, reader, {
+      role: 'admin',
+      permissions: { canDeleteChannel: true },
+    });
+    assert.equal(selfPromotion.statusCode, 400);
+  });
+
+  it('an admin with the permission can remove a member', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'entfernen',
+      title: 'Entfernen',
+    })).json();
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canManageMembers: true },
+    });
+
+    const removed = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/members/${stranger.accountId}`,
+      headers: bearer(reader),
+    });
+    assert.equal(removed.statusCode, 200);
+
+    const feed = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/posts`,
+      headers: bearer(stranger),
+    });
+    assert.equal(feed.statusCode, 403, 'and they can no longer read new posts');
+  });
+
+  it('the owner can delete the channel, and so can an admin who was trusted with it', async () => {
+    const ownersChannel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'weg',
+      title: 'Weg',
+    })).json();
+
+    const byOwner = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${ownersChannel.id}`,
+      headers: bearer(owner),
+    });
+    assert.equal(byOwner.statusCode, 200);
+
+    const gone = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${ownersChannel.id}`,
+      headers: bearer(owner),
+    });
+    assert.equal(gone.statusCode, 404);
+
+    const delegated = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'auchweg',
+      title: 'Auch weg',
+    })).json();
+    await join(reader, delegated.id);
+    await setRole(owner, delegated.id, reader, {
+      role: 'admin',
+      permissions: { canDeleteChannel: true },
+    });
+
+    const byAdmin = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${delegated.id}`,
+      headers: bearer(reader),
+    });
+    assert.equal(byAdmin.statusCode, 200);
+  });
+
+  it('an admin without that permission cannot delete the channel', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'bleibt',
+      title: 'Bleibt',
+    })).json();
+    await join(reader, channel.id);
+    await setRole(owner, channel.id, reader, { role: 'admin' });
+
+    const attempt = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}`,
+      headers: bearer(reader),
+    });
+    assert.equal(attempt.statusCode, 403);
+    assert.equal(attempt.json().error, 'insufficient_permission');
+
+    const still = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}`,
+      headers: bearer(owner),
+    });
+    assert.equal(still.statusCode, 200);
+  });
+
+  it('a deleted channel disappears from discovery', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'unsichtbar',
+      title: 'Unsichtbar Kanal',
+    })).json();
+    await h.app.inject({ method: 'DELETE', url: `/v1/channels/${channel.id}`, headers: bearer(owner) });
+
+    const search = await h.app.inject({
+      method: 'GET',
+      url: '/v1/channels/discover?q=Unsichtbar',
+      headers: bearer(stranger),
+    });
+    assert.equal(search.json().channels.length, 0);
   });
 
   it('pins and unpins a post', async () => {

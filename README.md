@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-158%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-165%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -111,7 +111,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
-| **Channels** | 🔧 | Server complete and tested; the app cannot see them yet |
+| **Channels** | 🔧 | Server complete, with per-admin permissions; the app cannot see them yet |
 | **Disguise mode** | 📋 | V2 — the calculator skin |
 
 ✅ done and tested · 🔧 in progress · 📋 planned
@@ -332,7 +332,7 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  55 passing
+#  62 passing
 
 cd app && flutter analyze && flutter test
 #  103 passing
@@ -352,6 +352,7 @@ Among the things those tests assert:
 - a group's **name is ciphertext** to the server; only members with the key read it
 - a **private channel** answers a stranger exactly as it answers about one that does not exist
 - a deleted post's ciphertext is **overwritten**, not left waiting for a key
+- an admin **cannot grant a permission they lack**, so delegation is not takeover
 - a second group message **reuses the session** instead of draining prekeys
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
