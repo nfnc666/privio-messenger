@@ -1,21 +1,31 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import '../core/api_client.dart';
 import '../crypto/privio_crypto.dart';
+import '../media/attachment.dart';
+import '../media/metadata_scrubber.dart';
 
 /// A decrypted incoming message, with the routing facts that came with it.
 class IncomingMessage {
   const IncomingMessage({
     required this.envelopeId,
     required this.senderAccountId,
-    required this.body,
+    required this.payload,
     required this.receivedAt,
     this.groupId,
   });
 
   final int envelopeId;
   final String senderAccountId;
-  final String body;
+
+  /// Text or an attachment pointer — the server cannot tell which.
+  final MessagePayload payload;
+
   final DateTime receivedAt;
   final String? groupId;
+
+  String get body => payload.body;
 }
 
 /// An envelope that could not be decrypted.
@@ -58,13 +68,58 @@ class MessagingService {
   /// the bundle fetch and the send. The fix is to fetch again and re-seal —
   /// once. A second mismatch is not a race, it is a bug or an attack, and it
   /// propagates rather than looping.
-  Future<int> sendToUser(String username, String plaintext) async {
+  Future<int> sendToUser(String username, String plaintext) =>
+      sendPayload(username, MessagePayload.text(plaintext));
+
+  Future<int> sendPayload(String username, MessagePayload payload) async {
+    final encoded = payload.encode();
     try {
-      return await _sealAndSend(username, plaintext);
+      return await _sealAndSend(username, encoded);
     } on ApiException catch (error) {
       if (error.code != 'device_mismatch') rethrow;
-      return _sealAndSend(username, plaintext);
+      return _sealAndSend(username, encoded);
     }
+  }
+
+  /// Sends a file: strips its metadata, pads it, seals it under its own key,
+  /// uploads the ciphertext, and sends the key inside the encrypted message.
+  ///
+  /// Returns what was stripped, so the UI can tell the user rather than leaving
+  /// them to assume.
+  Future<ScrubReport> sendAttachment(
+    String username, {
+    required Uint8List file,
+    String? fileName,
+    String? declaredType,
+    String caption = '',
+  }) async {
+    final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
+    final mediaId = await _api.uploadMedia(sealed.bytes);
+
+    await sendPayload(
+      username,
+      MessagePayload.media(
+        mediaId: mediaId,
+        mediaKey: base64Encode(sealed.key),
+        mediaType: sealed.report.mediaType,
+        byteSize: sealed.plainLength,
+        fileName: fileName,
+        body: caption,
+      ),
+    );
+    return sealed.report;
+  }
+
+  /// Downloads and opens an attachment a message points at.
+  Future<Uint8List> openAttachment(MessagePayload payload) async {
+    if (!payload.isMedia) {
+      throw ArgumentError.value(payload, 'payload', 'Not an attachment');
+    }
+    final sealed = await _api.downloadMedia(payload.mediaId!);
+    return AttachmentCipher.open(
+      Uint8List.fromList(sealed),
+      base64Decode(payload.mediaKey!),
+    );
   }
 
   Future<int> _sealAndSend(String username, String plaintext) async {
@@ -140,7 +195,7 @@ class MessagingService {
           IncomingMessage(
             envelopeId: envelopeId,
             senderAccountId: senderAccountId,
-            body: body,
+            payload: MessagePayload.decode(body),
             receivedAt: DateTime.parse(envelope['createdAt'] as String),
             groupId: envelope['groupId'] as String?,
           ),
