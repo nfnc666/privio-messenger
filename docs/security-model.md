@@ -191,10 +191,27 @@ a group's. A private channel is also never listed, never searchable, and answers
 a stranger asking about it exactly as it answers about a channel that does not
 exist.
 
+**Who may do what.** A single "admin" bit is too blunt for a channel: someone
+who should be able to publish is not necessarily someone who should be able to
+hand out permissions or delete the whole thing. Each capability is its own flag —
+post, edit the channel, delete posts, manage members, delete the channel — and
+two rules keep delegation from becoming takeover:
+
+1. **You cannot grant a permission you do not hold.** Otherwise "may appoint
+   admins" is simply "may take the channel over, one step later".
+2. **You cannot demote or remove someone who holds something you do not.** An
+   admin cannot clear the more privileged admin out of the way first.
+
+The owner holds everything, cannot be demoted or removed, and cannot walk out of
+their own channel. Deleting the channel is off by default even for admins,
+because it is the one action nothing undoes; an owner can grant it deliberately.
+
 **The limits, stated plainly:**
 
-- A member who leaves keeps the key, and so keeps every post they could already
-  read. Rotating the key on removal and re-sharing it is not implemented.
+- A member who leaves — or is removed — keeps the key, and so keeps every post
+  they could already read. Rotating the key on removal and re-sharing it to the
+  remaining members is not implemented, which means removal stops future posts
+  from reaching them but does not take back the past.
 - Membership is visible to the server, as it must be for delivery.
 - "Restrict saving" is a hint the client honours. Anyone who can read a post can
   copy it; it raises effort and is not a security control.

@@ -6,6 +6,15 @@ import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
+import {
+  DEFAULT_ADMIN_PERMISSIONS,
+  NO_PERMISSIONS,
+  OWNER_PERMISSIONS,
+  permissionsFromRow,
+  withinAuthority,
+  type ChannelPermission,
+  type ChannelPermissions,
+} from '../services/channel_permissions.js';
 
 const MAX_POST_BYTES = 256 * 1024;
 
@@ -39,23 +48,57 @@ function publicView(row: Record<string, unknown>) {
   };
 }
 
-async function membership(channelId: string, accountId: string) {
-  const { rows } = await pool.query<{ role: string }>(
-    `SELECT m.role FROM channel_members m
+interface Membership {
+  role: string;
+  permissions: ChannelPermissions;
+}
+
+async function membership(channelId: string, accountId: string): Promise<Membership | null> {
+  const { rows } = await pool.query(
+    `SELECT m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
+            m.can_manage_members, m.can_delete_channel
+     FROM channel_members m
      JOIN channels c ON c.id = m.channel_id
      WHERE m.channel_id = $1 AND m.account_id = $2 AND c.deleted_at IS NULL`,
     [channelId, accountId],
   );
-  return rows[0]?.role ?? null;
+  const row = rows[0];
+  return row ? { role: row.role, permissions: permissionsFromRow(row) } : null;
 }
 
-async function requireRole(channelId: string, accountId: string, roles: string[]) {
-  const role = await membership(channelId, accountId);
-  if (!role) throw ApiError.forbidden('not_a_member', 'You are not in this channel');
-  if (!roles.includes(role)) {
-    throw ApiError.forbidden('insufficient_role', 'You do not have permission for that');
+async function requireMember(channelId: string, accountId: string): Promise<Membership> {
+  const member = await membership(channelId, accountId);
+  if (!member) throw ApiError.forbidden('not_a_member', 'You are not in this channel');
+  return member;
+}
+
+async function requirePermission(
+  channelId: string,
+  accountId: string,
+  permission: ChannelPermission,
+): Promise<Membership> {
+  const member = await requireMember(channelId, accountId);
+  if (!member.permissions[permission]) {
+    throw ApiError.forbidden('insufficient_permission', `You need ${permission} for that`);
   }
-  return role;
+  return member;
+}
+
+const permissionsSchema = z.object({
+  canPost: z.boolean().optional(),
+  canEditChannel: z.boolean().optional(),
+  canDeletePosts: z.boolean().optional(),
+  canManageMembers: z.boolean().optional(),
+  canDeleteChannel: z.boolean().optional(),
+});
+
+function resolvePermissions(
+  role: 'admin' | 'subscriber',
+  requested: z.infer<typeof permissionsSchema> | undefined,
+): ChannelPermissions {
+  if (role === 'subscriber') return NO_PERMISSIONS;
+  const base = requested ? NO_PERMISSIONS : DEFAULT_ADMIN_PERMISSIONS;
+  return { ...base, ...requested };
 }
 
 const channelRoutes: FastifyPluginAsync = async (app) => {
@@ -116,14 +159,17 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
           throw err;
         });
       await client.query(
-        `INSERT INTO channel_members (channel_id, account_id, role) VALUES ($1, $2, 'owner')`,
+        `INSERT INTO channel_members
+           (channel_id, account_id, role, can_post, can_edit_channel, can_delete_posts,
+            can_manage_members, can_delete_channel)
+         VALUES ($1, $2, 'owner', true, true, true, true, true)`,
         [rows[0].id, accountId],
       );
       return rows[0];
     });
 
     reply.code(201);
-    return { ...publicView(channel), role: 'owner', inviteCode };
+    return { ...publicView(channel), role: 'owner', permissions: OWNER_PERMISSIONS, inviteCode };
   });
 
   /** The channels this account is in. */
@@ -199,12 +245,16 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     const channel = rows[0];
     if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
 
-    const role = await membership(params.id, accountId);
+    const member = await membership(params.id, accountId);
     // A private channel does not confirm its own existence to a stranger.
-    if (channel.visibility === 'private' && !role) {
+    if (channel.visibility === 'private' && !member) {
       throw ApiError.notFound('channel_not_found', 'No such channel');
     }
-    return { ...publicView(channel), role };
+    return {
+      ...publicView(channel),
+      role: member?.role ?? null,
+      permissions: member?.permissions ?? null,
+    };
   });
 
   /**
@@ -248,16 +298,17 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       return (rowCount ?? 0) > 0;
     });
 
-    return { joined, role: await membership(params.id, accountId) };
+    const member = await membership(params.id, accountId);
+    return { joined, role: member?.role ?? null, permissions: member?.permissions ?? null };
   });
 
   app.delete('/v1/channels/:id/members/me', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
 
-    const role = await membership(params.id, accountId);
-    if (!role) throw ApiError.notFound('not_a_member', 'You are not in this channel');
-    if (role === 'owner') {
+    const member = await membership(params.id, accountId);
+    if (!member) throw ApiError.notFound('not_a_member', 'You are not in this channel');
+    if (member.role === 'owner') {
       throw ApiError.conflict('owner_cannot_leave', 'Hand the channel over or delete it');
     }
 
@@ -277,10 +328,12 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
   app.get('/v1/channels/:id/members', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
-    await requireRole(params.id, accountId, ['owner', 'admin', 'subscriber']);
+    await requireMember(params.id, accountId);
 
     const { rows } = await pool.query(
-      `SELECT a.id, a.username, a.display_name, m.role, m.joined_at
+      `SELECT a.id, a.username, a.display_name, m.role, m.joined_at,
+              m.can_post, m.can_edit_channel, m.can_delete_posts,
+              m.can_manage_members, m.can_delete_channel
        FROM channel_members m JOIN accounts a ON a.id = m.account_id
        WHERE m.channel_id = $1 AND a.deleted_at IS NULL
        ORDER BY m.joined_at ASC LIMIT 500`,
@@ -292,26 +345,104 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
         username: r.username,
         displayName: r.display_name,
         role: r.role,
+        permissions: permissionsFromRow(r),
         joinedAt: (r.joined_at as Date).toISOString(),
       })),
     };
   });
 
+  /**
+   * Set a member's role and what they may do.
+   *
+   * An admin with `canManageMembers` may appoint other admins — but only with
+   * permissions they hold themselves, and only over members who are not already
+   * more privileged than they are. Without those two rules, "may appoint
+   * admins" is simply "may take the channel over, one step later".
+   */
   app.put('/v1/channels/:id/members/:accountId/role', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema, accountId: uuidSchema }), request.params);
-    const body = parse(z.object({ role: z.enum(['admin', 'subscriber']) }), request.body);
-    // Only the owner changes roles: an admin promoting admins is how a channel
-    // gets taken over.
-    await requireRole(params.id, accountId, ['owner']);
-
-    const { rowCount } = await pool.query(
-      `UPDATE channel_members SET role = $3
-       WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
-      [params.id, params.accountId, body.role],
+    const body = parse(
+      z.object({
+        role: z.enum(['admin', 'subscriber']),
+        permissions: permissionsSchema.optional(),
+      }),
+      request.body,
     );
-    if (!rowCount) throw ApiError.notFound('member_not_found', 'Not a member of this channel');
-    return { role: body.role };
+
+    const actor = await requirePermission(params.id, accountId, 'canManageMembers');
+    if (params.accountId === accountId) {
+      throw ApiError.badRequest('cannot_change_own_role', 'You cannot change your own role');
+    }
+
+    const target = await membership(params.id, params.accountId);
+    if (!target) throw ApiError.notFound('member_not_found', 'Not a member of this channel');
+    if (target.role === 'owner') {
+      throw ApiError.forbidden('owner_is_fixed', 'The owner cannot be changed');
+    }
+    // Nobody may demote or rewrite someone who holds more than they do.
+    if (!withinAuthority(actor.permissions, target.permissions)) {
+      throw ApiError.forbidden(
+        'target_outranks_you',
+        'That member holds permissions you do not',
+      );
+    }
+
+    const granted = resolvePermissions(body.role, body.permissions);
+    if (!withinAuthority(actor.permissions, granted)) {
+      throw ApiError.forbidden(
+        'cannot_grant_what_you_lack',
+        'You cannot grant a permission you do not hold',
+      );
+    }
+
+    await pool.query(
+      `UPDATE channel_members
+       SET role = $3, can_post = $4, can_edit_channel = $5, can_delete_posts = $6,
+           can_manage_members = $7, can_delete_channel = $8
+       WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
+      [
+        params.id,
+        params.accountId,
+        body.role,
+        granted.canPost,
+        granted.canEditChannel,
+        granted.canDeletePosts,
+        granted.canManageMembers,
+        granted.canDeleteChannel,
+      ],
+    );
+    return { role: body.role, permissions: granted };
+  });
+
+  /** Remove someone from the channel. */
+  app.delete('/v1/channels/:id/members/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema, accountId: uuidSchema }), request.params);
+    const actor = await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const target = await membership(params.id, params.accountId);
+    if (!target) throw ApiError.notFound('member_not_found', 'Not a member of this channel');
+    if (target.role === 'owner') {
+      throw ApiError.forbidden('owner_is_fixed', 'The owner cannot be removed');
+    }
+    if (!withinAuthority(actor.permissions, target.permissions)) {
+      throw ApiError.forbidden('target_outranks_you', 'That member holds permissions you do not');
+    }
+
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM channel_members WHERE channel_id = $1 AND account_id = $2', [
+        params.id,
+        params.accountId,
+      ]);
+      await client.query(
+        'UPDATE channels SET member_count = greatest(member_count - 1, 0) WHERE id = $1',
+        [params.id],
+      );
+    });
+    // Removing someone does not take back what they have already read: the
+    // channel key is not rotated. See docs/security-model.md.
+    return { removed: true };
   });
 
   /** Channel settings. Only the parts that are the server's to hold. */
@@ -328,7 +459,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       }),
       request.body,
     );
-    await requireRole(params.id, accountId, ['owner', 'admin']);
+    await requirePermission(params.id, accountId, 'canEditChannel');
 
     const { rows } = await pool.query(
       `UPDATE channels SET
@@ -353,7 +484,9 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
   app.delete('/v1/channels/:id', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
-    await requireRole(params.id, accountId, ['owner']);
+    // The one action nothing undoes. The owner always may; an admin only with
+    // the permission deliberately granted for it.
+    await requirePermission(params.id, accountId, 'canDeleteChannel');
     await pool.query('UPDATE channels SET deleted_at = now() WHERE id = $1', [params.id]);
     return { deleted: true };
   });
@@ -371,7 +504,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       }),
       request.body,
     );
-    await requireRole(params.id, accountId, ['owner', 'admin']);
+    await requirePermission(params.id, accountId, 'canPost');
 
     if (body.mediaId) {
       const { rowCount } = await pool.query(
@@ -404,7 +537,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       }),
       request.query,
     );
-    await requireRole(params.id, accountId, ['owner', 'admin', 'subscriber']);
+    await requireMember(params.id, accountId);
 
     const { rows } = await pool.query(
       `SELECT p.id, p.author_account_id, a.username AS author_username,
@@ -438,7 +571,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       request.params,
     );
     const body = parse(z.object({ pinned: z.boolean() }), request.body);
-    await requireRole(params.id, accountId, ['owner', 'admin']);
+    await requirePermission(params.id, accountId, 'canEditChannel');
 
     const { rowCount } = await pool.query(
       'UPDATE channel_posts SET pinned = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
@@ -454,7 +587,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
       z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
       request.params,
     );
-    await requireRole(params.id, accountId, ['owner', 'admin']);
+    await requirePermission(params.id, accountId, 'canDeletePosts');
 
     const { rowCount } = await pool.query(
       'UPDATE channel_posts SET deleted_at = now(), content = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
