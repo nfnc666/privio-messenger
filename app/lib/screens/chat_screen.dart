@@ -225,10 +225,7 @@ class _ChatScreenState extends State<ChatScreen> {
               _Composer(
                 controller: _composer,
                 onSend: _send,
-                // Group attachments need the same per-device fan-out as group
-                // text, which is not wired yet; a button that silently does
-                // nothing is worse than no button.
-                onAttach: widget.isGroup ? null : _attach,
+                onAttach: _attach,
               ),
             ],
           ),

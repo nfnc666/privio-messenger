@@ -232,14 +232,25 @@ class ChannelService {
   Future<void> removeMember(String channelId, String accountId) =>
       _api.removeChannelMember(channelId, accountId);
 
+  /// Where join links point. Two constants, because each host appears in the
+  /// links it generates, in the hint text of a dialog and in the tests — and a
+  /// link that used to work must keep working.
+  static const String channelLinkHost = 'privio.channel';
+  static const String groupLinkHost = 'privio.group';
+
   /// The link to share. It holds the code and nothing else, so it is safe to
   /// post anywhere a link can be posted.
-  static String linkForChannel(String inviteCode) => 'https://privio.app/c/$inviteCode';
+  static String linkForChannel(String inviteCode) =>
+      'https://$channelLinkHost/c/$inviteCode';
 
-  static String linkForGroup(String inviteCode) => 'https://privio.app/g/$inviteCode';
+  static String linkForGroup(String inviteCode) => 'https://$groupLinkHost/g/$inviteCode';
 
-  /// Reads back a Privio join link — a channel's or a group's. Returns null on
-  /// anything malformed: a link is user input, not a promise.
+  /// Reads back a Privio join link — a channel's or a group's.
+  ///
+  /// What decides the kind is the `/c/` or `/g/` in the path, not the host: a
+  /// link that has been shortened, wrapped by a mail scanner or re-hosted still
+  /// names the same channel. Returns null on anything malformed — a link is
+  /// user input, not a promise.
   static ChannelInvite? parseInviteLink(String link) {
     final uri = Uri.tryParse(link.trim());
     if (uri == null) return null;

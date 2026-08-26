@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../models/channel.dart';
+import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/search_field.dart';
 import 'channel_feed_screen.dart';
@@ -280,7 +281,9 @@ class _JoinByLinkDialogState extends State<_JoinByLinkDialog> {
           TextField(
             controller: _link,
             autofocus: true,
-            decoration: const InputDecoration(hintText: 'https://privio.app/c/…'),
+            decoration: const InputDecoration(
+              hintText: 'https://${ChannelService.channelLinkHost}/c/…',
+            ),
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(

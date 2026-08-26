@@ -131,8 +131,14 @@ channel key, so it stores posts it cannot read. What it does hold in the clear,
 for a public channel only, is the handle, title, description and category,
 because discovery cannot search ciphertext.
 
-**Join links and how the key follows.** A link (`/c/<code>` for a channel,
-`/g/<code>` for a group) is meant to be shared publicly, so it carries no key.
+**Join links and how the key follows.** A link
+(`https://privio.channel/c/<code>` for a channel,
+`https://privio.group/g/<code>` for a group) is meant to be shared publicly, so
+it carries no key. Each host lives in one place —
+`ChannelService.channelLinkHost` and `groupLinkHost` — because it appears in the
+links it generates, in a dialog and in the tests. The parser keys off the `/c/`
+or `/g/` path segment rather than the host, so a shortened or re-hosted link
+still resolves to the same thing.
 Joining writes a row to `key_requests` for the joining device; any member who
 holds the key answers with an ordinary sealed message carrying it, then clears
 the row. Client side that is `ChannelService.deliverPendingKeys` on one end and

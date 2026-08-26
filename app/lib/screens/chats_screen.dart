@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/chat_list_row.dart';
 import '../widgets/search_field.dart';
@@ -241,7 +242,9 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
           TextField(
             controller: _link,
             autofocus: true,
-            decoration: const InputDecoration(hintText: 'https://privio.app/g/…'),
+            decoration: const InputDecoration(
+              hintText: 'https://${ChannelService.groupLinkHost}/g/…',
+            ),
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
