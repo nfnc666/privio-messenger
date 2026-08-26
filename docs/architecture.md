@@ -127,10 +127,17 @@ Groups work the same way, with the fan-out list coming from
 A **channel** post takes a different route, because a channel is one author and
 many readers: it is sealed once under a channel key and stored once, rather than
 sealed per recipient device. Readers pull the feed. The server never holds the
-channel key — it reaches members in an invite link's fragment or from an admin
-over an encrypted message — so it stores posts it cannot read. What it does hold
-in the clear, for a public channel only, is the handle, title, description and
-category, because discovery cannot search ciphertext.
+channel key, so it stores posts it cannot read. What it does hold in the clear,
+for a public channel only, is the handle, title, description and category,
+because discovery cannot search ciphertext.
+
+**Join links and how the key follows.** A link (`/c/<code>` for a channel,
+`/g/<code>` for a group) is meant to be shared publicly, so it carries no key.
+Joining writes a row to `key_requests` for the joining device; any member who
+holds the key answers with an ordinary sealed message carrying it, then clears
+the row. Client side that is `ChannelService.deliverPendingKeys` on one end and
+a `MessagePayload.key` intercepted in `ConversationController` on the other,
+which stores the key and shows nothing in the chat.
 
 ## Notifications
 

@@ -112,7 +112,29 @@ class MessagePayload {
         mediaKey = null,
         fileName = null,
         mediaType = null,
-        byteSize = null;
+        byteSize = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null;
+
+  /// A key handed to one device, sealed inside an ordinary message.
+  ///
+  /// This is how a join link can be public: the link carries only the code, and
+  /// the key that opens the channel's posts (or a group's sealed name) travels
+  /// afterwards over the Signal session between the two devices. The server
+  /// relays these bytes exactly as it relays a sentence, and can read neither.
+  const MessagePayload.key({
+    required String this.keyScopeId,
+    required String this.keyScope,
+    required String this.deliveredKey,
+  })  : body = '',
+        mediaId = null,
+        mediaKey = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -123,7 +145,9 @@ class MessagePayload {
     this.body = '',
     this.profileKey,
     this.groupKey,
-  });
+  })  : keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -138,6 +162,13 @@ class MessagePayload {
 
     final profileKey = json['pk'] as String?;
     final groupKey = json['gk'] as String?;
+    if (json['t'] == 'key') {
+      return MessagePayload.key(
+        keyScope: json['ks'] as String,
+        keyScopeId: json['ki'] as String,
+        deliveredKey: json['kk'] as String,
+      );
+    }
     if (json['t'] == 'media') {
       return MessagePayload.media(
         mediaId: json['id'] as String,
@@ -182,12 +213,33 @@ class MessagePayload {
   /// member learns it without the server ever holding it.
   final String? groupKey;
 
+  /// 'channel' or 'group' on a key delivery; null on anything else.
+  final String? keyScope;
+
+  /// Which channel or group the delivered key belongs to.
+  final String? keyScopeId;
+
+  /// Base64 of the key itself. Only ever inside a sealed envelope.
+  final String? deliveredKey;
+
   bool get isMedia => mediaId != null;
+
+  /// True when this payload is a key for someone, not a message to show.
+  bool get isKeyDelivery => deliveredKey != null;
 
   String encode() => jsonEncode({
         'v': 1,
-        't': isMedia ? 'media' : 'text',
+        't': isKeyDelivery
+            ? 'key'
+            : isMedia
+                ? 'media'
+                : 'text',
         'b': body,
+        if (isKeyDelivery) ...{
+          'ks': keyScope,
+          'ki': keyScopeId,
+          'kk': deliveredKey,
+        },
         if (profileKey != null) 'pk': profileKey,
         if (groupKey != null) 'gk': groupKey,
         if (isMedia) ...{

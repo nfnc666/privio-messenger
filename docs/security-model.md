@@ -176,13 +176,28 @@ anybody may hold the key — that is not a flaw in the design, it is what
 "broadcast" means. A public channel's contents are as public as its membership.
 
 **Why the server still cannot join.** Joining grants membership, not the key.
-The key never passes through the server: it rides in the fragment of an invite
-link — the part after `#`, which browsers and apps do not transmit — or is
-handed over by an admin inside an end-to-end encrypted message. A client that
-finds a public channel by searching still needs to be given the key before a
-single post means anything. Were the key delivered by the API instead, the
-server could simply subscribe to everything, and the encryption would be
-decoration.
+An invite link is meant to be shared in public, which rules out putting the key
+in it: a key pasted into a public timeline is not a key any more. So the link
+carries only a code, and the key catches up afterwards.
+
+The handshake is two rows and a message. A device that joins records a key
+request (`key_requests`, keyed by scope, scope id and device id — per device,
+because a key is sealed to one device at a time). Any member who already holds
+the key sees the request, seals the key into an ordinary end-to-end encrypted
+message to that account, and clears the row. The server relays the request and
+the reply without being able to read the second one. Delivery is open to any
+member rather than to admins alone: making it wait for an admin to open the app
+would leave new members looking at padlocks for days.
+
+Three consequences worth naming. A joiner sees padlocked posts until somebody
+who can read the channel next opens the app — visible waiting, not a silent
+failure. A member who is removed has their pending request deleted, so a request
+from a non-member is never answered. And a channel whose every key-holder has
+gone is unreadable to newcomers forever; there is no copy on the server to fall
+back on, which is the same trade as any end-to-end encrypted system.
+
+Were the key delivered by the API instead, the server could simply subscribe to
+everything, and the encryption would be decoration.
 
 **What is deliberately in the clear.** Search cannot run over ciphertext, so a
 public channel's handle, title, description and category are plaintext columns.

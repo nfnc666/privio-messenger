@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-165%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-186%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -49,17 +49,29 @@ No phone number. No email. No address-book upload. You are a username.
 <td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Push carries no content at all</sub></td>
 <td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="docs/screenshots/channel-06-list.png" width="200"><br><sub><b>Channels</b><br>What you follow, and what there is to find</sub></td>
+<td align="center"><img src="docs/screenshots/channel-02-feed.png" width="200"><br><sub><b>Channel feed</b><br>Posts sealed once, under a key the server never sees</sub></td>
+<td align="center"><img src="docs/screenshots/channel-10-discover.png" width="200"><br><sub><b>Discover</b><br>Public channels only — private ones are never listed</sub></td>
+<td align="center"><img src="docs/screenshots/channel-09-permissions.png" width="200"><br><sub><b>Permissions</b><br>Greyed out is what you do not hold yourself</sub></td>
+</tr>
 </table>
 
 <details>
-<summary><b>More screens</b> — add contact, invite link, appearance, about</summary>
+<summary><b>More screens</b> — add contact, invite link, new channel, members, appearance, about</summary>
 <br>
 <table>
 <tr>
 <td align="center" width="25%"><img src="docs/screenshots/06-add-contact.png" width="200"><br><sub><b>Add contact</b></sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/08-invite-link.png" width="200"><br><sub><b>Invite link</b></sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/14-appearance.png" width="200"><br><sub><b>Appearance</b></sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/16-about.png" width="200"><br><sub><b>About</b></sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/channel-01-new.png" width="200"><br><sub><b>New channel</b></sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/channel-08-members.png" width="200"><br><sub><b>Channel members</b></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/channel-11-promoted.png" width="200"><br><sub><b>After a promotion</b></sub></td>
+<td align="center"><img src="docs/screenshots/14-appearance.png" width="200"><br><sub><b>Appearance</b></sub></td>
+<td align="center"><img src="docs/screenshots/16-about.png" width="200"><br><sub><b>About</b></sub></td>
+<td align="center"></td>
 </tr>
 </table>
 </details>
@@ -84,6 +96,27 @@ reply — the Double Ratchet running in both directions.
 That run found a real bug: the client was declaring a JSON content type on
 requests with no body, which a strict server rejects — so the receive loop had
 been failing silently every three seconds. It is fixed and covered by a test.
+
+### A join link, and a key that follows it
+
+The same discipline applied to channels. A reader opens a plain link, joins, and
+sees padlocks — because the link carries no key. The key arrives afterwards,
+sealed to their device by someone who already holds it, and the feed unlocks
+without anyone doing anything further.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/channel-03-link.png" width="220"><br><sub><b>1.</b> The link is safe to post anywhere: no key in it.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/channel-05-waiting.png" width="220"><br><sub><b>2.</b> The reader is in, and can read nothing yet.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/channel-07-unlocked.png" width="220"><br><sub><b>3.</b> The key arrives from a member's device; the posts open.</sub></td>
+</tr>
+</table>
+
+That run found three more: the channel listing returned a role but no
+permissions, so reopening a channel silently stripped its owner's rights; a
+group you joined by a link never appeared in the chat list until somebody spoke
+in it; and the permission sheet's **Save** button sat below the fold on a
+390×844 screen. All three are fixed.
 
 ---
 
@@ -111,7 +144,8 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
-| **Channels** | 🔧 | Server complete, with per-admin permissions; the app cannot see them yet |
+| **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
+| **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
 | **Disguise mode** | 📋 | V2 — the calculator skin |
 
 ✅ done and tested · 🔧 in progress · 📋 planned
@@ -242,11 +276,16 @@ surroundings from becoming your avatar.
 A post is sealed once under a channel key, so the server stores something it
 cannot read, search or hand over. What that does *not* do is keep a public
 channel secret from its own audience: if anyone may join, anyone may hold the
-key. The key never passes through the server — it travels in the fragment of an
-invite link, the part that is never transmitted, or from an admin over an
-encrypted message — which is what stops the server from simply subscribing to
-everything. A public channel's handle, title and description are plaintext,
-because search cannot run over ciphertext; its posts are not.
+key. What matters is that the key never passes through the server. A join link
+is meant to be shared — posted on a website, sent through another messenger — so
+it carries no key at all, only the code that names the channel. The key follows
+separately: the joining device records a request, and a member who already holds
+the key seals it to that device over the Signal session between the two
+accounts. The server routes both halves and can read neither, which is what
+stops it from simply subscribing to everything. A public channel's handle, title
+and description are plaintext, because search cannot run over ciphertext; its
+posts are not. Groups have the same kind of link, and their sealed name travels
+the same way.
 
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.
@@ -332,10 +371,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  62 passing
+#  70 passing
 
 cd app && flutter analyze && flutter test
-#  103 passing
+#  116 passing
 ```
 
 Among the things those tests assert:
@@ -353,6 +392,9 @@ Among the things those tests assert:
 - a **private channel** answers a stranger exactly as it answers about one that does not exist
 - a deleted post's ciphertext is **overwritten**, not left waiting for a key
 - an admin **cannot grant a permission they lack**, so delegation is not takeover
+- a **join link carries no key** — not in the path, not in a fragment, nowhere
+- a device that joins with only a link reads **padlocks**, until a member sends the key
+- a key request from someone who has **left** is deleted rather than answered
 - a second group message **reuses the session** instead of draining prekeys
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**

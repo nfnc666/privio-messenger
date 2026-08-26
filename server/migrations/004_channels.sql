@@ -25,7 +25,8 @@ CREATE TABLE channels (
   encrypted_metadata  bytea,
 
   -- Identifies the channel in an invite link. The key that opens its posts is
-  -- NOT here and never reaches the server: it rides in the link's fragment.
+  -- NOT here and never reaches the server; see 006_join_links.sql for how it
+  -- gets to a new member instead.
   invite_code         text NOT NULL UNIQUE,
 
   -- A hint the client honours, not a control the server can enforce. Anyone who

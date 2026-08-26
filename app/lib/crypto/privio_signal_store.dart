@@ -47,6 +47,7 @@ class PrivioSignalStore extends SignalProtocolStore {
   static const _signedPreKeyPrefix = 'signed_prekey/';
   static const _trustedPrefix = 'trusted/';
   static const _profileKeyKey = 'profile_key';
+  static const _channelKeyPrefix = 'channel_key/';
 
   Future<Uint8List?> readProfileKey() async {
     final stored = await _storage.readBytes(_profileKeyKey);
@@ -54,6 +55,19 @@ class PrivioSignalStore extends SignalProtocolStore {
   }
 
   Future<void> writeProfileKey(Uint8List key) => _storage.writeBytes(_profileKeyKey, key);
+
+  /// A channel's key, kept per channel. Losing it means the posts stay sealed;
+  /// there is no copy on the server to fall back on.
+  Future<Uint8List?> readChannelKey(String channelId) async {
+    final stored = await _storage.readBytes('$_channelKeyPrefix$channelId');
+    return stored == null ? null : Uint8List.fromList(stored);
+  }
+
+  Future<void> writeChannelKey(String channelId, Uint8List key) =>
+      _storage.writeBytes('$_channelKeyPrefix$channelId', key);
+
+  Future<void> deleteChannelKey(String channelId) =>
+      _storage.delete('$_channelKeyPrefix$channelId');
 
   String _addressKey(String prefix, SignalProtocolAddress address) =>
       '$prefix${address.getName()}.${address.getDeviceId()}';

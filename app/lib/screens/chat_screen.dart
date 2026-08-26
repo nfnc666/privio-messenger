@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
@@ -105,6 +106,51 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Shows the group's join link. It carries no key: whoever opens it joins,
+  /// and a member's device sends them the key to the group's name afterwards.
+  Future<void> _shareGroupLink(AppState state) async {
+    final link = state.conversations.groupInviteLink(widget.accountId);
+    if (link == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No link for this group yet — pull to refresh.')),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surfaceRaised,
+        title: const Text('Invite link'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectableText(link, style: Theme.of(dialogContext).textTheme.bodySmall),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(
+              'Share it anywhere — it carries no key. Whoever opens it joins the '
+              'group, and the key to its name reaches their device encrypted.',
+              style: Theme.of(dialogContext).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: link));
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Copy'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -151,6 +197,12 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
             actions: [
+              if (widget.isGroup)
+                IconButton(
+                  onPressed: () => _shareGroupLink(state),
+                  icon: const Icon(Icons.link_rounded),
+                  tooltip: 'Invite link',
+                ),
               IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
               IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert_rounded), tooltip: 'Chat options'),
             ],

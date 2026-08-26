@@ -2,6 +2,7 @@ import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
+import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import 'api_client.dart';
 import 'secure_store.dart';
@@ -16,6 +17,7 @@ class PrivioServices {
     required this.api,
     required this.crypto,
     required this.messaging,
+    required this.channels,
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
@@ -35,10 +37,12 @@ class PrivioServices {
   }) async {
     final api = PrivioApiClient(baseUrl: Uri.parse(baseUrl ?? apiBaseUrl));
     final crypto = await PrivioCrypto.open(cryptoStorage ?? const KeystoreCryptoStorage());
+    final messaging = MessagingService(api: api, crypto: crypto);
     return PrivioServices(
       api: api,
       crypto: crypto,
-      messaging: MessagingService(api: api, crypto: crypto),
+      messaging: messaging,
+      channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
       store: InMemoryMessageStore(),
       secureStore: secureStore,
       archive: EncryptedMessageArchive(
@@ -51,6 +55,7 @@ class PrivioServices {
   final PrivioApiClient api;
   final PrivioCrypto crypto;
   final MessagingService messaging;
+  final ChannelService channels;
   final MessageStore store;
   final SecureStore secureStore;
 

@@ -160,4 +160,82 @@ describe('groups', () => {
     const accepted = (await createGroup(alice, [dave.accountId])).json();
     assert.ok(accepted.members.some((m: { id: string }) => m.id === dave.accountId));
   });
+  it('hands out a join link and lets a stranger in with it', async () => {
+    const group = (await createGroup(alice, [bob.accountId])).json();
+    assert.ok(group.inviteCode, 'a group is created with a code to share');
+
+    // The code alone identifies the group, and tells the holder nothing more
+    // than that: the name comes back sealed.
+    const looked = await h.app.inject({
+      method: 'GET',
+      url: `/v1/groups/invite/${group.inviteCode}`,
+      headers: bearer(carol),
+    });
+    assert.equal(looked.statusCode, 200);
+    assert.equal(looked.json().id, group.id);
+    assert.equal(
+      Buffer.from(looked.json().encryptedMetadata, 'base64').toString(),
+      'sealed-group-name',
+    );
+
+    const joined = await h.app.inject({
+      method: 'POST',
+      url: `/v1/groups/${group.id}/join`,
+      headers: bearer(carol),
+      payload: { inviteCode: group.inviteCode },
+    });
+    assert.equal(joined.statusCode, 200);
+    assert.equal(joined.json().joined, true);
+    assert.ok(joined.json().members.some((m: { id: string }) => m.id === carol.accountId));
+
+    // And joining queues carol's device for the key to that sealed name.
+    const pending = await h.app.inject({
+      method: 'GET',
+      url: `/v1/groups/${group.id}/key-requests`,
+      headers: bearer(alice),
+    });
+    assert.equal(pending.json().requests.length, 1);
+    assert.equal(pending.json().requests[0].accountId, carol.accountId);
+  });
+
+  it('answers a wrong invite code the same way as a group that does not exist', async () => {
+    const group = (await createGroup(alice, [])).json();
+    const wrong = await h.app.inject({
+      method: 'POST',
+      url: `/v1/groups/${group.id}/join`,
+      headers: bearer(carol),
+      payload: { inviteCode: 'not-the-code' },
+    });
+    assert.equal(wrong.statusCode, 404);
+
+    const missing = await h.app.inject({
+      method: 'GET',
+      url: '/v1/groups/invite/not-the-code',
+      headers: bearer(carol),
+    });
+    assert.equal(missing.statusCode, 404);
+    assert.equal(wrong.json().error, missing.json().error);
+  });
+
+  it('drops a key request when the member is removed', async () => {
+    const group = (await createGroup(alice, [])).json();
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/groups/${group.id}/join`,
+      headers: bearer(carol),
+      payload: { inviteCode: group.inviteCode },
+    });
+    await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/groups/${group.id}/members/${carol.accountId}`,
+      headers: bearer(alice),
+    });
+
+    const pending = await h.app.inject({
+      method: 'GET',
+      url: `/v1/groups/${group.id}/key-requests`,
+      headers: bearer(alice),
+    });
+    assert.equal(pending.json().requests.length, 0);
+  });
 });
