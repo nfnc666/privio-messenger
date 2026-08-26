@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
-import { findByUsername, type AccountRow } from '../services/accounts.js';
+import { findByUsername, publicProfile, type AccountRow } from '../services/accounts.js';
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 
@@ -31,9 +31,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     const target = await findByUsername(params.username);
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
     return {
-      id: target.id,
-      username: target.username,
-      displayName: target.display_name,
+      ...publicProfile(target),
       lastSeenAt: await visibleLastSeen(accountId, target),
     };
   });
@@ -55,9 +53,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     const target = rows[0];
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
     return {
-      id: target.id,
-      username: target.username,
-      displayName: target.display_name,
+      ...publicProfile(target),
       lastSeenAt: await visibleLastSeen(accountId, target),
     };
   });
@@ -71,7 +67,8 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
   app.get('/v1/contacts', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
-      `SELECT a.id, a.username, a.display_name, c.alias, c.created_at
+      `SELECT a.id, a.username, a.display_name, a.avatar_media_id, a.avatar_updated_at,
+              c.alias, c.created_at
        FROM contacts c JOIN accounts a ON a.id = c.contact_account_id
        WHERE c.account_id = $1 AND a.deleted_at IS NULL
        ORDER BY COALESCE(c.alias, a.display_name, a.username)`,
@@ -83,6 +80,8 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
         username: r.username,
         displayName: r.display_name,
         alias: r.alias,
+        avatarMediaId: r.avatar_media_id,
+        avatarUpdatedAt: (r.avatar_updated_at as Date | null)?.toISOString() ?? null,
         addedAt: (r.created_at as Date).toISOString(),
       })),
     };
@@ -104,7 +103,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
       [accountId, target.id, body.alias ?? null],
     );
     reply.code(201);
-    return { id: target.id, username: target.username, displayName: target.display_name, alias: body.alias ?? null };
+    return { ...publicProfile(target), alias: body.alias ?? null };
   });
 
   app.delete('/v1/contacts/:id', requireAuth, async (request) => {

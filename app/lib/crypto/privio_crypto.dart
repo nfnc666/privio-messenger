@@ -294,6 +294,19 @@ class PrivioCrypto {
   /// True when the published pool has run down far enough to warrant a top-up.
   bool needsPreKeyTopUp(int remainingOnServer) => remainingOnServer <= preKeyLowWaterMark;
 
+  /// The key this account's profile picture is sealed with.
+  ///
+  /// Long-lived and shared with contacts inside end-to-end encrypted messages —
+  /// never with the server, which therefore holds an avatar it cannot open.
+  /// Generated once, on first use.
+  Future<Uint8List> profileKey() async {
+    final existing = await _store.readProfileKey();
+    if (existing != null) return existing;
+    final generated = generateRandomBytes();
+    await _store.writeProfileKey(generated);
+    return generated;
+  }
+
   /// This device's identity fingerprint, for the safety-number screen.
   Future<String> identityFingerprint() async {
     final identity = await _store.getIdentityKeyPair();

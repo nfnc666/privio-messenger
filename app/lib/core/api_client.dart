@@ -115,6 +115,12 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> updatePrivacy(Map<String, dynamic> privacy) =>
       _send('PATCH', '/v1/accounts/me', body: {'privacy': privacy});
 
+  /// Points the account at an already-uploaded, already-sealed picture.
+  Future<void> setAvatar(String mediaId) async =>
+      _send('PUT', '/v1/accounts/me/avatar', body: {'mediaId': mediaId});
+
+  Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
+
   // --- Contacts -------------------------------------------------------------
 
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');

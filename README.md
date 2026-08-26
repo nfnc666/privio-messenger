@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-121%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-138%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -107,6 +107,7 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
 | **Attachments in the chat** | 🔧 | Send, receive and display work; the OS file dialog is untested (see below) |
+| **Profile pictures** | 🔧 | Encrypted end to end; same untested file dialog |
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
@@ -228,6 +229,15 @@ messages it is near-total, since everything under 256 bytes looks identical. For
 a large file it means an observer learns the size only to within a factor of two,
 which is a real improvement over the exact byte count but is not invisibility.
 
+**Profile pictures are encrypted too.** A messenger that promises the server
+cannot read anything, and then stores everyone's face in the clear, has not kept
+the promise. An avatar is sealed with a long-lived *profile key* that reaches
+contacts inside end-to-end encrypted messages and never reaches the server — so
+the server holds a picture it cannot open, and only people you have actually
+written to can see it. It is also re-encoded to 512×512 on the way out, which
+strips metadata a second time and stops a full-resolution photo of your
+surroundings from becoming your avatar.
+
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.
 
@@ -247,6 +257,7 @@ implementations of established protocols.
 | Attachments | AES-256-GCM, random key per file |
 | Backups | AES-256-GCM under a key from your recovery phrase |
 | Local history | AES-256-GCM under a key in the platform keystore |
+| Profile pictures | AES-256-GCM under a profile key, shared only with contacts |
 | Attachments | AES-256-GCM, a fresh random key per file, size padded |
 | Two-factor | TOTP, RFC 6238 |
 
@@ -311,10 +322,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  37 passing
+#  41 passing
 
 cd app && flutter analyze && flutter test
-#  84 passing
+#  97 passing
 ```
 
 Among the things those tests assert:
@@ -327,6 +338,7 @@ Among the things those tests assert:
 - the history at rest is **ciphertext** — not the messages, not even the contact names
 - a different key **cannot** read that archive, and a tampered one is discarded
 - a photo's **GPS, camera model and serial number** are gone from what the recipient receives
+- an avatar on the server is **not a picture** — a stranger's key opens nothing
 - "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
 - a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away

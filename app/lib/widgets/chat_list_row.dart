@@ -39,6 +39,7 @@ class ChatListRow extends StatelessWidget {
               seed: chat.avatarSeed,
               presence: chat.presence,
               isGroup: chat.isGroup,
+              imageBytes: chat.avatarBytes,
             ),
             const SizedBox(width: PrivioSpacing.md),
             Expanded(

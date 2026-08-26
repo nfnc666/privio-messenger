@@ -8,7 +8,7 @@ import { deviceRegistrationSchema, registerDevice } from '../services/devices.js
 import { createSession, revokeAllSessions, revokeSession } from '../services/sessions.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
-import { base64Bytes, parse, passwordSchema, usernameSchema } from '../util/validate.js';
+import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
 import { config } from '../config.js';
 
 // Verifying a throwaway hash on unknown usernames keeps login timing flat, so a
@@ -260,6 +260,63 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     const blob = rows[0]?.recovery_blob ?? null;
     if (!blob) throw ApiError.notFound('no_recovery_blob', 'No recovery blob stored');
     return { blob: blob.toString('base64') };
+  });
+
+  /**
+   * Point the account at an avatar.
+   *
+   * The bytes were uploaded to /v1/media already, sealed with the owner's
+   * profile key — so this stores a reference to ciphertext, and the server can
+   * no more see the picture than it can read a message. The upload must belong
+   * to the caller: without that check anyone could adopt anyone else's object
+   * id and confirm, by watching for an error, whether it exists.
+   */
+  app.put('/v1/accounts/me/avatar', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+    const { accountId } = auth(request);
+    const body = parse(z.object({ mediaId: uuidSchema }), request.body);
+
+    const { rows } = await pool.query<{ id: string }>(
+      'SELECT id FROM media_objects WHERE id = $1 AND owner_account_id = $2',
+      [body.mediaId, accountId],
+    );
+    if (!rows[0]) throw ApiError.notFound('media_not_found', 'No such upload of yours');
+
+    const previous = await withTransaction(async (client) => {
+      const { rows: old } = await client.query<{ avatar_media_id: string | null }>(
+        'SELECT avatar_media_id FROM accounts WHERE id = $1 FOR UPDATE',
+        [accountId],
+      );
+      await client.query(
+        'UPDATE accounts SET avatar_media_id = $2, avatar_updated_at = now() WHERE id = $1',
+        [accountId, body.mediaId],
+      );
+      // An avatar outlives the attachment retention window; the sweep also skips
+      // referenced objects, and this keeps the expiry itself honest.
+      await client.query(
+        `UPDATE media_objects SET expires_at = now() + interval '100 years' WHERE id = $1`,
+        [body.mediaId],
+      );
+      return old[0]?.avatar_media_id ?? null;
+    });
+
+    // The old picture is nobody's now: let it fall into the next sweep.
+    if (previous && previous !== body.mediaId) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [previous]);
+    }
+    return { avatarMediaId: body.mediaId };
+  });
+
+  app.delete('/v1/accounts/me/avatar', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+    const { accountId } = auth(request);
+    const { rows } = await pool.query<{ avatar_media_id: string | null }>(
+      'UPDATE accounts SET avatar_media_id = NULL, avatar_updated_at = now() WHERE id = $1 RETURNING avatar_media_id',
+      [accountId],
+    );
+    const removed = rows[0]?.avatar_media_id ?? null;
+    if (removed) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [removed]);
+    }
+    return { avatarMediaId: null };
   });
 
   app.delete('/v1/accounts/me', { preHandler: (r) => app.requireAuth(r) }, async (request) => {

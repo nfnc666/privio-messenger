@@ -182,6 +182,10 @@ class EncryptedMessageArchive implements MessageArchive {
             'accountId': conversation.user.accountId,
             'username': conversation.user.username,
             'displayName': conversation.user.displayName,
+            if (conversation.user.avatarMediaId != null)
+              'avatarMediaId': conversation.user.avatarMediaId,
+            if (conversation.user.profileKey != null)
+              'profileKey': conversation.user.profileKey,
             'unreadCount': conversation.unreadCount,
             'messages': [
               for (final message in conversation.messages)
@@ -224,6 +228,8 @@ class EncryptedMessageArchive implements MessageArchive {
               accountId: entry['accountId'] as String,
               username: entry['username'] as String,
               displayName: entry['displayName'] as String?,
+              avatarMediaId: entry['avatarMediaId'] as String?,
+              profileKey: entry['profileKey'] as String?,
             ),
             messages: [
               for (final message in (entry['messages'] as List<dynamic>).cast<Map<String, dynamic>>())

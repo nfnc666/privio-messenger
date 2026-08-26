@@ -121,6 +121,28 @@ Because text and attachment messages share one payload format, and both are
 padded, the server cannot tell a sentence from a photo — only that something was
 sent.
 
+### Profile pictures are not an exception
+
+An avatar is the one image a user hands to everyone they talk to, so it gets the
+same treatment as a message, not a lesser one:
+
+- Sealed with AES-256-GCM under a long-lived **profile key**, held in the
+  keystore and never sent to the server.
+- The key reaches contacts inside end-to-end encrypted messages — attached to
+  every message sent — so only someone who has been written to can open the
+  picture. A stranger, and the server, hold ciphertext.
+- Re-encoded to a 512×512 JPEG before sealing. That strips metadata a second
+  time on top of the scrubber, and stops a full-resolution photograph of
+  someone's surroundings from becoming their avatar.
+- The server stores a pointer and refuses to accept one that is not the caller's
+  own upload — otherwise anyone could adopt an object id and learn, from whether
+  the request succeeded, that it exists.
+
+What the server does learn: that an account has an avatar, when it last changed,
+and roughly how large it is. Rotating the profile key after removing a contact
+is not implemented; today a former contact keeps the key they were given, which
+matters when the picture changes rather than when it does not.
+
 ### File names stay inside the envelope
 
 The upload is bytes and nothing else. The name, the type and the key travel

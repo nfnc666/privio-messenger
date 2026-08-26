@@ -8,7 +8,12 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
   envelopesDeleted: number;
 }> {
   const { rows } = await pool.query<{ storage_key: string }>(
-    'DELETE FROM media_objects WHERE expires_at <= now() RETURNING storage_key',
+    `DELETE FROM media_objects
+     WHERE expires_at <= now()
+       -- An avatar is not a message attachment: it stays as long as it is
+       -- someone's picture, and the sweep must not quietly blank profiles.
+       AND NOT EXISTS (SELECT 1 FROM accounts a WHERE a.avatar_media_id = media_objects.id)
+     RETURNING storage_key`,
   );
   await Promise.all(rows.map((r) => storage.delete(r.storage_key).catch(() => {})));
 

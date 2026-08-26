@@ -81,7 +81,7 @@ class MessagingService {
       sendPayload(username, MessagePayload.text(plaintext));
 
   Future<int> sendPayload(String username, MessagePayload payload) async {
-    final encoded = payload.encode();
+    final encoded = (await _withProfileKey(payload)).encode();
     try {
       return await _sealAndSend(username, encoded);
     } on ApiException catch (error) {
@@ -117,6 +117,46 @@ class MessagingService {
       ),
     );
     return sealed.report;
+  }
+
+  /// Attaches this account's profile key, which is how contacts become able to
+  /// open its profile picture without the server ever learning the key.
+  Future<MessagePayload> _withProfileKey(MessagePayload payload) async {
+    if (payload.profileKey != null) return payload;
+    final key = base64Encode(await _crypto.profileKey());
+    return payload.isMedia
+        ? MessagePayload.media(
+            mediaId: payload.mediaId!,
+            mediaKey: payload.mediaKey!,
+            mediaType: payload.mediaType!,
+            byteSize: payload.byteSize!,
+            fileName: payload.fileName,
+            body: payload.body,
+            profileKey: key,
+          )
+        : MessagePayload.text(payload.body, profileKey: key);
+  }
+
+  /// Seals a profile picture under this account's profile key and uploads it.
+  ///
+  /// Same pipeline as any attachment, with one difference that matters: the key
+  /// is the long-lived profile key rather than a fresh one, because every
+  /// contact has to be able to open the same picture.
+  Future<String> uploadAvatar(Uint8List image) async {
+    final sealed = await AttachmentCipher.sealWithKey(
+      image,
+      key: await _crypto.profileKey(),
+      declaredType: 'image/jpeg',
+    );
+    final mediaId = await _api.uploadMedia(sealed);
+    await _api.setAvatar(mediaId);
+    return mediaId;
+  }
+
+  /// Opens someone's profile picture, given the profile key they sent.
+  Future<Uint8List> openAvatar(String mediaId, Uint8List profileKey) async {
+    final sealed = await _api.downloadMedia(mediaId);
+    return AttachmentCipher.open(Uint8List.fromList(sealed), profileKey);
   }
 
   /// Downloads and opens an attachment a message points at.

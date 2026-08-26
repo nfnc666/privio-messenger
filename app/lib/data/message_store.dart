@@ -2,13 +2,44 @@ import '../models/models.dart';
 
 /// A person this device knows about, by account id.
 class KnownUser {
-  const KnownUser({required this.accountId, required this.username, this.displayName});
+  const KnownUser({
+    required this.accountId,
+    required this.username,
+    this.displayName,
+    this.avatarMediaId,
+    this.profileKey,
+  });
 
   final String accountId;
   final String username;
   final String? displayName;
 
+  /// Points at ciphertext on the server. Useless without [profileKey].
+  final String? avatarMediaId;
+
+  /// Base64. Arrives inside an end-to-end encrypted message from this person,
+  /// which is why only someone they have written to can see their picture.
+  final String? profileKey;
+
   String get label => displayName ?? username;
+
+  bool get hasAvatar => avatarMediaId != null && profileKey != null;
+
+  KnownUser merge({
+    String? username,
+    String? displayName,
+    String? avatarMediaId,
+    String? profileKey,
+  }) =>
+      KnownUser(
+        accountId: accountId,
+        username: username ?? this.username,
+        displayName: displayName ?? this.displayName,
+        // A pointer or key that was never sent must not erase one we already
+        // have: partial updates arrive constantly, from different sources.
+        avatarMediaId: avatarMediaId ?? this.avatarMediaId,
+        profileKey: profileKey ?? this.profileKey,
+      );
 }
 
 /// One conversation and everything this device holds of it.
@@ -64,18 +95,22 @@ class InMemoryMessageStore implements MessageStore {
   @override
   Conversation upsertUser(KnownUser user) {
     final existing = _conversations[user.accountId];
-    if (existing != null) {
-      // A username can be learned later than the account id, so refresh it.
-      if (existing.user.username != user.username ||
-          existing.user.displayName != user.displayName) {
-        final replacement = Conversation(user: user, messages: existing.messages)
-          ..unreadCount = existing.unreadCount;
-        _conversations[user.accountId] = replacement;
-        return replacement;
-      }
-      return existing;
+    if (existing == null) {
+      return _conversations[user.accountId] = Conversation(user: user);
     }
-    return _conversations[user.accountId] = Conversation(user: user);
+
+    // Facts about a person arrive piecemeal — a username from the contact list,
+    // a profile key from a message, an avatar pointer from a lookup. Merge them
+    // rather than letting the newest partial answer overwrite the rest.
+    final merged = existing.user.merge(
+      username: user.username == 'unknown' ? null : user.username,
+      displayName: user.displayName,
+      avatarMediaId: user.avatarMediaId,
+      profileKey: user.profileKey,
+    );
+    final replacement = Conversation(user: merged, messages: existing.messages)
+      ..unreadCount = existing.unreadCount;
+    return _conversations[user.accountId] = replacement;
   }
 
   @override

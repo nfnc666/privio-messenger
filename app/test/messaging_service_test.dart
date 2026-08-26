@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:privio/core/api_client.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
+import 'package:image/image.dart' as img;
+import 'package:privio/media/avatar.dart';
 import 'package:privio/services/messaging_service.dart';
 
 /// A stand-in for the Privio API that behaves the way the real one does: it
@@ -18,6 +20,7 @@ class FakeServer {
   final Map<String, FakeAccount> accounts = {};
   final List<Map<String, dynamic>> envelopes = [];
   final Map<String, List<int>> media = {};
+  final Map<String, String> avatars = {};
   int _nextEnvelopeId = 1;
   int _nextMediaId = 1;
 
@@ -45,6 +48,12 @@ class FakeServer {
   http.Client clientFor(String deviceId) => MockClient((request) async {
         final path = request.url.path;
         final method = request.method;
+
+        if (method == 'PUT' && path == '/v1/accounts/me/avatar') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          avatars[deviceId] = body['mediaId'] as String;
+          return _json({'avatarMediaId': body['mediaId']});
+        }
 
         if (method == 'POST' && path == '/v1/media') {
           final id = 'media-${_nextMediaId++}';
@@ -407,5 +416,49 @@ void main() {
       throwsA(isA<Exception>()),
       reason: 'a modified file must fail rather than be shown as genuine',
     );
+  });
+  test('a profile picture reaches a contact and nobody else', () async {
+    // What a phone would hand over: a wide photo with camera tags.
+    final source = img.encodeJpg(img.Image(width: 900, height: 600), quality: 90);
+    final prepared = AvatarImage.prepare(Uint8List.fromList(source))!;
+
+    final mediaId = await alice.messaging.uploadAvatar(prepared);
+    expect(server.avatars[alice.deviceId], mediaId);
+
+    // The server now holds the picture. It must not be a picture to the server.
+    final stored = Uint8List.fromList(server.media[mediaId]!);
+    expect(stored.sublist(0, 3), isNot([0xFF, 0xD8, 0xFF]));
+    expect(utf8.decode(stored, allowMalformed: true), isNot(contains('JFIF')));
+
+    // A contact who has been sent the profile key can open it.
+    final profileKey = await alice.crypto.profileKey();
+    final opened = await bob.messaging.openAvatar(mediaId, profileKey);
+    expect(opened, prepared);
+    expect(img.decodeImage(opened)?.width, AvatarImage.size);
+
+    // Someone who has not cannot.
+    await expectLater(
+      bob.messaging.openAvatar(mediaId, await bob.crypto.profileKey()),
+      throwsA(isA<Exception>()),
+    );
+  });
+
+  test('the profile key travels with an ordinary message', () async {
+    await alice.messaging.sendToUser('bob', 'hallo');
+
+    // Read the wire bytes first: receiving acknowledges, which deletes them.
+    final onTheWire = utf8.decode(
+      base64Decode(server.envelopes.single['content'] as String),
+      allowMalformed: true,
+    );
+
+    final received = await bob.messaging.receive();
+    final key = received.messages.single.payload.profileKey;
+
+    expect(key, isNotNull, reason: 'this is how a contact comes to see your picture');
+    expect(base64Decode(key!), await alice.crypto.profileKey());
+
+    // And it was inside the sealed payload, not next to it.
+    expect(onTheWire, isNot(contains(key)));
   });
 }

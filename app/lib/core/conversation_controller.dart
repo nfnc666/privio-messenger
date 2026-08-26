@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../data/message_store.dart';
 import '../media/attachment.dart';
+import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
@@ -57,6 +59,7 @@ class ConversationController extends ChangeNotifier {
     return ChatSummary(
       id: conversation.user.accountId,
       title: conversation.user.label,
+      avatarBytes: _avatarCache[conversation.user.accountId],
       preview: _previewOf(last),
       timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
       unreadCount: conversation.unreadCount,
@@ -178,15 +181,18 @@ class ConversationController extends ChangeNotifier {
       ];
       // Knowing a contact is enough to show their name against an incoming
       // message, before any conversation exists.
-      for (final contact in _contacts) {
+      for (final raw in response['contacts'] as List<dynamic>) {
+        final contact = raw as Map<String, dynamic>;
         _services.store.upsertUser(
           KnownUser(
-            accountId: contact.id,
-            username: contact.username,
-            displayName: contact.displayName,
+            accountId: contact['id'] as String,
+            username: contact['username'] as String,
+            displayName: contact['displayName'] as String?,
+            avatarMediaId: contact['avatarMediaId'] as String?,
           ),
         );
       }
+      unawaited(_loadAvatars());
       _error = null;
     } on ApiException catch (failure) {
       _error = failure.message;
@@ -194,12 +200,16 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static Contact _toContact(Map<String, dynamic> json) => Contact(
-        id: json['id'] as String,
-        username: json['username'] as String,
-        displayName: (json['alias'] ?? json['displayName'] ?? json['username']) as String,
-        avatarSeed: (json['id'] as String).hashCode.abs(),
-      );
+  Contact _toContact(Map<String, dynamic> json) {
+    final id = json['id'] as String;
+    return Contact(
+      id: id,
+      username: json['username'] as String,
+      displayName: (json['alias'] ?? json['displayName'] ?? json['username']) as String,
+      avatarSeed: id.hashCode.abs(),
+      avatarBytes: _avatarCache[id],
+    );
+  }
 
   Future<bool> addContact(String username) async {
     try {
@@ -209,6 +219,7 @@ class ConversationController extends ChangeNotifier {
           accountId: added['id'] as String,
           username: added['username'] as String,
           displayName: added['displayName'] as String?,
+          avatarMediaId: added['avatarMediaId'] as String?,
         ),
       );
       await refreshContacts();
@@ -229,9 +240,11 @@ class ConversationController extends ChangeNotifier {
           accountId: user['id'] as String,
           username: user['username'] as String,
           displayName: user['displayName'] as String?,
+          avatarMediaId: user['avatarMediaId'] as String?,
         ),
       );
       notifyListeners();
+      unawaited(_loadAvatars());
       return conversation.user.accountId;
     } on ApiException catch (failure) {
       _error = failure.message;
@@ -376,6 +389,16 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final payload = incoming.payload;
+    if (payload.profileKey != null) {
+      // Learning someone's profile key is what makes their picture openable.
+      _services.store.upsertUser(
+        KnownUser(
+          accountId: incoming.senderAccountId,
+          username: 'unknown',
+          profileKey: payload.profileKey,
+        ),
+      );
+    }
     _services.store.append(
       incoming.senderAccountId,
       Message(
@@ -407,6 +430,7 @@ class ConversationController extends ChangeNotifier {
           accountId: accountId,
           username: profile['username'] as String,
           displayName: profile['displayName'] as String?,
+          avatarMediaId: profile['avatarMediaId'] as String?,
         ),
       );
     } on ApiException {
@@ -421,6 +445,72 @@ class ConversationController extends ChangeNotifier {
     if (mediaType.startsWith('video/')) return MessageKind.video;
     if (mediaType.startsWith('audio/')) return MessageKind.voice;
     return MessageKind.file;
+  }
+
+  // --- Profile pictures -----------------------------------------------------
+
+  /// Decrypted avatars, keyed by media id. Held in memory only: the picture is
+  /// re-derivable, and writing faces to disk in the clear is not worth it.
+  final Map<String, Uint8List> _avatarCache = {};
+
+  /// This account's own picture, once it has been set or loaded.
+  Uint8List? ownAvatar;
+
+  Uint8List? avatarFor(String accountId) => _avatarCache[accountId];
+
+  /// Downloads and opens the pictures of everyone we have both a pointer and a
+  /// key for. Quiet on failure — a missing avatar is a cosmetic problem.
+  Future<void> _loadAvatars() async {
+    var loaded = false;
+    for (final conversation in _services.store.conversations()) {
+      final user = conversation.user;
+      if (!user.hasAvatar || _avatarCache.containsKey(user.accountId)) continue;
+      try {
+        _avatarCache[user.accountId] = await _services.messaging.openAvatar(
+          user.avatarMediaId!,
+          base64Decode(user.profileKey!),
+        );
+        loaded = true;
+      } on Object {
+        // Leave it out; the initials stand in perfectly well.
+      }
+    }
+    if (loaded) notifyListeners();
+  }
+
+  /// Sets this account's profile picture: resized, stripped, sealed with the
+  /// profile key, uploaded, and pointed at.
+  ///
+  /// Returns false when the file was not a decodable image.
+  Future<bool> setOwnAvatar(Uint8List picked) async {
+    final prepared = AvatarImage.prepare(picked);
+    if (prepared == null) {
+      _error = 'That file is not an image Privio can use.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _services.messaging.uploadAvatar(prepared);
+      ownAvatar = prepared;
+      _error = null;
+      notifyListeners();
+      return true;
+    } on Object catch (failure) {
+      _error = failure is ApiException ? failure.message : 'Could not set the picture';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> removeOwnAvatar() async {
+    try {
+      await _services.api.clearAvatar();
+      ownAvatar = null;
+      _error = null;
+    } on ApiException catch (failure) {
+      _error = failure.message;
+    }
+    notifyListeners();
   }
 
   void markRead(String accountId) {
