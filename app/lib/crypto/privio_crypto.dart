@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
 
 import 'crypto_storage.dart';
+import 'padding.dart';
 import 'privio_signal_store.dart';
 
 /// One sealed copy of a message, addressed to a single recipient device.
@@ -232,7 +233,9 @@ class PrivioCrypto {
     final cipher = SessionCipher.fromStore(_store, address);
     final CiphertextMessage message;
     try {
-      message = await cipher.encrypt(Uint8List.fromList(utf8.encode(plaintext)));
+      // Padded before sealing, so the ciphertext length says nothing about how
+      // much was written.
+      message = await cipher.encrypt(MessagePadding.pad(utf8.encode(plaintext)));
     } on UntrustedIdentityException {
       throw IdentityChangedException(accountId, deviceIndex);
     }
@@ -285,7 +288,7 @@ class PrivioCrypto {
       'ciphertext' => await cipher.decryptFromSignal(SignalMessage.fromSerialized(bytes)),
       _ => throw ArgumentError.value(type, 'type', 'Not a decryptable envelope'),
     };
-    return utf8.decode(plaintext);
+    return utf8.decode(MessagePadding.unpad(plaintext));
   }
 
   /// True when the published pool has run down far enough to warrant a top-up.

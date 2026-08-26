@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-73%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-106%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -105,6 +105,8 @@ been failing silently every three seconds. It is fixed and covered by a test.
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
+| **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
+| **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime over WebSocket** | 🔧 | The server pushes; the client still polls every 3s |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
 | **Channels** | 📋 | V2 |
@@ -163,6 +165,7 @@ sequenceDiagram
 | Theme | `app/lib/theme/` | The measured design tokens |
 | Messaging | `app/lib/services/` | The only place plaintext meets the transport |
 | **Archive** | `app/lib/data/` | The decrypted history, sealed at rest |
+| **Media** | `app/lib/media/` | Metadata scrubbing, per-file encryption, padding |
 | **Crypto** | `app/lib/crypto/` | X3DH, the Double Ratchet, the key store |
 | Transport | `app/lib/core/` | HTTP client, keystore, app state |
 | API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, media, backup |
@@ -181,13 +184,46 @@ someone has to audit.
 | --- | --- |
 | Usernames and account creation time | Message text, voice notes, media, files |
 | Which accounts exchange envelopes, and when | Group names and avatars |
-| Envelope sizes and device counts | Contact names and aliases you set locally |
-| Group membership | Anything inside a backup |
-| Attachment sizes and lifetimes | Search queries — search never leaves the device |
+| Device counts, and a padded size bucket | How long a message actually is |
+| Group membership | Contact names and aliases you set locally |
+| That a file was uploaded, and roughly how big | File names, types, or anything inside them |
+| Attachment lifetimes | Search queries — search never leaves the device |
 
 **Push notifications carry nothing.** They say "something arrived" and no more —
 not the sender, not a preview, not a count. The device wakes, connects and
 decrypts locally, so Apple and Google see traffic, never content.
+
+---
+
+## Metadata
+
+Encryption protects what you write. It does nothing about everything *around*
+what you write — and that is often the part that identifies you.
+
+**Files are stripped before they are sent.** A photo out of a phone carries GPS
+coordinates, the camera make and model, a serial number and the second it was
+taken. Encrypting it delivers all of that intact to the recipient. Privio removes
+it on the way out, every time, with no setting to forget:
+
+| Format | Removed |
+| --- | --- |
+| JPEG | EXIF and XMP (GPS, camera, serial number, timestamps), IPTC, ICC profile, comments |
+| PNG | Text and comment chunks, embedded EXIF, modification time, ICC profile |
+| MP4 / MOV | User-data boxes (GPS, device make and model), metadata tags, recording timestamps |
+
+Only container structure is touched — the pixels and the audio are passed through
+byte for byte, so nothing is re-encoded and nothing degrades. A format Privio
+cannot clean is still sent, encrypted, but the app says so rather than letting
+you assume otherwise.
+
+**Message length is padded away.** Ciphertext length tracks plaintext length, and
+the server sees every ciphertext. Unpadded, "yes" is distinguishable from a
+paragraph. Every payload is padded into a doubling bucket before it is sealed, so
+the server observes a handful of sizes instead of a continuum — and a text
+message is indistinguishable from a photo being sent.
+
+**File names never leave the encrypted envelope.** `passport_scan.pdf` travels
+inside the sealed message next to the key, never beside the upload.
 
 ---
 
@@ -205,6 +241,7 @@ implementations of established protocols.
 | Attachments | AES-256-GCM, random key per file |
 | Backups | AES-256-GCM under a key from your recovery phrase |
 | Local history | AES-256-GCM under a key in the platform keystore |
+| Attachments | AES-256-GCM, a fresh random key per file, size padded |
 | Two-factor | TOTP, RFC 6238 |
 
 ### The caveats, stated plainly
@@ -271,7 +308,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  36 passing
 
 cd app && flutter analyze && flutter test
-#  37 passing
+#  70 passing
 ```
 
 Among the things those tests assert:
@@ -283,6 +320,8 @@ Among the things those tests assert:
 - a **swapped identity key is refused on send** — the attack this all exists to stop
 - the history at rest is **ciphertext** — not the messages, not even the contact names
 - a different key **cannot** read that archive, and a tampered one is discarded
+- a photo's **GPS, camera model and serial number** are gone from what the recipient receives
+- "yes" and a full paragraph produce **exactly the same ciphertext length**
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender
 
@@ -313,7 +352,8 @@ Full route list in [`docs/architecture.md`](docs/architecture.md).
 ```
 privio-messenger/
 ├── app/                    Flutter client (iOS + Android)
-│   ├── lib/crypto/           X3DH, Double Ratchet, key store
+│   ├── lib/crypto/           X3DH, Double Ratchet, key store, padding
+│   ├── lib/media/            Metadata scrubbing and attachment encryption
 │   ├── lib/services/         Messaging: the plaintext boundary
 │   ├── lib/screens/          One file per screen
 │   ├── lib/widgets/          Shared components

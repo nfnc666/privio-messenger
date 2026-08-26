@@ -337,4 +337,30 @@ void main() {
     final store = await PrivioSignalStore.open(alice.storage);
     expect(store, isNotNull);
   });
+  test('ciphertext length does not reveal how much was written', () async {
+    final bundle = DeviceBundle.fromJson(server.bundleFor(bob.accountId, bob.deviceIndex));
+    await alice.crypto.ensureSession(bob.accountId, bundle);
+
+    Future<int> lengthOf(String text) async {
+      final sealed = await alice.crypto.seal(
+        accountId: bob.accountId,
+        deviceId: bob.deviceId,
+        deviceIndex: bob.deviceIndex,
+        registrationId: bundle.registrationId,
+        plaintext: text,
+      );
+      return base64Decode(sealed.content).length;
+    }
+
+    final short = await lengthOf('ja');
+    final longer = await lengthOf(
+      'Ich komme heute etwas spaeter, warte bitte nicht auf mich mit dem Essen.',
+    );
+
+    expect(
+      short,
+      longer,
+      reason: 'a yes and a paragraph must look the same to the server',
+    );
+  });
 }

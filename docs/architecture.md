@@ -47,6 +47,7 @@ Layers, outermost first:
 | Conversations | `lib/core/conversation_controller.dart` | Drives the screens; polls the queue every 3s |
 | Crypto | `lib/crypto/` | X3DH, the Double Ratchet, and the key store |
 | Archive | `lib/data/` | The decrypted history, sealed at rest with AES-256-GCM |
+| Media | `lib/media/` | Metadata scrubbing, per-file encryption, size padding |
 | Widgets | `lib/widgets/` | Shared components: rows, bubbles, avatars, the mark |
 | Theme | `lib/theme/` | The design tokens from `docs/design-system.md` |
 | State | `lib/core/app_state.dart` | Session and lock stage, via `ChangeNotifier` |
@@ -95,8 +96,9 @@ implements.
    each (`GET /v1/keys/:username`). A one-time prekey is consumed per fetch.
    Each bundle carries the device's stable per-account index, which is how a
    Signal session is addressed — the UUID is only for routing.
-2. **Sender** runs X3DH per device, then seals the message once *per device*
-   with the Double Ratchet. Five devices means five ciphertexts.
+2. **Sender** pads the payload to a size bucket, then runs X3DH per device and
+   seals it once *per device* with the Double Ratchet. Five devices means five
+   ciphertexts, all the same length whatever was written.
 3. **Sender** posts all copies in one request (`POST /v1/messages`). If the
    device list has changed since the bundles were fetched, the server rejects
    the whole send with `device_mismatch` and names the missing devices — better

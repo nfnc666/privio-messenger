@@ -17,7 +17,7 @@ library that implements it.
 | Session tokens | 256-bit random, stored as SHA-256 | `node:crypto` |
 | Transport | TLS 1.3 | Platform TLS |
 | Local history | AES-256-GCM | `package:cryptography` on the client |
-| Attachments | AES-256-GCM with a per-file random key | Client |
+| Attachments | AES-256-GCM with a per-file random key, padded | Client |
 | Backups | AES-256-GCM under a key from a recovery phrase | Client |
 | Two-factor | TOTP, RFC 6238 | `otplib` |
 
@@ -54,9 +54,10 @@ ordinary success and are dropped.
 **A compromised endpoint.** Malware with your unlocked device reads your
 messages. No messenger solves this.
 
-**Traffic analysis.** The server sees who exchanges envelopes and when. Sealed
-sender narrows this; a global passive adversary correlating timing is out of
-scope.
+**Traffic analysis.** The server sees who exchanges envelopes and when. Message
+*length* is padded away (below), so size no longer distinguishes a word from a
+paragraph, or a photo from a sentence. Sealed sender would narrow the remaining
+who-and-when; a global passive adversary correlating timing is out of scope.
 
 **A malicious recipient.** Anyone you message can screenshot, copy or forward
 it. "Restrict content saving" raises the effort; it is not a security control
@@ -67,6 +68,64 @@ cost of the server not holding a key, and it is the right trade.
 
 **Targeted platform compromise.** A zero-day in iOS or Android, or a malicious
 OS update, defeats any app on it.
+
+## Metadata
+
+Encryption protects content. Most of what identifies a person is not content.
+
+### Files are stripped on the way out
+
+A photo straight from a phone carries GPS coordinates, the camera make and model,
+a body serial number and the second it was taken. End-to-end encryption does not
+touch any of it — it delivers all of it, intact, to the recipient. Privio removes
+it before the file is encrypted, on every send, with no setting that can be left
+off:
+
+| Format | Removed |
+| --- | --- |
+| JPEG | EXIF and XMP (GPS, camera, serial number, timestamps), IPTC/Photoshop, ICC profile, comments |
+| PNG | `tEXt` / `zTXt` / `iTXt` chunks, embedded `eXIf`, `tIME`, `iCCP` |
+| MP4 / MOV | `udta` boxes (GPS, make, model), `meta` tags, `uuid` vendor boxes, creation and modification times in `mvhd` / `tkhd` / `mdhd` |
+
+Only container structure is rewritten. Pixel and audio data are copied through
+untouched, so nothing is re-encoded and no quality is lost. Scrubbing is
+idempotent — a second pass finds nothing.
+
+**A format Privio does not recognise is passed through unchanged and reported as
+not cleaned.** Silently corrupting a file would be worse, and silently claiming
+it was cleaned would be worse still.
+
+The known gap: formats without a scrubber (WebP, GIF, PDF, Office documents)
+carry their metadata through. The report tells the user, but the right answer is
+to write scrubbers for them.
+
+### Message length is padded away
+
+Ciphertext length tracks plaintext length, and the server sees every ciphertext.
+Unpadded, a "yes" is distinguishable from a paragraph, a shared address from a
+link, and a repeated exchange of fixed-size messages is a fingerprint in itself.
+
+Every payload is padded to a bucket before it is sealed, using ISO/IEC 7816-4
+padding (a `0x80` marker, then zeros). Buckets start at 256 bytes and double,
+capping the overhead at under 2x while collapsing observable sizes to a handful
+of values. Attachments are padded the same way, so file size cannot be used to
+identify a known file.
+
+Because text and attachment messages share one payload format, and both are
+padded, the server cannot tell a sentence from a photo — only that something was
+sent.
+
+### File names stay inside the envelope
+
+The upload is bytes and nothing else. The name, the type and the key travel
+inside the end-to-end encrypted message, so `passport_scan.pdf` is never a string
+the server holds.
+
+### What the server still learns
+
+Which accounts exchange envelopes and when; group membership; that an account
+uploaded a file of roughly some size. Removing the sender identifier needs sealed
+sender, which is listed under known gaps.
 
 ## Authentication
 
@@ -143,14 +202,19 @@ naming what is missing today.
    keystore, which is the security boundary; V2 moves it into the native crypto
    layer where it derives a key-encryption key with Argon2id.
 4. **No sealed sender.** Envelopes carry a sender account id, which the server
-   uses for blocking and rate limiting. Removing it needs delivery tokens.
-5. **TOTP secrets are stored in plaintext in the database.** They should be
+   uses for blocking and rate limiting. Removing it needs delivery tokens. Now
+   that length is padded away, this is the largest remaining metadata leak.
+5. **Only three formats have metadata scrubbers.** JPEG, PNG and MP4/MOV are
+   cleaned on every send. WebP, GIF, PDF and Office documents are passed through
+   as they are — the app reports that it could not clean them, but reporting is
+   not the same as fixing.
+6. **TOTP secrets are stored in plaintext in the database.** They should be
    encrypted with a server-held key so a database leak alone does not defeat the
    second factor.
-6. **Attachment ids are the download capability.** Any authenticated user who
+7. **Attachment ids are the download capability.** Any authenticated user who
    learns an id can fetch the (encrypted) bytes. Ids are unguessable and objects
    expire, but per-recipient authorisation would be stronger.
-7. **No independent audit.** Before any public release, the crypto integration
+8. **No independent audit.** Before any public release, the crypto integration
    needs review by someone who was not involved in writing it.
 
 ## Reporting a vulnerability
