@@ -19,6 +19,7 @@ dependencies:
   # Renders the invite deep link as a QR code, on-device.
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

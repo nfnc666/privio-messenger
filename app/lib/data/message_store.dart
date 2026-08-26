@@ -37,6 +37,9 @@ abstract interface class MessageStore {
   void append(String accountId, Message message);
   void markRead(String accountId);
   void updateState(String accountId, String messageId, DeliveryState state);
+
+  /// Replaces the contents with what was read back from the archive.
+  void restore(List<Conversation> conversations);
   void clear();
 }
 
@@ -103,6 +106,15 @@ class InMemoryMessageStore implements MessageStore {
       voiceDuration: message.voiceDuration,
       senderName: message.senderName,
     );
+  }
+
+  @override
+  void restore(List<Conversation> conversations) {
+    _conversations
+      ..clear()
+      ..addEntries(
+        conversations.map((conversation) => MapEntry(conversation.user.accountId, conversation)),
+      );
   }
 
   /// Used by sign-out and by the wipe code: nothing readable is left behind.

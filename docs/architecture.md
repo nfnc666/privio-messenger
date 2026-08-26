@@ -46,11 +46,13 @@ Layers, outermost first:
 | Messaging | `lib/services/` | The only place plaintext meets the transport |
 | Conversations | `lib/core/conversation_controller.dart` | Drives the screens; polls the queue every 3s |
 | Crypto | `lib/crypto/` | X3DH, the Double Ratchet, and the key store |
+| Archive | `lib/data/` | The decrypted history, sealed at rest with AES-256-GCM |
 | Widgets | `lib/widgets/` | Shared components: rows, bubbles, avatars, the mark |
 | Theme | `lib/theme/` | The design tokens from `docs/design-system.md` |
 | State | `lib/core/app_state.dart` | Session and lock stage, via `ChangeNotifier` |
 | Transport | `lib/core/api_client.dart` | HTTP to the API; sealed bytes only |
 | Storage | `lib/core/secure_store.dart` | Keychain / Keystore |
+| Biometrics | `lib/core/biometric_gate.dart` | Face ID / Touch ID, behind an interface |
 
 There is no state-management package: `InheritedNotifier` covers what the app
 needs, and every dependency in a security product is a dependency to audit.

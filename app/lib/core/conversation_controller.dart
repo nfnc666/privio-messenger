@@ -24,6 +24,7 @@ class ConversationController extends ChangeNotifier {
   static const Duration pollInterval = Duration(seconds: 3);
 
   Timer? _poller;
+  Timer? _saveDebounce;
   bool _draining = false;
 
   List<Contact> _contacts = const [];
@@ -68,6 +69,30 @@ class ConversationController extends ChangeNotifier {
     return '${when.day.toString().padLeft(2, '0')}.${when.month.toString().padLeft(2, '0')}.';
   }
 
+  /// Reads the sealed history back so a relaunch does not start blank.
+  Future<void> restore() async {
+    final conversations = await _services.archive.load();
+    if (conversations.isEmpty) return;
+    _services.store.restore(conversations);
+    notifyListeners();
+  }
+
+  /// Writes the history back, coalescing bursts: a fast exchange should not
+  /// re-seal and rewrite the whole archive once per keystroke.
+  void _persist() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 400), () {
+      unawaited(_services.archive.save(_services.store.conversations()));
+    });
+  }
+
+  /// Flushes any pending write. Called when the app goes to the background.
+  Future<void> flush() async {
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    await _services.archive.save(_services.store.conversations());
+  }
+
   /// Starts draining the queue. Safe to call more than once.
   void start() {
     _poller ??= Timer.periodic(pollInterval, (_) => drain());
@@ -82,6 +107,7 @@ class ConversationController extends ChangeNotifier {
   @override
   void dispose() {
     stop();
+    _saveDebounce?.cancel();
     super.dispose();
   }
 
@@ -181,6 +207,7 @@ class ConversationController extends ChangeNotifier {
       await _services.messaging.sendToUser(conversation.user.username, text.trim());
       _services.store.updateState(accountId, messageId, DeliveryState.sent);
       _error = null;
+      _persist();
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _error = failure is ApiException ? failure.message : 'Could not send message';
@@ -199,6 +226,7 @@ class ConversationController extends ChangeNotifier {
       for (final incoming in result.messages) {
         await _fileIncoming(incoming);
       }
+      if (result.messages.isNotEmpty) _persist();
       if (result.failures.isNotEmpty) {
         _error = '${result.failures.length} message(s) could not be decrypted';
       }
@@ -250,6 +278,7 @@ class ConversationController extends ChangeNotifier {
 
   void markRead(String accountId) {
     _services.store.markRead(accountId);
+    _persist();
     notifyListeners();
   }
 

@@ -1,5 +1,6 @@
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
+import '../data/archive.dart';
 import '../data/message_store.dart';
 import '../services/messaging_service.dart';
 import 'api_client.dart';
@@ -17,7 +18,8 @@ class PrivioServices {
     required this.messaging,
     required this.store,
     required this.secureStore,
-  });
+    MessageArchive? archive,
+  }) : archive = archive ?? const NoArchive();
 
   /// Where the API lives. Overridden at build time:
   /// `flutter run --dart-define=PRIVIO_API_URL=https://api.privio.app`
@@ -39,6 +41,10 @@ class PrivioServices {
       messaging: MessagingService(api: api, crypto: crypto),
       store: InMemoryMessageStore(),
       secureStore: secureStore,
+      archive: EncryptedMessageArchive(
+        storage: const KeystoreArchiveStorage(),
+        keyStore: secureStore,
+      ),
     );
   }
 
@@ -47,6 +53,9 @@ class PrivioServices {
   final MessagingService messaging;
   final MessageStore store;
   final SecureStore secureStore;
+
+  /// Where the decrypted history is kept between launches, sealed at rest.
+  final MessageArchive archive;
 
   void dispose() => api.close();
 }

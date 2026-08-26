@@ -19,6 +19,11 @@ abstract interface class SecureStore {
   Future<bool> hasPin();
   Future<bool> verifyPin(String pin);
 
+  /// The key the local message archive is sealed with. Small enough that a
+  /// keystore is the right home for it, unlike the archive itself.
+  Future<String?> readArchiveKey();
+  Future<void> writeArchiveKey(String base64Key);
+
   Future<bool> biometricsEnabled();
   Future<void> setBiometricsEnabled(bool enabled);
 
@@ -37,6 +42,7 @@ class KeystoreSecureStore implements SecureStore {
   static const _usernameKey = 'privio.session.username';
   static const _accountIdKey = 'privio.session.account_id';
   static const _pinKey = 'privio.lock.pin';
+  static const _archiveKeyKey = 'privio.archive.key';
   static const _biometricsKey = 'privio.lock.biometrics';
 
   static const _iosOptions = IOSOptions(
@@ -87,6 +93,12 @@ class KeystoreSecureStore implements SecureStore {
   }
 
   @override
+  Future<String?> readArchiveKey() => _read(_archiveKeyKey);
+
+  @override
+  Future<void> writeArchiveKey(String base64Key) => _write(_archiveKeyKey, base64Key);
+
+  @override
   Future<bool> biometricsEnabled() async => await _read(_biometricsKey) == 'true';
 
   @override
@@ -130,6 +142,12 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<bool> verifyPin(String pin) async => _entries['pin'] == pin;
+
+  @override
+  Future<String?> readArchiveKey() async => _entries['archiveKey'];
+
+  @override
+  Future<void> writeArchiveKey(String base64Key) async => _entries['archiveKey'] = base64Key;
 
   @override
   Future<bool> biometricsEnabled() async => _entries['biometrics'] == 'true';
