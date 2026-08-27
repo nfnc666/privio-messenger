@@ -14,6 +14,7 @@ import 'package:privio/data/archive.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/media/voice.dart';
 import 'package:privio/models/models.dart';
+import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
 
@@ -87,6 +88,8 @@ Future<(PrivioServices, RecordingMessagingService, FlakyServer, InMemoryArchiveS
   final crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
   final messaging = RecordingMessagingService(api: api, crypto: crypto);
   final storage = InMemoryArchiveStorage();
+  final store = InMemoryMessageStore();
+  final secureStore = InMemorySecureStore();
 
   final services = PrivioServices(
     api: api,
@@ -95,8 +98,9 @@ Future<(PrivioServices, RecordingMessagingService, FlakyServer, InMemoryArchiveS
     channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
     recorder: FakeVoiceRecorder(),
     player: FakeVoicePlayer(),
-    store: InMemoryMessageStore(),
-    secureStore: InMemorySecureStore(),
+    store: store,
+    secureStore: secureStore,
+    backup: BackupService(api: api, store: secureStore, messages: store),
     archive: EncryptedMessageArchive(storage: storage, keyStore: InMemorySecureStore()),
   );
   services.store.upsertUser(const KnownUser(accountId: 'account-bob', username: 'bob'));

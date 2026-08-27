@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import 'backup_screen.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_logo.dart';
 
@@ -11,9 +14,13 @@ enum AuthMode { signUp, signIn }
 /// The only things asked for are a username and a password — there is no phone
 /// number field because there is nothing to verify and nothing to correlate.
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({required this.mode, super.key});
+  const AuthScreen({required this.mode, super.key, this.restoring = false});
 
   final AuthMode mode;
+
+  /// True when this sign-in is the first step of restoring a backup, which
+  /// changes what the screen says and where it goes afterwards.
+  final bool restoring;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -57,6 +64,15 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
+      // A backup holds history, not an identity — so restoring happens after
+      // the device has one, and this hands the user straight to the key.
+      if (widget.restoring && mounted) {
+        unawaited(
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const BackupScreen()),
+          ),
+        );
+      }
       return;
     }
     // The server asks for a second factor only once it knows the password was

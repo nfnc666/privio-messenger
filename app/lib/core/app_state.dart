@@ -226,11 +226,16 @@ class AppState extends ChangeNotifier {
   }
 
   /// Re-locks on backgrounding, so a shoulder-surfer gets the PIN pad.
+  ///
+  /// Also the moment an automatic backup happens: the history has just been
+  /// flushed, the app is not being used, and it is the point at which "I lost
+  /// my phone" starts being a possibility.
   void lock() {
     if (_stage == AppStage.ready) {
       _conversations
         ?..stop()
         ..flush();
+      unawaited(_services?.backup.backUpIfDue() ?? Future<bool>.value(false));
       _stage = AppStage.locked;
       notifyListeners();
     }

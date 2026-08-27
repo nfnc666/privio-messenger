@@ -24,6 +24,21 @@ abstract interface class SecureStore {
   Future<String?> readArchiveKey();
   Future<void> writeArchiveKey(String base64Key);
 
+  /// The recovery key backups are sealed under.
+  ///
+  /// Kept so an automatic backup does not have to ask for it every week. It is
+  /// still the user's to write down: a device that is lost takes this copy with
+  /// it, which is exactly the situation a backup exists for.
+  Future<String?> readRecoveryKey();
+  Future<void> writeRecoveryKey(String base32Key);
+
+  /// When the last backup went up, and how often to make one. Not secret, but
+  /// they belong beside the key rather than in a second store.
+  Future<DateTime?> readLastBackupAt();
+  Future<void> writeLastBackupAt(DateTime when);
+  Future<String?> readBackupInterval();
+  Future<void> writeBackupInterval(String interval);
+
   Future<bool> biometricsEnabled();
   Future<void> setBiometricsEnabled(bool enabled);
 
@@ -43,6 +58,9 @@ class KeystoreSecureStore implements SecureStore {
   static const _accountIdKey = 'privio.session.account_id';
   static const _pinKey = 'privio.lock.pin';
   static const _archiveKeyKey = 'privio.archive.key';
+  static const _recoveryKeyKey = 'privio.backup.recovery_key';
+  static const _lastBackupKey = 'privio.backup.last_at';
+  static const _backupIntervalKey = 'privio.backup.interval';
   static const _biometricsKey = 'privio.lock.biometrics';
 
   static const _iosOptions = IOSOptions(
@@ -99,6 +117,27 @@ class KeystoreSecureStore implements SecureStore {
   Future<void> writeArchiveKey(String base64Key) => _write(_archiveKeyKey, base64Key);
 
   @override
+  Future<String?> readRecoveryKey() => _read(_recoveryKeyKey);
+
+  @override
+  Future<void> writeRecoveryKey(String base32Key) => _write(_recoveryKeyKey, base32Key);
+
+  @override
+  Future<DateTime?> readLastBackupAt() async =>
+      DateTime.tryParse(await _read(_lastBackupKey) ?? '');
+
+  @override
+  Future<void> writeLastBackupAt(DateTime when) =>
+      _write(_lastBackupKey, when.toIso8601String());
+
+  @override
+  Future<String?> readBackupInterval() => _read(_backupIntervalKey);
+
+  @override
+  Future<void> writeBackupInterval(String interval) =>
+      _write(_backupIntervalKey, interval);
+
+  @override
   Future<bool> biometricsEnabled() async => await _read(_biometricsKey) == 'true';
 
   @override
@@ -148,6 +187,28 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<void> writeArchiveKey(String base64Key) async => _entries['archiveKey'] = base64Key;
+
+  @override
+  Future<String?> readRecoveryKey() async => _entries['recoveryKey'];
+
+  @override
+  Future<void> writeRecoveryKey(String base32Key) async =>
+      _entries['recoveryKey'] = base32Key;
+
+  @override
+  Future<DateTime?> readLastBackupAt() async =>
+      DateTime.tryParse(_entries['lastBackupAt'] ?? '');
+
+  @override
+  Future<void> writeLastBackupAt(DateTime when) async =>
+      _entries['lastBackupAt'] = when.toIso8601String();
+
+  @override
+  Future<String?> readBackupInterval() async => _entries['backupInterval'];
+
+  @override
+  Future<void> writeBackupInterval(String interval) async =>
+      _entries['backupInterval'] = interval;
 
   @override
   Future<bool> biometricsEnabled() async => _entries['biometrics'] == 'true';

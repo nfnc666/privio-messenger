@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-224%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-241%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -45,7 +45,7 @@ No phone number. No email. No address-book upload. You are a username.
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/13-devices.png" width="200"><br><sub><b>Devices</b><br>See what is logged in, log it out</sub></td>
-<td align="center"><img src="docs/screenshots/15-backup.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold</sub></td>
+<td align="center"><img src="docs/screenshots/backup-01-empty.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold — and honest when there is none</sub></td>
 <td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Push carries no content at all</sub></td>
 <td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
@@ -103,6 +103,25 @@ That run found a real bug: the client was declaring a JSON content type on
 requests with no body, which a strict server rejects — so the receive loop had
 been failing silently every three seconds. It is fixed and covered by a test.
 
+### A backup only you can open
+
+A history sealed on the device, a key that exists nowhere else, and a new
+device that gets the conversations back by typing it in. The server holds 451
+bytes it cannot read.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/backup-02-key.png" width="200"><br><sub><b>1.</b> The recovery key, as text and as a QR for the next device.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/backup-03-new-device.png" width="200"><br><sub><b>2.</b> A fresh device: never backed up here, but there is one on the server.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/backup-04-restore.png" width="200"><br><sub><b>3.</b> The key goes in. It never went anywhere near Privio.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/backup-05-history.png" width="200"><br><sub><b>4.</b> The conversation is back.</sub></td>
+</tr>
+</table>
+
+That work also removed two invented numbers from the account screen — a storage
+figure and a "Security Level: High" — that nothing had measured. A screen about
+trust is the last place for decoration.
+
 ### A join link, and a key that follows it
 
 The same discipline applied to channels. A reader opens a plain link, joins, and
@@ -137,7 +156,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Contacts & blocking** | ✅ | Exact-username lookup, invisible blocking |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
-| **Backup** | ✅ | Sealed with a recovery key the server never sees |
+| **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | ✅ | Contentless wake-ups; APNs/FCM see no metadata |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
@@ -327,7 +346,7 @@ implementations of established protocols.
 | Session tokens | 256-bit random, stored only as SHA-256 |
 | Transport | TLS 1.3 |
 | Attachments | AES-256-GCM, random key per file |
-| Backups | AES-256-GCM under a key from your recovery phrase |
+| Backups | AES-256-GCM under a key derived (HKDF-SHA256) from your recovery key |
 | Local history | AES-256-GCM under a key in the platform keystore |
 | Profile pictures | AES-256-GCM under a profile key, shared only with contacts |
 | Attachments | AES-256-GCM, a fresh random key per file, size padded |
@@ -407,7 +426,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  73 passing
 
 cd app && flutter analyze && flutter test
-#  151 passing
+#  168 passing
 ```
 
 Among the things those tests assert:
@@ -437,6 +456,9 @@ Among the things those tests assert:
 - a **retry** after a lost connection delivers the recording **once**, not twice
 - a recording queued with no network sits at rest as **ciphertext**, and goes out when the network returns
 - a chat's disappearing timer is **never sent to the server** and is applied by both sides
+- a backup on the server is **ciphertext** — no names, no messages, no attachment keys
+- the **wrong recovery key** opens nothing, and a failed restore leaves the device's history alone
+- a recovery key survives being **written down and typed back in**, including O for 0
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender

@@ -332,6 +332,29 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Backup
+
+**The server holds bytes it cannot open.** A backup is sealed on the device with
+AES-256-GCM under a key derived from the recovery key. There is no reset, no
+recovery flow and no support ticket that opens one — that is the guarantee, and
+it is also the whole risk. The screen says so instead of implying a safety net.
+
+**The recovery key is generated, not derived.** A key derived from a password is
+only as good as the password, and this one has to stand alone: 32 bytes from a
+secure generator, kept in the platform keystore so an automatic backup does not
+have to ask for it weekly. The device's copy goes with the device — which is the
+situation a backup exists for, and why the key is shown to be written down.
+
+**A backup carries no key material.** No identity key, no ratchet state, no
+session. This is deliberate: restoring the same ratchet state onto two devices
+breaks both of them, and does so silently, in a way that looks like network
+trouble rather than a bug. So a restore returns the history and the new device
+registers its own identity for what comes next.
+
+**A failed restore changes nothing.** The wrong key throws rather than restoring
+an empty history — silently replacing a device's conversations with nothing,
+because the key was mistyped, would be the worst possible failure mode here.
+
 ## Known gaps in the current implementation
 
 These are real and tracked. Nothing here is hand-waved as "future work" without

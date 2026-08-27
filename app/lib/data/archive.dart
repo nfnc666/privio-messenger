@@ -167,11 +167,11 @@ class EncryptedMessageArchive implements MessageArchive {
       final decoded = jsonDecode(utf8.decode(plain));
       // Archives written before the outbox existed are a bare list.
       if (decoded is List<dynamic>) {
-        return ArchiveContents(conversations: _decode(decoded));
+        return ArchiveContents(conversations: ArchiveCodec.decode(decoded));
       }
       final map = decoded as Map<String, dynamic>;
       return ArchiveContents(
-        conversations: _decode(map['conversations'] as List<dynamic>? ?? const []),
+        conversations: ArchiveCodec.decode(map['conversations'] as List<dynamic>? ?? const []),
         outbox: [
           for (final raw in map['outbox'] as List<dynamic>? ?? const [])
             PendingSend.fromJson(raw as Map<String, dynamic>),
@@ -191,7 +191,7 @@ class EncryptedMessageArchive implements MessageArchive {
   }) async {
     final plain = utf8.encode(
       jsonEncode({
-        'conversations': _encode(conversations),
+        'conversations': ArchiveCodec.encode(conversations),
         // Already-sealed recordings, so nothing plaintext reaches storage even
         // while a send is waiting for a network.
         'outbox': [for (final pending in outbox) pending.toJson()],
@@ -210,7 +210,15 @@ class EncryptedMessageArchive implements MessageArchive {
     await _storage.delete();
   }
 
-  static List<Map<String, dynamic>> _encode(List<Conversation> conversations) => [
+}
+
+/// How a conversation is written down.
+///
+/// Shared by the local archive and by backups, because they are the same
+/// history in two places — and the last thing this format needs is two
+/// implementations drifting apart.
+abstract final class ArchiveCodec {
+  static List<Map<String, dynamic>> encode(List<Conversation> conversations) => [
         for (final conversation in conversations)
           {
             'id': conversation.id,
@@ -281,7 +289,7 @@ class EncryptedMessageArchive implements MessageArchive {
           fileName: raw['fileName'] as String?,
         );
 
-  static List<Conversation> _decode(List<dynamic> raw) {
+  static List<Conversation> decode(List<dynamic> raw) {
     final conversations = <Conversation>[];
 
     for (final entry in raw.cast<Map<String, dynamic>>()) {

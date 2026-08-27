@@ -132,6 +132,17 @@ class ConversationController extends ChangeNotifier {
     unawaited(flushOutbox());
   }
 
+  /// Takes on a history that a restore has just put into the store.
+  ///
+  /// The backup service replaces the store's contents; this seals them into the
+  /// local archive and tells the screens, so a restore survives the next launch
+  /// rather than living only in memory until something else saves.
+  Future<void> adoptRestored() async {
+    _services.store.pruneExpired(DateTime.now());
+    await flush();
+    notifyListeners();
+  }
+
   /// Writes the history back, coalescing bursts: a fast exchange should not
   /// re-seal and rewrite the whole archive once per keystroke.
   void _persist() {

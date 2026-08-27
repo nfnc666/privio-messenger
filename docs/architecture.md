@@ -179,6 +179,28 @@ and `MessageStore.pruneExpired` removes what has run out — on a five-second
 sweep, after every drain, and on restore. The server is not told and is not
 trusted with it.
 
+## Backup
+
+A backup is the local history, sealed on the device and uploaded as bytes the
+server cannot read. `PUT /v1/backup` takes it, `GET /v1/backup` reports size and
+version, `GET /v1/backup/content` hands the same ciphertext back.
+
+The key is a **recovery key**: 32 random bytes, generated on the device, shown
+in Crockford-style base32 without I, L, O or U so it can be copied onto paper
+without ambiguity — and parsed back forgivingly, since someone who writes O for
+0 has not made a mistake worth punishing. `BackupCodec` runs it through
+HKDF-SHA256 for domain separation and seals with AES-256-GCM.
+
+What a backup holds is conversations, through the same `ArchiveCodec` the local
+archive uses — one serialisation, so the two cannot drift. What it deliberately
+does **not** hold is key material: no identity key, no ratchet state. Restoring
+gives a new device the history; that device then registers an identity of its
+own. Copying ratchet state to a second device would break both, and quietly.
+
+Automatic backup runs from `AppState.lock()` — the app going away is when a
+backup is both cheap and most likely to matter — and honours an Off/Daily/Weekly
+setting kept beside the key in the keystore.
+
 ## Notifications
 
 Push payloads are empty. They say "something arrived", nothing else — not the
