@@ -107,15 +107,22 @@ abstract final class AttachmentCipher {
 /// Serialised, padded and sealed as one unit, so the server cannot tell a photo
 /// from a sentence — only that something was sent.
 class MessagePayload {
-  const MessagePayload.text(this.body, {this.profileKey, this.groupKey})
-      : mediaId = null,
+  const MessagePayload.text(
+    this.body, {
+    this.profileKey,
+    this.groupKey,
+    this.expiresInSeconds,
+    this.clientId,
+  })  : mediaId = null,
         mediaKey = null,
         fileName = null,
         mediaType = null,
         byteSize = null,
         keyScope = null,
         keyScopeId = null,
-        deliveredKey = null;
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -134,7 +141,11 @@ class MessagePayload {
         mediaType = null,
         byteSize = null,
         profileKey = null,
-        groupKey = null;
+        groupKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -145,6 +156,10 @@ class MessagePayload {
     this.body = '',
     this.profileKey,
     this.groupKey,
+    this.voiceDurationMs,
+    this.waveform,
+    this.expiresInSeconds,
+    this.clientId,
   })  : keyScope = null,
         keyScopeId = null,
         deliveredKey = null;
@@ -162,6 +177,8 @@ class MessagePayload {
 
     final profileKey = json['pk'] as String?;
     final groupKey = json['gk'] as String?;
+    final expiresInSeconds = json['ex'] as int?;
+    final clientId = json['ci'] as String?;
     if (json['t'] == 'key') {
       return MessagePayload.key(
         keyScope: json['ks'] as String,
@@ -179,12 +196,20 @@ class MessagePayload {
         body: json['b'] as String? ?? '',
         profileKey: profileKey,
         groupKey: groupKey,
+        voiceDurationMs: json['vd'] as int?,
+        waveform: (json['wf'] as List<dynamic>?)
+            ?.map((value) => (value as num).toDouble())
+            .toList(),
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
       );
     }
     return MessagePayload.text(
       json['b'] as String? ?? '',
       profileKey: profileKey,
       groupKey: groupKey,
+      expiresInSeconds: expiresInSeconds,
+      clientId: clientId,
     );
   }
 
@@ -222,7 +247,67 @@ class MessagePayload {
   /// Base64 of the key itself. Only ever inside a sealed envelope.
   final String? deliveredKey;
 
+  /// Length of a voice message, in milliseconds.
+  ///
+  /// Inside the payload rather than derived from the file, so the bubble can
+  /// show "0:14" before anything has been downloaded — and so the server, which
+  /// sees only a padded blob, learns nothing about how long anyone spoke.
+  final int? voiceDurationMs;
+
+  /// The bars the recorder measured while recording, 0..1.
+  final List<double>? waveform;
+
+  /// How long after delivery this message should disappear, in seconds.
+  ///
+  /// The sender's setting, carried end to end so both sides agree. The server
+  /// is not asked and is not trusted with it: it deletes envelopes on its own
+  /// schedule, which is a different thing from a message expiring.
+  final int? expiresInSeconds;
+
+  /// The sender's own id for this message.
+  ///
+  /// Survives a retry, which is what stops a resend after a dropped connection
+  /// from arriving as a second voice message.
+  final String? clientId;
+
+  /// The same payload with a profile key attached.
+  ///
+  /// A method rather than a rebuild at each call site: this type has grown
+  /// fields (voice duration, waveform, expiry, client id) and every one of them
+  /// was once quietly dropped by a hand-written copy.
+  MessagePayload withProfileKey(String key) {
+    if (isKeyDelivery) return this;
+    if (isMedia) {
+      return MessagePayload.media(
+        mediaId: mediaId!,
+        mediaKey: mediaKey!,
+        mediaType: mediaType!,
+        byteSize: byteSize!,
+        fileName: fileName,
+        body: body,
+        profileKey: key,
+        groupKey: groupKey,
+        voiceDurationMs: voiceDurationMs,
+        waveform: waveform,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      );
+    }
+    return MessagePayload.text(
+      body,
+      profileKey: key,
+      groupKey: groupKey,
+      expiresInSeconds: expiresInSeconds,
+      clientId: clientId,
+    );
+  }
+
   bool get isMedia => mediaId != null;
+
+  bool get isVoice => (mediaType ?? '').startsWith('audio/');
+
+  Duration? get voiceDuration =>
+      voiceDurationMs == null ? null : Duration(milliseconds: voiceDurationMs!);
 
   /// True when this payload is a key for someone, not a message to show.
   bool get isKeyDelivery => deliveredKey != null;
@@ -235,6 +320,8 @@ class MessagePayload {
                 ? 'media'
                 : 'text',
         'b': body,
+        if (expiresInSeconds != null) 'ex': expiresInSeconds,
+        if (clientId != null) 'ci': clientId,
         if (isKeyDelivery) ...{
           'ks': keyScope,
           'ki': keyScopeId,
@@ -248,6 +335,12 @@ class MessagePayload {
           'm': mediaType,
           's': byteSize,
           if (fileName != null) 'n': fileName,
+          if (voiceDurationMs != null) 'vd': voiceDurationMs,
+          if (waveform != null) 'wf': [
+            // Two decimals is all a 48-bar sparkline can show, and fewer digits
+            // is less shape of someone's voice on the wire.
+            for (final bar in waveform!) double.parse(bar.toStringAsFixed(2)),
+          ],
         },
       });
 }

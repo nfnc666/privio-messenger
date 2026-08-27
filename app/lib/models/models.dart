@@ -71,7 +71,11 @@ class Attachment {
 }
 
 /// Delivery state of an outgoing message, mirrored in the tick marks.
-enum DeliveryState { sending, sent, delivered, read }
+///
+/// [failed] is its own state rather than an absence: a message that did not go
+/// out must say so and offer a retry, not sit looking like it is still trying.
+/// [queued] is the offline case — nothing is wrong, there is simply no network.
+enum DeliveryState { queued, sending, sent, delivered, read, failed }
 
 @immutable
 class Message {
@@ -83,8 +87,11 @@ class Message {
     this.kind = MessageKind.text,
     this.state = DeliveryState.read,
     this.voiceDuration,
+    this.waveform,
     this.senderName,
     this.attachment,
+    this.expiresAt,
+    this.clientId,
   });
 
   final String id;
@@ -95,13 +102,36 @@ class Message {
   final DeliveryState state;
   final Duration? voiceDuration;
 
+  /// The bars the sender's recorder measured, 0..1. Drawn as the waveform, and
+  /// available before the audio itself has been downloaded.
+  final List<double>? waveform;
+
   /// Only set in groups, where the sender has to be labelled.
   final String? senderName;
 
   /// Set when this message carries a file rather than only text.
   final Attachment? attachment;
 
-  Message copyWith({DeliveryState? state}) => Message(
+  /// When this message disappears, if the chat has a timer running.
+  ///
+  /// Both sides compute it from the same number carried inside the sealed
+  /// payload, so neither has to trust the server's clock or its goodwill.
+  final DateTime? expiresAt;
+
+  /// The sender's own id, which survives a retry. Used to recognise the same
+  /// message arriving twice.
+  final String? clientId;
+
+  bool get isVoice => kind == MessageKind.voice;
+
+  bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
+
+  Message copyWith({
+    DeliveryState? state,
+    Attachment? attachment,
+    DateTime? expiresAt,
+  }) =>
+      Message(
         id: id,
         body: body,
         sentAt: sentAt,
@@ -109,8 +139,11 @@ class Message {
         kind: kind,
         state: state ?? this.state,
         voiceDuration: voiceDuration,
+        waveform: waveform,
         senderName: senderName,
-        attachment: attachment,
+        attachment: attachment ?? this.attachment,
+        expiresAt: expiresAt ?? this.expiresAt,
+        clientId: clientId,
       );
 }
 

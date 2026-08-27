@@ -7,6 +7,7 @@ import 'package:cryptography/cryptography.dart';
 
 import '../data/message_store.dart';
 import '../media/attachment.dart';
+import '../media/voice.dart';
 import '../media/metadata_scrubber.dart';
 
 /// A decrypted incoming message, with the routing facts that came with it.
@@ -85,11 +86,14 @@ class MessagingService {
 
   Future<int> sendPayload(String username, MessagePayload payload) async {
     final encoded = (await _withProfileKey(payload)).encode();
+    // The payload's own client id doubles as the send's idempotency key: a
+    // retry of the same message is the same message, however it got retried.
+    final key = payload.clientId;
     try {
-      return await _sealAndSend(username, encoded);
+      return await _sealAndSend(username, encoded, idempotencyKey: key);
     } on ApiException catch (error) {
       if (error.code != 'device_mismatch') rethrow;
-      return _sealAndSend(username, encoded);
+      return _sealAndSend(username, encoded, idempotencyKey: key);
     }
   }
 
@@ -122,25 +126,79 @@ class MessagingService {
     return sealed.report;
   }
 
+  /// Sends a voice message.
+  ///
+  /// The same pipeline as any attachment — sealed under its own random key,
+  /// padded, uploaded as ciphertext — with the duration and waveform carried
+  /// inside the sealed payload rather than beside the upload. The server sees a
+  /// blob of a bucketed size and cannot tell it from a photo, let alone hear it.
+  ///
+  /// The recording's bytes are handed in from memory. Nothing on the way to
+  /// here wrote them to disk in the clear.
+  Future<void> sendVoice({
+    required String username,
+    required VoiceRecording recording,
+    required String clientId,
+    int? expiresInSeconds,
+  }) async {
+    final sealed = await AttachmentCipher.seal(
+      recording.bytes,
+      declaredType: recording.mediaType,
+    );
+    final mediaId = await _api.uploadMedia(sealed.bytes);
+
+    await sendPayload(
+      username,
+      MessagePayload.media(
+        mediaId: mediaId,
+        mediaKey: base64Encode(sealed.key),
+        mediaType: recording.mediaType,
+        byteSize: sealed.plainLength,
+        voiceDurationMs: recording.duration.inMilliseconds,
+        waveform: recording.waveform,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      ),
+    );
+  }
+
+  /// The group form of [sendVoice].
+  Future<void> sendVoiceToGroup({
+    required String groupId,
+    required VoiceRecording recording,
+    required String clientId,
+    String? groupKey,
+    int? expiresInSeconds,
+  }) async {
+    final sealed = await AttachmentCipher.seal(
+      recording.bytes,
+      declaredType: recording.mediaType,
+    );
+    final mediaId = await _api.uploadMedia(sealed.bytes);
+
+    await sendPayloadToGroup(
+      groupId,
+      MessagePayload.media(
+        mediaId: mediaId,
+        mediaKey: base64Encode(sealed.key),
+        mediaType: recording.mediaType,
+        byteSize: sealed.plainLength,
+        voiceDurationMs: recording.duration.inMilliseconds,
+        waveform: recording.waveform,
+        groupKey: groupKey,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      ),
+    );
+  }
+
   /// Attaches this account's profile key, which is how contacts become able to
   /// open its profile picture without the server ever learning the key.
   Future<MessagePayload> _withProfileKey(MessagePayload payload) async {
     // A key delivery carries no profile key and no body; rebuilding it as text
     // would quietly throw the key away.
     if (payload.isKeyDelivery || payload.profileKey != null) return payload;
-    final key = base64Encode(await _crypto.profileKey());
-    return payload.isMedia
-        ? MessagePayload.media(
-            mediaId: payload.mediaId!,
-            mediaKey: payload.mediaKey!,
-            mediaType: payload.mediaType!,
-            byteSize: payload.byteSize!,
-            fileName: payload.fileName,
-            body: payload.body,
-            profileKey: key,
-            groupKey: payload.groupKey,
-          )
-        : MessagePayload.text(payload.body, profileKey: key, groupKey: payload.groupKey);
+    return payload.withProfileKey(base64Encode(await _crypto.profileKey()));
   }
 
   /// Seals a profile picture under this account's profile key and uploads it.
@@ -177,7 +235,11 @@ class MessagingService {
     );
   }
 
-  Future<int> _sealAndSend(String username, String plaintext) async {
+  Future<int> _sealAndSend(
+    String username,
+    String plaintext, {
+    String? idempotencyKey,
+  }) async {
     final response = await _api.preKeyBundles(username);
     final accountId = response['accountId'] as String;
     final devices = [
@@ -192,6 +254,7 @@ class MessagingService {
     );
     final result = await _api.sendMessage(
       username: username,
+      idempotencyKey: idempotencyKey,
       messages: [for (final copy in sealed) copy.toJson()],
     );
     return result['deliveredTo'] as int? ?? sealed.length;
@@ -493,7 +556,11 @@ class MessagingService {
       sealed.add(copy.toJson());
     }
 
-    final result = await _api.sendGroupMessage(groupId: groupId, messages: sealed);
+    final result = await _api.sendGroupMessage(
+      groupId: groupId,
+      idempotencyKey: payload.clientId,
+      messages: sealed,
+    );
     return result['deliveredTo'] as int? ?? sealed.length;
   }
 

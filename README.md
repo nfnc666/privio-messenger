@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-187%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-224%20passing-22C55E?style=flat-square" alt="Tests">
 
 </div>
 
@@ -54,6 +54,12 @@ No phone number. No email. No address-book upload. You are a username.
 <td align="center"><img src="docs/screenshots/channel-02-feed.png" width="200"><br><sub><b>Channel feed</b><br>Posts sealed once, under a key the server never sees</sub></td>
 <td align="center"><img src="docs/screenshots/channel-10-discover.png" width="200"><br><sub><b>Discover</b><br>Public channels only — private ones are never listed</sub></td>
 <td align="center"><img src="docs/screenshots/channel-09-permissions.png" width="200"><br><sub><b>Permissions</b><br>Greyed out is what you do not hold yourself</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/voice-01-recording.png" width="200"><br><sub><b>Recording</b><br>Hold the mic, slide left to cancel, pause any time</sub></td>
+<td align="center"><img src="docs/screenshots/voice-02-preview.png" width="200"><br><sub><b>Preview</b><br>Listen back, or delete it — nothing is sent unheard</sub></td>
+<td align="center"><img src="docs/screenshots/voice-03-received.png" width="200"><br><sub><b>Voice message</b><br>Waveform and length come from the sealed payload</sub></td>
+<td align="center"><img src="docs/screenshots/voice-04-playing.png" width="200"><br><sub><b>Playing</b><br>Decrypted in memory, 1x · 1.5x · 2x</sub></td>
 </tr>
 </table>
 
@@ -143,6 +149,9 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Profile pictures** | 🔧 | Encrypted end to end; same untested file dialog |
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
+| **Voice messages** | ✅ | Hold to record, slide to cancel, pause, preview, 1x/1.5x/2x; sealed before upload |
+| **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
+| **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
@@ -288,6 +297,19 @@ and description are plaintext, because search cannot run over ciphertext; its
 posts are not. Groups have the same kind of link, and their sealed name travels
 the same way.
 
+**A voice message is an attachment, and gets the same pipeline.** It is sealed
+on the device under its own random key, padded, and uploaded as ciphertext; the
+server stores audio it cannot play. The duration and the waveform ride *inside*
+the sealed payload, not beside the upload, so the bubble is complete before
+anything is downloaded and the server never learns how long anyone spoke. The
+encoder's working file is overwritten and deleted the moment its bytes have been
+read, and playback runs from memory — a decrypted recording is never written to
+disk.
+
+**Disappearing messages are an agreement, not a request to the server.** The
+timer travels inside each sealed payload; both devices adopt it and delete on
+their own clocks. Asking a server to forget something is trusting it to.
+
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.
 
@@ -382,10 +404,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  70 passing
+#  73 passing
 
 cd app && flutter analyze && flutter test
-#  117 passing
+#  151 passing
 ```
 
 Among the things those tests assert:
@@ -411,6 +433,10 @@ Among the things those tests assert:
 - a 40-byte, a 100-byte and a 200-byte file all **upload at the same size**
 - a photo sent through the real send path arrives **stripped**, and the server's copy gives nothing away
 - a photo sent to a **group** is uploaded **once**, not once per member, and scrubbed just the same
+- a voice message's bytes on the server are **not the recording** — and a tampered one refuses to play
+- a **retry** after a lost connection delivers the recording **once**, not twice
+- a recording queued with no network sits at rest as **ciphertext**, and goes out when the network returns
+- a chat's disappearing timer is **never sent to the server** and is applied by both sides
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
 - blocking is **invisible** to the blocked sender

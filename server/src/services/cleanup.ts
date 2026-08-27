@@ -23,6 +23,10 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
     [config.ENVELOPE_TTL_DAYS],
   );
 
+  // Retries happen within minutes. Keeping these for a day is generous and
+  // stops the table from growing without bound.
+  await pool.query("DELETE FROM sent_message_keys WHERE created_at < now() - interval '1 day'");
+
   return { mediaDeleted: rows.length, envelopesDeleted: rowCount ?? 0 };
 }
 

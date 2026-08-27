@@ -145,6 +145,40 @@ the row. Client side that is `ChannelService.deliverPendingKeys` on one end and
 a `MessagePayload.key` intercepted in `ConversationController` on the other,
 which stores the key and shows nothing in the chat.
 
+## Voice messages
+
+A voice message is an attachment with two extra fields, not a second transport.
+`VoiceRecording` (bytes, duration, waveform, media type) goes into
+`AttachmentCipher.seal` exactly as a photo does — scrubbed, padded, sealed under
+a fresh random key — and the pointer plus that key travel inside the same
+`MessagePayload.media` the rest of the app already sends. The duration and the
+waveform are payload fields, so the bubble can render before anything is
+fetched, and the server sees a padded blob with no idea how long it is.
+
+Recording and playback sit behind `VoiceRecorder` and `VoicePlayer`, ports in
+the same style as `CryptoStorage` and `BiometricGate`. `PluginVoiceRecorder`
+picks Opus where the platform supports it and AAC otherwise, polls the level
+meter for the waveform, and on a phone overwrites and deletes the encoder's
+working file the moment its bytes have been read; in a browser there is no file
+at all. `JustAudioVoicePlayer` serves decrypted bytes from memory through a
+`StreamAudioSource`, because every other way in takes a path or a URL — and a
+decrypted recording in a cache directory would undo the encryption.
+
+**The outbox.** `PendingSend` holds what has not gone out: the *sealed* bytes,
+their key, the duration and the waveform. Sealing happens before queueing, so a
+recording waiting for a network is ciphertext even in the archive, which is
+itself sealed. Each entry carries a client id that is also the send's
+idempotency key, and remembers its `mediaId` once uploaded — so a retry after a
+failed send does not upload the same recording twice, and the server answers a
+repeated key rather than queueing a second copy (`sent_message_keys`, migration
+007).
+
+**Disappearing messages.** The timer is a number inside the sealed payload.
+The recipient adopts it, both sides compute an `expiresAt` from their own clock,
+and `MessageStore.pruneExpired` removes what has run out — on a five-second
+sweep, after every drain, and on restore. The server is not told and is not
+trusted with it.
+
 ## Notifications
 
 Push payloads are empty. They say "something arrived", nothing else — not the

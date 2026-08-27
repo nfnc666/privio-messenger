@@ -1,12 +1,13 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../core/secure_store.dart';
 import '../models/models.dart';
 import 'message_store.dart';
+import 'outbox.dart';
 
 /// Where the sealed archive bytes are kept.
 ///
@@ -77,10 +78,19 @@ class KeystoreArchiveStorage implements ArchiveStorage {
       );
 }
 
+/// Everything the archive holds: the history, and what has not gone out yet.
+@immutable
+class ArchiveContents {
+  const ArchiveContents({this.conversations = const [], this.outbox = const []});
+
+  final List<Conversation> conversations;
+  final List<PendingSend> outbox;
+}
+
 /// The decrypted conversation history, at rest.
 abstract interface class MessageArchive {
-  Future<List<Conversation>> load();
-  Future<void> save(List<Conversation> conversations);
+  Future<ArchiveContents> load();
+  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox});
   Future<void> clear();
 }
 
@@ -89,10 +99,10 @@ class NoArchive implements MessageArchive {
   const NoArchive();
 
   @override
-  Future<List<Conversation>> load() async => const [];
+  Future<ArchiveContents> load() async => const ArchiveContents();
 
   @override
-  Future<void> save(List<Conversation> conversations) async {}
+  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox = const []}) async {}
 
   @override
   Future<void> clear() async {}
@@ -138,10 +148,12 @@ class EncryptedMessageArchive implements MessageArchive {
   }
 
   @override
-  Future<List<Conversation>> load() async {
+  Future<ArchiveContents> load() async {
     final sealed = await _storage.read();
-    if (sealed == null || sealed.length < 1 + _nonceLength + _macLength) return const [];
-    if (sealed.first != _formatVersion) return const [];
+    if (sealed == null || sealed.length < 1 + _nonceLength + _macLength) {
+      return const ArchiveContents();
+    }
+    if (sealed.first != _formatVersion) return const ArchiveContents();
 
     final nonce = sealed.sublist(1, 1 + _nonceLength);
     final mac = sealed.sublist(sealed.length - _macLength);
@@ -152,17 +164,39 @@ class EncryptedMessageArchive implements MessageArchive {
         SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
         secretKey: await _key(),
       );
-      return _decode(jsonDecode(utf8.decode(plain)) as List<dynamic>);
+      final decoded = jsonDecode(utf8.decode(plain));
+      // Archives written before the outbox existed are a bare list.
+      if (decoded is List<dynamic>) {
+        return ArchiveContents(conversations: _decode(decoded));
+      }
+      final map = decoded as Map<String, dynamic>;
+      return ArchiveContents(
+        conversations: _decode(map['conversations'] as List<dynamic>? ?? const []),
+        outbox: [
+          for (final raw in map['outbox'] as List<dynamic>? ?? const [])
+            PendingSend.fromJson(raw as Map<String, dynamic>),
+        ],
+      );
     } on Object {
       // A wrong key or a tampered blob. Returning an empty history is right:
       // guessing at half-decrypted content would be worse than starting clean.
-      return const [];
+      return const ArchiveContents();
     }
   }
 
   @override
-  Future<void> save(List<Conversation> conversations) async {
-    final plain = utf8.encode(jsonEncode(_encode(conversations)));
+  Future<void> save(
+    List<Conversation> conversations, {
+    List<PendingSend> outbox = const [],
+  }) async {
+    final plain = utf8.encode(
+      jsonEncode({
+        'conversations': _encode(conversations),
+        // Already-sealed recordings, so nothing plaintext reaches storage even
+        // while a send is waiting for a network.
+        'outbox': [for (final pending in outbox) pending.toJson()],
+      }),
+    );
     final box = await _cipher.encrypt(plain, secretKey: await _key());
     // version | nonce | ciphertext | mac
     await _storage.write(
@@ -181,6 +215,8 @@ class EncryptedMessageArchive implements MessageArchive {
           {
             'id': conversation.id,
             'unreadCount': conversation.unreadCount,
+            if (conversation.disappearAfter != null)
+              'disappearAfterSeconds': conversation.disappearAfter!.inSeconds,
             if (conversation.user != null)
               'user': {
                 'accountId': conversation.user!.accountId,
@@ -212,6 +248,12 @@ class EncryptedMessageArchive implements MessageArchive {
                   'kind': message.kind.name,
                   'state': message.state.name,
                   if (message.senderName != null) 'senderName': message.senderName,
+                  if (message.voiceDuration != null)
+                    'voiceDurationMs': message.voiceDuration!.inMilliseconds,
+                  if (message.waveform != null) 'waveform': message.waveform,
+                  if (message.expiresAt != null)
+                    'expiresAt': message.expiresAt!.toIso8601String(),
+                  if (message.clientId != null) 'clientId': message.clientId,
                   if (message.attachment != null)
                     'attachment': {
                       'mediaId': message.attachment!.mediaId,
@@ -225,6 +267,9 @@ class EncryptedMessageArchive implements MessageArchive {
             ],
           },
       ];
+
+  static Duration? _decodeTimer(Object? seconds) =>
+      seconds == null ? null : Duration(seconds: seconds as int);
 
   static Attachment? _decodeAttachment(Map<String, dynamic>? raw) => raw == null
       ? null
@@ -250,6 +295,16 @@ class EncryptedMessageArchive implements MessageArchive {
             kind: MessageKind.values.byName(message['kind'] as String? ?? 'text'),
             state: DeliveryState.values.byName(message['state'] as String? ?? 'read'),
             senderName: message['senderName'] as String?,
+            voiceDuration: message['voiceDurationMs'] == null
+                ? null
+                : Duration(milliseconds: message['voiceDurationMs'] as int),
+            waveform: (message['waveform'] as List<dynamic>?)
+                ?.map((value) => (value as num).toDouble())
+                .toList(),
+            expiresAt: message['expiresAt'] == null
+                ? null
+                : DateTime.parse(message['expiresAt'] as String),
+            clientId: message['clientId'] as String?,
             attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
           ),
       ];
@@ -266,7 +321,9 @@ class EncryptedMessageArchive implements MessageArchive {
               memberIds: (group['memberIds'] as List<dynamic>? ?? const []).cast<String>(),
             ),
             messages: messages,
-          )..unreadCount = entry['unreadCount'] as int? ?? 0,
+          )
+            ..unreadCount = entry['unreadCount'] as int? ?? 0
+            ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
         );
         continue;
       }
@@ -284,7 +341,9 @@ class EncryptedMessageArchive implements MessageArchive {
             profileKey: user['profileKey'] as String?,
           ),
           messages: messages,
-        )..unreadCount = entry['unreadCount'] as int? ?? 0,
+        )
+          ..unreadCount = entry['unreadCount'] as int? ?? 0
+          ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
       );
     }
     return conversations;

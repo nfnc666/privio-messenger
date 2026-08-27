@@ -41,7 +41,7 @@ void main() {
 
   test('history survives a round trip through the archive', () async {
     await archive.save(sampleHistory());
-    final restored = await archive.load();
+    final restored = (await archive.load()).conversations;
 
     expect(restored, hasLength(1));
     expect(restored.single.user!.username, 'alice');
@@ -92,7 +92,7 @@ void main() {
       storage: storage,
       keyStore: InMemorySecureStore(),
     );
-    expect(await intruder.load(), isEmpty);
+    expect((await intruder.load()).conversations, isEmpty);
   });
 
   test('a tampered archive is discarded rather than half-read', () async {
@@ -103,11 +103,11 @@ void main() {
 
     // Fresh instance so the cached key is not what saves it.
     final reopened = EncryptedMessageArchive(storage: storage, keyStore: keys);
-    expect(await reopened.load(), isEmpty);
+    expect((await reopened.load()).conversations, isEmpty);
   });
 
   test('an empty device reads back an empty history', () async {
-    expect(await archive.load(), isEmpty);
+    expect((await archive.load()).conversations, isEmpty);
   });
 
   test('clearing leaves nothing behind', () async {
@@ -116,7 +116,7 @@ void main() {
 
     await archive.clear();
     expect(storage.bytes, isNull);
-    expect(await archive.load(), isEmpty);
+    expect((await archive.load()).conversations, isEmpty);
   });
 
   test('the store restores a loaded history in place', () async {
@@ -163,7 +163,7 @@ void main() {
     ];
 
     await archive.save(withFile);
-    final restored = await archive.load();
+    final restored = (await archive.load()).conversations;
     final attachment = restored.single.messages.single.attachment!;
 
     // Without the key the file is gone forever, so it has to be persisted too.

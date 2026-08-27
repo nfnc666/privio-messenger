@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import '../data/message_store.dart';
+import '../data/outbox.dart';
 import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
+import '../media/voice.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
@@ -34,8 +37,24 @@ class ConversationController extends ChangeNotifier {
   /// exactly what the socket exists to avoid.
   static const Duration fallbackPollInterval = Duration(minutes: 2);
 
+  /// How often expired messages are swept off the screen.
+  static const Duration expirySweepInterval = Duration(seconds: 5);
+
   Timer? _poller;
+  Timer? _expirySweep;
   RealtimeConnection? _realtime;
+
+  /// Voice messages that have not gone out yet, oldest first.
+  ///
+  /// Everything in here is already sealed, so the queue can be written to the
+  /// encrypted archive without a plaintext recording ever reaching storage.
+  final List<PendingSend> _outbox = [];
+
+  /// The flush currently running, if any, and whether another was asked for
+  /// while it ran. Without this a caller that flushes during a flush gets a
+  /// silent no-op — and the message it was flushing for sits there.
+  Future<void>? _flushing;
+  bool _flushAgain = false;
   StreamSubscription<List<dynamic>>? _realtimeEnvelopes;
   Timer? _saveDebounce;
   bool _draining = false;
@@ -101,10 +120,16 @@ class ConversationController extends ChangeNotifier {
 
   /// Reads the sealed history back so a relaunch does not start blank.
   Future<void> restore() async {
-    final conversations = await _services.archive.load();
-    if (conversations.isEmpty) return;
-    _services.store.restore(conversations);
+    final contents = await _services.archive.load();
+    if (contents.conversations.isEmpty && contents.outbox.isEmpty) return;
+    _services.store.restore(contents.conversations);
+    _outbox
+      ..clear()
+      ..addAll(contents.outbox);
+    // A message queued before the app was killed is still owed to somebody.
+    _services.store.pruneExpired(DateTime.now());
     notifyListeners();
+    unawaited(flushOutbox());
   }
 
   /// Writes the history back, coalescing bursts: a fast exchange should not
@@ -112,7 +137,9 @@ class ConversationController extends ChangeNotifier {
   void _persist() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 400), () {
-      unawaited(_services.archive.save(_services.store.conversations()));
+      unawaited(
+        _services.archive.save(_services.store.conversations(), outbox: _outbox),
+      );
     });
   }
 
@@ -120,7 +147,7 @@ class ConversationController extends ChangeNotifier {
   Future<void> flush() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    await _services.archive.save(_services.store.conversations());
+    await _services.archive.save(_services.store.conversations(), outbox: _outbox);
   }
 
   /// Whether the realtime socket is currently up.
@@ -130,8 +157,13 @@ class ConversationController extends ChangeNotifier {
   /// than once.
   void start({String? token}) {
     _poller ??= Timer.periodic(fallbackPollInterval, (_) => drain());
+    // Often enough that a 30-second timer is roughly honoured on screen, cheap
+    // enough to be invisible: it walks a list already in memory.
+    _expirySweep ??= Timer.periodic(expirySweepInterval, (_) => pruneExpired());
     if (token != null) _openRealtime(token);
+    pruneExpired();
     unawaited(drain());
+    unawaited(flushOutbox());
   }
 
   void _openRealtime(String token) {
@@ -161,6 +193,8 @@ class ConversationController extends ChangeNotifier {
   void stop() {
     _poller?.cancel();
     _poller = null;
+    _expirySweep?.cancel();
+    _expirySweep = null;
     unawaited(_realtimeEnvelopes?.cancel());
     _realtimeEnvelopes = null;
     unawaited(_realtime?.close());
@@ -264,34 +298,44 @@ class ConversationController extends ChangeNotifier {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null || text.trim().isEmpty) return;
 
-    final messageId = DateTime.now().microsecondsSinceEpoch.toString();
+    final clientId = _newClientId();
+    final timer = conversation.disappearAfter;
+    final body = text.trim();
     _services.store.append(
       conversationId,
       Message(
-        id: messageId,
-        body: text.trim(),
+        id: clientId,
+        clientId: clientId,
+        body: body,
         sentAt: DateTime.now(),
         isMine: true,
         state: DeliveryState.sending,
+        expiresAt: timer == null ? null : DateTime.now().add(timer),
       ),
     );
     notifyListeners();
 
+    final payload = MessagePayload.text(
+      body,
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      // Carried so a retry — this one's or the transport's — is recognisable as
+      // the same message rather than delivered twice.
+      clientId: clientId,
+    );
+
     try {
       if (conversation.isGroup) {
-        await _services.messaging.sendToGroup(
-          conversationId,
-          text.trim(),
-          groupKey: conversation.group!.groupKey,
-        );
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
       } else {
-        await _services.messaging.sendToUser(conversation.user!.username, text.trim());
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
-      _services.store.updateState(conversationId, messageId, DeliveryState.sent);
+      _services.store.updateState(conversationId, clientId, DeliveryState.sent);
       _error = null;
       _persist();
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
       _error = failure is ApiException ? failure.message : 'Could not send message';
     }
     notifyListeners();
@@ -459,6 +503,231 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  // --- Voice messages -------------------------------------------------------
+
+  /// How many voice messages are waiting for a network.
+  int get queuedCount => _outbox.length;
+
+  /// Seals [recording] and puts it on the wire, or in the queue if that fails.
+  ///
+  /// Sealing happens first and in memory: by the time anything can go wrong,
+  /// the only copy that could be persisted is already ciphertext. The bubble
+  /// appears immediately, so a slow network shows as a state on a message
+  /// rather than as nothing happening.
+  Future<void> sendVoice(String conversationId, VoiceRecording recording) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+
+    final clientId = _newClientId();
+    final sealed = await AttachmentCipher.seal(
+      recording.bytes,
+      declaredType: recording.mediaType,
+    );
+    final timer = conversation.disappearAfter;
+
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: '',
+        sentAt: DateTime.now(),
+        isMine: true,
+        kind: MessageKind.voice,
+        state: DeliveryState.sending,
+        voiceDuration: recording.duration,
+        waveform: recording.waveform,
+        expiresAt: timer == null ? null : DateTime.now().add(timer),
+      ),
+    );
+    notifyListeners();
+
+    _outbox.add(
+      PendingSend(
+        clientId: clientId,
+        conversationId: conversationId,
+        isGroup: conversation.isGroup,
+        username: conversation.user?.username,
+        groupKey: conversation.group?.groupKey,
+        mediaType: recording.mediaType,
+        sealedBytes: sealed.bytes,
+        mediaKey: base64Encode(sealed.key),
+        plainLength: sealed.plainLength,
+        durationMs: recording.duration.inMilliseconds,
+        waveform: recording.waveform,
+        expiresInSeconds: timer?.inSeconds,
+      ),
+    );
+    _persist();
+    await flushOutbox();
+  }
+
+  /// Retries one message the user asked to retry.
+  Future<void> retry(String clientId) async {
+    final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
+    if (index == -1) return;
+    _setVoiceState(_outbox[index].conversationId, clientId, DeliveryState.sending);
+    notifyListeners();
+    await flushOutbox();
+  }
+
+  /// Drops a queued message the user gave up on, bubble and all.
+  void discard(String clientId) {
+    final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
+    if (index == -1) return;
+    final pending = _outbox.removeAt(index);
+    _services.store
+        .conversationWith(pending.conversationId)
+        ?.messages
+        .removeWhere((message) => message.id == clientId);
+    _persist();
+    notifyListeners();
+  }
+
+  /// Works the queue from the front, stopping at the first failure.
+  ///
+  /// Stopping matters: if the network is down, message two will fail for the
+  /// same reason message one did, and hammering the radio through a queue of
+  /// them helps nobody. The next reconnect or drain tries again.
+  ///
+  /// Calling this while a flush is running does not no-op; it asks for another
+  /// pass and hands back a future that completes after it.
+  Future<void> flushOutbox() {
+    final running = _flushing;
+    if (running != null) {
+      _flushAgain = true;
+      return running;
+    }
+    return _flushing = _runFlush();
+  }
+
+  Future<void> _runFlush() async {
+    try {
+      do {
+        _flushAgain = false;
+        await _drainQueue();
+      } while (_flushAgain && _outbox.isNotEmpty);
+    } finally {
+      _flushing = null;
+      _persist();
+      notifyListeners();
+    }
+  }
+
+  Future<void> _drainQueue() async {
+    while (_outbox.isNotEmpty) {
+      final pending = _outbox.first;
+      try {
+        final sent = await _deliver(pending);
+        _outbox.removeWhere((entry) => entry.clientId == pending.clientId);
+        _setVoiceState(
+          pending.conversationId,
+          pending.clientId,
+          sent ? DeliveryState.sent : DeliveryState.failed,
+        );
+      } on Object catch (failure) {
+        // Re-read rather than reusing the local: _deliver may have written an
+        // upload id into the entry, and losing that means uploading again.
+        final index = _outbox.indexWhere((entry) => entry.clientId == pending.clientId);
+        if (index != -1) {
+          _outbox[index] = _outbox[index].copyWith(attempts: _outbox[index].attempts + 1);
+        }
+        _setVoiceState(pending.conversationId, pending.clientId, DeliveryState.queued);
+        _error = failure is ApiException ? failure.message : null;
+        break;
+      }
+    }
+  }
+
+  /// Uploads (once) and sends. The upload result is written back into the queue
+  /// entry, so a retry after a failed *send* does not upload the same recording
+  /// a second time.
+  Future<bool> _deliver(PendingSend pending) async {
+    var mediaId = pending.mediaId;
+    if (mediaId == null) {
+      mediaId = await _services.api.uploadMedia(pending.sealedBytes);
+      final index = _outbox.indexWhere((p) => p.clientId == pending.clientId);
+      if (index != -1) _outbox[index] = pending.copyWith(mediaId: mediaId);
+    }
+
+    final payload = MessagePayload.media(
+      mediaId: mediaId,
+      mediaKey: pending.mediaKey,
+      mediaType: pending.mediaType,
+      byteSize: pending.plainLength,
+      voiceDurationMs: pending.durationMs,
+      waveform: pending.waveform,
+      groupKey: pending.isGroup ? pending.groupKey : null,
+      expiresInSeconds: pending.expiresInSeconds,
+      clientId: pending.clientId,
+    );
+
+    if (pending.isGroup) {
+      await _services.messaging.sendPayloadToGroup(pending.conversationId, payload);
+    } else {
+      final username = pending.username;
+      if (username == null) return false;
+      await _services.messaging.sendPayload(username, payload);
+    }
+
+    // Now that it is on the server, the bubble can point at the ciphertext.
+    _attachDelivered(pending, mediaId);
+    return true;
+  }
+
+  void _attachDelivered(PendingSend pending, String mediaId) {
+    final conversation = _services.store.conversationWith(pending.conversationId);
+    final message = conversation?.messages
+        .where((m) => m.id == pending.clientId)
+        .firstOrNull;
+    if (conversation == null || message == null) return;
+    _services.store.replace(
+      pending.conversationId,
+      pending.clientId,
+      message.copyWith(
+        state: DeliveryState.sent,
+        attachment: Attachment(
+          mediaId: mediaId,
+          mediaKey: pending.mediaKey,
+          mediaType: pending.mediaType,
+          byteSize: pending.plainLength,
+        ),
+      ),
+    );
+  }
+
+  void _setVoiceState(String conversationId, String clientId, DeliveryState state) =>
+      _services.store.updateState(conversationId, clientId, state);
+
+  static String _newClientId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return base64Url.encode(bytes).replaceAll('=', '');
+  }
+
+  // --- Disappearing messages ------------------------------------------------
+
+  /// The chat's timer, or null when it is off.
+  Duration? disappearAfter(String conversationId) =>
+      _services.store.conversationWith(conversationId)?.disappearAfter;
+
+  /// Sets the timer for a chat. It takes effect on messages sent from now on:
+  /// the number rides inside each sealed payload, so the other side adopts it
+  /// without the server being told anything.
+  void setDisappearAfter(String conversationId, Duration? timer) {
+    _services.store.setDisappearAfter(conversationId, timer);
+    _persist();
+    notifyListeners();
+  }
+
+  /// Deletes whatever has run out. Runs on a timer and after every drain,
+  /// because a message that expired while the app was closed must not reappear.
+  void pruneExpired() {
+    if (_services.store.pruneExpired(DateTime.now()) == 0) return;
+    _persist();
+    notifyListeners();
+  }
+
   /// Fetches, decrypts and files whatever is queued for this device.
   Future<void> drain() async {
     if (_draining) return;
@@ -466,8 +735,11 @@ class ConversationController extends ChangeNotifier {
     try {
       await _fileResult(await _services.messaging.receive());
       // Draining is the one thing that happens regularly, so it is also where
-      // someone waiting on a group key gets answered.
+      // someone waiting on a group key gets answered, where anything queued
+      // gets another try, and where expired messages go.
+      pruneExpired();
       unawaited(_deliverGroupKeys());
+      unawaited(flushOutbox());
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
@@ -521,25 +793,65 @@ class ConversationController extends ChangeNotifier {
         ),
       );
     }
+    _adoptTimer(incoming.senderAccountId, payload);
     _services.store.append(
       incoming.senderAccountId,
-      Message(
-        id: 'envelope-${incoming.envelopeId}',
-        body: payload.body,
-        sentAt: incoming.receivedAt.toLocal(),
-        isMine: false,
-        kind: payload.isMedia ? _kindFor(payload.mediaType!) : MessageKind.text,
-        attachment: payload.isMedia
-            ? Attachment(
-                mediaId: payload.mediaId!,
-                mediaKey: payload.mediaKey!,
-                mediaType: payload.mediaType!,
-                byteSize: payload.byteSize!,
-                fileName: payload.fileName,
-              )
-            : null,
-      ),
+      _incomingMessage(incoming.senderAccountId, incoming),
     );
+  }
+
+  /// Builds the bubble for an arriving message.
+  ///
+  /// One place for both the direct and the group path, because a voice message
+  /// that came through a group is the same message with a name on it — and the
+  /// last time these were written twice, one of them forgot the attachment.
+  Message _incomingMessage(
+    String conversationId,
+    IncomingMessage incoming, {
+    String? senderName,
+  }) {
+    final payload = incoming.payload;
+    final timer = _services.store.conversationWith(conversationId)?.disappearAfter;
+    final receivedAt = incoming.receivedAt.toLocal();
+    return Message(
+      id: 'envelope-${incoming.envelopeId}',
+      clientId: payload.clientId,
+      body: payload.body,
+      sentAt: receivedAt,
+      isMine: false,
+      senderName: senderName,
+      kind: payload.isVoice
+          ? MessageKind.voice
+          : payload.isMedia
+              ? _kindFor(payload.mediaType!)
+              : MessageKind.text,
+      voiceDuration: payload.voiceDuration,
+      waveform: payload.waveform,
+      // The timer starts when it arrives here, from the sender's number. Both
+      // sides run their own clock; neither asks the server.
+      expiresAt: timer == null ? null : receivedAt.add(timer),
+      attachment: payload.isMedia
+          ? Attachment(
+              mediaId: payload.mediaId!,
+              mediaKey: payload.mediaKey!,
+              mediaType: payload.mediaType!,
+              byteSize: payload.byteSize!,
+              fileName: payload.fileName,
+            )
+          : null,
+    );
+  }
+
+  /// Adopts the sender's disappearing-message setting.
+  ///
+  /// A timer only works if both sides keep it, and the sender is the one who
+  /// chose it — so it travels with the message rather than being negotiated.
+  void _adoptTimer(String conversationId, MessagePayload payload) {
+    final seconds = payload.expiresInSeconds;
+    final current = _services.store.conversationWith(conversationId)?.disappearAfter;
+    final incoming = seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
+    if (incoming == current) return;
+    _services.store.setDisappearAfter(conversationId, incoming);
   }
 
   /// Files a key that someone sealed to this device after it joined by a link.
@@ -588,26 +900,10 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
-    final payload = incoming.payload;
+    _adoptTimer(groupId, incoming.payload);
     _services.store.append(
       groupId,
-      Message(
-        id: 'envelope-${incoming.envelopeId}',
-        body: payload.body,
-        sentAt: incoming.receivedAt.toLocal(),
-        isMine: false,
-        senderName: senderName ?? 'Someone',
-        kind: payload.isMedia ? _kindFor(payload.mediaType!) : MessageKind.text,
-        attachment: payload.isMedia
-            ? Attachment(
-                mediaId: payload.mediaId!,
-                mediaKey: payload.mediaKey!,
-                mediaType: payload.mediaType!,
-                byteSize: payload.byteSize!,
-                fileName: payload.fileName,
-              )
-            : null,
-      ),
+      _incomingMessage(groupId, incoming, senderName: senderName ?? 'Someone'),
     );
   }
 

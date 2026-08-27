@@ -294,6 +294,44 @@ hidden. This is tested: see `a swapped identity key is refused on send` in
 | Sessions | 365 days, or until revoked |
 | Deleted accounts | Tombstoned; all content deleted immediately |
 
+## Voice messages
+
+A recording is the most personal thing this app carries: it is someone's voice,
+and it identifies them in a way text does not. Three properties follow.
+
+**It is sealed before it can be persisted.** `ConversationController.sendVoice`
+seals the recording in memory before anything else happens — before the queue,
+before the archive, before the upload. By the time any code path could write it
+down, the only copy that exists outside the moment is ciphertext under a fresh
+random key.
+
+**Nothing decrypted reaches the disk.** On a phone the platform encoder must
+write a file to produce AAC or Opus; that file is overwritten with random bytes
+and deleted as soon as it has been read, because a deleted file on flash storage
+is not a gone file. Playback runs from memory through a `StreamAudioSource`
+rather than a cache path. In a browser there is no file at any point.
+
+**What the server learns is bounded on purpose.** It sees a padded blob of a
+bucketed size and an envelope, the same as for a photo. The duration and the
+waveform — both of which describe speech — are inside the sealed payload. The
+5-minute cap and the 2 MB limit are enforced on the sending device, so an
+oversized recording is refused rather than uploaded and rejected.
+
+**Retry without duplication.** A send that times out may already have been
+queued, so the client retries — and stamps each send with an id of its own that
+the server records (`sent_message_keys`). The second attempt is answered with
+the first one's result. The id is opaque to the server, scoped to the sending
+device, and says nothing about the message. Without it the honest choice would
+be between losing recordings and delivering them twice.
+
+**Disappearing messages.** The timer is carried inside the sealed payload and
+applied by both devices from their own clocks. The server is not asked to delete
+anything on a schedule, because a server asked to forget is a server trusted to.
+What that does *not* buy: a recipient who wants to keep a message can keep it —
+by recording the screen, by holding a second phone up to the speaker, by
+patching their own client. A timer is a courtesy between people who both want
+it, and Privio says so rather than implying otherwise.
+
 ## Known gaps in the current implementation
 
 These are real and tracked. Nothing here is hand-waved as "future work" without

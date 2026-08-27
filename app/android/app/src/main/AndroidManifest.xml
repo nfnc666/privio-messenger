@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Voice messages. Asked for at the moment the microphone is first held,
+         not at launch: a permission prompt with no context is a permission
+         prompt people deny. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:label="privio"
         android:name="${applicationName}"

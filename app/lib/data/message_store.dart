@@ -109,6 +109,14 @@ class Conversation {
 
   int unreadCount = 0;
 
+  /// How long a message in this chat lives before it disappears, or null when
+  /// the timer is off.
+  ///
+  /// A per-chat setting, agreed end to end: the sender puts the number inside
+  /// each sealed payload, the recipient's device adopts it, and both delete on
+  /// their own clocks. The server is never asked.
+  Duration? disappearAfter;
+
   bool get isGroup => group != null;
 
   /// Addressed by account id for a person, group id for a group.
@@ -133,6 +141,14 @@ abstract interface class MessageStore {
   void append(String id, Message message);
   void markRead(String id);
   void updateState(String accountId, String messageId, DeliveryState state);
+
+  /// Replaces a message in place, keeping its position in the conversation.
+  void replace(String id, String messageId, Message message);
+
+  void setDisappearAfter(String id, Duration? timer);
+
+  /// Drops every message whose timer has run out. Returns how many went.
+  int pruneExpired(DateTime now);
 
   /// Replaces the contents with what was read back from the archive.
   void restore(List<Conversation> conversations);
@@ -179,7 +195,8 @@ class InMemoryMessageStore implements MessageStore {
       profileKey: user.profileKey,
     );
     final replacement = Conversation.direct(merged, messages: existing.messages)
-      ..unreadCount = existing.unreadCount;
+      ..unreadCount = existing.unreadCount
+      ..disappearAfter = existing.disappearAfter;
     return _conversations[user.accountId] = replacement;
   }
 
@@ -199,7 +216,8 @@ class InMemoryMessageStore implements MessageStore {
       role: group.role,
     );
     final replacement = Conversation.group(merged, messages: existing.messages)
-      ..unreadCount = existing.unreadCount;
+      ..unreadCount = existing.unreadCount
+      ..disappearAfter = existing.disappearAfter;
     return _conversations[group.groupId] = replacement;
   }
 
@@ -207,8 +225,42 @@ class InMemoryMessageStore implements MessageStore {
   void append(String id, Message message) {
     final conversation = _conversations[id];
     if (conversation == null) return;
+
+    // The same message can arrive twice — a sender who retried before the
+    // server had recorded the first attempt, or a second device syncing. The
+    // sender's own id is what makes them recognisable as one message.
+    final clientId = message.clientId;
+    if (clientId != null &&
+        conversation.messages.any((existing) => existing.clientId == clientId)) {
+      return;
+    }
+
     conversation.messages.add(message);
     if (!message.isMine) conversation.unreadCount += 1;
+  }
+
+  @override
+  void replace(String id, String messageId, Message message) {
+    final conversation = _conversations[id];
+    if (conversation == null) return;
+    final index = conversation.messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) return;
+    conversation.messages[index] = message;
+  }
+
+  @override
+  void setDisappearAfter(String id, Duration? timer) =>
+      _conversations[id]?.disappearAfter = timer;
+
+  @override
+  int pruneExpired(DateTime now) {
+    var removed = 0;
+    for (final conversation in _conversations.values) {
+      final before = conversation.messages.length;
+      conversation.messages.removeWhere((message) => message.hasExpiredAt(now));
+      removed += before - conversation.messages.length;
+    }
+    return removed;
   }
 
   @override

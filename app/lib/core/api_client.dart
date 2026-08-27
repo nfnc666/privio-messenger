@@ -151,20 +151,29 @@ class PrivioApiClient {
       _send('GET', '/v1/keys/$username');
 
   /// [messages] holds one sealed copy per recipient device.
+  ///
+  /// [idempotencyKey] makes a retry safe: the server answers the second attempt
+  /// with the first one's result rather than delivering the message twice.
   Future<Map<String, dynamic>> sendMessage({
     required String username,
     required List<Map<String, dynamic>> messages,
+    String? idempotencyKey,
   }) =>
       _send('POST', '/v1/messages', body: {
         'username': username,
+        if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
         'messages': messages,
       },);
 
   Future<Map<String, dynamic>> sendGroupMessage({
     required String groupId,
     required List<Map<String, dynamic>> messages,
+    String? idempotencyKey,
   }) =>
-      _send('POST', '/v1/messages/group/$groupId', body: {'messages': messages});
+      _send('POST', '/v1/messages/group/$groupId', body: {
+        if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
+        'messages': messages,
+      },);
 
   Future<Map<String, dynamic>> createGroup({
     required List<String> memberIds,

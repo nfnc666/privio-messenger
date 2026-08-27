@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../media/voice.dart';
+import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
@@ -28,12 +30,22 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
+  final GlobalKey<VoiceComposerState> _voiceKey = GlobalKey<VoiceComposerState>();
+
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _voiceRebuild.dispose();
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
@@ -104,6 +116,140 @@ class _ChatScreenState extends State<ChatScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  // --- Disappearing messages ------------------------------------------------
+
+  /// Sets how long messages in this chat live.
+  ///
+  /// The timer is agreed end to end: it rides inside each sealed payload, so
+  /// the other side adopts it without the server being told. Both devices then
+  /// delete on their own clocks — which is the only way this can work, because
+  /// a server asked to forget something is a server being trusted.
+  Future<void> _chooseTimer(AppState state) async {
+    const options = <String, Duration?>{
+      'Off': null,
+      '30 seconds': Duration(seconds: 30),
+      '5 minutes': Duration(minutes: 5),
+      '1 hour': Duration(hours: 1),
+      '1 day': Duration(days: 1),
+      '1 week': Duration(days: 7),
+    };
+    final current = state.conversations.disappearAfter(widget.accountId);
+
+    final chosen = await showModalBottomSheet<MapEntry<String, Duration?>>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(PrivioSpacing.gutter),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Disappearing messages',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: PrivioSpacing.xs),
+                  Text(
+                    'New messages, voice messages included, delete themselves on '
+                    'both devices after this long. Privio\'s servers are not '
+                    'asked and are not trusted with it.',
+                    style: Theme.of(sheetContext).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            for (final option in options.entries)
+              ListTile(
+                title: Text(option.key),
+                trailing: option.value == current
+                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(option),
+              ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    state.conversations.setDisappearAfter(widget.accountId, chosen.value);
+  }
+
+  // --- Voice messages -------------------------------------------------------
+
+  void _onVoiceFailure(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// The microphone was refused.
+  ///
+  /// Said once, plainly, with the way to change it — not repeated on every
+  /// press, and never as a dialog that blocks the chat.
+  void _onMicrophoneDenied() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Privio cannot record without microphone access. '
+          'You can grant it in your device settings.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  }
+
+  Future<void> _sendVoice(AppState state, VoiceRecording recording) async {
+    await state.conversations.sendVoice(widget.accountId, recording);
+    _scrollToEnd();
+  }
+
+  /// Bumped whenever the recorder changes stage, so the row showing either the
+  /// composer or the recording strip rebuilds.
+  final ValueNotifier<int> _voiceRebuild = ValueNotifier<int>(0);
+
+  void _voiceChanged() => _voiceRebuild.value++;
+
+  Future<void> _startRecording() async {
+    await _voiceKey.currentState?.start();
+    _voiceChanged();
+  }
+
+  Future<void> _endRecording() async {
+    await _voiceKey.currentState?.onHoldReleased();
+    _voiceChanged();
+  }
+
+  /// Plays a recording back before it is sent, from memory.
+  Future<void> _previewVoice(AppState state, VoiceRecording recording) =>
+      state.services.player.play(
+        'preview',
+        recording.bytes,
+        mediaType: recording.mediaType,
+      );
+
+  /// Stops anything being recorded when the app goes away.
+  ///
+  /// A call arriving, or the app being backgrounded, takes the microphone with
+  /// it. Keeping a half-recording running through that produces silence at
+  /// best; stopping into the preview keeps what was said and lets the user
+  /// decide.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    if (lifecycleState == AppLifecycleState.inactive ||
+        lifecycleState == AppLifecycleState.paused ||
+        lifecycleState == AppLifecycleState.hidden) {
+      final composer = _voiceKey.currentState;
+      if (composer?.stage == VoiceComposerStage.recording) {
+        unawaited(composer!.pause());
+      }
+    }
   }
 
   /// Shows the group's join link. It carries no key: whoever opens it joins,
@@ -204,7 +350,18 @@ class _ChatScreenState extends State<ChatScreen> {
                   tooltip: 'Invite link',
                 ),
               IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
-              IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert_rounded), tooltip: 'Chat options'),
+              IconButton(
+                onPressed: () => _chooseTimer(state),
+                icon: Icon(
+                  state.conversations.disappearAfter(widget.accountId) == null
+                      ? Icons.more_vert_rounded
+                      : Icons.timer_outlined,
+                  color: state.conversations.disappearAfter(widget.accountId) == null
+                      ? null
+                      : PrivioColors.accent,
+                ),
+                tooltip: 'Disappearing messages',
+              ),
             ],
           ),
           body: Column(
@@ -222,10 +379,44 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               if (state.conversations.error != null)
                 _ErrorBanner(message: state.conversations.error!),
-              _Composer(
-                controller: _composer,
-                onSend: _send,
-                onAttach: _attach,
+              // The recording strip lives inside the composer row rather than
+              // replacing it. The microphone that started the hold has to stay
+              // mounted, or the release never arrives.
+              ListenableBuilder(
+                listenable: _voiceRebuild,
+                builder: (context, _) => _Composer(
+                  controller: _composer,
+                  onSend: _send,
+                  onAttach: _attach,
+                  onHoldStart: _startRecording,
+                  onHoldUpdate: (dx) {
+                    _voiceKey.currentState?.onDragUpdate(dx);
+                    _voiceChanged();
+                  },
+                  onHoldEnd: _endRecording,
+                  onSendVoice: () {
+                    _voiceKey.currentState?.send();
+                    _voiceChanged();
+                  },
+                  voiceStage: _voiceKey.currentState?.stage ?? VoiceComposerStage.idle,
+                  voice: VoiceComposer(
+                    key: _voiceKey,
+                    recorder: state.services.recorder,
+                    onSend: (recording) {
+                      unawaited(_sendVoice(state, recording));
+                      _voiceChanged();
+                    },
+                    onPermissionDenied: () {
+                      _onMicrophoneDenied();
+                      _voiceChanged();
+                    },
+                    onFailure: (message) {
+                      _onVoiceFailure(message);
+                      _voiceChanged();
+                    },
+                    preview: (recording) => _previewVoice(state, recording),
+                  ),
+                ),
               ),
             ],
           ),
@@ -262,14 +453,36 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    required this.onHoldStart,
+    required this.onHoldUpdate,
+    required this.onHoldEnd,
+    required this.onSendVoice,
+    required this.voiceStage,
+    required this.voice,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
 
+  /// Hold the microphone to record, slide left to throw it away, let go to
+  /// stop. [onHoldUpdate] receives the horizontal movement of the finger.
+  final Future<void> Function() onHoldStart;
+  final void Function(double dx) onHoldUpdate;
+  final Future<void> Function() onHoldEnd;
+
+  /// Sends the recording currently in preview.
+  final VoidCallback onSendVoice;
+
+  final VoiceComposerStage voiceStage;
+
+  /// The recording or preview strip. Rendered where the text field would be.
+  final Widget voice;
+
   @override
   Widget build(BuildContext context) {
+    final recording = voiceStage != VoiceComposerStage.idle;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -285,44 +498,40 @@ class _Composer extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            IconButton(
-              onPressed: onAttach,
-              icon: Icon(
-                Icons.add_rounded,
-                color: onAttach == null
-                    ? PrivioColors.surfaceHigh
-                    : PrivioColors.textSecondary,
+            if (recording)
+              Expanded(child: voice)
+            else ...[
+              IconButton(
+                onPressed: onAttach,
+                icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
+                tooltip: 'Attach a file',
               ),
-              tooltip: onAttach == null ? 'Files in groups are not ready yet' : 'Attach a file',
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization: TextCapitalization.sentences,
-                onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
-                  isDense: true,
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  minLines: 1,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
+                  onSubmitted: (_) => onSend(),
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    isDense: true,
+                  ),
                 ),
               ),
-            ),
+              // Mounted but not shown, so the recorder's state survives the
+              // switch back and forth.
+              Offstage(child: voice),
+            ],
             const SizedBox(width: PrivioSpacing.sm),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: controller,
-              builder: (context, value, _) {
-                final hasText = value.text.trim().isNotEmpty;
-                return IconButton.filled(
-                  onPressed: hasText ? onSend : () {},
-                  style: IconButton.styleFrom(
-                    backgroundColor: hasText ? PrivioColors.accent : PrivioColors.surfaceRaised,
-                    foregroundColor: hasText ? PrivioColors.background : PrivioColors.textSecondary,
-                  ),
-                  icon: Icon(hasText ? Icons.send_rounded : Icons.mic_rounded, size: 20),
-                  tooltip: hasText ? 'Send' : 'Hold to record',
-                );
-              },
+            _TrailingAction(
+              controller: controller,
+              stage: voiceStage,
+              onSend: onSend,
+              onSendVoice: onSendVoice,
+              onHoldStart: onHoldStart,
+              onHoldUpdate: onHoldUpdate,
+              onHoldEnd: onHoldEnd,
             ),
           ],
         ),
@@ -330,3 +539,95 @@ class _Composer extends StatelessWidget {
     );
   }
 }
+
+/// Send, or the microphone — whichever the moment calls for.
+///
+/// One widget so the microphone is never unmounted mid-hold: the release of a
+/// long press goes to the recognizer that won the arena, and a recognizer whose
+/// widget has gone reports nothing at all.
+class _TrailingAction extends StatelessWidget {
+  const _TrailingAction({
+    required this.controller,
+    required this.stage,
+    required this.onSend,
+    required this.onSendVoice,
+    required this.onHoldStart,
+    required this.onHoldUpdate,
+    required this.onHoldEnd,
+  });
+
+  final TextEditingController controller;
+  final VoiceComposerStage stage;
+  final VoidCallback onSend;
+  final VoidCallback onSendVoice;
+  final Future<void> Function() onHoldStart;
+  final void Function(double dx) onHoldUpdate;
+  final Future<void> Function() onHoldEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    if (stage == VoiceComposerStage.preview) {
+      return IconButton.filled(
+        key: const Key('voice-send'),
+        onPressed: onSendVoice,
+        style: IconButton.styleFrom(
+          backgroundColor: PrivioColors.accent,
+          foregroundColor: PrivioColors.background,
+        ),
+        icon: const Icon(Icons.send_rounded, size: 20),
+        tooltip: 'Send',
+      );
+    }
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final hasText = value.text.trim().isNotEmpty;
+        if (hasText && stage == VoiceComposerStage.idle) {
+          return IconButton.filled(
+            onPressed: onSend,
+            style: IconButton.styleFrom(
+              backgroundColor: PrivioColors.accent,
+              foregroundColor: PrivioColors.background,
+            ),
+            icon: const Icon(Icons.send_rounded, size: 20),
+            tooltip: 'Send',
+          );
+        }
+
+        final recording = stage != VoiceComposerStage.idle;
+        return GestureDetector(
+          key: const Key('voice-hold'),
+          onLongPressStart: (_) => unawaited(onHoldStart()),
+          onLongPressMoveUpdate: (details) => onHoldUpdate(details.offsetFromOrigin.dx),
+          onLongPressEnd: (_) => unawaited(onHoldEnd()),
+          // A tap is a common mis-hold, and starting a recording nobody meant
+          // to start is worse than saying what the gesture is.
+          onTap: recording
+              ? null
+              : () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Hold the microphone to record a voice message.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  ),
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: recording ? PrivioColors.accent : PrivioColors.surfaceRaised,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.mic_rounded,
+              size: 20,
+              color: recording ? PrivioColors.background : PrivioColors.textSecondary,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
