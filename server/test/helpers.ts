@@ -43,7 +43,7 @@ export async function createHarness(): Promise<TestHarness> {
 
 export async function truncateAll(): Promise<void> {
   await pool.query(
-    'TRUNCATE accounts, devices, sessions, contacts, blocks, groups, group_members, envelopes, media_objects, backups RESTART IDENTITY CASCADE',
+    'TRUNCATE accounts, devices, sessions, contacts, blocks, groups, group_members, envelopes, media_objects, backups, licenses RESTART IDENTITY CASCADE',
   );
 }
 

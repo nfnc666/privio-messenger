@@ -51,8 +51,16 @@ async function membersOf(groupId: string) {
  */
 const groupRoutes: FastifyPluginAsync = async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
+  // Creating something new is gated on a license where the deployment sells
+  // access; reading and joining are not.
+  const requireLicensedAuth = {
+    preHandler: [
+      (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r),
+      (r: Parameters<typeof app.requireLicense>[0]) => app.requireLicense(r),
+    ],
+  };
 
-  app.post('/v1/groups', requireAuth, async (request, reply) => {
+  app.post('/v1/groups', requireLicensedAuth, async (request, reply) => {
     const { accountId } = auth(request);
     const body = parse(
       z.object({

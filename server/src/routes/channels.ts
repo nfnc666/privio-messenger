@@ -109,6 +109,14 @@ function resolvePermissions(
 
 const channelRoutes: FastifyPluginAsync = async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
+  // Creating something new is gated on a license where the deployment sells
+  // access; reading and joining are not.
+  const requireLicensedAuth = {
+    preHandler: [
+      (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r),
+      (r: Parameters<typeof app.requireLicense>[0]) => app.requireLicense(r),
+    ],
+  };
 
   /**
    * Create a channel.
@@ -116,7 +124,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
    * The caller generates the channel key and keeps it. Nothing in this request
    * carries it, which is what lets the server host a channel it cannot read.
    */
-  app.post('/v1/channels', requireAuth, async (request, reply) => {
+  app.post('/v1/channels', requireLicensedAuth, async (request, reply) => {
     const { accountId } = auth(request);
     const body = parse(
       z
@@ -549,7 +557,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
   // --- Posts ----------------------------------------------------------------
 
   /** Publish a post. The content arrives sealed and is stored as it arrives. */
-  app.post('/v1/channels/:id/posts', requireAuth, async (request, reply) => {
+  app.post('/v1/channels/:id/posts', requireLicensedAuth, async (request, reply) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const body = parse(

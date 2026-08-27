@@ -74,6 +74,7 @@ blob store, so instances scale horizontally behind a load balancer.
 | `routes/channels.ts` | Channels, discovery, posts, roles |
 | `routes/media.ts` | Encrypted attachment upload and download |
 | `routes/backup.ts` | Encrypted backup upload and restore |
+| `routes/licenses.ts` | License redemption, status and issuing (see [licensing](licensing.md)) |
 | `routes/ws.ts` | Realtime delivery socket |
 | `services/delivery.ts` | Queueing, fan-out, push wake-ups |
 | `services/bus.ts` | In-process or Redis pub/sub between instances |

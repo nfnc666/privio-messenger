@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
-import { config } from './config.js';
+import { config, rateLimitFactor } from './config.js';
 import authPlugin from './plugins/auth.js';
 import accountRoutes from './routes/accounts.js';
 import contactRoutes from './routes/contacts.js';
@@ -10,6 +10,7 @@ import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
 import groupRoutes from './routes/groups.js';
 import channelRoutes from './routes/channels.js';
+import licenseRoutes from './routes/licenses.js';
 import { mediaRoutes } from './routes/media.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
@@ -65,10 +66,6 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     done(null, body),
   );
 
-  // Tests drive hundreds of requests from one address; the limiter is not what
-  // they are exercising.
-  const limitFactor = config.NODE_ENV === 'test' ? 1000 : 1;
-
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {
       const extra = error as ApiError & { missingDevices?: string[]; extraDevices?: string[] };
@@ -95,7 +92,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   );
 
   await app.register(rateLimit, {
-    max: 300 * limitFactor,
+    max: 300 * rateLimitFactor,
     timeWindow: '1 minute',
     // Authenticated clients are limited per device, anonymous ones per address.
     keyGenerator: (request) => request.auth?.deviceId ?? request.ip,
@@ -118,7 +115,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // much tighter budget than the rest of the API.
   await app.register(async (scoped) => {
     await scoped.register(rateLimit, {
-      max: 10 * limitFactor,
+      max: 10 * rateLimitFactor,
       timeWindow: '5 minutes',
       keyGenerator: (r) => r.ip,
     });
@@ -130,6 +127,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes);
   await app.register(channelRoutes);
+  await app.register(licenseRoutes);
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));

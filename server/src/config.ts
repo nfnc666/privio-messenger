@@ -24,6 +24,34 @@ const schema = z.object({
    */
   CORS_ORIGINS: z.string().default(''),
   LOG_LEVEL: z.string().default('info'),
+
+  /**
+   * Whether this deployment sells access. The hosted server sets it true and
+   * refuses to relay for unlicensed accounts; a self-hosted server leaves it
+   * false, because a licence for infrastructure you already run means nothing.
+   */
+  LICENSE_REQUIRED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  /**
+   * Key for the HMAC that license keys are stored under. Rotating it orphans
+   * every license ever issued, because the stored hashes stop matching — treat
+   * it as permanent.
+   */
+  LICENSE_HASH_SECRET: z.string().min(32).optional(),
+  /** Bearer token the website presents to issue and revoke licenses. */
+  LICENSE_ISSUER_TOKEN: z.string().min(32).optional(),
+}).superRefine((env, ctx) => {
+  // Better to refuse to boot than to run a paid server that cannot tell who
+  // has paid.
+  if (env.LICENSE_REQUIRED && !env.LICENSE_HASH_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['LICENSE_HASH_SECRET'],
+      message: 'must be set when LICENSE_REQUIRED is true',
+    });
+  }
 });
 
 export type Config = z.infer<typeof schema>;
@@ -38,3 +66,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 export const config = loadConfig();
+
+/**
+ * Multiplier applied to every rate limit. Tests drive hundreds of requests from
+ * one address and are not exercising the limiter; production runs at 1.
+ */
+export const rateLimitFactor = config.NODE_ENV === 'test' ? 1000 : 1;
