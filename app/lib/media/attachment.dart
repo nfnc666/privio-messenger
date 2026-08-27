@@ -122,7 +122,10 @@ class MessagePayload {
         keyScopeId = null,
         deliveredKey = null,
         voiceDurationMs = null,
-        waveform = null;
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -145,7 +148,57 @@ class MessagePayload {
         voiceDurationMs = null,
         waveform = null,
         expiresInSeconds = null,
-        clientId = null;
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null;
+
+  /// A receipt for messages that arrived, or were read.
+  ///
+  /// Its own payload kind rather than a field on a message, because a receipt
+  /// is not a message: it must never appear in a conversation, and it carries
+  /// no body to appear with.
+  const MessagePayload.receipt({
+    required List<String> this.receiptIds,
+    required String this.receiptKind,
+  })  : body = '',
+        mediaId = null,
+        mediaKey = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        typingAt = null;
+
+  /// "Still typing." Carries a timestamp rather than a duration so a stale one
+  /// — delivered late, or after the app was closed — can be recognised as stale
+  /// and ignored instead of showing someone typing who stopped an hour ago.
+  const MessagePayload.typing(int this.typingAt)
+      : body = '',
+        mediaId = null,
+        mediaKey = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -162,7 +215,10 @@ class MessagePayload {
     this.clientId,
   })  : keyScope = null,
         keyScopeId = null,
-        deliveredKey = null;
+        deliveredKey = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -179,6 +235,15 @@ class MessagePayload {
     final groupKey = json['gk'] as String?;
     final expiresInSeconds = json['ex'] as int?;
     final clientId = json['ci'] as String?;
+    if (json['t'] == 'receipt') {
+      return MessagePayload.receipt(
+        receiptIds: (json['ri'] as List<dynamic>? ?? const []).cast<String>(),
+        receiptKind: json['rk'] as String? ?? 'delivered',
+      );
+    }
+    if (json['t'] == 'typing') {
+      return MessagePayload.typing(json['ta'] as int? ?? 0);
+    }
     if (json['t'] == 'key') {
       return MessagePayload.key(
         keyScope: json['ks'] as String,
@@ -270,13 +335,25 @@ class MessagePayload {
   /// from arriving as a second voice message.
   final String? clientId;
 
+  /// On a receipt: the client ids being acknowledged.
+  final List<String>? receiptIds;
+
+  /// `delivered` or `read`.
+  final String? receiptKind;
+
+  /// On a typing notice: when the sender was typing, in milliseconds since the
+  /// epoch. A notice that arrives long after that is stale and ignored.
+  final int? typingAt;
+
   /// The same payload with a profile key attached.
   ///
   /// A method rather than a rebuild at each call site: this type has grown
   /// fields (voice duration, waveform, expiry, client id) and every one of them
   /// was once quietly dropped by a hand-written copy.
   MessagePayload withProfileKey(String key) {
-    if (isKeyDelivery) return this;
+    // Control payloads carry no profile key: a receipt is not a place to attach
+    // anything about who sent it beyond what the envelope already says.
+    if (isControl) return this;
     if (isMedia) {
       return MessagePayload.media(
         mediaId: mediaId!,
@@ -304,6 +381,13 @@ class MessagePayload {
 
   bool get isMedia => mediaId != null;
 
+  bool get isReceipt => receiptKind != null;
+  bool get isTyping => typingAt != null;
+
+  /// True for anything that is machinery rather than conversation, and so must
+  /// never end up in a chat.
+  bool get isControl => isReceipt || isTyping || isKeyDelivery;
+
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
   Duration? get voiceDuration =>
@@ -314,14 +398,20 @@ class MessagePayload {
 
   String encode() => jsonEncode({
         'v': 1,
-        't': isKeyDelivery
-            ? 'key'
-            : isMedia
-                ? 'media'
-                : 'text',
+        't': isReceipt
+            ? 'receipt'
+            : isTyping
+                ? 'typing'
+                : isKeyDelivery
+                    ? 'key'
+                    : isMedia
+                        ? 'media'
+                        : 'text',
         'b': body,
         if (expiresInSeconds != null) 'ex': expiresInSeconds,
         if (clientId != null) 'ci': clientId,
+        if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
+        if (isTyping) 'ta': typingAt,
         if (isKeyDelivery) ...{
           'ks': keyScope,
           'ki': keyScopeId,

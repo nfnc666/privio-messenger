@@ -686,6 +686,55 @@ void main() {
     expect(opened.sublist(0, 2), [0xFF, 0xD8], reason: 'still a usable JPEG');
   });
 
+  group('receipts and typing', () {
+    test('a receipt goes over the wire sealed, and is not a message', () async {
+      await alice.messaging.sendToUser('bob', 'hallo');
+      final received = await bob.messaging.receive();
+      final clientId = received.messages.single.payload.clientId;
+
+      await bob.messaging.sendReceipt(
+        username: 'alice',
+        clientIds: [clientId ?? 'c1'],
+        kind: 'read',
+      );
+
+      // The server sees an envelope like any other, and can read none of it.
+      final envelope = server.envelopes.last;
+      expect(
+        utf8.decode(base64Decode(envelope['content'] as String), allowMalformed: true),
+        isNot(contains('read')),
+      );
+
+      final back = await alice.messaging.receive();
+      final payload = back.messages.single.payload;
+      expect(payload.isReceipt, isTrue);
+      expect(payload.receiptKind, 'read');
+      expect(payload.isControl, isTrue, reason: 'never shown in a conversation');
+    });
+
+    test('a typing notice carries a timestamp and no content', () async {
+      await alice.messaging.sendTyping('bob');
+
+      final envelope = server.envelopes.single;
+      final asText = utf8.decode(
+        base64Decode(envelope['content'] as String),
+        allowMalformed: true,
+      );
+      expect(asText, isNot(contains('typing')));
+
+      final received = await bob.messaging.receive();
+      final payload = received.messages.single.payload;
+      expect(payload.isTyping, isTrue);
+      expect(payload.typingAt, greaterThan(0));
+      expect(payload.body, isEmpty);
+    });
+
+    test('an empty receipt is not sent at all', () async {
+      await alice.messaging.sendReceipt(username: 'bob', clientIds: [], kind: 'read');
+      expect(server.envelopes, isEmpty);
+    });
+  });
+
   group('voice messages', () {
     test('are sealed before upload, and the server stores audio it cannot play', () async {
       final recorder = FakeVoiceRecorder(duration: const Duration(seconds: 7));

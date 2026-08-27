@@ -179,6 +179,34 @@ and `MessageStore.pruneExpired` removes what has run out — on a five-second
 sweep, after every drain, and on restore. The server is not told and is not
 trusted with it.
 
+## Receipts and typing
+
+Both are ordinary sealed envelopes whose payload says what they are —
+`MessagePayload.receipt` and `MessagePayload.typing` — and which
+`ConversationController` intercepts before anything reaches a conversation.
+There is no separate transport: the server relays them exactly as it relays a
+sentence, and can read neither.
+
+A receipt names messages by the **sender's** client ids, so it says "these
+ones" rather than "everything up to now" — the second is a claim a device
+cannot honestly make about messages it has not seen. Delivery state only ever
+moves forward, because receipts from a second device can arrive out of order.
+
+A typing notice carries the moment it was sent rather than a duration. One that
+was queued while a phone was off says nothing about now, so it is dropped; a
+live one is believed for six seconds and re-sent at most every three while
+someone writes. Nothing ever arrives to say "stopped", so a timer in the
+controller fades the indicator instead.
+
+The server has an `EPHEMERAL` set that would drop `typing` envelopes rather than
+queue them. It is unused: the delivery bus publishes only a nudge, and the
+client then fetches over HTTP — so an envelope that was never stored could not
+be fetched, and a typing notice would simply never arrive. Typing is delivered
+durably and expires on the client instead.
+
+Both are 1:1 only. A group receipt needs per-member tracking, and a group typing
+notice that says "someone" is worse than none.
+
 ## Backup
 
 A backup is the local history, sealed on the device and uploaded as bytes the

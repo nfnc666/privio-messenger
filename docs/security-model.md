@@ -332,6 +332,24 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Receipts and typing
+
+**They are messages, cryptographically.** A receipt and a typing notice go
+through the same Signal session, padded and sealed per device. The server sees
+that an envelope was sent between two accounts — which it sees for every
+message anyway — and nothing about what it says.
+
+**The switches are reciprocal.** Turning read receipts off stops this device
+sending them and stops it showing other people's. This is the behaviour people
+expect from the setting, and the alternative — seeing without being seen — is a
+different feature that should not hide behind this one's label.
+
+**What they still leak.** A typing notice is traffic: someone watching the
+network learns that a device sent something small to another account at that
+moment, which is a finer-grained timing signal than messages alone. Turning
+typing indicators off removes it. This is worth stating because "it's
+encrypted" does not answer it.
+
 ## Backup
 
 **The server holds bytes it cannot open.** A backup is sealed on the device with

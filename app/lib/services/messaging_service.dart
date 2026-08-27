@@ -192,6 +192,32 @@ class MessagingService {
     );
   }
 
+  /// Tells [username] that their messages arrived, or were read.
+  ///
+  /// A receipt is a message like any other as far as the transport is
+  /// concerned: sealed per device, opaque to the server. What the server can
+  /// see is that *something* was sent — which is why a receipt is not sent at
+  /// all when the setting is off, rather than sent and ignored.
+  Future<void> sendReceipt({
+    required String username,
+    required List<String> clientIds,
+    required String kind,
+  }) async {
+    if (clientIds.isEmpty) return;
+    await sendPayload(
+      username,
+      MessagePayload.receipt(receiptIds: clientIds, receiptKind: kind),
+    );
+  }
+
+  /// "Typing." Cheap, frequent, and worthless a few seconds later, so it
+  /// carries the moment it was sent and the reader decides whether that is
+  /// still now.
+  Future<void> sendTyping(String username) => sendPayload(
+        username,
+        MessagePayload.typing(DateTime.now().millisecondsSinceEpoch),
+      );
+
   /// Attaches this account's profile key, which is how contacts become able to
   /// open its profile picture without the server ever learning the key.
   Future<MessagePayload> _withProfileKey(MessagePayload payload) async {

@@ -332,10 +332,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         style: theme.textTheme.titleMedium,
                       ),
                       Text(
-                        widget.isGroup
-                            ? _groupSubtitle(state)
-                            : 'End-to-end encrypted',
-                        style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accent),
+                        state.conversations.isTyping(widget.accountId)
+                            ? 'typing…'
+                            : widget.isGroup
+                                ? _groupSubtitle(state)
+                                : 'End-to-end encrypted',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: PrivioColors.accent,
+                        ),
                       ),
                     ],
                   ),
@@ -398,6 +402,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     _voiceKey.currentState?.send();
                     _voiceChanged();
                   },
+                  onTyping: (_) => state.conversations.typing(widget.accountId),
                   voiceStage: _voiceKey.currentState?.stage ?? VoiceComposerStage.idle,
                   voice: VoiceComposer(
                     key: _voiceKey,
@@ -457,6 +462,7 @@ class _Composer extends StatelessWidget {
     required this.onHoldUpdate,
     required this.onHoldEnd,
     required this.onSendVoice,
+    required this.onTyping,
     required this.voiceStage,
     required this.voice,
   });
@@ -473,6 +479,10 @@ class _Composer extends StatelessWidget {
 
   /// Sends the recording currently in preview.
   final VoidCallback onSendVoice;
+
+  /// Called on every keystroke; the controller decides how often that turns
+  /// into anything on the wire.
+  final void Function(String text) onTyping;
 
   final VoiceComposerStage voiceStage;
 
@@ -512,6 +522,7 @@ class _Composer extends StatelessWidget {
                   minLines: 1,
                   maxLines: 5,
                   textCapitalization: TextCapitalization.sentences,
+                  onChanged: onTyping,
                   onSubmitted: (_) => onSend(),
                   decoration: const InputDecoration(
                     hintText: 'Type a message...',
