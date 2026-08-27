@@ -179,6 +179,56 @@ and `MessageStore.pruneExpired` removes what has run out — on a five-second
 sweep, after every drain, and on restore. The server is not told and is not
 trusted with it.
 
+## Receipts and typing
+
+Both are ordinary sealed envelopes whose payload says what they are —
+`MessagePayload.receipt` and `MessagePayload.typing` — and which
+`ConversationController` intercepts before anything reaches a conversation.
+There is no separate transport: the server relays them exactly as it relays a
+sentence, and can read neither.
+
+A receipt names messages by the **sender's** client ids, so it says "these
+ones" rather than "everything up to now" — the second is a claim a device
+cannot honestly make about messages it has not seen. Delivery state only ever
+moves forward, because receipts from a second device can arrive out of order.
+
+A typing notice carries the moment it was sent rather than a duration. One that
+was queued while a phone was off says nothing about now, so it is dropped; a
+live one is believed for six seconds and re-sent at most every three while
+someone writes. Nothing ever arrives to say "stopped", so a timer in the
+controller fades the indicator instead.
+
+The server has an `EPHEMERAL` set that would drop `typing` envelopes rather than
+queue them. It is unused: the delivery bus publishes only a nudge, and the
+client then fetches over HTTP — so an envelope that was never stored could not
+be fetched, and a typing notice would simply never arrive. Typing is delivered
+durably and expires on the client instead.
+
+Both are 1:1 only. A group receipt needs per-member tracking, and a group typing
+notice that says "someone" is worse than none.
+
+## Backup
+
+A backup is the local history, sealed on the device and uploaded as bytes the
+server cannot read. `PUT /v1/backup` takes it, `GET /v1/backup` reports size and
+version, `GET /v1/backup/content` hands the same ciphertext back.
+
+The key is a **recovery key**: 32 random bytes, generated on the device, shown
+in Crockford-style base32 without I, L, O or U so it can be copied onto paper
+without ambiguity — and parsed back forgivingly, since someone who writes O for
+0 has not made a mistake worth punishing. `BackupCodec` runs it through
+HKDF-SHA256 for domain separation and seals with AES-256-GCM.
+
+What a backup holds is conversations, through the same `ArchiveCodec` the local
+archive uses — one serialisation, so the two cannot drift. What it deliberately
+does **not** hold is key material: no identity key, no ratchet state. Restoring
+gives a new device the history; that device then registers an identity of its
+own. Copying ratchet state to a second device would break both, and quietly.
+
+Automatic backup runs from `AppState.lock()` — the app going away is when a
+backup is both cheap and most likely to matter — and honours an Off/Daily/Weekly
+setting kept beside the key in the keystore.
+
 ## Notifications
 
 Push payloads are empty. They say "something arrived", nothing else — not the

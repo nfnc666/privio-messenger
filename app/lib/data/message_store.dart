@@ -117,6 +117,15 @@ class Conversation {
   /// their own clocks. The server is never asked.
   Duration? disappearAfter;
 
+  /// When the other side was last seen typing, or null.
+  ///
+  /// Deliberately not persisted: "was typing" is only interesting for a few
+  /// seconds, and a typing indicator restored from disk would be a lie about
+  /// the present.
+  DateTime? typingUntil;
+
+  bool isTypingAt(DateTime now) => typingUntil != null && typingUntil!.isAfter(now);
+
   bool get isGroup => group != null;
 
   /// Addressed by account id for a person, group id for a group.
@@ -146,6 +155,17 @@ abstract interface class MessageStore {
   void replace(String id, String messageId, Message message);
 
   void setDisappearAfter(String id, Duration? timer);
+
+  /// Marks the other side as typing until [until].
+  void setTyping(String id, DateTime? until);
+
+  /// Sets the state of every message whose client id is listed. Returns how
+  /// many changed, so a caller can skip a redraw that would change nothing.
+  int markStateByClientIds(String id, Set<String> clientIds, DeliveryState state);
+
+  /// The client ids of messages from the other side that are not yet marked
+  /// read here — what a read receipt has to name.
+  List<String> unreadClientIds(String id);
 
   /// Drops every message whose timer has run out. Returns how many went.
   int pruneExpired(DateTime now);
@@ -196,7 +216,8 @@ class InMemoryMessageStore implements MessageStore {
     );
     final replacement = Conversation.direct(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
-      ..disappearAfter = existing.disappearAfter;
+      ..disappearAfter = existing.disappearAfter
+      ..typingUntil = existing.typingUntil;
     return _conversations[user.accountId] = replacement;
   }
 
@@ -217,7 +238,8 @@ class InMemoryMessageStore implements MessageStore {
     );
     final replacement = Conversation.group(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
-      ..disappearAfter = existing.disappearAfter;
+      ..disappearAfter = existing.disappearAfter
+      ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
   }
 
@@ -251,6 +273,34 @@ class InMemoryMessageStore implements MessageStore {
   @override
   void setDisappearAfter(String id, Duration? timer) =>
       _conversations[id]?.disappearAfter = timer;
+
+  @override
+  void setTyping(String id, DateTime? until) => _conversations[id]?.typingUntil = until;
+
+  @override
+  int markStateByClientIds(String id, Set<String> clientIds, DeliveryState state) {
+    final conversation = _conversations[id];
+    if (conversation == null || clientIds.isEmpty) return 0;
+
+    var changed = 0;
+    for (var i = 0; i < conversation.messages.length; i++) {
+      final message = conversation.messages[i];
+      if (!message.isMine || message.clientId == null) continue;
+      if (!clientIds.contains(message.clientId)) continue;
+      // Receipts can arrive out of order — a read receipt then a delivered one
+      // from a second device. Never walk the state backwards.
+      if (message.state.index >= state.index) continue;
+      conversation.messages[i] = message.copyWith(state: state);
+      changed++;
+    }
+    return changed;
+  }
+
+  @override
+  List<String> unreadClientIds(String id) => [
+        for (final message in _conversations[id]?.messages ?? const <Message>[])
+          if (!message.isMine && message.clientId != null) message.clientId!,
+      ];
 
   @override
   int pruneExpired(DateTime now) {

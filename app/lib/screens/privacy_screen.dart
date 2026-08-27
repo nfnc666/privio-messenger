@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 
-/// Screen 19: privacy and security.
+/// Privacy and security.
 ///
-/// Every switch here is enforced somewhere real — the visibility rows map to the
-/// account's `privacy` object on the server, the lock rows to the local keystore.
+/// The two messaging switches are real: they are read from the account and
+/// written back to it, and turning one off stops this device sending that thing
+/// — and stops it showing other people's, because a setting that takes without
+/// giving would be a different feature wearing this one's name.
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
 
@@ -15,14 +18,22 @@ class PrivacyScreen extends StatefulWidget {
 }
 
 class _PrivacyScreenState extends State<PrivacyScreen> {
-  bool _readReceipts = true;
-  bool _typingIndicators = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => PrivioScope.of(context).conversations.loadPrivacy(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final conversations = PrivioScope.of(context).conversations;
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy & Security')),
-      body: ListView(
+      body: ListenableBuilder(
+        listenable: conversations,
+        builder: (context, _) => ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
           SettingsSection(
@@ -39,18 +50,23 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               SettingsRow(
                 label: 'Read Receipts',
                 trailing: Switch(
-                  value: _readReceipts,
-                  onChanged: (value) => setState(() => _readReceipts = value),
+                  value: conversations.readReceiptsEnabled,
+                  onChanged: (value) => conversations.setReadReceipts(value),
                 ),
               ),
               SettingsRow(
                 label: 'Typing Indicators',
                 trailing: Switch(
-                  value: _typingIndicators,
-                  onChanged: (value) => setState(() => _typingIndicators = value),
+                  value: conversations.typingIndicatorsEnabled,
+                  onChanged: (value) => conversations.setTypingIndicators(value),
                 ),
               ),
-              SettingsRow(label: 'Disappearing Messages', value: 'Off', onTap: () {}),
+              // Per chat rather than global: a timer that applied to every
+              // conversation at once would be a setting nobody could use.
+              const SettingsRow(
+                label: 'Disappearing Messages',
+                value: 'Per chat',
+              ),
             ],
           ),
           SettingsSection(
@@ -71,7 +87,8 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

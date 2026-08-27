@@ -6,6 +6,7 @@ import '../data/archive.dart';
 import '../data/message_store.dart';
 import '../media/voice_player.dart';
 import '../media/voice_recorder.dart';
+import '../services/backup_service.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import 'api_client.dart';
@@ -24,6 +25,7 @@ class PrivioServices {
     required this.channels,
     required this.recorder,
     required this.player,
+    required this.backup,
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
@@ -44,6 +46,7 @@ class PrivioServices {
     final api = PrivioApiClient(baseUrl: Uri.parse(baseUrl ?? apiBaseUrl));
     final crypto = await PrivioCrypto.open(cryptoStorage ?? const KeystoreCryptoStorage());
     final messaging = MessagingService(api: api, crypto: crypto);
+    final store = InMemoryMessageStore();
     return PrivioServices(
       api: api,
       crypto: crypto,
@@ -51,7 +54,8 @@ class PrivioServices {
       channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
       recorder: PluginVoiceRecorder(),
       player: JustAudioVoicePlayer(),
-      store: InMemoryMessageStore(),
+      backup: BackupService(api: api, store: secureStore, messages: store),
+      store: store,
       secureStore: secureStore,
       archive: EncryptedMessageArchive(
         storage: const KeystoreArchiveStorage(),
@@ -70,6 +74,9 @@ class PrivioServices {
   /// and the one part that genuinely needs a microphone stays in one file.
   final VoiceRecorder recorder;
   final VoicePlayer player;
+
+  /// Backups: sealed here, opaque everywhere else.
+  final BackupService backup;
   final MessageStore store;
   final SecureStore secureStore;
 

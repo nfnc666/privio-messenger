@@ -85,7 +85,10 @@ class Message {
     required this.sentAt,
     required this.isMine,
     this.kind = MessageKind.text,
-    this.state = DeliveryState.read,
+    // Not `read`: the default used to claim every message had been read by the
+    // other side, including ones that had only just been typed. A message knows
+    // it was sent; anything beyond that has to be told to it.
+    this.state = DeliveryState.sent,
     this.voiceDuration,
     this.waveform,
     this.senderName,
@@ -158,6 +161,7 @@ class ChatSummary {
     this.isGroup = false,
     this.pinned = false,
     this.previewKind = MessageKind.text,
+    this.typing = false,
     this.presence = Presence.hidden,
     this.avatarSeed = 0,
     this.avatarBytes,
@@ -174,6 +178,11 @@ class ChatSummary {
   final bool isGroup;
   final bool pinned;
   final MessageKind previewKind;
+
+  /// True while the other side is typing, which the row shows in the accent
+  /// colour instead of the last message.
+  final bool typing;
+
   final Presence presence;
   final int avatarSeed;
 

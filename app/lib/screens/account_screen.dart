@@ -5,6 +5,7 @@ import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
+import 'backup_screen.dart';
 import 'invite_screen.dart';
 import 'settings_screen.dart';
 
@@ -157,8 +158,17 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: PrivioSpacing.lg),
           SettingsSection(
             children: [
-              const SettingsRow(icon: Icons.sd_storage_outlined, label: 'Storage', value: '1.2 GB / 5 GB'),
-              const SettingsRow(icon: Icons.shield_outlined, label: 'Security Level', value: 'High'),
+              // Two rows that used to show invented numbers — "1.2 GB / 5 GB"
+              // and "Security Level: High" — are gone rather than kept as
+              // decoration. A figure nobody measured is worse than no figure,
+              // and this one sat on a screen about trust.
+              SettingsRow(
+                icon: Icons.backup_outlined,
+                label: 'Backup',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const BackupScreen()),
+                ),
+              ),
               SettingsRow(
                 icon: Icons.qr_code_rounded,
                 label: 'Invite link / QR code',

@@ -402,5 +402,13 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> backupInfo() => _send('GET', '/v1/backup');
 
+  /// The sealed backup itself. Ciphertext on the way down, exactly as it went
+  /// up: the server has never been able to read a byte of it.
+  Future<List<int>> downloadBackup() async {
+    final response = await _client.get(_url('/v1/backup/content'), headers: _headers);
+    if (response.statusCode >= 400) await _decode(response);
+    return response.bodyBytes;
+  }
+
   void close() => _client.close();
 }

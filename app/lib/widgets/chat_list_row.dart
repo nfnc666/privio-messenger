@@ -66,7 +66,7 @@ class ChatListRow extends StatelessWidget {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      if (icon != null) ...[
+                      if (icon != null && !chat.typing) ...[
                         Icon(icon, size: 14, color: PrivioColors.textSecondary),
                         const SizedBox(width: 4),
                       ],
@@ -75,7 +75,11 @@ class ChatListRow extends StatelessWidget {
                           chat.preview,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
+                          style: chat.typing
+                              ? theme.textTheme.bodySmall?.copyWith(
+                                  color: PrivioColors.accent,
+                                )
+                              : theme.textTheme.bodySmall,
                         ),
                       ),
                     ],

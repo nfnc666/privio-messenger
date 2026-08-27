@@ -50,6 +50,19 @@ class ConversationController extends ChangeNotifier {
   /// encrypted archive without a plaintext recording ever reaching storage.
   final List<PendingSend> _outbox = [];
 
+  /// Whether this account sends read receipts and typing notices.
+  ///
+  /// Reciprocal, the way people expect: someone who does not send read
+  /// receipts does not see other people's either. A setting that took without
+  /// giving would be a different feature wearing this one's name.
+  bool _readReceipts = true;
+  bool _typingIndicators = true;
+
+  /// When a typing notice was last sent per conversation, so a burst of
+  /// keystrokes does not become a burst of envelopes.
+  final Map<String, DateTime> _typingSentAt = {};
+  Timer? _typingSweep;
+
   /// The flush currently running, if any, and whether another was asked for
   /// while it ran. Without this a caller that flushes during a flush gets a
   /// silent no-op — and the message it was flushing for sits there.
@@ -67,6 +80,14 @@ class ConversationController extends ChangeNotifier {
   /// The last failure worth showing, or null. Cleared when the next call works.
   String? get error => _error;
 
+  bool get readReceiptsEnabled => _readReceipts;
+  bool get typingIndicatorsEnabled => _typingIndicators;
+
+  /// True while the other side of [conversationId] is typing.
+  bool isTyping(String conversationId) =>
+      _typingIndicators &&
+      (_services.store.conversationWith(conversationId)?.isTypingAt(DateTime.now()) ?? false);
+
   List<ChatSummary> get chats => [
         for (final conversation in _services.store.conversations())
           _summarise(conversation),
@@ -82,7 +103,10 @@ class ConversationController extends ChangeNotifier {
       title: conversation.title,
       isGroup: conversation.isGroup,
       avatarBytes: _avatarCache[conversation.id],
-      preview: _previewOf(last),
+      // Typing replaces the preview rather than sitting beside it: the row has
+      // one line, and what someone is doing now beats what they said before.
+      preview: isTyping(conversation.id) ? 'typing…' : _previewOf(last),
+      typing: isTyping(conversation.id),
       timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
       unreadCount: conversation.unreadCount,
       previewKind: last?.kind ?? MessageKind.text,
@@ -132,6 +156,17 @@ class ConversationController extends ChangeNotifier {
     unawaited(flushOutbox());
   }
 
+  /// Takes on a history that a restore has just put into the store.
+  ///
+  /// The backup service replaces the store's contents; this seals them into the
+  /// local archive and tells the screens, so a restore survives the next launch
+  /// rather than living only in memory until something else saves.
+  Future<void> adoptRestored() async {
+    _services.store.pruneExpired(DateTime.now());
+    await flush();
+    notifyListeners();
+  }
+
   /// Writes the history back, coalescing bursts: a fast exchange should not
   /// re-seal and rewrite the whole archive once per keystroke.
   void _persist() {
@@ -160,6 +195,9 @@ class ConversationController extends ChangeNotifier {
     // Often enough that a 30-second timer is roughly honoured on screen, cheap
     // enough to be invisible: it walks a list already in memory.
     _expirySweep ??= Timer.periodic(expirySweepInterval, (_) => pruneExpired());
+    // A typing indicator has to go out on its own: nothing arrives to say
+    // "stopped", so the screen has to notice the notice has expired.
+    _typingSweep ??= Timer.periodic(typingInterval, (_) => _fadeTyping());
     if (token != null) _openRealtime(token);
     pruneExpired();
     unawaited(drain());
@@ -195,6 +233,8 @@ class ConversationController extends ChangeNotifier {
     _poller = null;
     _expirySweep?.cancel();
     _expirySweep = null;
+    _typingSweep?.cancel();
+    _typingSweep = null;
     unawaited(_realtimeEnvelopes?.cancel());
     _realtimeEnvelopes = null;
     unawaited(_realtime?.close());
@@ -503,6 +543,116 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  // --- Receipts and typing --------------------------------------------------
+
+  /// How long a typing notice is believed for, and how often one is sent.
+  ///
+  /// Longer than the send interval so the indicator does not flicker between
+  /// notices, short enough that it disappears soon after someone stops.
+  static const Duration typingLifetime = Duration(seconds: 6);
+  static const Duration typingInterval = Duration(seconds: 3);
+
+  /// Reads the account's privacy settings, so the toggles reflect the server
+  /// rather than a default this device guessed.
+  Future<void> loadPrivacy() async {
+    try {
+      final me = await _services.api.me();
+      final privacy = me['privacy'] as Map<String, dynamic>? ?? const {};
+      _readReceipts = privacy['readReceipts'] as bool? ?? true;
+      _typingIndicators = privacy['typingIndicators'] as bool? ?? true;
+      notifyListeners();
+    } on Object {
+      // Keep whatever is on screen; the settings screen shows the error.
+    }
+  }
+
+  Future<void> setReadReceipts(bool enabled) async {
+    _readReceipts = enabled;
+    notifyListeners();
+    await _services.api.updatePrivacy({'readReceipts': enabled});
+  }
+
+  Future<void> setTypingIndicators(bool enabled) async {
+    _typingIndicators = enabled;
+    if (!enabled) _typingSentAt.clear();
+    notifyListeners();
+    await _services.api.updatePrivacy({'typingIndicators': enabled});
+  }
+
+  /// Clears typing indicators that have run out, and redraws only if one had.
+  void _fadeTyping() {
+    final now = DateTime.now();
+    var changed = false;
+    for (final conversation in _services.store.conversations()) {
+      if (conversation.typingUntil == null) continue;
+      if (conversation.isTypingAt(now)) continue;
+      _services.store.setTyping(conversation.id, null);
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// Says "typing", at most once every [typingInterval].
+  ///
+  /// Throttled rather than debounced: the point is to keep the indicator alive
+  /// while someone writes, and a debounce would only tell the other side once
+  /// they stopped.
+  void typing(String conversationId) {
+    if (!_typingIndicators) return;
+    final conversation = _services.store.conversationWith(conversationId);
+    final username = conversation?.user?.username;
+    // 1:1 only for now: a group typing notice needs a fan-out of its own, and
+    // one that says "someone" is worse than none.
+    if (username == null) return;
+
+    final last = _typingSentAt[conversationId];
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < typingInterval) return;
+    _typingSentAt[conversationId] = now;
+    unawaited(_services.messaging.sendTyping(username).catchError((_) {}));
+  }
+
+  /// Tells the sender their messages arrived. Called after a batch is filed.
+  Future<void> _sendDeliveryReceipts(Map<String, List<String>> byConversation) async {
+    if (!_readReceipts) return;
+    for (final entry in byConversation.entries) {
+      final username = _services.store.conversationWith(entry.key)?.user?.username;
+      if (username == null) continue;
+      try {
+        await _services.messaging.sendReceipt(
+          username: username,
+          clientIds: entry.value,
+          kind: 'delivered',
+        );
+      } on Object {
+        // A receipt that did not go out is not worth telling anyone about; the
+        // next message from them carries the same information soon enough.
+        continue;
+      }
+    }
+  }
+
+  /// Files a receipt that arrived: moves my own messages forward a state.
+  void _applyReceipt(String conversationId, MessagePayload payload) {
+    final state = payload.receiptKind == 'read'
+        ? DeliveryState.read
+        : DeliveryState.delivered;
+    final changed = _services.store.markStateByClientIds(
+      conversationId,
+      (payload.receiptIds ?? const []).toSet(),
+      state,
+    );
+    if (changed > 0) _persist();
+  }
+
+  void _applyTyping(String conversationId, MessagePayload payload) {
+    final sentAt = DateTime.fromMillisecondsSinceEpoch(payload.typingAt ?? 0);
+    // A notice that sat in a queue while the phone was off says nothing about
+    // now, so it is dropped rather than shown.
+    if (DateTime.now().difference(sentAt).abs() > typingLifetime) return;
+    _services.store.setTyping(conversationId, sentAt.add(typingLifetime));
+  }
+
   // --- Voice messages -------------------------------------------------------
 
   /// How many voice messages are waiting for a network.
@@ -752,9 +902,17 @@ class ConversationController extends ChangeNotifier {
   Future<void> _fileResult(ReceiveResult result) async {
     if (result.messages.isEmpty && result.failures.isEmpty) return;
 
+    // What arrived from whom, so one receipt covers a batch rather than one
+    // envelope each.
+    final arrived = <String, List<String>>{};
     for (final incoming in result.messages) {
       await _fileIncoming(incoming);
+      final clientId = incoming.payload.clientId;
+      if (clientId != null && !incoming.payload.isControl && incoming.groupId == null) {
+        arrived.putIfAbsent(incoming.senderAccountId, () => []).add(clientId);
+      }
     }
+    if (arrived.isNotEmpty) unawaited(_sendDeliveryReceipts(arrived));
     if (result.messages.isNotEmpty) _persist();
     if (result.failures.isNotEmpty) {
       _error = '${result.failures.length} message(s) could not be decrypted';
@@ -767,6 +925,15 @@ class ConversationController extends ChangeNotifier {
     // group name and leaves no trace in the chat.
     if (incoming.payload.isKeyDelivery) {
       await _storeDeliveredKey(incoming.payload);
+      return;
+    }
+    if (incoming.payload.isReceipt) {
+      _applyReceipt(incoming.senderAccountId, incoming.payload);
+      return;
+    }
+    if (incoming.payload.isTyping) {
+      // Someone who does not send typing notices does not see them either.
+      if (_typingIndicators) _applyTyping(incoming.senderAccountId, incoming.payload);
       return;
     }
 
@@ -1001,10 +1168,25 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Marks a chat read, and tells the other side so — if that is switched on.
+  ///
+  /// The receipt names the messages by the sender's own ids, so it means "these
+  /// ones", not "everything up to now": the second is a claim this device
+  /// cannot honestly make about messages it has not seen.
   void markRead(String accountId) {
+    final unread = _services.store.unreadClientIds(accountId);
     _services.store.markRead(accountId);
     _persist();
     notifyListeners();
+
+    if (!_readReceipts || unread.isEmpty) return;
+    final username = _services.store.conversationWith(accountId)?.user?.username;
+    if (username == null) return;
+    unawaited(
+      _services.messaging
+          .sendReceipt(username: username, clientIds: unread, kind: 'read')
+          .catchError((_) {}),
+    );
   }
 
   /// Publishes fresh prekeys if the server's pool has run down.

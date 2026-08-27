@@ -64,9 +64,11 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
 class _StageRouter extends StatelessWidget {
   const _StageRouter();
 
-  void _openAuth(BuildContext context, AuthMode mode) {
+  void _openAuth(BuildContext context, AuthMode mode, {bool restoring = false}) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => AuthScreen(mode: mode)),
+      MaterialPageRoute<void>(
+        builder: (_) => AuthScreen(mode: mode, restoring: restoring),
+      ),
     );
   }
 
@@ -80,9 +82,11 @@ class _StageRouter extends StatelessWidget {
         AppStage.splash || AppStage.initialising => const SplashScreen(),
         AppStage.welcome => WelcomeScreen(
             onGetStarted: () => _openAuth(context, AuthMode.signUp),
-            // Restoring an account starts by signing back into it; importing an
-            // encrypted backup on top of that is still to come.
-            onImportBackup: () => _openAuth(context, AuthMode.signIn),
+            // Restoring starts by signing back into the account: a backup holds
+            // history, not an identity, so the device needs one of its own
+            // before there is anywhere to put the history. The backup screen is
+            // where the recovery key goes in, and this says so on the way.
+            onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
           ),
         AppStage.locked => const PinScreen(),
         AppStage.ready => const NavShell(),
