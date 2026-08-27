@@ -93,9 +93,18 @@ async function isBlockedBy(ownerId: string, candidateId: string): Promise<boolea
 export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
   return async (app) => {
     const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
+    // Sending is what a license pays for; fetching what has already been
+    // delivered is not gated, so an expired or missing license never strands
+    // messages a user has already received.
+    const requireLicensedAuth = {
+      preHandler: [
+        (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r),
+        (r: Parameters<typeof app.requireLicense>[0]) => app.requireLicense(r),
+      ],
+    };
 
     /** Send pre-sealed ciphertext to every device of one account. */
-    app.post('/v1/messages', requireAuth, async (request, reply) => {
+    app.post('/v1/messages', requireLicensedAuth, async (request, reply) => {
       const { accountId, deviceId } = auth(request);
       const body = parse(sendSchema, request.body);
 
@@ -148,7 +157,7 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
     });
 
     /** Fan out to every member device of a group. */
-    app.post('/v1/messages/group/:groupId', requireAuth, async (request, reply) => {
+    app.post('/v1/messages/group/:groupId', requireLicensedAuth, async (request, reply) => {
       const { accountId, deviceId } = auth(request);
       const params = parse(z.object({ groupId: uuidSchema }), request.params);
       const body = parse(

@@ -458,6 +458,7 @@ Among the things those tests assert:
 | `POST /v1/groups` | Create a group with encrypted metadata |
 | `POST /v1/media` | Upload an already-encrypted attachment |
 | `PUT /v1/backup` | Upload an already-encrypted backup |
+| `POST /v1/licenses/redeem` | Bind a license key to this account |
 
 Full route list in [`docs/architecture.md`](docs/architecture.md).
 
@@ -533,6 +534,7 @@ Disguise mode · Wipe code
 | [Architecture](docs/architecture.md) | How the pieces fit, and how a message travels |
 | [Security model](docs/security-model.md) | What is protected, what is not, and what is still missing |
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
+| [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 
 <div align="center">
 <br>
