@@ -18,6 +18,8 @@ import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/services/channel_service.dart';
+
+import 'support/fake_voice.dart';
 import 'package:privio/widgets/chat_list_row.dart';
 import 'package:privio/widgets/message_bubble.dart';
 
@@ -37,6 +39,8 @@ Future<PrivioServices> quietServices() async {
     crypto: crypto,
     messaging: messaging,
     channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
+    recorder: FakeVoiceRecorder(),
+    player: FakeVoicePlayer(),
     store: InMemoryMessageStore(),
     secureStore: InMemorySecureStore(),
   );

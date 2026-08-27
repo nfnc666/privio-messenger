@@ -27,13 +27,20 @@ describe('messaging', () => {
     await closePool();
   });
 
-  const send = (from: TestUser, toUsername: string, deviceIds: string[], content = 'ciphertext') =>
+  const send = (
+    from: TestUser,
+    toUsername: string,
+    deviceIds: string[],
+    content = 'ciphertext',
+    idempotencyKey?: string,
+  ) =>
     h.app.inject({
       method: 'POST',
       url: '/v1/messages',
       headers: bearer(from),
       payload: {
         username: toUsername,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         messages: deviceIds.map((deviceId) => ({
           deviceId,
           registrationId: 4242,
@@ -217,5 +224,71 @@ describe('messaging', () => {
     const inbox = await h.app.inject({ method: 'GET', url: '/v1/messages', headers: bearer(frank) });
     const envelope = inbox.json().envelopes[0];
     assert.equal(envelope.senderDeviceIndex, 1, 'the index names the session to decrypt with');
+  });
+  it('answers a retry instead of delivering the message twice', async () => {
+    // Fresh accounts: the tests above add devices to alice and bob, and a send
+    // must cover every device of the recipient.
+    const sender = await registerUser(h.app, 'retry_sender');
+    const receiver = await registerUser(h.app, 'retry_receiver');
+
+    // A send that times out may already have been queued. The client retries
+    // with the same key it used the first time, which is what makes the second
+    // attempt recognisable rather than a second voice message.
+    const first = await send(
+      sender,
+      'retry_receiver',
+      [receiver.deviceId],
+      'sprachnachricht',
+      'send-key-1',
+    );
+    assert.equal(first.statusCode, 202);
+    assert.equal(first.json().deliveredTo, 1);
+    assert.equal(first.json().duplicate, undefined);
+
+    const retry = await send(
+      sender,
+      'retry_receiver',
+      [receiver.deviceId],
+      'sprachnachricht',
+      'send-key-1',
+    );
+    assert.equal(retry.statusCode, 202);
+    assert.equal(retry.json().duplicate, true);
+    assert.equal(retry.json().deliveredTo, 1);
+
+    const queue = await h.app.inject({
+      method: 'GET',
+      url: '/v1/messages',
+      headers: bearer(receiver),
+    });
+    assert.equal(queue.json().envelopes.length, 1, 'only one copy was queued');
+  });
+
+  it('scopes the retry key to the sending device', async () => {
+    // Two devices choosing the same key must not silence each other.
+    const one = await registerUser(h.app, 'key_scope_one');
+    const two = await registerUser(h.app, 'key_scope_two');
+
+    const fromOne = await send(one, 'key_scope_two', [two.deviceId], 'eins', 'shared-key');
+    assert.equal(fromOne.json().duplicate, undefined);
+
+    const fromTwo = await send(two, 'key_scope_one', [one.deviceId], 'zwei', 'shared-key');
+    assert.equal(fromTwo.statusCode, 202);
+    assert.equal(fromTwo.json().duplicate, undefined, 'a different device, a different key');
+  });
+
+  it('sends without a key are never treated as duplicates', async () => {
+    const sender = await registerUser(h.app, 'nokey_sender');
+    const receiver = await registerUser(h.app, 'nokey_receiver');
+
+    await send(sender, 'nokey_receiver', [receiver.deviceId], 'eins');
+    await send(sender, 'nokey_receiver', [receiver.deviceId], 'zwei');
+
+    const queue = await h.app.inject({
+      method: 'GET',
+      url: '/v1/messages',
+      headers: bearer(receiver),
+    });
+    assert.equal(queue.json().envelopes.length, 2);
   });
 });

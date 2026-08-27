@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
+import 'voice_bubble.dart';
 
 /// One message in a conversation.
 ///
@@ -55,14 +56,19 @@ class MessageBubble extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(color: PrivioColors.accentBright),
                 ),
               ),
-            if (message.attachment != null) ...[
-              _AttachmentView(attachment: message.attachment!),
-              if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+            if (message.isVoice)
+              // A voice message renders itself: the waveform and the duration
+              // come out of the sealed payload, so it is complete before the
+              // audio has been fetched.
+              VoiceBubble(message: message, mine: mine)
+            else ...[
+              if (message.attachment != null) ...[
+                _AttachmentView(attachment: message.attachment!),
+                if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+              ],
+              if (message.body.isNotEmpty)
+                Text(message.body, style: theme.textTheme.bodyMedium),
             ],
-            if (message.kind == MessageKind.voice && message.attachment == null)
-              _VoiceNote(duration: message.voiceDuration ?? Duration.zero, mine: mine)
-            else if (message.body.isNotEmpty)
-              Text(message.body, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 3),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -72,6 +78,14 @@ class MessageBubble extends StatelessWidget {
                   _formatTime(message.sentAt),
                   style: theme.textTheme.labelSmall,
                 ),
+                if (message.expiresAt != null) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 12,
+                    color: PrivioColors.textTertiary,
+                  ),
+                ],
                 if (mine) ...[
                   const SizedBox(width: 4),
                   _DeliveryTicks(state: message.state),
@@ -211,6 +225,15 @@ class _DeliveryTicks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Queued and failed are their own marks. A message waiting for a network
+    // must not look like one that is on its way, and one that gave up must not
+    // look like either.
+    if (state == DeliveryState.queued) {
+      return const Icon(Icons.cloud_off_rounded, size: 13, color: PrivioColors.textTertiary);
+    }
+    if (state == DeliveryState.failed) {
+      return const Icon(Icons.error_outline_rounded, size: 14, color: PrivioColors.danger);
+    }
     if (state == DeliveryState.sending) {
       return const Icon(Icons.schedule_rounded, size: 13, color: PrivioColors.textTertiary);
     }
@@ -223,69 +246,6 @@ class _DeliveryTicks extends StatelessWidget {
   }
 }
 
-class _VoiceNote extends StatelessWidget {
-  const _VoiceNote({required this.duration, required this.mine});
-
-  final Duration duration;
-  final bool mine;
-
-  @override
-  Widget build(BuildContext context) {
-    final seconds = duration.inSeconds;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: const BoxDecoration(
-            color: PrivioColors.accent,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.play_arrow_rounded, size: 20, color: PrivioColors.background),
-        ),
-        const SizedBox(width: PrivioSpacing.sm),
-        const _Waveform(),
-        const SizedBox(width: PrivioSpacing.sm),
-        Text(
-          '0:${seconds.toString().padLeft(2, '0')}',
-          style: Theme.of(context).textTheme.labelSmall,
-        ),
-      ],
-    );
-  }
-}
-
-class _Waveform extends StatelessWidget {
-  const _Waveform();
-
-  // A fixed silhouette: real amplitudes arrive with the decrypted audio.
-  static const List<double> _bars = [
-    6, 12, 9, 16, 22, 14, 8, 18, 24, 12, 7, 15, 20, 10, 6, 13,
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        for (final height in _bars)
-          Container(
-            width: 2.5,
-            height: height,
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            decoration: const BoxDecoration(
-              color: PrivioColors.accentBright,
-              borderRadius: BorderRadius.all(Radius.circular(2)),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// The "messages are end-to-end encrypted" notice above the first message.
 class EncryptionNotice extends StatelessWidget {
   const EncryptionNotice({super.key});
 

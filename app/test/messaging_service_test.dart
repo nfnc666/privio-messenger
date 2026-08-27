@@ -11,7 +11,10 @@ import 'package:privio/crypto/privio_crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:privio/data/message_store.dart';
 import 'package:privio/media/avatar.dart';
+import 'package:privio/media/voice.dart';
 import 'package:privio/services/messaging_service.dart';
+
+import 'support/fake_voice.dart';
 
 /// A stand-in for the Privio API that behaves the way the real one does: it
 /// holds published public keys and sealed envelopes, hands out one one-time
@@ -30,6 +33,13 @@ class FakeServer {
   /// How many of the next sends answer with a stale-device-list rejection.
   int mismatchesToServe = 0;
   int sendAttempts = 0;
+
+  /// How many of the next sends fail outright, the way a dropped connection
+  /// does — after the server has already queued the envelopes.
+  int failuresAfterQueueing = 0;
+
+  /// Idempotency keys the server has already seen, per sending device.
+  final Map<String, int> seenKeys = {};
 
   FakeDevice register(String username, String accountId, int deviceIndex, Map<String, dynamic> payload) {
     final account = accounts.putIfAbsent(username, () => FakeAccount(accountId));
@@ -198,6 +208,18 @@ class FakeServer {
             }, status: 409,);
           }
 
+          // The real server records the key and answers a repeat with the
+          // first attempt's result rather than queueing again.
+          final key = body['idempotencyKey'] as String?;
+          if (key != null && seenKeys.containsKey('$deviceId/$key')) {
+            return _json({
+              'accepted': true,
+              'deliveredTo': seenKeys['$deviceId/$key'],
+              'duplicate': true,
+            }, status: 202,);
+          }
+          if (key != null) seenKeys['$deviceId/$key'] = messages.length;
+
           for (final message in messages) {
             envelopes.add({
               'id': _nextEnvelopeId++,
@@ -210,6 +232,16 @@ class FakeServer {
               'content': message['content'],
               'createdAt': DateTime.now().toUtc().toIso8601String(),
             });
+          }
+
+          if (failuresAfterQueueing > 0) {
+            // Queued, then the answer never made it back — the case a retry has
+            // to survive without delivering the message twice.
+            failuresAfterQueueing -= 1;
+            return _json({
+              'error': 'unavailable',
+              'message': 'connection lost',
+            }, status: 503,);
           }
           return _json({'accepted': true, 'deliveredTo': messages.length}, status: 202);
         }
@@ -300,6 +332,7 @@ class Participant {
   late final String deviceId;
   late final PrivioCrypto crypto;
   late final MessagingService messaging;
+  late final PrivioApiClient api;
 
   Future<void> join(FakeServer server) async {
     crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
@@ -309,7 +342,7 @@ class Participant {
       preKeyCount: 3,
     );
     deviceId = server.register(username, accountId, deviceIndex, payload).deviceId;
-    final api = PrivioApiClient(
+    api = PrivioApiClient(
       baseUrl: Uri.parse('https://api.test'),
       client: server.clientFor(deviceId),
     )..useToken('token-$deviceId');
@@ -651,6 +684,148 @@ void main() {
     final opened = await bob.messaging.openAttachment(payload);
     expect(utf8.decode(opened, allowMalformed: true), isNot(contains('SN-4711-XYZ')));
     expect(opened.sublist(0, 2), [0xFF, 0xD8], reason: 'still a usable JPEG');
+  });
+
+  group('voice messages', () {
+    test('are sealed before upload, and the server stores audio it cannot play', () async {
+      final recorder = FakeVoiceRecorder(duration: const Duration(seconds: 7));
+      await recorder.start();
+      final recording = await recorder.stop();
+
+      await alice.messaging.sendVoice(
+        username: 'bob',
+        recording: recording,
+        clientId: 'client-1',
+      );
+
+      // What the server holds is not the recording.
+      final stored = server.media.values.single;
+      expect(stored, isNot(recording.bytes));
+      expect(stored.length, isNot(recording.bytes.length), reason: 'padded, not passed through');
+
+      // And the envelope says nothing about it either.
+      final envelope = utf8.decode(
+        base64Decode(server.envelopes.single['content'] as String),
+        allowMalformed: true,
+      );
+      expect(envelope, isNot(contains('audio/mp4')));
+    });
+
+    test('carry their duration and waveform inside the sealed payload', () async {
+      final recorder = FakeVoiceRecorder(duration: const Duration(seconds: 12));
+      await recorder.start();
+      final recording = await recorder.stop();
+
+      await alice.messaging.sendVoice(
+        username: 'bob',
+        recording: recording,
+        clientId: 'client-2',
+      );
+
+      final received = await bob.messaging.receive();
+      final payload = received.messages.single.payload;
+      expect(payload.isVoice, isTrue);
+      expect(payload.voiceDuration, const Duration(seconds: 12));
+      expect(payload.waveform, hasLength(VoiceLimits.waveformBars));
+      expect(payload.clientId, 'client-2');
+
+      final opened = await bob.messaging.openAttachment(payload);
+      expect(opened, recording.bytes, reason: 'the recording survives the round trip intact');
+    });
+
+    test('a tampered recording will not open', () async {
+      final recorder = FakeVoiceRecorder();
+      await recorder.start();
+      final recording = await recorder.stop();
+      await alice.messaging.sendVoice(
+        username: 'bob',
+        recording: recording,
+        clientId: 'client-3',
+      );
+
+      final id = server.media.keys.single;
+      final tampered = Uint8List.fromList(server.media[id]!);
+      tampered[tampered.length - 3] ^= 0xFF;
+      server.media[id] = tampered;
+
+      final received = await bob.messaging.receive();
+      expect(
+        () => bob.messaging.openAttachment(received.messages.single.payload),
+        throwsA(anything),
+        reason: 'a modified recording must fail loudly, not play something else',
+      );
+    });
+
+    test('a retry after a lost answer does not arrive twice', () async {
+      final recorder = FakeVoiceRecorder();
+      await recorder.start();
+      final recording = await recorder.stop();
+
+      // The first attempt queues the envelopes and then the connection dies.
+      server.failuresAfterQueueing = 1;
+      await expectLater(
+        alice.messaging.sendVoice(
+          username: 'bob',
+          recording: recording,
+          clientId: 'client-retry',
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect(server.envelopes, hasLength(1));
+
+      // The retry carries the same client id, so the server recognises it.
+      await alice.messaging.sendVoice(
+        username: 'bob',
+        recording: recording,
+        clientId: 'client-retry',
+      );
+      expect(server.envelopes, hasLength(1), reason: 'no second copy was queued');
+
+      final received = await bob.messaging.receive();
+      expect(received.messages, hasLength(1));
+    });
+
+    test('a disappearing timer travels with the message, not with the server', () async {
+      final recorder = FakeVoiceRecorder();
+      await recorder.start();
+      final recording = await recorder.stop();
+
+      await alice.messaging.sendVoice(
+        username: 'bob',
+        recording: recording,
+        clientId: 'client-4',
+        expiresInSeconds: 30,
+      );
+
+      // Nothing about the timer is visible from outside the envelope.
+      final envelope = utf8.decode(
+        base64Decode(server.envelopes.single['content'] as String),
+        allowMalformed: true,
+      );
+      expect(envelope, isNot(contains('30')));
+
+      final received = await bob.messaging.receive();
+      expect(received.messages.single.payload.expiresInSeconds, 30);
+    });
+
+    test('a voice message to a group is uploaded once', () async {
+      final group = await alice.messaging.createGroup('Chor', [bob.accountId]);
+      final recorder = FakeVoiceRecorder();
+      await recorder.start();
+      final recording = await recorder.stop();
+
+      await alice.messaging.sendVoiceToGroup(
+        groupId: group.groupId,
+        recording: recording,
+        clientId: 'client-5',
+        groupKey: group.groupKey,
+      );
+
+      expect(server.media, hasLength(1));
+      final received = await bob.messaging.receive();
+      expect(received.messages.single.payload.isVoice, isTrue);
+      expect(received.messages.single.groupId, group.groupId);
+    });
   });
 
   test('a group send does not burn a prekey when a session already exists', () async {

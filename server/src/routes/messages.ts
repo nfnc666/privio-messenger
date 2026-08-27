@@ -15,10 +15,18 @@ const perDeviceSchema = z.object({
   content: base64Bytes(1, config.MAX_ENVELOPE_BYTES),
 });
 
+/**
+ * An id the sending device makes up, so a retry after a dropped connection is
+ * answered rather than delivered a second time. Opaque here: the server stores
+ * it, compares it and learns nothing from it.
+ */
+const idempotencyKeySchema = z.string().min(8).max(128);
+
 const sendSchema = z
   .object({
     username: usernameSchema.optional(),
     accountId: uuidSchema.optional(),
+    idempotencyKey: idempotencyKeySchema.optional(),
     messages: z.array(perDeviceSchema).min(1).max(256),
   })
   .refine((v) => Boolean(v.username) !== Boolean(v.accountId), {
@@ -45,6 +53,33 @@ async function activeDeviceIds(accountId: string): Promise<string[]> {
     [accountId],
   );
   return rows.map((r) => r.id);
+}
+
+/**
+ * Claims [key] for this device, or reports what the first attempt delivered.
+ *
+ * The insert is the lock: two sends racing with the same key cannot both win,
+ * because the primary key will not allow it.
+ */
+async function claimIdempotencyKey(
+  deviceId: string,
+  key: string,
+  deliveredTo: number,
+): Promise<{ firstTime: boolean; deliveredTo: number }> {
+  const { rows } = await pool.query<{ delivered_to: number }>(
+    `INSERT INTO sent_message_keys (device_id, idempotency_key, delivered_to)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (device_id, idempotency_key) DO NOTHING
+     RETURNING delivered_to`,
+    [deviceId, key, deliveredTo],
+  );
+  if (rows[0]) return { firstTime: true, deliveredTo: rows[0].delivered_to };
+
+  const { rows: existing } = await pool.query<{ delivered_to: number }>(
+    'SELECT delivered_to FROM sent_message_keys WHERE device_id = $1 AND idempotency_key = $2',
+    [deviceId, key],
+  );
+  return { firstTime: false, deliveredTo: existing[0]?.delivered_to ?? 0 };
 }
 
 async function isBlockedBy(ownerId: string, candidateId: string): Promise<boolean> {
@@ -96,6 +131,17 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
         type: m.type,
         content: m.content,
       }));
+
+      if (body.idempotencyKey) {
+        const claim = await claimIdempotencyKey(deviceId, body.idempotencyKey, envelopes.length);
+        if (!claim.firstTime) {
+          // The first attempt got through; this is the retry that follows a
+          // connection the client lost before it heard the answer.
+          reply.code(202);
+          return { accepted: true, deliveredTo: claim.deliveredTo, duplicate: true };
+        }
+      }
+
       await delivery.enqueue(envelopes);
       reply.code(202);
       return { accepted: true, deliveredTo: envelopes.length };
@@ -105,7 +151,13 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
     app.post('/v1/messages/group/:groupId', requireAuth, async (request, reply) => {
       const { accountId, deviceId } = auth(request);
       const params = parse(z.object({ groupId: uuidSchema }), request.params);
-      const body = parse(z.object({ messages: z.array(perDeviceSchema).min(1).max(2048) }), request.body);
+      const body = parse(
+        z.object({
+          idempotencyKey: idempotencyKeySchema.optional(),
+          messages: z.array(perDeviceSchema).min(1).max(2048),
+        }),
+        request.body,
+      );
 
       const { rowCount: isMember } = await pool.query(
         `SELECT 1 FROM group_members m JOIN groups g ON g.id = m.group_id
@@ -147,6 +199,15 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
           type: m.type,
           content: m.content,
         }));
+
+      if (body.idempotencyKey) {
+        const claim = await claimIdempotencyKey(deviceId, body.idempotencyKey, envelopes.length);
+        if (!claim.firstTime) {
+          reply.code(202);
+          return { accepted: true, deliveredTo: claim.deliveredTo, duplicate: true };
+        }
+      }
+
       await delivery.enqueue(envelopes);
       reply.code(202);
       return { accepted: true, deliveredTo: envelopes.length };

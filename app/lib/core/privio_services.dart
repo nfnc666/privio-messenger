@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
+import '../media/voice_player.dart';
+import '../media/voice_recorder.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import 'api_client.dart';
@@ -18,6 +22,8 @@ class PrivioServices {
     required this.crypto,
     required this.messaging,
     required this.channels,
+    required this.recorder,
+    required this.player,
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
@@ -43,6 +49,8 @@ class PrivioServices {
       crypto: crypto,
       messaging: messaging,
       channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
+      recorder: PluginVoiceRecorder(),
+      player: JustAudioVoicePlayer(),
       store: InMemoryMessageStore(),
       secureStore: secureStore,
       archive: EncryptedMessageArchive(
@@ -56,11 +64,21 @@ class PrivioServices {
   final PrivioCrypto crypto;
   final MessagingService messaging;
   final ChannelService channels;
+
+  /// Recording and playback sit behind interfaces for the same reason the
+  /// keystore does: the whole voice-message path is testable without hardware,
+  /// and the one part that genuinely needs a microphone stays in one file.
+  final VoiceRecorder recorder;
+  final VoicePlayer player;
   final MessageStore store;
   final SecureStore secureStore;
 
   /// Where the decrypted history is kept between launches, sealed at rest.
   final MessageArchive archive;
 
-  void dispose() => api.close();
+  void dispose() {
+    unawaited(recorder.dispose());
+    unawaited(player.dispose());
+    api.close();
+  }
 }
