@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../core/conversation_controller.dart';
+import '../models/models.dart';
 import '../media/voice.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
@@ -33,6 +35,9 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final GlobalKey<VoiceComposerState> _voiceKey = GlobalKey<VoiceComposerState>();
 
+  /// The message the next send replies to, or null.
+  Message? _replyingTo;
+
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
@@ -54,9 +59,78 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty) return;
+    final replyTo = _replyingTo;
     _composer.clear();
-    await PrivioScope.of(context).conversations.send(widget.accountId, text);
+    setState(() => _replyingTo = null);
+    await PrivioScope.of(context)
+        .conversations
+        .send(widget.accountId, text, replyTo: replyTo);
     _scrollToEnd();
+  }
+
+  /// Long press on a bubble: react, or reply.
+  ///
+  /// One sheet for both, because they are the two things anyone wants to do to
+  /// a message that is already there — and a long press that opened a menu of
+  /// twelve would be a long press people stop using.
+  Future<void> _openMessageActions(AppState state, Message message) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: PrivioSpacing.gutter,
+                vertical: PrivioSpacing.md,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  for (final emoji in ConversationController.quickReactions)
+                    GestureDetector(
+                      onTap: () => Navigator.of(sheetContext).pop('react:$emoji'),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: state.conversations.accountId != null &&
+                                  message.reactions[state.conversations.accountId] == emoji
+                              ? PrivioColors.accentSurface
+                              : PrivioColors.surfaceRaised,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: PrivioColors.border),
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: const Text('Reply'),
+              onTap: () => Navigator.of(sheetContext).pop('reply'),
+            ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
+    if (action == 'reply') {
+      setState(() => _replyingTo = message);
+      return;
+    }
+    await state.conversations.react(
+      widget.accountId,
+      message,
+      action.substring('react:'.length),
+    );
   }
 
   /// Picks a file and sends it. The bytes are read into memory rather than
@@ -377,10 +451,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   itemCount: messages.length + 1,
                   itemBuilder: (context, index) {
                     if (index == 0) return const EncryptionNotice();
-                    return MessageBubble(message: messages[index - 1]);
+                    final message = messages[index - 1];
+                    return MessageBubble(
+                      message: message,
+                      onLongPress: () => _openMessageActions(state, message),
+                    );
                   },
                 ),
               ),
+              if (_replyingTo != null)
+                _ReplyBar(
+                  message: _replyingTo!,
+                  onCancel: () => setState(() => _replyingTo = null),
+                ),
               if (state.conversations.error != null)
                 _ErrorBanner(message: state.conversations.error!),
               // The recording strip lives inside the composer row rather than
@@ -642,3 +725,66 @@ class _TrailingAction extends StatelessWidget {
   }
 }
 
+
+/// The strip above the composer while a reply is being written.
+class _ReplyBar extends StatelessWidget {
+  const _ReplyBar({required this.message, required this.onCancel});
+
+  final Message message;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        PrivioSpacing.gutter,
+        PrivioSpacing.sm,
+        PrivioSpacing.sm,
+        PrivioSpacing.sm,
+      ),
+      decoration: const BoxDecoration(
+        color: PrivioColors.surface,
+        border: Border(
+          top: BorderSide(color: PrivioColors.border),
+          left: BorderSide(color: PrivioColors.accent, width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  switch ((message.isMine, message.senderName)) {
+                    (true, _) => 'Replying to yourself',
+                    // In a group the quote is meaningless without the name;
+                    // in a 1:1 chat the header already says who.
+                    (false, final String name) => 'Replying to $name',
+                    (false, null) => 'Replying',
+                  },
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: PrivioColors.accentBright,
+                  ),
+                ),
+                Text(
+                  ConversationController.previewOfMessage(message),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close_rounded, size: 20),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
+}

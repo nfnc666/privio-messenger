@@ -262,6 +262,14 @@ abstract final class ArchiveCodec {
                   if (message.expiresAt != null)
                     'expiresAt': message.expiresAt!.toIso8601String(),
                   if (message.clientId != null) 'clientId': message.clientId,
+                  if (message.replyToId != null) ...{
+                    'replyToId': message.replyToId,
+                    if (message.replyPreview != null)
+                      'replyPreview': message.replyPreview,
+                    if (message.replySender != null)
+                      'replySender': message.replySender,
+                  },
+                  if (message.reactions.isNotEmpty) 'reactions': message.reactions,
                   if (message.attachment != null)
                     'attachment': {
                       'mediaId': message.attachment!.mediaId,
@@ -313,6 +321,11 @@ abstract final class ArchiveCodec {
                 ? null
                 : DateTime.parse(message['expiresAt'] as String),
             clientId: message['clientId'] as String?,
+            replyToId: message['replyToId'] as String?,
+            replyPreview: message['replyPreview'] as String?,
+            replySender: message['replySender'] as String?,
+            reactions: (message['reactions'] as Map<String, dynamic>? ?? const {})
+                .map((key, value) => MapEntry(key, value as String)),
             attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
           ),
       ];

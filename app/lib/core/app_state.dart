@@ -202,7 +202,7 @@ class AppState extends ChangeNotifier {
   void _onSignedIn() {
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
-    final controller = conversations;
+    final controller = conversations..accountId = _accountId;
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());

@@ -167,6 +167,16 @@ abstract interface class MessageStore {
   /// read here — what a read receipt has to name.
   List<String> unreadClientIds(String id);
 
+  /// Records [emoji] from [accountId] on the message with [targetClientId], or
+  /// removes their reaction when [emoji] is empty. Returns whether anything
+  /// changed.
+  bool applyReaction({
+    required String conversationId,
+    required String targetClientId,
+    required String accountId,
+    required String emoji,
+  });
+
   /// Drops every message whose timer has run out. Returns how many went.
   int pruneExpired(DateTime now);
 
@@ -294,6 +304,34 @@ class InMemoryMessageStore implements MessageStore {
       changed++;
     }
     return changed;
+  }
+
+  @override
+  bool applyReaction({
+    required String conversationId,
+    required String targetClientId,
+    required String accountId,
+    required String emoji,
+  }) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return false;
+    final index =
+        conversation.messages.indexWhere((m) => m.clientId == targetClientId);
+    // A reaction to a message this device does not have — deleted, expired, or
+    // never received — is dropped. There is nothing to attach it to, and
+    // inventing a placeholder would be inventing a message.
+    if (index == -1) return false;
+
+    final message = conversation.messages[index];
+    final reactions = Map<String, String>.from(message.reactions);
+    if (emoji.isEmpty) {
+      if (reactions.remove(accountId) == null) return false;
+    } else {
+      if (reactions[accountId] == emoji) return false;
+      reactions[accountId] = emoji;
+    }
+    conversation.messages[index] = message.copyWith(reactions: reactions);
+    return true;
   }
 
   @override

@@ -80,6 +80,10 @@ class ConversationController extends ChangeNotifier {
   /// The last failure worth showing, or null. Cleared when the next call works.
   String? get error => _error;
 
+  /// This account's own id, told once at sign-in, so a reaction of mine can be
+  /// told apart from somebody else's on the same message.
+  String? accountId;
+
   bool get readReceiptsEnabled => _readReceipts;
   bool get typingIndicatorsEnabled => _typingIndicators;
 
@@ -334,7 +338,7 @@ class ConversationController extends ChangeNotifier {
   ///
   /// The message appears immediately as `sending` and only becomes `sent` once
   /// the server has taken it, so the UI never claims delivery it cannot back up.
-  Future<void> send(String conversationId, String text) async {
+  Future<void> send(String conversationId, String text, {Message? replyTo}) async {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null || text.trim().isEmpty) return;
 
@@ -351,6 +355,13 @@ class ConversationController extends ChangeNotifier {
         isMine: true,
         state: DeliveryState.sending,
         expiresAt: timer == null ? null : DateTime.now().add(timer),
+        replyToId: replyTo?.clientId,
+        replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
+        replySender: replyTo == null
+            ? null
+            : replyTo.isMine
+                ? 'You'
+                : replyTo.senderName ?? conversation.title,
       ),
     );
     notifyListeners();
@@ -362,6 +373,15 @@ class ConversationController extends ChangeNotifier {
       // Carried so a retry — this one's or the transport's — is recognisable as
       // the same message rather than delivered twice.
       clientId: clientId,
+      replyToId: replyTo?.clientId,
+      replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
+      // From the recipient's point of view: a reply to their own message should
+      // quote them by name, not tell them "You" wrote it.
+      replySender: replyTo == null
+          ? null
+          : replyTo.isMine
+              ? null
+              : 'You',
     );
 
     try {
@@ -548,6 +568,77 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+  }
+
+  // --- Replies and reactions ------------------------------------------------
+
+  /// The emoji offered on a long press. Six, because a picker of hundreds turns
+  /// a one-tap gesture into a decision.
+  static const List<String> quickReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  /// Reacts to a message, or takes the reaction back when it is already yours.
+  ///
+  /// Applied here first and sent after: a reaction that waits for the network
+  /// to round-trip feels broken, and the worst case is a reaction the other
+  /// side never hears about — which is what the next one will fix.
+  Future<void> react(String conversationId, Message target, String emoji) async {
+    final me = accountId;
+    final clientId = target.clientId;
+    if (me == null || clientId == null) return;
+
+    final chosen = target.reactions[me] == emoji ? '' : emoji;
+    _services.store.applyReaction(
+      conversationId: conversationId,
+      targetClientId: clientId,
+      accountId: me,
+      emoji: chosen,
+    );
+    _persist();
+    notifyListeners();
+
+    final payload = MessagePayload.reaction(reactionTo: clientId, reactionEmoji: chosen);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object {
+      // Left on screen deliberately: taking it back because the network failed
+      // would be a second surprise on top of the first.
+    }
+  }
+
+  void _applyReaction(String conversationId, String fromAccountId, MessagePayload payload) {
+    final changed = _services.store.applyReaction(
+      conversationId: conversationId,
+      targetClientId: payload.reactionTo!,
+      accountId: fromAccountId,
+      emoji: payload.reactionEmoji ?? '',
+    );
+    if (changed) {
+      _persist();
+      notifyListeners();
+    }
+  }
+
+  /// A short quote of [message], as it travels with a reply.
+  ///
+  /// Sent rather than looked up on the other side, because the original may
+  /// have been deleted there or expired on their timer.
+  static String previewOfMessage(Message message) {
+    if (message.body.isNotEmpty) {
+      return message.body.length <= 120 ? message.body : '${message.body.substring(0, 117)}…';
+    }
+    return switch (message.kind) {
+      MessageKind.voice => 'Voice message',
+      MessageKind.photo => 'Photo',
+      MessageKind.video => 'Video',
+      MessageKind.file => message.attachment?.fileName ?? 'File',
+      MessageKind.text => '',
+    };
   }
 
   // --- Receipts and typing --------------------------------------------------
@@ -938,6 +1029,14 @@ class ConversationController extends ChangeNotifier {
       _applyReceipt(incoming.senderAccountId, incoming.payload);
       return;
     }
+    if (incoming.payload.isReaction) {
+      _applyReaction(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.senderAccountId,
+        incoming.payload,
+      );
+      return;
+    }
     if (incoming.payload.isTyping) {
       // Someone who does not send typing notices does not see them either.
       if (_typingIndicators) _applyTyping(incoming.senderAccountId, incoming.payload);
@@ -1004,6 +1103,9 @@ class ConversationController extends ChangeNotifier {
       // The timer starts when it arrives here, from the sender's number. Both
       // sides run their own clock; neither asks the server.
       expiresAt: timer == null ? null : receivedAt.add(timer),
+      replyToId: payload.replyToId,
+      replyPreview: payload.replyPreview,
+      replySender: payload.replySender,
       attachment: payload.isMedia
           ? Attachment(
               mediaId: payload.mediaId!,
