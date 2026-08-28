@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 import 'about_screen.dart';
 import 'appearance_screen.dart';
 import 'backup_screen.dart';
 import 'devices_screen.dart';
+import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
 
@@ -54,6 +56,7 @@ class SettingsScreen extends StatelessWidget {
                 label: 'Backup',
                 onTap: () => open(const BackupScreen()),
               ),
+              const LicenseSettingsRow(),
               SettingsRow(
                 icon: Icons.visibility_off_outlined,
                 label: 'Disguise Mode',
@@ -70,6 +73,51 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The License row, which shows itself only where it means something.
+///
+/// A self-hosted server answers `required: false`, and then there is nothing to
+/// buy and no reason to put a payment prompt in front of someone.
+class LicenseSettingsRow extends StatefulWidget {
+  const LicenseSettingsRow({super.key});
+
+  @override
+  State<LicenseSettingsRow> createState() => _LicenseSettingsRowState();
+}
+
+class _LicenseSettingsRowState extends State<LicenseSettingsRow> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) PrivioScope.of(context).license.refresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final license = PrivioScope.of(context).license;
+
+    return ListenableBuilder(
+      listenable: license,
+      builder: (context, _) {
+        final status = license.status;
+        // Until the server has answered, and on deployments that do not sell
+        // access, the row stays out of the way.
+        if (status == null || !status.requiredByServer) return const SizedBox.shrink();
+
+        return SettingsRow(
+          icon: Icons.key_outlined,
+          label: 'License',
+          value: status.licensed ? 'Active' : 'Not activated',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const LicenseScreen()),
+          ),
+        );
+      },
     );
   }
 }
