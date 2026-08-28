@@ -1,4 +1,4 @@
-name: Code Quality & Coverage
+name: Code Quality
 
 on:
   push:
@@ -21,22 +21,13 @@ jobs:
           channel: 'stable'
 
       - name: Get dependencies
+        working-directory: ./app
         run: flutter pub get
 
       - name: Analyze code
+        working-directory: ./app
         run: flutter analyze
 
       - name: Check formatting
-        run: dart format --set-exit-if-changed . || true
-
-      - name: Run tests with coverage
-        run: flutter test --coverage || true
-
-      - name: Upload coverage to Codecov (optional)
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage/lcov.info
-          flags: flutter
-          name: flutter-coverage
-          fail_ci_if_error: false
+        working-directory: ./app
+        run: dart format --set-exit-if-changed .
