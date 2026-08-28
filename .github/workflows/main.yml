@@ -34,3 +34,7 @@ jobs:
       - name: Run tests
         working-directory: app
         run: flutter test
+
+      - name: Build iOS without signing
+        working-directory: app
+        run: flutter build ios --release --no-codesign
