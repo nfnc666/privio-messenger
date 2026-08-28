@@ -104,7 +104,7 @@ class PrivioEdition {
 
   static const String licenseSpdxId = 'AGPL-3.0-only';
   static const String licenseName = 'GNU Affero General Public License v3.0';
-  static const String sourceUrl = 'https://github.com/privio/privio-messenger';
+  static const String sourceUrl = 'https://github.com/nfnc666/privio-libre-open-source-fdroid';
 
   static const String _configured =
       String.fromEnvironment('PRIVIO_EDITION', defaultValue: 'libre');
