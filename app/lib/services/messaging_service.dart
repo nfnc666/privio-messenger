@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -74,6 +75,21 @@ class MessagingService {
 
   final PrivioApiClient _api;
   final PrivioCrypto _crypto;
+
+  /// The highest envelope id this device has already decrypted.
+  ///
+  /// Envelopes reach the app twice by design: the socket pushes one, and the
+  /// fallback poll fetches whatever is still unacknowledged, which includes
+  /// the envelope currently being decrypted. The ratchet refuses the second
+  /// copy — correctly, it cannot tell a redelivery from a replay — and the
+  /// user would be told a message they can plainly read did not decrypt. So
+  /// the redelivery is dropped here instead, before it reaches the ratchet.
+  int _handledThrough = 0;
+
+  /// Serialises the two delivery paths. Decryption moves the ratchet forward,
+  /// so two batches must never be inside it at once, whichever channel they
+  /// arrived on.
+  Future<void> _decrypting = Future<void>.value();
 
   /// Seals [plaintext] for every device [username] has, and sends it.
   ///
@@ -330,6 +346,24 @@ class MessagingService {
   }) async {
     if (envelopes.isEmpty) return const ReceiveResult([], [], false);
 
+    // Queue behind whatever batch is already in the ratchet, then take the
+    // turn. The completer is never completed with an error, so one failed
+    // batch cannot wedge the queue.
+    final previous = _decrypting;
+    final turn = Completer<void>();
+    _decrypting = turn.future;
+    try {
+      await previous;
+      return await _decryptBatch(envelopes, more: more);
+    } finally {
+      turn.complete();
+    }
+  }
+
+  Future<ReceiveResult> _decryptBatch(
+    List<dynamic> envelopes, {
+    required bool more,
+  }) async {
     final messages = <IncomingMessage>[];
     final failures = <UndecryptableMessage>[];
     var highestHandled = 0;
@@ -341,10 +375,17 @@ class MessagingService {
       final senderAccountId = envelope['senderAccountId'] as String?;
       final senderDeviceIndex = envelope['senderDeviceIndex'] as int?;
 
+      if (envelopeId <= _handledThrough) {
+        // Already opened on the other channel. It still counts as handled, so
+        // the acknowledgement moves past it rather than asking for it again.
+        highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
+        continue;
+      }
+
       if (type != 'prekey' && type != 'ciphertext') {
         // Receipts, typing and control envelopes are handled elsewhere; they
         // still count as processed so the queue drains.
-        highestHandled = envelopeId;
+        highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
         continue;
       }
 
@@ -356,7 +397,7 @@ class MessagingService {
             StateError('Envelope has no identifiable sender device'),
           ),
         );
-        highestHandled = envelopeId;
+        highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
         continue;
       }
 
@@ -381,9 +422,10 @@ class MessagingService {
         // acknowledge it and report it rather than blocking the queue forever.
         failures.add(UndecryptableMessage(envelopeId, senderAccountId, error));
       }
-      highestHandled = envelopeId;
+      highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
     }
 
+    if (highestHandled > _handledThrough) _handledThrough = highestHandled;
     return ReceiveResult(messages, failures, more, highestHandled: highestHandled);
   }
 

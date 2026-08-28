@@ -12,9 +12,12 @@ import 'voice_bubble.dart';
 /// Incoming bubbles sit on `surfaceRaised`, outgoing on `accentDim`, both with a
 /// squared corner on the tail side — the shape from the mockups.
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({required this.message, super.key});
+  const MessageBubble({required this.message, super.key, this.onLongPress});
 
   final Message message;
+
+  /// Opens the reply-and-react sheet. Null in places where neither applies.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,13 @@ class MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Column(
+          crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+      Container(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.sizeOf(context).width * 0.76,
         ),
@@ -48,6 +57,7 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (message.isReply) _QuotedMessage(message: message, mine: mine),
             if (message.senderName != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
@@ -92,6 +102,11 @@ class MessageBubble extends StatelessWidget {
                 ],
               ],
             ),
+          ],
+        ),
+      ),
+            if (message.reactions.isNotEmpty)
+              _Reactions(reactions: message.reactions, mine: mine),
           ],
         ),
       ),
@@ -273,6 +288,95 @@ class EncryptionNotice extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The quote above a reply.
+///
+/// Drawn from what travelled with the reply rather than looked up locally: the
+/// original may have been deleted here, or expired on this device's timer, and
+/// a reply that quotes nothing is a reply to nothing.
+class _QuotedMessage extends StatelessWidget {
+  const _QuotedMessage({required this.message, required this.mine});
+
+  final Message message;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: PrivioSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(PrivioSpacing.sm, 4, PrivioSpacing.sm, 4),
+      decoration: BoxDecoration(
+        color: (mine ? Colors.black : PrivioColors.background).withValues(alpha: 0.28),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        border: const Border(
+          left: BorderSide(color: PrivioColors.accent, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message.replySender ?? 'Reply',
+            style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accentBright),
+          ),
+          Text(
+            message.replyPreview ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The reaction chips under a bubble.
+///
+/// Grouped by emoji with a count, because five people agreeing is one fact and
+/// five chips would be five.
+class _Reactions extends StatelessWidget {
+  const _Reactions({required this.reactions, required this.mine});
+
+  final Map<String, String> reactions;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: mine ? 0 : PrivioSpacing.gutter + PrivioSpacing.sm,
+        right: mine ? PrivioSpacing.gutter + PrivioSpacing.sm : 0,
+        bottom: PrivioSpacing.xs,
+      ),
+      child: Wrap(
+        spacing: 4,
+        children: [
+          for (final entry in counts.entries)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: PrivioColors.surfaceHigh,
+                borderRadius: const BorderRadius.all(PrivioRadius.pill),
+                border: Border.all(color: PrivioColors.border),
+              ),
+              child: Text(
+                entry.value > 1 ? '${entry.key} ${entry.value}' : entry.key,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
