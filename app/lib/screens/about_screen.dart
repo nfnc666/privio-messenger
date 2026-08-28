@@ -67,7 +67,7 @@ class AboutScreen extends StatelessWidget {
                 label: 'Edition',
                 value: edition.isLibre ? '${edition.name} · free software' : edition.name,
               ),
-              SettingsRow(label: 'License', value: PrivioEdition.licenseSpdxId),
+              const SettingsRow(label: 'License', value: PrivioEdition.licenseSpdxId),
               SettingsRow(
                 label: 'Source code',
                 value: 'Copy link',

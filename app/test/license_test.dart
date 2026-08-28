@@ -33,9 +33,12 @@ void main() {
       // hand has to reach the server as the same 16 symbols it was minted as.
       expect(
         normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'),
-        normaliseLicenseKey('PRIVIO 0111V ABCD EFGH JKMN'),
+        normaliseLicenseKey('PRIVIO 011V ABCD EFGH JKMN'),
       );
-      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'), '0111VABCDEFGHJKMN');
+      // Four symbols in, four symbols out: O, I, L and U each fold to one
+      // character, so the body stays the 16 symbols it was minted as.
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'), '011VABCDEFGHJKMN');
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn').length, licenseKeyBodyLength);
     });
 
     test('strips the prefix before folding, so its own I and O survive', () {

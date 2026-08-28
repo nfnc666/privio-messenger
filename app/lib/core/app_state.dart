@@ -208,6 +208,8 @@ class AppState extends ChangeNotifier {
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
+    // Whether this server sells access is a property of the server, so it has
+    // to be asked rather than assumed. Never blocks the UI.
     unawaited(license.refresh());
   }
 
@@ -260,6 +262,8 @@ class AppState extends ChangeNotifier {
     services.store.clear();
     _channels?.dispose();
     _channels = null;
+    _license?.dispose();
+    _license = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -270,6 +274,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
     _license?.dispose();
