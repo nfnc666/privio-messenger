@@ -390,6 +390,42 @@ void main() {
     expect(second.messages, isEmpty, reason: 'nothing is redelivered');
   });
 
+  test('an envelope pushed and polled at once is opened once, not twice', () async {
+    await alice.messaging.sendToUser('bob', 'nur einmal');
+    // Exactly what happens on a live device: the socket pushes the envelope
+    // while the fallback poll is fetching everything not yet acknowledged.
+    final pushed = [...server.envelopes];
+
+    final push = bob.messaging.decryptEnvelopes(pushed);
+    final poll = bob.messaging.receive();
+    final results = await Future.wait([push, poll]);
+
+    final opened = [for (final result in results) ...result.messages];
+    final failed = [for (final result in results) ...result.failures];
+    expect(opened.single.body, 'nur einmal');
+    expect(
+      failed,
+      isEmpty,
+      reason: 'the second copy is a redelivery, not a message that would not open',
+    );
+  });
+
+  test('a redelivered envelope is acknowledged rather than reported', () async {
+    await alice.messaging.sendToUser('bob', 'zweimal zugestellt');
+    final pushed = [...server.envelopes];
+
+    await bob.messaging.decryptEnvelopes(pushed);
+    final again = await bob.messaging.decryptEnvelopes(pushed);
+
+    expect(again.messages, isEmpty);
+    expect(again.failures, isEmpty);
+    expect(
+      again.highestHandled,
+      pushed.single['id'],
+      reason: 'still acknowledged, or the server keeps offering it forever',
+    );
+  });
+
   test('a stale device list is refetched and the send retried once', () async {
     server.mismatchesToServe = 1;
 

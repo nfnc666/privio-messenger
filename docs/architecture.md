@@ -121,6 +121,16 @@ implements.
    with `DELETE /v1/messages?upTo=`. Delivery is at-least-once until that ack,
    so a crash mid-decrypt costs a duplicate, never a lost message.
 
+Because delivery is at-least-once and there are two channels, the same envelope
+does arrive twice in normal operation: the socket pushes it while the fallback
+poll is fetching everything not yet acknowledged. The ratchet refuses the second
+copy — it cannot tell a redelivery from a replay, and refusing is the right
+answer — so `MessagingService` drops it first: every batch queues behind the one
+currently in the ratchet, and an envelope whose id has already been opened is
+counted as handled without being decrypted again. Without that, a message the
+user could plainly read was reported as one that would not decrypt. Both halves
+are covered by tests in `app/test/messaging_service_test.dart`.
+
 Groups work the same way, with the fan-out list coming from
 `GET /v1/groups/:id/devices`.
 

@@ -136,9 +136,11 @@ abstract final class PrivioTheme {
     );
   }
 
-  /// Inter is the brand face; the platform defaults are close enough that a
-  /// missing font file degrades gracefully rather than breaking the layout.
-  static const String _fontFamily = 'Inter';
+  /// The face the app ships with, declared under a project name so the asset
+  /// in `assets/fonts/` is what actually renders. Naming a font the bundle does
+  /// not contain leaves the choice to the platform, and on the web it leaves it
+  /// to a font fetched from Google's CDN.
+  static const String _fontFamily = 'Privio';
 
   static TextTheme _textTheme() => const TextTheme(
         displaySmall: TextStyle(

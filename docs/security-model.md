@@ -350,6 +350,26 @@ moment, which is a finer-grained timing signal than messages alone. Turning
 typing indicators off removes it. This is worth stating because "it's
 encrypted" does not answer it.
 
+## Replies and reactions
+
+**A reaction is a sealed message like any other.** It carries the id of the
+message it applies to and one emoji, inside the same padded, per-device
+envelope. The server sees an envelope between two accounts and cannot tell a
+reaction from a sentence — the padding buckets make them the same size.
+
+**A reply carries its own copy of the quote.** The alternative — a pointer the
+server resolves — would hand the server the graph of which message answers
+which, on top of the traffic it already sees. Carrying the quoted line inside
+the sealed payload costs a few hundred bytes and keeps that graph on the
+devices. It also means a quote still renders where the other side has deleted
+the original.
+
+**A reaction to a message this device does not have is dropped.** Not rendered
+as a placeholder, not stored for later. A bubble conjured out of a control
+message is a message the app did not receive and cannot show the contents of,
+and inventing one is a way for a server that reorders or replays envelopes to
+put marks in someone's chat.
+
 ## Backup
 
 **The server holds bytes it cannot open.** A backup is sealed on the device with
@@ -434,7 +454,16 @@ naming what is missing today.
    Registering the domains, confirming both TLDs are available, and shipping a
    `privio://` deep link beside them is a launch task; each host is one
    constant, `ChannelService.channelLinkHost` and `groupLinkHost`.
-10. **No independent audit.** Before any public release, the crypto integration
+10. **The web build still fetches emoji glyphs from Google.** The renderer and
+    the typeface now ship inside the build, so a page load announces itself to
+    nobody — but emoji are not in the bundled font, and CanvasKit asks Google's
+    font CDN for the glyphs it lacks. That is a request naming the viewer's
+    address at the moment they open a chat containing an emoji. The fix is a
+    bundled emoji font, which costs ~10 MB; the iOS and Android builds are
+    unaffected because the system supplies emoji, and that is the target
+    platform. Worth re-checking on a real device, where the reaction chips are
+    the first place a missing emoji font would show.
+11. **No independent audit.** Before any public release, the crypto integration
     needs review by someone who was not involved in writing it.
 
 ## Reporting a vulnerability

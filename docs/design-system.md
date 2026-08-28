@@ -56,7 +56,13 @@ switch; the product is designed dark-first and the mockups are all dark.
 
 ## Typography
 
-- **Family:** Inter (fallback: SF Pro on iOS, Roboto on Android).
+- **Family:** the app ships its own face rather than naming one and hoping the
+  platform has it. It is declared as `Privio` in `pubspec.yaml` and backed by
+  Roboto (Apache-2.0) in `app/assets/fonts` — regular, medium and bold. The
+  mockups were drawn in Inter; the two are close enough at these sizes that the
+  layout is unchanged, and shipping the file is what stops a web build from
+  fetching a fallback font from Google's CDN on first paint. Swapping in a
+  licensed Inter later is three files and one line.
 - **Scale:** display 32/38 semibold · title 22/28 semibold · headline 17/22
   semibold · body 15/20 regular · label 13/16 medium · caption 11/14 regular.
 - Numerals in the PIN pad and the calculator are tabular; nothing else is.
