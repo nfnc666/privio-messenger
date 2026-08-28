@@ -6,6 +6,7 @@ import 'api_client.dart';
 import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'license_controller.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
 
@@ -32,6 +33,7 @@ class AppState extends ChangeNotifier {
   PrivioServices? _services;
   ConversationController? _conversations;
   ChannelController? _channels;
+  LicenseController? _license;
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -65,6 +67,8 @@ class AppState extends ChangeNotifier {
   }
 
   ChannelController get channels => _channels ??= ChannelController(services);
+
+  LicenseController get license => _license ??= LicenseController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and finds out
@@ -202,6 +206,9 @@ class AppState extends ChangeNotifier {
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
+    // Whether this server sells access is a property of the server, so it has
+    // to be asked rather than assumed. Never blocks the UI.
+    unawaited(license.refresh());
   }
 
   // --- Lock -----------------------------------------------------------------
@@ -253,6 +260,8 @@ class AppState extends ChangeNotifier {
     services.store.clear();
     _channels?.dispose();
     _channels = null;
+    _license?.dispose();
+    _license = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -263,6 +272,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
     _services?.dispose();

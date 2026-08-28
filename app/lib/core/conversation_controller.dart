@@ -376,7 +376,14 @@ class ConversationController extends ChangeNotifier {
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
-      _error = failure is ApiException ? failure.message : 'Could not send message';
+      _error = switch (failure) {
+        // The one send failure the user can do something about, so it says
+        // what rather than repeating the server's wording.
+        ApiException(code: 'license_required') =>
+          'Activate your license in Settings to send messages.',
+        ApiException(:final message) => message,
+        _ => 'Could not send message',
+      };
     }
     notifyListeners();
   }
