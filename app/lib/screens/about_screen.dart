@@ -1,16 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../core/edition.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_logo.dart';
 import '../widgets/settings_row.dart';
 
 /// Screen 22: about.
+///
+/// Also where this build says what it is. Which edition, under which licence,
+/// built from which source — the three things someone needs to check that the
+/// app on their phone is the app this repository describes.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  static const _version = '0.1.0 (1)';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final edition = PrivioEdition.current;
+
+    Future<void> copy(String label, String value) async {
+      await Clipboard.setData(ClipboardData(text: value));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$label copied.')),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('About Privio')),
@@ -21,7 +38,10 @@ class AboutScreen extends StatelessWidget {
           const Center(child: PrivioWordmark(markSize: 72, glow: false)),
           const SizedBox(height: PrivioSpacing.sm),
           Center(
-            child: Text('Version 0.1.0 (1)', style: theme.textTheme.bodySmall),
+            child: Text(
+              '${edition.name} $_version',
+              style: theme.textTheme.bodySmall,
+            ),
           ),
           const SizedBox(height: PrivioSpacing.md),
           Center(
@@ -34,15 +54,67 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.xxl),
           SettingsSection(
             children: [
-              SettingsRow(label: 'Website', onTap: () {}),
-              SettingsRow(label: 'Support', onTap: () {}),
+              SettingsRow(label: 'Website', onTap: () => copy('Website', 'https://privio.com')),
+              SettingsRow(label: 'Support', onTap: () => copy('Address', 'support@privio.com')),
               SettingsRow(label: 'Terms of Service', onTap: () {}),
               SettingsRow(label: 'Privacy Policy', onTap: () {}),
-              SettingsRow(label: 'Open Source Licenses', onTap: () {}),
             ],
+          ),
+          SettingsSection(
+            caption: 'Open source',
+            children: [
+              SettingsRow(
+                label: 'Edition',
+                value: edition.isLibre ? '${edition.name} · free software' : edition.name,
+              ),
+              SettingsRow(label: 'License', value: PrivioEdition.licenseSpdxId),
+              SettingsRow(
+                label: 'Source code',
+                value: 'Copy link',
+                onTap: () => copy('Source link', PrivioEdition.sourceUrl),
+              ),
+              SettingsRow(
+                label: 'Third-party licenses',
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: edition.name,
+                  applicationVersion: _version,
+                  applicationLegalese: '© 2026 Privio · ${PrivioEdition.licenseName}',
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              PrivioSpacing.gutter + PrivioSpacing.xs,
+              PrivioSpacing.md,
+              PrivioSpacing.gutter + PrivioSpacing.xs,
+              0,
+            ),
+            child: _SourceNote(),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SourceNote extends StatelessWidget {
+  const _SourceNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final edition = PrivioEdition.current;
+    final theme = Theme.of(context);
+
+    return Text(
+      edition.isLibre
+          ? 'This build contains no proprietary code and can be reproduced from '
+              'the source above. Nothing here has to be taken on trust — build it '
+              'yourself and compare.'
+          : 'This build came from an app store and links that store\'s services. '
+              'The Libre build, at the source above, contains none of them.',
+      style: theme.textTheme.labelSmall,
     );
   }
 }

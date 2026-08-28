@@ -88,6 +88,10 @@ That split is deliberate. An unlicensed user can still reach their account and
 activate it, and messages that were already delivered never become unreadable
 because of a billing state.
 
+The app collects the key on its activation screen
+(`app/lib/screens/license_screen.dart`) and shows what the server answered.
+That screen is a courier, not a gate.
+
 **Client-side checks are cosmetic.** Privio Libre is open source; anyone can
 build it with the license screen removed. Only the server refusing service
 enforces anything, which is why the gate is a `preHandler` here and not a

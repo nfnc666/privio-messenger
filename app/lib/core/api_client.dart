@@ -371,6 +371,19 @@ class PrivioApiClient {
         'token': token,
       },);
 
+  // --- Licensing ------------------------------------------------------------
+
+  /// What this account's license looks like from the server's side.
+  ///
+  /// `required` is the field that matters most: a self-hosted deployment
+  /// answers false, and a client that sees it must not ask anyone for a key.
+  Future<Map<String, dynamic>> licenseStatus() => _send('GET', '/v1/licenses/me');
+
+  /// Redeems a key for the signed-in account. Rate limited hard on the server:
+  /// the key is the only credential, so guessing must never be cheap.
+  Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
+      _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
+
   // --- Media and backup -----------------------------------------------------
 
   /// Uploads bytes that are already encrypted; returns the object id to put in

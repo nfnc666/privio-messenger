@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../media/voice.dart';
+import 'license_screen.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -382,7 +383,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ),
               ),
               if (state.conversations.error != null)
-                _ErrorBanner(message: state.conversations.error!),
+                _ErrorBanner(
+                  message: state.conversations.error!,
+                  // The server refuses to relay for an unlicensed account, so
+                  // a send that failed while one is unactivated has somewhere
+                  // to go rather than just a red line.
+                  onActivate: state.license.needsActivation
+                      ? () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(builder: (_) => const LicenseScreen()),
+                          )
+                      : null,
+                ),
               // The recording strip lives inside the composer row rather than
               // replacing it. The microphone that started the hold has to stay
               // mounted, or the release never arrives.
@@ -432,9 +443,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+  const _ErrorBanner({required this.message, this.onActivate});
 
   final String message;
+
+  /// Set only when the failure is one activating a license would fix.
+  final VoidCallback? onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -445,9 +459,17 @@ class _ErrorBanner extends StatelessWidget {
         horizontal: PrivioSpacing.gutter,
         vertical: PrivioSpacing.sm,
       ),
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
+            ),
+          ),
+          if (onActivate != null)
+            TextButton(onPressed: onActivate, child: const Text('Activate')),
+        ],
       ),
     );
   }

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 import 'about_screen.dart';
 import 'appearance_screen.dart';
 import 'backup_screen.dart';
 import 'devices_screen.dart';
+import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
 
@@ -15,6 +17,8 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = PrivioScope.of(context);
+
     void open(Widget screen) => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => screen),
         );
@@ -61,6 +65,15 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () {},
               ),
               SettingsRow(icon: Icons.language_rounded, label: 'Language', value: 'English', onTap: () {}),
+              // Only where there is something to activate. A self-hosted
+              // server says it requires no license, and this row goes away.
+              if (state.license.isOffered)
+                SettingsRow(
+                  icon: Icons.key_outlined,
+                  label: 'Privio License',
+                  value: state.license.needsActivation ? 'Not active' : null,
+                  onTap: () => open(const LicenseScreen()),
+                ),
               SettingsRow(
                 icon: Icons.info_outline_rounded,
                 label: 'About Privio',
