@@ -1,110 +1,103 @@
 import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
+import 'edition.dart';
+import 'license_key.dart';
 
 /// What the server says about this account's license.
+///
+/// [enforced] comes from the server, not from the build: a self-hosted
+/// deployment answers false and no key is ever asked for. A license for
+/// infrastructure you already own would mean nothing.
 @immutable
-class LicenseStatus {
-  const LicenseStatus({
+class LicenseState {
+  const LicenseState({
     required this.licensed,
-    required this.requiredByServer,
+    required this.enforced,
     this.source,
     this.redeemedAt,
   });
 
-  /// This account holds an active license.
-  final bool licensed;
-
-  /// Whether this server sells access at all. False on a self-hosted
-  /// deployment, where a licence for infrastructure you already run would mean
-  /// nothing — and the app then has no business asking for a key.
-  final bool requiredByServer;
-
-  /// 'key' for a website purchase, 'apple' or 'google' for a store purchase.
-  final String? source;
-  final DateTime? redeemedAt;
-
-  /// Nothing to do: either the server does not ask, or this account has paid.
-  bool get settled => !requiredByServer || licensed;
-
-  factory LicenseStatus.fromJson(Map<String, dynamic> json) {
-    final redeemedAt = json['redeemedAt'];
-    return LicenseStatus(
-      licensed: json['licensed'] == true,
-      requiredByServer: json['required'] == true,
+  factory LicenseState.fromJson(Map<String, dynamic> json, {bool? fallback}) {
+    final at = json['redeemedAt'] as String?;
+    return LicenseState(
+      licensed: json['licensed'] as bool? ?? false,
+      enforced: json['required'] as bool? ?? fallback ?? false,
       source: json['source'] as String?,
-      redeemedAt: redeemedAt is String ? DateTime.tryParse(redeemedAt) : null,
+      redeemedAt: at == null ? null : DateTime.tryParse(at),
     );
   }
+
+  final bool licensed;
+
+  /// Whether this server requires a license at all. Named for what it does,
+  /// rather than after the `required` field on the wire, which would sit badly
+  /// next to Dart's own `required`.
+  final bool enforced;
+
+  /// How it was paid for: `key`, `apple` or `google`.
+  final String? source;
+
+  final DateTime? redeemedAt;
+
+  /// The one state that needs the user to do something.
+  bool get needsActivation => enforced && !licensed;
 }
 
-/// Formats a key the way it is printed, without changing what is sent.
+/// Activation, and the state the activation screen renders.
 ///
-/// The server folds case, separators and the Crockford aliases itself, so this
-/// is only so that what the user sees while typing matches what they are
-/// copying from.
-String formatLicenseKey(String input) {
-  final body = input
-      .toUpperCase()
-      .replaceAll(RegExp('[^0-9A-Z]'), '')
-      .replaceFirst(RegExp('^PRIVIO'), '');
-
-  final groups = <String>[];
-  for (var i = 0; i < body.length && groups.length < 4; i += 4) {
-    groups.add(body.substring(i, i + 4 > body.length ? body.length : i + 4));
-  }
-
-  if (groups.isEmpty) return input.isEmpty ? '' : 'PRIVIO-';
-  return 'PRIVIO-${groups.join('-')}';
-}
-
-/// Drives the license screen and the settings row.
-///
-/// Deliberately thin: the client never decides whether anyone is licensed. It
-/// asks, it shows the answer, and it turns error codes into sentences.
+/// Nothing here enforces anything. Privio Libre is open source and can be
+/// built with this screen deleted, so the client only ever *reports* what the
+/// server already decided — the gate is a preHandler on the server, and that is
+/// the only place it can honestly live.
 class LicenseController extends ChangeNotifier {
   LicenseController(this._api);
 
   final PrivioApiClient _api;
 
-  LicenseStatus? _status;
-  bool _busy = false;
+  LicenseState? _state;
   String? _error;
+  bool _busy = false;
 
-  LicenseStatus? get status => _status;
-  bool get busy => _busy;
+  /// Null until the first successful fetch. Rendering "unlicensed" before the
+  /// server has answered would accuse a paying user of not having paid.
+  LicenseState? get state => _state;
+
   String? get error => _error;
 
-  /// True only once the server has actually said so.
-  bool get licensed => _status?.licensed ?? false;
+  bool get busy => _busy;
 
-  /// Whether to offer the license screen at all.
-  bool get shouldPrompt => _status != null && !_status!.settled;
+  /// Whether to put a license entry in front of the user at all.
+  ///
+  /// Before the first answer, fall back to what this build was made for: the
+  /// store editions are paid for in the store and have nothing to activate.
+  bool get isOffered {
+    final state = _state;
+    if (state == null) return PrivioEdition.current.usesLicenseKey;
+    return state.enforced || state.licensed;
+  }
 
+  /// True once the server has said this account has to activate something.
+  bool get needsActivation => _state?.needsActivation ?? false;
+
+  /// Re-reads the license. Never throws: this runs unprompted after sign-in,
+  /// and a licensing hiccup must not be what stops someone reading their
+  /// messages.
   Future<void> refresh() async {
     try {
-      _status = LicenseStatus.fromJson(await _api.licenseStatus());
+      final body = await _api.licenseStatus();
+      _state = LicenseState.fromJson(body);
       _error = null;
-    } on ApiException catch (failure) {
-      // An older server without the endpoint is not an error worth showing:
-      // it simply does not require a license.
-      if (failure.statusCode == 404) {
-        _status = const LicenseStatus(licensed: false, requiredByServer: false);
-        _error = null;
-      } else {
-        _error = explain(failure);
-      }
     } on Object {
-      _error = 'Could not reach Privio. Check your connection.';
+      // Leave the last known state in place. Offline is not unlicensed.
     }
     notifyListeners();
   }
 
-  /// Redeems a key. Returns whether the account came out licensed.
-  Future<bool> redeem(String licenseKey) async {
-    final key = licenseKey.trim();
-    if (key.isEmpty) {
-      _error = 'Enter your license key.';
+  /// Redeems a key. Returns true only when the account came back licensed.
+  Future<bool> redeem(String key) async {
+    if (!isWellFormedLicenseKey(key)) {
+      _error = 'That key is not complete. It looks like $licenseKeyFormat.';
       notifyListeners();
       return false;
     }
@@ -114,19 +107,16 @@ class LicenseController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _api.redeemLicense(key);
-      _status = LicenseStatus(
-        licensed: result['licensed'] == true,
-        requiredByServer: _status?.requiredByServer ?? true,
-        source: result['source'] as String?,
-        redeemedAt: DateTime.tryParse(result['redeemedAt'] as String? ?? ''),
-      );
-      return licensed;
+      // The server normalises too; sending the canonical form keeps what is
+      // logged on the way (nothing, deliberately) identical to what is stored.
+      final body = await _api.redeemLicense(formatLicenseKey(key));
+      _state = LicenseState.fromJson(body, fallback: _state?.enforced ?? true);
+      return _state?.licensed ?? false;
     } on ApiException catch (failure) {
-      _error = explain(failure);
+      _error = _explain(failure);
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection.';
+      _error = 'Could not reach Privio. Check your connection and try again.';
       return false;
     } finally {
       _busy = false;
@@ -140,20 +130,18 @@ class LicenseController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Server error codes turned into something a person can act on.
-  static String explain(ApiException failure) => switch (failure.code) {
-        'license_not_found' =>
-          'That key does not exist. Check it for typos — the groups matter, '
-              'but upper and lower case do not.',
+  /// Server error codes, said in words someone can act on.
+  ///
+  /// `license_already_redeemed` is the one that matters: a key belongs to one
+  /// account for good, so the honest answer is that it is gone, not that they
+  /// should try again.
+  static String _explain(ApiException failure) => switch (failure.code) {
+        'license_not_found' => 'No license matches that key. Check it and try again.',
         'license_already_redeemed' =>
-          'That key has already been used on another account. A key can only '
-              'be activated once.',
-        'license_revoked' =>
-          'That key was revoked, usually because the payment was reversed. '
-              'Contact support with your order reference.',
+          'That key has already been used by another account. A key can only be redeemed once.',
+        'license_revoked' => 'That license was revoked. Contact support if you paid for it.',
         'account_already_licensed' =>
-          'This account already has an active license. Keep the new key — it '
-              'has not been used.',
+          'This account already has a license, so the key you entered has not been used.',
         'rate_limited' => 'Too many attempts. Wait a few minutes and try again.',
         'invalid_request' => 'That does not look like a Privio license key.',
         _ => failure.message,

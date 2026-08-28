@@ -11,6 +11,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
 <img src="https://img.shields.io/badge/tests-256%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
 
@@ -470,8 +471,15 @@ Requirements: Flutter 3.22+.
 ```bash
 cd app
 flutter pub get
-flutter run
+
+# The client ships as flavours now, so `flutter run` needs one.
+# 10.0.2.2 is how an Android emulator reaches the host's localhost.
+flutter run --flavor libre --dart-define=PRIVIO_EDITION=libre \
+  --dart-define=PRIVIO_API_URL=http://10.0.2.2:8080
 ```
+
+The editions and what separates them are in
+[`app/README.md`](app/README.md).
 
 ### Tests
 
@@ -604,6 +612,34 @@ Disguise mode · Wipe code
 
 ---
 
+## Open source
+
+Privio is free software under **AGPL-3.0** — the client and the server both.
+Run it, read it, change it, redistribute it. If you run a modified server for
+other people, section 13 means those people are entitled to your changes; that
+network clause is the reason for AGPL rather than GPL, in a project whose whole
+argument is that you should not have to trust the operator.
+
+**Privio Libre** is the build with nothing proprietary in it: no Play services,
+no Firebase, no analytics, no push SDK. It is a Gradle flavour, so the
+guarantee is enforced by the build rather than remembered — see
+[`docs/privio-libre.md`](docs/privio-libre.md). F-Droid builds it from
+[privio-libre-open-source-fdroid](https://github.com/nfnc666/privio-libre-open-source-fdroid).
+
+A license key is a different thing from the licence: it pays for the hosted
+relay, is redeemed once, and belongs to one account for good. It does not
+unlock the app — you already have all of the app. Self-hosted servers require
+no key at all.
+
+| | |
+| --- | --- |
+| [LICENSE](LICENSE) | AGPL-3.0, in full |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to propose a change |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | What the project spaces expect |
+| [SECURITY.md](SECURITY.md) | Where a vulnerability goes, and what happens next |
+
+---
+
 ## Contributing rules that are not negotiable
 
 1. **No custom cryptography.** Use audited implementations of established
@@ -623,6 +659,7 @@ Disguise mode · Wipe code
 | [Security model](docs/security-model.md) | What is protected, what is not, and what is still missing |
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
+| [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
 
 <div align="center">
 <br>

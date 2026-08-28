@@ -68,6 +68,8 @@ class AppState extends ChangeNotifier {
 
   ChannelController get channels => _channels ??= ChannelController(services);
 
+  /// Activation state. Created lazily like the others, and refreshed on sign-in
+  /// so the settings entry knows whether it has anything to say.
   LicenseController get license => _license ??= LicenseController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
@@ -275,6 +277,7 @@ class AppState extends ChangeNotifier {
     _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
+    _license?.dispose();
     _services?.dispose();
     super.dispose();
   }

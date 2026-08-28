@@ -121,18 +121,6 @@ class PrivioApiClient {
 
   Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
-  // --- License --------------------------------------------------------------
-
-  /// Whether this account is licensed, and whether this server asks for one at
-  /// all. A self-hosted deployment answers `required: false`, which is how the
-  /// app knows not to ask for a key nobody there needs.
-  Future<Map<String, dynamic>> licenseStatus() => _send('GET', '/v1/licenses/me');
-
-  /// Binds a license key to this account. The server decides; the client only
-  /// carries the key there and reports back what it said.
-  Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
-      _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
-
   // --- Contacts -------------------------------------------------------------
 
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
@@ -382,6 +370,19 @@ class PrivioApiClient {
         'provider': provider,
         'token': token,
       },);
+
+  // --- Licensing ------------------------------------------------------------
+
+  /// What this account's license looks like from the server's side.
+  ///
+  /// `required` is the field that matters most: a self-hosted deployment
+  /// answers false, and a client that sees it must not ask anyone for a key.
+  Future<Map<String, dynamic>> licenseStatus() => _send('GET', '/v1/licenses/me');
+
+  /// Redeems a key for the signed-in account. Rate limited hard on the server:
+  /// the key is the only credential, so guessing must never be cheap.
+  Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
+      _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
 
   // --- Media and backup -----------------------------------------------------
 

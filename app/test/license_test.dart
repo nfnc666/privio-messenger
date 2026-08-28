@@ -4,188 +4,216 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:privio/core/api_client.dart';
+import 'package:privio/core/edition.dart';
 import 'package:privio/core/license_controller.dart';
+import 'package:privio/core/license_key.dart';
 
-/// Builds a controller over a client that answers with [body] and [status].
-({LicenseController license, List<http.BaseRequest> seen}) harness({
-  required Object body,
-  int status = 200,
-}) {
-  final seen = <http.BaseRequest>[];
-  final api = PrivioApiClient(
-    baseUrl: Uri.parse('https://api.test'),
-    client: MockClient((request) async {
-      seen.add(request);
-      return http.Response(
-        jsonEncode(body),
-        status,
-        headers: {'content-type': 'application/json'},
-      );
-    }),
-  )..useToken('token');
+PrivioApiClient _client(
+  http.Response Function(http.Request request) respond, {
+  List<http.Request>? seen,
+}) =>
+    PrivioApiClient(
+      baseUrl: Uri.parse('https://api.test'),
+      client: MockClient((request) async {
+        seen?.add(request);
+        return respond(request);
+      }),
+    )..useToken('token');
 
-  return (license: LicenseController(api), seen: seen);
-}
+http.Response _json(Object body, [int status = 200]) => http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
 
 void main() {
-  group('license status', () {
-    test('reads what the server says', () async {
-      final h = harness(
-        body: const {
-          'licensed': true,
-          'required': true,
-          'source': 'key',
-          'redeemedAt': '2026-05-25T10:00:00.000Z',
-        },
-      );
-
-      await h.license.refresh();
-
-      expect(h.license.licensed, isTrue);
-      expect(h.license.status!.requiredByServer, isTrue);
-      expect(h.license.status!.source, 'key');
-      expect(h.license.status!.redeemedAt, isNotNull);
-      expect(h.license.shouldPrompt, isFalse, reason: 'nothing left to do');
-      expect(h.seen.single.url.path, '/v1/licenses/me');
-    });
-
-    test('asks for a key only where the server sells access', () async {
-      final selfHosted = harness(body: const {'licensed': false, 'required': false});
-      await selfHosted.license.refresh();
-
-      expect(selfHosted.license.status!.settled, isTrue);
+  group('key normalisation', () {
+    test('folds case, separators and the Crockford aliases', () {
+      // O -> 0, I and L -> 1, U -> V. A key read off a screen and typed by
+      // hand has to reach the server as the same 16 symbols it was minted as.
       expect(
-        selfHosted.license.shouldPrompt,
-        isFalse,
-        reason: 'a licence for your own server would mean nothing',
+        normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'),
+        normaliseLicenseKey('PRIVIO 011V ABCD EFGH JKMN'),
       );
-
-      final hosted = harness(body: const {'licensed': false, 'required': true});
-      await hosted.license.refresh();
-
-      expect(hosted.license.shouldPrompt, isTrue);
+      // Four symbols in, four symbols out: O, I, L and U each fold to one
+      // character, so the body stays the 16 symbols it was minted as.
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'), '011VABCDEFGHJKMN');
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn').length, licenseKeyBodyLength);
     });
 
-    test('treats a server without the endpoint as one that does not require a license', () async {
-      final h = harness(
-        body: const {'error': 'not_found', 'message': 'No such endpoint'},
-        status: 404,
+    test('strips the prefix before folding, so its own I and O survive', () {
+      // "PRIVIO" contains an I and an O. Folding first would turn the prefix
+      // into "PR1V10" and leave two stray symbols in the body.
+      expect(normaliseLicenseKey('PRIVIO-2345-6789-ABCD-EFGH').length, licenseKeyBodyLength);
+    });
+
+    test('a key without the prefix normalises the same way', () {
+      expect(
+        normaliseLicenseKey('2345-6789-ABCD-EFGH'),
+        normaliseLicenseKey('PRIVIO-2345-6789-ABCD-EFGH'),
       );
+    });
+  });
 
-      await h.license.refresh();
-
-      expect(h.license.status!.requiredByServer, isFalse);
-      expect(h.license.error, isNull, reason: 'an older server is not a failure to report');
+  group('shape check', () {
+    test('accepts a full key however it was typed', () {
+      expect(isWellFormedLicenseKey('privio 2345 6789 abcd efgh'), isTrue);
+      expect(isWellFormedLicenseKey('PRIVIO-2345-6789-ABCD-EFGH'), isTrue);
     });
 
-    test('never claims a license the server did not confirm', () async {
-      final h = harness(body: const {'error': 'internal_error', 'message': 'boom'}, status: 500);
-
-      await h.license.refresh();
-
-      expect(h.license.licensed, isFalse);
-      expect(h.license.error, isNotNull);
+    test('rejects anything that is not 16 symbols', () {
+      expect(isWellFormedLicenseKey(''), isFalse);
+      expect(isWellFormedLicenseKey('PRIVIO-2345-6789-ABCD-EFG'), isFalse);
+      expect(isWellFormedLicenseKey('PRIVIO-2345-6789-ABCD-EFGHJ'), isFalse);
     });
+  });
+
+  test('formatting groups the body and puts the prefix back', () {
+    expect(formatLicenseKey('23456789abcdefgh'), 'PRIVIO-2345-6789-ABCD-EFGH');
+    expect(formatLicenseKey('2345'), 'PRIVIO-2345');
+    expect(formatLicenseKey(''), '');
   });
 
   group('redeeming', () {
-    test('sends the key and takes the answer as final', () async {
-      final h = harness(
-        body: const {'licensed': true, 'source': 'key', 'redeemedAt': '2026-05-25T10:00:00.000Z'},
+    test('an incomplete key is refused before it reaches the server', () async {
+      // Redemption is rate limited to five attempts. A typo must not spend one.
+      final seen = <http.Request>[];
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': true}), seen: seen),
       );
 
-      final activated = await h.license.redeem('PRIVIO-A1B2-C3D4-E5F6-G7H8');
-
-      expect(activated, isTrue);
-      expect(h.license.licensed, isTrue);
-
-      final request = h.seen.single as http.Request;
-      expect(request.method, 'POST');
-      expect(request.url.path, '/v1/licenses/redeem');
-      expect(jsonDecode(request.body), {'licenseKey': 'PRIVIO-A1B2-C3D4-E5F6-G7H8'});
+      expect(await license.redeem('PRIVIO-2345'), isFalse);
+      expect(seen, isEmpty);
+      expect(license.error, contains('not complete'));
     });
 
-    test('does not call the server with an empty field', () async {
-      final h = harness(body: const {'licensed': true});
-
-      expect(await h.license.redeem('   '), isFalse);
-      expect(h.seen, isEmpty);
-      expect(h.license.error, 'Enter your license key.');
-    });
-
-    test('explains each refusal in words the user can act on', () async {
-      const cases = {
-        'license_not_found': 'does not exist',
-        'license_already_redeemed': 'already been used',
-        'license_revoked': 'revoked',
-        'account_already_licensed': 'already has an active license',
-        'rate_limited': 'Too many attempts',
-      };
-
-      for (final entry in cases.entries) {
-        final h = harness(
-          body: {'error': entry.key, 'message': 'raw server wording'},
-          status: 409,
-        );
-
-        expect(await h.license.redeem('PRIVIO-AAAA-AAAA-AAAA-AAAA'), isFalse);
-        expect(h.license.error, contains(entry.value), reason: entry.key);
-        expect(h.license.licensed, isFalse);
-      }
-    });
-
-    test('a rejected key leaves the account unlicensed rather than assuming', () async {
-      final h = harness(body: const {'licensed': false}, status: 200);
-
-      expect(await h.license.redeem('PRIVIO-AAAA-AAAA-AAAA-AAAA'), isFalse);
-      expect(h.license.licensed, isFalse);
-    });
-
-    test('clears the busy flag even when the call throws', () async {
-      final api = PrivioApiClient(
-        baseUrl: Uri.parse('https://api.test'),
-        client: MockClient((_) async => throw const SocketExceptionStub()),
+    test('a redeemed key leaves the account licensed', () async {
+      final seen = <http.Request>[];
+      final license = LicenseController(
+        _client(
+          (_) => _json(const {
+            'licensed': true,
+            'source': 'key',
+            'redeemedAt': '2026-08-28T10:00:00.000Z',
+          }),
+          seen: seen,
+        ),
       );
-      final license = LicenseController(api);
 
-      expect(await license.redeem('PRIVIO-AAAA-AAAA-AAAA-AAAA'), isFalse);
-      expect(license.busy, isFalse);
-      expect(license.error, contains('Could not reach Privio'));
+      expect(await license.redeem('privio 2345 6789 abcd efgh'), isTrue);
+      expect(license.state?.licensed, isTrue);
+      expect(license.error, isNull);
+
+      // The canonical form goes on the wire, whatever was typed.
+      expect(
+        jsonDecode(seen.single.body),
+        {'licenseKey': 'PRIVIO-2345-6789-ABCD-EFGH'},
+      );
+    });
+
+    test('a key someone else already used says so, and says it is final', () async {
+      final license = LicenseController(
+        _client(
+          (_) => _json(
+            const {'error': 'license_already_redeemed', 'message': 'This key has already been used'},
+            409,
+          ),
+        ),
+      );
+
+      expect(await license.redeem('PRIVIO-2345-6789-ABCD-EFGH'), isFalse);
+      expect(license.state?.licensed, isNot(true));
+      expect(license.error, contains('only be redeemed once'));
+    });
+
+    test('an already-licensed account is told its key was not consumed', () async {
+      // The server rolls the transaction back, so the key is still worth
+      // something — the message must not suggest it was burned.
+      final license = LicenseController(
+        _client(
+          (_) => _json(
+            const {'error': 'account_already_licensed', 'message': 'Already licensed'},
+            409,
+          ),
+        ),
+      );
+
+      expect(await license.redeem('PRIVIO-2345-6789-ABCD-EFGH'), isFalse);
+      expect(license.error, contains('has not been used'));
     });
   });
 
-  group('formatting', () {
-    test('groups a key the way it is printed', () {
-      expect(
-        formatLicenseKey('privio a1b2c3d4e5f6g7h8'),
-        'PRIVIO-A1B2-C3D4-E5F6-G7H8',
+  group('status', () {
+    test('a server that requires no license asks for nothing', () async {
+      // Self-hosting: `required: false` has to reach the UI, or the app nags
+      // for a key that its own server does not want.
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': false, 'required': false})),
       );
+
+      await license.refresh();
+
+      expect(license.state?.enforced, isFalse);
+      expect(license.needsActivation, isFalse);
+      expect(license.isOffered, isFalse);
     });
 
-    test('accepts a key pasted without the prefix', () {
-      expect(formatLicenseKey('a1b2c3d4e5f6g7h8'), 'PRIVIO-A1B2-C3D4-E5F6-G7H8');
-    });
-
-    test('does not run past four groups', () {
-      expect(
-        formatLicenseKey('PRIVIO-A1B2-C3D4-E5F6-G7H8-EXTRA'),
-        'PRIVIO-A1B2-C3D4-E5F6-G7H8',
+    test('unlicensed on a server that requires one needs activation', () async {
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': false, 'required': true})),
       );
+
+      await license.refresh();
+
+      expect(license.needsActivation, isTrue);
+      expect(license.isOffered, isTrue);
     });
 
-    test('leaves an empty field empty', () {
-      expect(formatLicenseKey(''), '');
-    });
+    test('offline is not unlicensed', () async {
+      // A failed refresh must never downgrade a paying account to "activate a
+      // key" — the last known answer stands until a better one arrives.
+      var fail = false;
+      final license = LicenseController(
+        _client((_) {
+          if (fail) throw http.ClientException('offline');
+          return _json(const {'licensed': true, 'required': true, 'source': 'key'});
+        }),
+      );
 
-    test('formats a partial key as it is typed', () {
-      expect(formatLicenseKey('A1B'), 'PRIVIO-A1B');
-      expect(formatLicenseKey('A1B2C'), 'PRIVIO-A1B2-C');
+      await license.refresh();
+      expect(license.state?.licensed, isTrue);
+
+      fail = true;
+      await license.refresh();
+      expect(license.state?.licensed, isTrue);
     });
   });
-}
 
-/// A stand-in for a transport failure; the controller only cares that it is not
-/// an [ApiException].
-class SocketExceptionStub implements Exception {
-  const SocketExceptionStub();
+  group('edition', () {
+    test('the store builds do not offer a key field', () {
+      expect(PrivioEdition.parse('libre').usesLicenseKey, isTrue);
+      expect(PrivioEdition.parse('direct').usesLicenseKey, isTrue);
+      expect(PrivioEdition.parse('play').usesLicenseKey, isFalse);
+      expect(PrivioEdition.parse('appstore').usesLicenseKey, isFalse);
+    });
+
+    test('only the free builds claim to be free', () {
+      expect(PrivioEdition.parse('libre').isLibre, isTrue);
+      expect(PrivioEdition.parse('direct').isLibre, isTrue);
+      expect(PrivioEdition.parse('play').usesProprietaryServices, isTrue);
+    });
+
+    test('the Libre build talks to no push service', () {
+      expect(PrivioEdition.parse('libre').pushProvider, isNull);
+      expect(PrivioEdition.parse('play').pushProvider, 'fcm');
+    });
+
+    test('an unknown edition falls back to Libre rather than crashing', () {
+      // A typo in a build script must not ship an app that claims more than
+      // it is, and must not ship one that will not start either.
+      expect(PrivioEdition.parse('').id, 'libre');
+      expect(PrivioEdition.parse('nonsense').id, 'libre');
+      expect(PrivioEdition.parse('LIBRE').id, 'libre');
+    });
+  });
 }

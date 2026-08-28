@@ -2,6 +2,7 @@
   "name": "privio",
   "private": true,
   "description": "Privio — privacy-first secure messenger (monorepo root)",
+  "license": "AGPL-3.0-only",
   "workspaces": ["server"],
   "scripts": {
     "build": "npm --workspace server run build",
