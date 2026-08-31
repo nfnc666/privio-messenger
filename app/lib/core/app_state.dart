@@ -9,6 +9,7 @@ import 'conversation_controller.dart';
 import 'edition.dart';
 import 'license_controller.dart';
 import 'privio_services.dart';
+import 'security_controller.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
@@ -45,6 +46,7 @@ class AppState extends ChangeNotifier {
   ConversationController? _conversations;
   ChannelController? _channels;
   LicenseController? _license;
+  SecurityController? _security;
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -52,6 +54,7 @@ class AppState extends ChangeNotifier {
   double _initProgress = 0;
   String? _sessionToken;
   bool _biometricsAvailable = false;
+  bool _screenLockSet = false;
   bool _busy = false;
   String? _authError;
 
@@ -60,6 +63,10 @@ class AppState extends ChangeNotifier {
   String? get accountId => _accountId;
   double get initProgress => _initProgress;
   bool get biometricsAvailable => _biometricsAvailable;
+
+  /// Whether this device has a PIN on the app. Read at launch, because the
+  /// stage machine needs it anyway.
+  bool get screenLockSet => _screenLockSet;
 
   /// True while a sign-in or sign-up is in flight.
   bool get busy => _busy;
@@ -83,6 +90,9 @@ class AppState extends ChangeNotifier {
   /// so the settings entry knows whether it has anything to say.
   LicenseController get license => _license ??= LicenseController(services.api);
 
+  /// The second factor, who may see your last-seen, and who is blocked.
+  SecurityController get security => _security ??= SecurityController(services.api);
+
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and finds out
   /// whether biometrics exist.
@@ -101,6 +111,7 @@ class AppState extends ChangeNotifier {
 
     _biometricsAvailable = await _biometrics.isAvailable();
     final hasPin = await _store.hasPin();
+    _screenLockSet = hasPin;
     _setProgress(1);
 
     if (token == null) {
@@ -322,6 +333,9 @@ class AppState extends ChangeNotifier {
     _channels = null;
     _license?.dispose();
     _license = null;
+    _security?.dispose();
+    _security = null;
+    _screenLockSet = false;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -332,6 +346,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _security?.dispose();
     _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();

@@ -9,7 +9,26 @@ import { createSession, revokeAllSessions, revokeSession } from '../services/ses
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
-import { config } from '../config.js';
+import { config, rateLimitFactor } from '../config.js';
+
+/**
+ * The budget for routes that check a credential: a password, a wipe code, a
+ * six-digit code. Ten attempts per address per five minutes, which is generous
+ * for a person and useless for a guesser.
+ *
+ * It is declared per route rather than around the plugin, because reading your
+ * own account is not an attempt at anything and must not spend the same
+ * allowance a login does.
+ */
+const guessable = {
+  config: {
+    rateLimit: {
+      max: 10 * rateLimitFactor,
+      timeWindow: '5 minutes',
+      keyGenerator: (request: { ip: string }) => request.ip,
+    },
+  },
+};
 
 // Verifying a throwaway hash on unknown usernames keeps login timing flat, so a
 // failed attempt does not reveal whether the account exists.
@@ -38,7 +57,7 @@ const loginSchema = z.object({
 
 const accountRoutes: FastifyPluginAsync = async (app) => {
   /** Create an account and its first device. No phone number, no email. */
-  app.post('/v1/accounts', async (request, reply) => {
+  app.post('/v1/accounts', guessable, async (request, reply) => {
     const body = parse(registerSchema, request.body);
 
     const existing = await accounts.findByUsername(body.username);
@@ -74,7 +93,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Log in and register the calling device in one step. */
-  app.post('/v1/sessions', async (request) => {
+  app.post('/v1/sessions', guessable, async (request) => {
     const body = parse(loginSchema, request.body);
     const account = await accounts.findByUsername(body.username);
 
@@ -159,7 +178,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Change the account password. Every other session is revoked. */
-  app.post('/v1/accounts/me/password', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.post(
+    '/v1/accounts/me/password',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId, sessionId } = auth(request);
     const body = parse(
       z.object({ currentPassword: z.string().min(1), newPassword: passwordSchema }),
@@ -175,7 +197,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Set or clear the duress wipe code. */
-  app.put('/v1/accounts/me/wipe-code', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.put(
+    '/v1/accounts/me/wipe-code',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(
       z.object({
@@ -211,7 +236,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Step 2: prove the authenticator app works before the factor becomes mandatory. */
-  app.post('/v1/accounts/me/totp/enable', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.post(
+    '/v1/accounts/me/totp/enable',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(z.object({ code: z.string().regex(/^\d{6}$/) }), request.body);
     const account = await accounts.findById(accountId);
@@ -223,7 +251,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return { twoFactorEnabled: true };
   });
 
-  app.delete('/v1/accounts/me/totp', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.delete(
+    '/v1/accounts/me/totp',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(z.object({ currentPassword: z.string().min(1) }), request.body);
     const account = await accounts.findById(accountId);

@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-323%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-338%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -147,6 +147,35 @@ one replaces it, sending the same one again clears it. A reaction to a message
 this device does not have is dropped rather than invented — an empty bubble
 with a heart on it would be a message the server made up.
 
+### Settings that measured nothing
+
+The Privacy & Security screen used to state "Two-Factor Authentication: On" and
+"Blocked Users: 3" from constants in the widget tree, over accounts that had
+neither. Both are now read from the server — and both now have the screen the
+server had been waiting for since the endpoints were written.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/security-01-privacy.png" width="200"><br><sub><b>1.</b> Every row read from somewhere. Rows nothing could back are gone.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-02-setup.png" width="200"><br><sub><b>2.</b> The QR is drawn on the device; the secret is never sent anywhere to be rendered.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-03-wrong-code.png" width="200"><br><sub><b>3.</b> A wrong code changes nothing — the factor is not on until one is proved.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-05-login.png" width="200"><br><sub><b>4.</b> And then the login wants it.</sub></td>
+</tr>
+</table>
+
+Enabling two-factor is two steps on purpose: the server issues a secret, and
+the factor only comes into force once a code from it has been checked. A factor
+switched on without that proof locks out the person who set it up. Turning it
+off asks for the password, because an unlocked phone should not be enough.
+
+That run also found a bug with nothing to do with two-factor. The whole account
+plugin sat behind the login rate limit — ten requests per address per five
+minutes — so reading your own account counted against the budget for guessing
+your password. Opening a settings screen a few times could lock someone out of
+their own account. The tight budget now belongs to the routes that actually
+check a credential, and there is a test that runs against the real limit rather
+than the relaxed one the rest of the suite uses.
+
 ### A backup only you can open
 
 A history sealed on the device, a key that exists nowhere else, and a new
@@ -195,10 +224,10 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | --- | :---: | --- |
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
-| **Two-factor auth** | 🔧 | TOTP (RFC 6238) is enforced at login and the app asks for the code; the screen to *turn it on* is not built, so today it is set through the API |
+| **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
 | **Wipe code** | 🔧 | The server destroys the account and answers `invalid_credentials`, and a test proves a wipe is indistinguishable from a typo — but the app has no screen to set one |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
-| **Blocking** | 🔧 | Invisible to the blocked sender, and covered by server tests; nothing in the app calls it yet |
+| **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
@@ -439,11 +468,11 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **Some features exist on the server and nowhere in the app.** Two-factor
-   setup, the wipe code and blocking are implemented and tested server-side,
-   and the app has no screen for any of them: today they are set through the
-   API. Login already honours all three. The feature table above marks them
-   🔧 rather than ✅ for exactly this reason.
+5. **The wipe code exists on the server and nowhere in the app.** It is
+   implemented and tested — a wipe is indistinguishable from a typo — but there
+   is still no screen to set one, so today it is set through the API. Two-factor
+   and blocking were in this list until they got their screens; this is what is
+   left of it.
 6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
@@ -504,10 +533,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  91 passing
+#  93 passing
 
 cd app && flutter analyze && flutter test
-#  232 passing
+#  245 passing
 ```
 
 Among the things those tests assert:
@@ -544,6 +573,8 @@ Among the things those tests assert:
 - a **self-hosted** server never puts a license key in front of anyone, because it says it needs none
 - "Not now" at first start is remembered **per account**, so the next account is still asked
 - a **store build** is never asked for a key, on the very same server that asks the Libre build
+- two-factor is **not on** until a code from the new secret has been checked, and the secret is forgotten once it is
+- **reading your own account** is not rationed like a login — but guessing a password still is
 - typing the printed `PRIVIO-` prefix by hand does not end up **inside** the key
 - an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
 - a **reaction** to a message this device does not have is dropped, not turned into a bubble
@@ -591,12 +622,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 232 tests, incl. the crypto round trip
+│   └── test/                 245 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 91 tests against real PostgreSQL
+│   └── test/                 93 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```
@@ -626,11 +657,12 @@ The full system — typography, spacing, every screen and component — is in
 
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
-typing · Replies and reactions · Disappearing messages · License activation
+typing · Replies and reactions · Disappearing messages · License activation ·
+Two-factor · Blocking
 
 **Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
-Multi-device · Push registration in the client · The screens the server is
-already waiting for: two-factor setup, wipe code, blocking
+Multi-device · Push registration in the client · The wipe-code screen, the last
+thing the server implements and the app cannot reach
 
 **Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
 the local history

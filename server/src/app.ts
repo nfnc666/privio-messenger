@@ -111,16 +111,12 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(websocket);
   await app.register(authPlugin);
 
-  // Login and registration are the endpoints worth guessing at, so they get a
-  // much tighter budget than the rest of the API.
-  await app.register(async (scoped) => {
-    await scoped.register(rateLimit, {
-      max: 10 * rateLimitFactor,
-      timeWindow: '5 minutes',
-      keyGenerator: (r) => r.ip,
-    });
-    await scoped.register(accountRoutes);
-  });
+  // The tight budget belongs to the routes worth guessing at — the ones that
+  // check a credential — and it is declared on each of them in
+  // `routes/accounts.ts`. It used to wrap the whole account plugin, which put
+  // `GET /v1/accounts/me` on a login-grade allowance: opening a settings screen
+  // a few times could lock someone out of their own account for five minutes.
+  await app.register(accountRoutes);
 
   await app.register(deviceRoutes);
   await app.register(contactRoutes);

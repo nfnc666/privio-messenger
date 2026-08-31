@@ -180,6 +180,10 @@ abstract interface class MessageStore {
   /// Drops every message whose timer has run out. Returns how many went.
   int pruneExpired(DateTime now);
 
+  /// Forgets one conversation entirely — used when the other side is blocked,
+  /// where a chat that can never grow again would only be clutter.
+  void removeConversation(String id);
+
   /// Replaces the contents with what was read back from the archive.
   void restore(List<Conversation> conversations);
   void clear();
@@ -371,6 +375,9 @@ class InMemoryMessageStore implements MessageStore {
         conversations.map((conversation) => MapEntry(conversation.id, conversation)),
       );
   }
+
+  @override
+  void removeConversation(String id) => _conversations.remove(id);
 
   /// Used by sign-out and by the wipe code: nothing readable is left behind.
   @override

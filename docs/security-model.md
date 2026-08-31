@@ -370,6 +370,32 @@ message is a message the app did not receive and cannot show the contents of,
 and inventing one is a way for a server that reorders or replays envelopes to
 put marks in someone's chat.
 
+## Two-factor authentication
+
+**It protects the account, not the messages.** The code is checked by the
+server at login, so it stops someone who has the password from signing a new
+device in. It has nothing to do with the ciphertext: that is opened by a key
+held on the device, and no code can substitute for it. The screen says so,
+because "two-factor encryption" is a thing people believe.
+
+**Enabling it is two steps.** The server issues a secret; the factor only comes
+into force once a code generated from that secret has been checked. Anything
+else enables a factor nobody has proved they can produce, which locks out the
+person who set it up.
+
+**The secret lives in memory for as long as the setup screen does.** It is the
+factor — someone who has it can produce codes forever — so it is dropped as
+soon as the factor is on, and dropped again if the screen is left.
+
+**Removing it asks for the password.** A second factor that an unlocked phone
+could remove on its own would not be a second factor.
+
+**The routes that check a credential are rate limited separately.** Ten
+attempts per address per five minutes covers login, registration, the password
+change, the wipe code and both two-factor transitions. Reading your own account
+is not on that budget: it used to be, which meant opening a settings screen a
+few times could lock someone out of their own account for five minutes.
+
 ## Backup
 
 **The server holds bytes it cannot open.** A backup is sealed on the device with

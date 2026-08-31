@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
+import 'blocked_users_screen.dart';
+import 'two_factor_screen.dart';
 
 /// Privacy and security.
 ///
-/// The two messaging switches are real: they are read from the account and
-/// written back to it, and turning one off stops this device sending that thing
-/// — and stops it showing other people's, because a setting that takes without
-/// giving would be a different feature wearing this one's name.
+/// Every row here is read from somewhere. That is worth saying because it was
+/// not true: this screen used to state "Two-Factor Authentication: On" and
+/// "Blocked Users: 3" from constants in the widget tree, over accounts that had
+/// neither. Rows the product cannot back — who may see a profile photo, who may
+/// see an About text — are gone rather than shown with a plausible value.
+///
+/// The two messaging switches are read from the account and written back to it,
+/// and turning one off stops this device sending that thing — and stops it
+/// showing other people's, because a setting that takes without giving would be
+/// a different feature wearing this one's name.
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
 
@@ -21,27 +30,66 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => PrivioScope.of(context).conversations.loadPrivacy(),
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final state = PrivioScope.of(context);
+      // One read of the account, shared: the security half stays here, the
+      // messaging switches go to the controller that enforces them.
+      await state.security.load();
+      final privacy = state.security.privacy;
+      if (privacy != null) state.conversations.applyPrivacy(privacy);
+    });
+  }
+
+  /// Who may see when this account was last online. Three values, because
+  /// that is what the server stores.
+  Future<void> _chooseLastSeen(SecurityController security) async {
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final value in SecurityController.lastSeenChoices)
+              ListTile(
+                title: Text(SecurityController.labelForLastSeen(value)),
+                trailing: value == security.lastSeen
+                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
     );
+    if (chosen != null) await security.setLastSeen(chosen);
   }
 
   @override
   Widget build(BuildContext context) {
-    final conversations = PrivioScope.of(context).conversations;
+    final state = PrivioScope.of(context);
+    final conversations = state.conversations;
+    final security = state.security;
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy & Security')),
       body: ListenableBuilder(
-        listenable: conversations,
+        listenable: Listenable.merge([conversations, security]),
         builder: (context, _) => ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
           SettingsSection(
             caption: 'Who can see',
             children: [
-              SettingsRow(label: 'Last Seen', value: 'My Contacts', onTap: () {}),
-              SettingsRow(label: 'Profile Photo', value: 'My Contacts', onTap: () {}),
-              SettingsRow(label: 'About', value: 'My Contacts', onTap: () {}),
+              // The only one of these the server actually stores. A profile
+              // photo is already encrypted to the people you have written to,
+              // so there is no separate audience to choose.
+              SettingsRow(
+                label: 'Last Seen',
+                value: SecurityController.labelForLastSeen(security.lastSeen),
+                onTap: () => _chooseLastSeen(security),
+              ),
             ],
           ),
           SettingsSection(
@@ -72,10 +120,30 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           SettingsSection(
             caption: 'Access',
             children: [
-              SettingsRow(label: 'Screen Lock', value: 'PIN', onTap: () {}),
-              SettingsRow(label: 'Two-Factor Authentication', value: 'On', onTap: () {}),
-              SettingsRow(label: 'Change Password', onTap: () {}),
-              SettingsRow(label: 'Blocked Users', value: '3', onTap: () {}),
+              SettingsRow(
+                label: 'Screen Lock',
+                value: state.screenLockSet ? 'PIN' : 'Off',
+              ),
+              SettingsRow(
+                label: 'Two-Factor Authentication',
+                // Null until the server has answered. Better a row with no
+                // value for a moment than one that guesses.
+                value: switch (security.twoFactorEnabled) {
+                  true => 'On',
+                  false => 'Off',
+                  null => null,
+                },
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const TwoFactorScreen()),
+                ),
+              ),
+              SettingsRow(
+                label: 'Blocked Users',
+                value: security.blocked?.length.toString(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: PrivioSpacing.xl),

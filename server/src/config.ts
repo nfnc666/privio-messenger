@@ -70,5 +70,9 @@ export const config = loadConfig();
 /**
  * Multiplier applied to every rate limit. Tests drive hundreds of requests from
  * one address and are not exercising the limiter; production runs at 1.
+ *
+ * `RATE_LIMIT_FACTOR=1` puts a test back on the real budget, which is how the
+ * limiter itself gets tested.
  */
-export const rateLimitFactor = config.NODE_ENV === 'test' ? 1000 : 1;
+export const rateLimitFactor = Number(process.env.RATE_LIMIT_FACTOR)
+  || (config.NODE_ENV === 'test' ? 1000 : 1);

@@ -111,6 +111,7 @@ introducing anything new.
 | 25 | Language | `/settings/language` | V1 |
 | — | Activation (first start, licensed servers only) | stage, not a route | V1 |
 | — | Privio License | `/settings/license` | V1 |
+| — | Blocked users | `/settings/blocked` | V1 |
 
 ### Navigation bar
 
