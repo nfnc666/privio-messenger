@@ -81,17 +81,27 @@ export async function issueLicense(input: {
 }): Promise<IssueResult> {
   const licenseKey = generateLicenseKey();
 
+  // A licence sold with no device count written on it takes the column's own
+  // default, by not naming the column at all. Repeating the number here would
+  // be a second place for it to drift from. The names are this file's, never
+  // the caller's.
+  const columns = ['key_hash', 'source', 'payment_provider', 'payment_reference'];
+  const values: unknown[] = [
+    licenseHash(licenseKey),
+    input.source ?? 'key',
+    input.paymentProvider,
+    input.paymentReference,
+  ];
+  if (input.maxDevices !== undefined) {
+    columns.push('max_devices');
+    values.push(input.maxDevices);
+  }
+
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `INSERT INTO licenses (key_hash, source, payment_provider, payment_reference, max_devices)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 5)) RETURNING id`,
-      [
-        licenseHash(licenseKey),
-        input.source ?? 'key',
-        input.paymentProvider,
-        input.paymentReference,
-        input.maxDevices ?? null,
-      ],
+      `INSERT INTO licenses (${columns.join(', ')})
+       VALUES (${columns.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
+      values,
     );
     return { status: 'issued', licenseKey, licenseId: rows[0]!.id };
   } catch (err) {
