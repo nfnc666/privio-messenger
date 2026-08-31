@@ -148,8 +148,8 @@ class _Activation extends StatelessWidget {
         Text('Enter your license key', style: theme.textTheme.titleMedium),
         const SizedBox(height: PrivioSpacing.sm),
         Text(
-          'Buy a key at privio.com/license, then type it here. Until it is activated this '
-          'account can sign in and read what has already arrived, but not send.',
+          'Buy a key at privio.com/license, then type it here. Until it is activated '
+          'this account can sign in and read what has already arrived, but not send.',
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),

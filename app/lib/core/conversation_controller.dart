@@ -400,7 +400,7 @@ class ConversationController extends ChangeNotifier {
         // The one send failure the user can do something about, so it says
         // what rather than repeating the server's wording.
         ApiException(code: 'license_required') =>
-          'Activate your license in Settings to send messages.',
+          'Activate your license to send messages.',
         ApiException(:final message) => message,
         _ => 'Could not send message',
       };

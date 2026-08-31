@@ -28,7 +28,31 @@ export const deviceRegistrationSchema = z.object({
 
 export type DeviceRegistration = z.infer<typeof deviceRegistrationSchema>;
 
-export const MAX_DEVICES_PER_ACCOUNT = 5;
+/**
+ * The cap for an account with no license behind it — a self-hosted deployment,
+ * or an account on the hosted service that has not activated a key yet.
+ *
+ * A licensed account uses its license's own limit instead, which is what
+ * [deviceLimitFor] resolves. The two are the same number today; they are
+ * separate so that selling a larger licence never means redeploying.
+ */
+export const DEFAULT_DEVICE_LIMIT = 5;
+
+/**
+ * How many active devices this account may have.
+ *
+ * Read inside the caller's transaction, which already holds the account row
+ * lock — so the limit that is checked is the limit at the moment the device is
+ * inserted, and a license revoked mid-registration cannot be raced past.
+ */
+export async function deviceLimitFor(client: PoolClient, accountId: string): Promise<number> {
+  const { rows } = await client.query<{ max_devices: number }>(
+    `SELECT max_devices FROM licenses
+      WHERE redeemed_by = $1 AND status = 'active'`,
+    [accountId],
+  );
+  return rows[0]?.max_devices ?? DEFAULT_DEVICE_LIMIT;
+}
 
 export interface RegisteredDevice {
   deviceId: string;
@@ -48,8 +72,13 @@ export async function registerDevice(
     'SELECT count(*) FROM devices WHERE account_id = $1 AND revoked_at IS NULL',
     [accountId],
   );
-  if (Number(existing[0]!.count) >= MAX_DEVICES_PER_ACCOUNT) {
-    throw ApiError.conflict('too_many_devices', `At most ${MAX_DEVICES_PER_ACCOUNT} active devices`);
+  const limit = await deviceLimitFor(client, accountId);
+  if (Number(existing[0]!.count) >= limit) {
+    throw ApiError.conflict(
+      'too_many_devices',
+      `This license covers ${limit} active device${limit === 1 ? '' : 's'}. ` +
+        'Remove one in Settings → Devices to add another.',
+    );
   }
 
   const deviceIndex = await nextDeviceIndex(client, accountId);

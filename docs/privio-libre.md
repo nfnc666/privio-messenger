@@ -16,10 +16,13 @@ together; the Libre repository is what F-Droid builds from.
   analytics SDK, no crash reporter. Enforced by the flavour split in
   `app/android/app/build.gradle.kts`: anything Google-shaped goes in
   `playImplementation`, which the Libre variant does not compile.
-* **No push service.** [`PrivioEdition.pushProvider`](../app/lib/core/edition.dart)
-  is null for Libre. That is a real trade, not an omission: FCM would tell
-  Google when a device is being messaged, and it would be a proprietary blob
-  in the APK. Libre receives over its own socket while it is running instead.
+* **No proprietary push service.** Libre is woken through
+  [UnifiedPush](notifications.md): the endpoint belongs to a distributor app
+  the user installed and often runs themselves, so there is no Google service
+  in the APK and no fixed third party in the path. Without a distributor the
+  app falls back to its own socket, which is what it did everywhere before.
+  Either way the payload is a wake-up and nothing else — one byte, no
+  identifier, no count, no sender.
 * **No dependency-metadata blob.** `dependenciesInfo` is off, because the
   block Gradle embeds is signed by Google and cannot be reproduced from source.
 * **No tracking of any kind.** True in every edition; here it is checkable.
@@ -83,7 +86,7 @@ cd app
 flutter pub get
 flutter build apk --release --flavor libre \
   --dart-define=PRIVIO_EDITION=libre \
-  --dart-define=PRIVIO_API_URL=https://api.privio.com
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 ```
 
 Full instructions, including the store builds, are in

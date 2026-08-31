@@ -6,10 +6,21 @@ import '../theme/privio_colors.dart';
 import '../widgets/license_key_field.dart';
 import '../widgets/privio_logo.dart';
 
-/// The activation step, shown once after an account is created on a server
-/// that sells access — and only in the builds that are activated with a key,
-/// which is the Libre build and the APK from the website. A store build was
-/// paid for when it was installed, so it never reaches this screen.
+/// The key screen, reached from two directions.
+///
+/// On a fresh install it comes first, before the account: a key is what the
+/// hosted service is paid for, and asking after letting someone in would be
+/// presenting a bill for something they were already given. There is nobody to
+/// bind a key to at that point, so it is held in the keystore and spent the
+/// moment an account exists.
+///
+/// And once per account after signing in, for anyone who walked past it the
+/// first time and is still unlicensed — otherwise skipping it would mean only
+/// ever finding out by trying to send and being refused.
+///
+/// Only in the builds that are activated with a key, which is the Libre build
+/// and the APK from the website. A store build was paid for when it was
+/// installed and never reaches this screen.
 ///
 /// It is a step, not a wall. The server lets an unlicensed account sign in and
 /// read what has already arrived — only sending is gated — so a screen that
@@ -33,11 +44,15 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   Future<void> _activate(AppState state) async {
-    final ok = await state.license.redeem(_key.text);
+    // Before the account there is nothing to redeem against, so the key is
+    // kept and cashed in by the first sign-in.
+    final ok = state.signedIn
+        ? await state.license.redeem(_key.text)
+        : await state.license.hold(_key.text);
     if (!ok || !mounted) return;
     _key.clear();
-    // Nothing to record: the server now answers "licensed", so the question
-    // will not come back on the next launch by itself.
+    // Nothing to record: either the server now answers "licensed", or there is
+    // no account yet for the question to be remembered against.
     await state.leaveActivation(asked: false);
   }
 
@@ -71,8 +86,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Text(
-                  'Your account is ready. This server asks for a license key before '
-                  'it will relay your messages.',
+                  state.signedIn
+                      ? 'Your account is ready. This server asks for a license key '
+                          'before it will relay your messages.'
+                      : 'This server asks for a license key before it will relay '
+                          'messages. Enter yours now and it is activated as soon as '
+                          'your account exists.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall,
                 ),
@@ -104,14 +123,15 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 const SizedBox(height: PrivioSpacing.md),
                 TextButton(
                   onPressed: license.busy ? null : () => state.leaveActivation(),
-                  child: const Text('Not now'),
+                  child: Text(state.signedIn ? 'Not now' : 'I do not have a key yet'),
                 ),
                 const SizedBox(height: PrivioSpacing.xl),
                 const Divider(height: 1, color: PrivioColors.border),
                 const SizedBox(height: PrivioSpacing.lg),
                 Text(
-                  'Without a key you can sign in and read what arrives, but not send. '
-                  'You can enter it later under Settings › Privio License.',
+                  'Without a key you can create an account, sign in and read what '
+                  'arrives, but not send. You can enter it later under '
+                  'Settings › Privio License.',
                   style: theme.textTheme.labelSmall,
                 ),
                 const SizedBox(height: PrivioSpacing.md),
