@@ -117,6 +117,37 @@ class SecurityController extends ChangeNotifier {
     }
   }
 
+  /// Sets or clears the duress wipe code.
+  ///
+  /// Pass null for [wipeCode] to remove it. Both need the password: this is the
+  /// setting that destroys the account, and an unlocked phone is not authority
+  /// to change it in either direction.
+  Future<bool> setWipeCode({
+    required String currentPassword,
+    required String? wipeCode,
+  }) async {
+    _busy = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final body = await _api.setWipeCode(
+        currentPassword: currentPassword,
+        wipeCode: wipeCode,
+      );
+      _wipeCodeSet = body['wipeCodeSet'] as bool? ?? wipeCode != null;
+      return true;
+    } on ApiException catch (failure) {
+      _error = _explain(failure);
+      return false;
+    } on Object {
+      _error = 'Could not reach Privio.';
+      return false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
   /// Step one: ask the server for a secret to show as a QR code.
   Future<bool> beginTotpSetup() async {
     _busy = true;
@@ -239,6 +270,9 @@ class SecurityController extends ChangeNotifier {
         'totp_already_enabled' => 'Two-factor is already on for this account.',
         'totp_not_set_up' => 'Start the setup again — the secret is gone.',
         'invalid_credentials' => 'That password is not right.',
+        'wipe_code_matches_password' =>
+          'The wipe code has to be different from your password, or an ordinary '
+              'sign-in would destroy the account.',
         'rate_limited' => 'Too many attempts. Wait a few minutes.',
         _ => failure.message,
       };

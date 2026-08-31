@@ -6,6 +6,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
 import 'two_factor_screen.dart';
+import 'wipe_code_screen.dart';
 
 /// Privacy and security.
 ///
@@ -135,6 +136,18 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 },
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const TwoFactorScreen()),
+                ),
+              ),
+              SettingsRow(
+                label: 'Wipe Code',
+                value: switch (security.twoFactorEnabled) {
+                  // The same read answers both, so the same null means "not
+                  // asked yet" for this row too.
+                  null => null,
+                  _ => security.wipeCodeSet ? 'Set' : 'Off',
+                },
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const WipeCodeScreen()),
                 ),
               ),
               SettingsRow(

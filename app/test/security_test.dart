@@ -30,6 +30,7 @@ class FakeAccountServer {
 
   bool twoFactorEnabled;
   String? issuedSecret;
+  String? wipeCode;
   String password = 'correct-horse-battery';
   String lastSeen = 'everyone';
   List<Map<String, dynamic>> blocked = [];
@@ -51,7 +52,7 @@ class FakeAccountServer {
         return _json({
           'username': 'nina',
           'twoFactorEnabled': twoFactorEnabled,
-          'wipeCodeSet': false,
+          'wipeCodeSet': wipeCode != null,
           'privacy': {'lastSeen': lastSeen, 'readReceipts': true, 'typingIndicators': true},
         });
       case ('PATCH', '/v1/accounts/me'):
@@ -83,6 +84,19 @@ class FakeAccountServer {
         twoFactorEnabled = false;
         issuedSecret = null;
         return _json({'twoFactorEnabled': false});
+      case ('PUT', '/v1/accounts/me/wipe-code'):
+        if (body['currentPassword'] != password) {
+          return _json({'error': 'invalid_credentials', 'message': 'nope'}, 401);
+        }
+        final code = body['wipeCode'] as String?;
+        if (code == password) {
+          return _json(
+            {'error': 'wipe_code_matches_password', 'message': 'must differ'},
+            400,
+          );
+        }
+        wipeCode = code;
+        return _json({'wipeCodeSet': code != null});
       case ('GET', '/v1/blocks'):
         return _json({'blocked': blocked});
       default:
@@ -211,6 +225,70 @@ void main() {
 
       expect(await security.disableTotp(server.password), isTrue);
       expect(security.twoFactorEnabled, isFalse);
+    });
+  });
+
+  group('the wipe code', () {
+    test('is set with the password, and shows as set afterwards', () async {
+      final server = FakeAccountServer();
+      final security = controllerFor(server);
+      await security.load();
+      expect(security.wipeCodeSet, isFalse);
+
+      expect(
+        await security.setWipeCode(currentPassword: server.password, wipeCode: '911911'),
+        isTrue,
+      );
+      expect(security.wipeCodeSet, isTrue);
+      expect(server.wipeCode, '911911');
+    });
+
+    test('cannot be the password', () async {
+      // Otherwise an ordinary sign-in would destroy the account.
+      final server = FakeAccountServer();
+      final security = controllerFor(server);
+
+      expect(
+        await security.setWipeCode(
+          currentPassword: server.password,
+          wipeCode: server.password,
+        ),
+        isFalse,
+      );
+      expect(server.wipeCode, isNull);
+      expect(security.error, contains('different from your password'));
+    });
+
+    test('the wrong password changes nothing', () async {
+      final server = FakeAccountServer();
+      final security = controllerFor(server);
+
+      expect(
+        await security.setWipeCode(currentPassword: 'guess', wipeCode: '911911'),
+        isFalse,
+      );
+      expect(server.wipeCode, isNull);
+      expect(security.error, contains('not right'));
+    });
+
+    test('removing it needs the password too', () async {
+      final server = FakeAccountServer()..wipeCode = '911911';
+      final security = controllerFor(server);
+      await security.load();
+      expect(security.wipeCodeSet, isTrue);
+
+      expect(
+        await security.setWipeCode(currentPassword: 'guess', wipeCode: null),
+        isFalse,
+      );
+      expect(server.wipeCode, '911911', reason: 'an unlocked phone is not authority');
+
+      expect(
+        await security.setWipeCode(currentPassword: server.password, wipeCode: null),
+        isTrue,
+      );
+      expect(server.wipeCode, isNull);
+      expect(security.wipeCodeSet, isFalse);
     });
   });
 

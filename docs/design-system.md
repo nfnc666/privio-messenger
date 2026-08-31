@@ -97,7 +97,7 @@ introducing anything new.
 | 10 | Invite link / QR | `/account/invite` | V1 |
 | 11 | Settings | `/settings` | V1 |
 | 12 | Backup | `/settings/backup` | V1 |
-| 13 | Wipe code | `/settings/wipe-code` | V2 |
+| 13 | Wipe code | `/settings/wipe-code` | V1 |
 | 14 | Disguise mode | `/settings/disguise` | V2 |
 | 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V2 |
 | 17 | Notifications | `/settings/notifications` | V1 |

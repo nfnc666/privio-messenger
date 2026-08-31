@@ -121,6 +121,19 @@ class PrivioApiClient {
 
   Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
+  /// Sets or clears the duress wipe code. Passing null removes it.
+  ///
+  /// The current password is required, and the server refuses a code equal to
+  /// it — a wipe code that is the password would fire on an ordinary sign-in.
+  Future<Map<String, dynamic>> setWipeCode({
+    required String currentPassword,
+    required String? wipeCode,
+  }) =>
+      _send('PUT', '/v1/accounts/me/wipe-code', body: {
+        'currentPassword': currentPassword,
+        'wipeCode': wipeCode,
+      },);
+
   // --- Two-factor -----------------------------------------------------------
 
   /// Starts setup and returns the shared secret, which is the only time it is

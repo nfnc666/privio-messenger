@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-338%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-342%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -176,6 +176,27 @@ their own account. The tight budget now belongs to the routes that actually
 check a credential, and there is a test that runs against the real limit rather
 than the relaxed one the rest of the suite uses.
 
+### A code that destroys instead of opening
+
+The wipe code has been in the schema since the first migration and enforced at
+login ever since: type it instead of your password and the account is
+destroyed, while whoever is watching sees the same refusal a typo gets. Until
+now the only way to arm it was a curl command — the one feature written for
+someone being forced to hand over a phone, and it needed a terminal.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-01-screen.png" width="200"><br><sub><b>1.</b> What it destroys, said plainly, before anything is typed.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-02-same-as-password.png" width="200"><br><sub><b>2.</b> The code may not be the password — an ordinary sign-in would fire it.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-03-set.png" width="200"><br><sub><b>3.</b> Armed. Privio cannot show it back to you; it is stored like a password.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-04-refused.png" width="200"><br><sub><b>4.</b> Used at sign-in: refused as "username or password is incorrect", and the account is gone.</sub></td>
+</tr>
+</table>
+
+The browser run measured the wipe rather than trusting the message: one device
+before the duress sign-in, zero after, the account row still present so the
+username cannot be claimed by anyone else, and the wipe code itself cleared.
+
 ### A backup only you can open
 
 A history sealed on the device, a key that exists nowhere else, and a new
@@ -225,7 +246,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
 | **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
-| **Wipe code** | 🔧 | The server destroys the account and answers `invalid_credentials`, and a test proves a wipe is indistinguishable from a typo — but the app has no screen to set one |
+| **Wipe code** | ✅ | A duress code set in the app; typing it at sign-in destroys the account and is refused exactly as a wrong password is |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
 | **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
@@ -468,11 +489,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **The wipe code exists on the server and nowhere in the app.** It is
-   implemented and tested — a wipe is indistinguishable from a typo — but there
-   is still no screen to set one, so today it is set through the API. Two-factor
-   and blocking were in this list until they got their screens; this is what is
-   left of it.
+5. **A wipe reaches the server, not the devices already signed in.** Typing the
+   duress code destroys everything the server holds — devices, queued
+   envelopes, contacts, group memberships, the backup — and the sign-in it was
+   typed into is refused. It cannot reach a phone that is already unlocked and
+   signed in somewhere else, whose local archive stays sealed but present. The
+   screen says so instead of implying a remote kill switch.
 6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
@@ -536,7 +558,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  93 passing
 
 cd app && flutter analyze && flutter test
-#  245 passing
+#  249 passing
 ```
 
 Among the things those tests assert:
@@ -583,6 +605,7 @@ Among the things those tests assert:
 - a receipt names **specific messages**, not "everything up to now"
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
+- a wipe code **equal to the password** is refused, because an ordinary sign-in would fire it
 - blocking is **invisible** to the blocked sender
 
 ---
@@ -622,7 +645,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 245 tests, incl. the crypto round trip
+│   └── test/                 249 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -658,11 +681,11 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking
+Two-factor · Blocking · Wipe code
 
 **Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
-Multi-device · Push registration in the client · The wipe-code screen, the last
-thing the server implements and the app cannot reach
+Multi-device · Push registration in the client, the last thing the server
+implements and the app cannot reach
 
 **Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
 the local history

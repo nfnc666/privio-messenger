@@ -370,6 +370,27 @@ message is a message the app did not receive and cannot show the contents of,
 and inventing one is a way for a server that reorders or replays envelopes to
 put marks in someone's chat.
 
+## The wipe code
+
+**It is a second password that destroys instead of opening.** Typed at sign-in,
+the server deletes the account's devices — which cascades to its sessions,
+prekeys and queued envelopes — along with contacts, group memberships, media
+and the backup, then answers `invalid_credentials`. Someone standing over the
+phone sees what a typo looks like.
+
+**It cannot be the password.** The server refuses to store one that is, because
+an ordinary sign-in would then destroy the account.
+
+**Setting or removing it needs the password.** In both directions: an unlocked
+phone is not authority over the setting that decides whether the account can be
+destroyed.
+
+**What it does not do.** The account row survives, so the username cannot be
+claimed by anyone else afterwards. It also cannot reach a device that is
+already signed in elsewhere — the wipe happens at the sign-in the code is typed
+into, and that device's local archive stays sealed but present. A remote kill
+switch is a different feature, and the screen does not imply this is one.
+
 ## Two-factor authentication
 
 **It protects the account, not the messages.** The code is checked by the
