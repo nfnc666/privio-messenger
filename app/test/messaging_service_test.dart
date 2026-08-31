@@ -882,12 +882,20 @@ void main() {
         expiresInSeconds: 30,
       );
 
-      // Nothing about the timer is visible from outside the envelope.
+      // Nothing about the timer is visible from outside the envelope: it is
+      // not a column on the row, and the row's bytes do not read as the
+      // payload. Searching that ciphertext for "30" would be the wrong test —
+      // two given characters turn up in a few hundred random bytes often
+      // enough to fail a run for no reason.
+      final row = server.envelopes.single;
+      expect(row.keys, isNot(contains('expiresAt')));
+      expect(row.keys, isNot(contains('expiresInSeconds')));
       final envelope = utf8.decode(
-        base64Decode(server.envelopes.single['content'] as String),
+        base64Decode(row['content'] as String),
         allowMalformed: true,
       );
-      expect(envelope, isNot(contains('30')));
+      expect(envelope, isNot(contains('client-4')));
+      expect(envelope, isNot(contains('expiresInSeconds')));
 
       final received = await bob.messaging.receive();
       expect(received.messages.single.payload.expiresInSeconds, 30);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'screens/activation_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
@@ -89,6 +90,7 @@ class _StageRouter extends StatelessWidget {
             onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
           ),
         AppStage.locked => const PinScreen(),
+        AppStage.activation => const ActivationScreen(),
         AppStage.ready => const NavShell(),
       },
     );

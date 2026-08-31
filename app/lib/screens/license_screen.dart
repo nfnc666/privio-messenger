@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/edition.dart';
 import '../core/license_controller.dart';
-import '../core/license_key.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/license_key_field.dart';
 
 /// Activation: where a Privio License Key is turned into a licensed account.
 ///
@@ -152,17 +151,11 @@ class _Activation extends StatelessWidget {
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),
-        TextField(
+        LicenseKeyField(
           controller: field,
-          autocorrect: false,
-          enableSuggestions: false,
-          textCapitalization: TextCapitalization.characters,
-          textInputAction: TextInputAction.done,
           enabled: !license.busy,
-          inputFormatters: const [_LicenseKeyFormatter()],
-          onChanged: (_) => license.clearError(),
-          onSubmitted: (_) => onActivate(license),
-          decoration: const InputDecoration(hintText: licenseKeyFormat),
+          onChanged: license.clearError,
+          onSubmitted: () => onActivate(license),
         ),
         if (license.error != null) ...[
           const SizedBox(height: PrivioSpacing.lg),
@@ -290,25 +283,6 @@ class _Note extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Formats the field as `PRIVIO-XXXX-XXXX-XXXX-XXXX` while it is being typed,
-/// folding Crockford aliases on the way in so an O typed for a zero is simply
-/// shown as a zero rather than rejected later.
-class _LicenseKeyFormatter extends TextInputFormatter {
-  const _LicenseKeyFormatter();
-
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final body = normaliseLicenseKey(newValue.text);
-    final capped =
-        body.length > licenseKeyBodyLength ? body.substring(0, licenseKeyBodyLength) : body;
-    final text = formatLicenseKey(capped);
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

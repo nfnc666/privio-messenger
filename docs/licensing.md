@@ -88,9 +88,10 @@ That split is deliberate. An unlicensed user can still reach their account and
 activate it, and messages that were already delivered never become unreadable
 because of a billing state.
 
-The app collects the key on its activation screen
-(`app/lib/screens/license_screen.dart`) and shows what the server answered.
-That screen is a courier, not a gate.
+The app collects the key in two places — the activation step at first start
+(`app/lib/screens/activation_screen.dart`) and the License screen in Settings
+(`app/lib/screens/license_screen.dart`) — and both only show what the server
+answered. They are couriers, not gates.
 
 **Client-side checks are cosmetic.** Privio Libre is open source; anyone can
 build it with the license screen removed. Only the server refusing service
@@ -140,11 +141,28 @@ again.
 it asks `GET /v1/licenses/me`, shows the answer, and turns error codes into
 sentences. It never decides that anyone is licensed.
 
+* A new account is asked **once**, at first start, on a server that answered
+  `required: true`: `AppStage.activation` sits between signing in and the app,
+  and shows `lib/screens/activation_screen.dart`. It is a step, not a wall —
+  "Not now" goes through to the app, because the server itself lets an
+  unlicensed account sign in and read. Refusing entry would be the client
+  inventing a restriction the server does not apply.
+* That question is remembered per account (`privio.license.activation_asked_for`
+  in the keystore), so someone who skipped it is not asked again on every
+  launch; a second account on the same device is asked in its turn, and a
+  successful activation is not recorded at all — the server simply stops
+  saying a key is needed.
 * The **Privio License** row in Settings appears only when the server answered
-  `required: true`. On a self-hosted deployment there is nothing to buy, so
-  there is no payment prompt either.
+  `required: true`, and reads *Not active* until a key is redeemed. On a
+  self-hosted deployment there is nothing to buy, so there is no payment prompt
+  anywhere.
 * The key field formats as you type (`PRIVIO-XXXX-…`) but sends what was typed;
-  the folding that matters happens on the server.
+  the folding that matters happens on the server. It is one widget
+  (`lib/widgets/license_key_field.dart`) shared by both screens, so a key typed
+  at first start and a key typed in Settings reach the server in the same
+  shape. Typing the printed `PRIVIO` prefix by hand is not folded into the key
+  body — the prefix contains an I and an O of its own — and backspace clears
+  the field rather than putting the prefix back.
 * A `403 license_required` on send is turned into "Activate your license in
   Settings to send messages" rather than repeating the server's wording.
 * A server old enough to lack the endpoint answers 404, which the client reads

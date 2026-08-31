@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-256%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-319%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -489,10 +489,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  73 passing
+#  91 passing
 
 cd app && flutter analyze && flutter test
-#  198 passing
+#  228 passing
 ```
 
 Among the things those tests assert:
@@ -526,6 +526,9 @@ Among the things those tests assert:
 - the **wrong recovery key** opens nothing, and a failed restore leaves the device's history alone
 - a recovery key survives being **written down and typed back in**, including O for 0
 - a receipt is **never** filed as a message, and carries no readable word on the wire
+- a **self-hosted** server never puts a license key in front of anyone, because it says it needs none
+- "Not now" at first start is remembered **per account**, so the next account is still asked
+- typing the printed `PRIVIO-` prefix by hand does not end up **inside** the key
 - an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
 - a **reaction** to a message this device does not have is dropped, not turned into a bubble
 - a reply's quote travels **inside the sealed payload**, so the server never learns what answered what
@@ -571,12 +574,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 198 tests, incl. the crypto round trip
+│   └── test/                 228 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 73 tests against real PostgreSQL
+│   └── test/                 91 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system
 ```
@@ -630,6 +633,27 @@ A license key is a different thing from the licence: it pays for the hosted
 relay, is redeemed once, and belongs to one account for good. It does not
 unlock the app — you already have all of the app. Self-hosted servers require
 no key at all.
+
+### Asked once, at first start
+
+On a server that sells access, a new account is asked for its key immediately
+after it is created, instead of finding out later that it cannot send.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/activation-01-first-start.png" width="200"><br><sub><b>1.</b> Straight after sign-up, and only where the server said it needs one.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-03-key.png" width="200"><br><sub><b>2.</b> The field formats as you type; case and separators do not matter.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-02-refused.png" width="200"><br><sub><b>3.</b> A key the server does not know is said plainly, and the step stays put.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-04-later.png" width="200"><br><sub><b>4.</b> After "Not now": still there, in Settings, marked <i>Not active</i>.</sub></td>
+</tr>
+</table>
+
+It is a step, not a wall. The server lets an unlicensed account sign in and
+read what has already arrived — only sending is gated — so **Not now** goes
+through to the app, and the question is not asked again for that account. A
+screen that refused to let anyone past would be the client inventing a
+restriction the server does not apply, in a build anyone can compile with that
+screen deleted.
 
 | | |
 | --- | --- |
