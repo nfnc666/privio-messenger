@@ -10,7 +10,7 @@ enum PrivioDistribution {
   /// F-Droid. Free software only, activated with a license key.
   libre,
 
-  /// The APK downloaded from privio.com. Same binary contents as [libre],
+  /// The APK downloaded from getprivio.com. Same binary contents as [libre],
   /// different signing and update path.
   direct,
 

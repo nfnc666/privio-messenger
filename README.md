@@ -666,7 +666,7 @@ no key at all.
 
 On a server that sells access, a new account is asked for its key immediately
 after it is created, instead of finding out later that it cannot send. That is
-the **Libre build and the APK from privio.com**. A Play or App Store build was
+the **Libre build and the APK from getprivio.com**. A Play or App Store build was
 paid for at the moment it was installed, so it is never shown a key field: it
 goes straight into the app, and if it still comes back unlicensed that is a
 receipt to settle with the store.
