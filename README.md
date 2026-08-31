@@ -47,7 +47,7 @@ No phone number. No email. No address-book upload. You are a username.
 <tr>
 <td align="center"><img src="docs/screenshots/13-devices.png" width="200"><br><sub><b>Devices</b><br>See what is logged in, log it out</sub></td>
 <td align="center"><img src="docs/screenshots/backup-01-empty.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold — and honest when there is none</sub></td>
-<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Push carries no content at all</sub></td>
+<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>The server's pushes carry no content — these switches are still a mockup</sub></td>
 <td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
 <tr>
@@ -195,14 +195,15 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | --- | :---: | --- |
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
-| **Two-factor auth** | ✅ | TOTP (RFC 6238), enforced at login |
-| **Wipe code** | ✅ | Duress code that destroys everything and looks like a typo |
-| **Contacts & blocking** | ✅ | Exact-username lookup, invisible blocking |
+| **Two-factor auth** | 🔧 | TOTP (RFC 6238) is enforced at login and the app asks for the code; the screen to *turn it on* is not built, so today it is set through the API |
+| **Wipe code** | 🔧 | The server destroys the account and answers `invalid_credentials`, and a test proves a wipe is indistinguishable from a typo — but the app has no screen to set one |
+| **Contacts** | ✅ | Exact-username lookup, no address-book upload |
+| **Blocking** | 🔧 | Invisible to the blocked sender, and covered by server tests; nothing in the app calls it yet |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
-| **Push notifications** | ✅ | Contentless wake-ups; APNs/FCM see no metadata |
+| **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
@@ -217,10 +218,12 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
+| **Voice & video calls** | 📋 | The Calls tab exists and still shows placeholder entries; the real thing is WebRTC over the Signal sessions that already exist |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | 📋 | V2 — the calculator skin |
+| **Disguise mode** | 📋 | The calculator skin, not started |
+| **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
+| **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
 ✅ done and tested · 🔧 in progress · 📋 planned
 
@@ -257,8 +260,8 @@ sequenceDiagram
  │ Screens · dark, minimal  │                │ Fastify HTTP + WebSocket     │
  │ Local encrypted database │                │                              │
  │ Signal Protocol session  │  sealed bytes  │ accounts · devices · keys    │
- │  · X3DH key agreement    │ ─────────────► │ envelopes · groups           │
- │  · Double Ratchet        │ ◄───────────── │ media · backups              │
+ │  · X3DH key agreement    │ ─────────────► │ envelopes · groups · channels│
+ │  · Double Ratchet        │ ◄───────────── │ media · backups · licenses   │
  │ Keystore / Keychain      │   TLS 1.3      │                              │
  └──────────────────────────┘                └───────────┬──────────────────┘
                                                          │
@@ -277,8 +280,8 @@ sequenceDiagram
 | **Archive** | `app/lib/data/` | The decrypted history, sealed at rest |
 | **Media** | `app/lib/media/` | Metadata scrubbing, per-file encryption, padding |
 | **Crypto** | `app/lib/crypto/` | X3DH, the Double Ratchet, the key store |
-| Transport | `app/lib/core/` | HTTP client, keystore, app state |
-| API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, media, backup |
+| Transport | `app/lib/core/` | HTTP client, keystore, app state, the build's edition |
+| API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, channels, media, backup, licenses |
 | Delivery | `server/src/services/` | Queueing, fan-out, push wake-ups |
 | Schema | `server/migrations/` | Every content column is a `bytea` the server cannot read |
 
@@ -404,11 +407,11 @@ implementations of established protocols.
 | Password hashing | Argon2id, 64 MiB, t=3, p=1 |
 | Session tokens | 256-bit random, stored only as SHA-256 |
 | Transport | TLS 1.3 |
-| Attachments | AES-256-GCM, random key per file |
+| Attachments | AES-256-GCM, a fresh random key per file, size padded |
 | Backups | AES-256-GCM under a key derived (HKDF-SHA256) from your recovery key |
 | Local history | AES-256-GCM under a key in the platform keystore |
 | Profile pictures | AES-256-GCM under a profile key, shared only with contacts |
-| Attachments | AES-256-GCM, a fresh random key per file, size padded |
+| License keys at rest | HMAC-SHA256 under a server secret — deterministic, because a redemption arrives with the key and nothing to look it up by |
 | Two-factor | TOTP, RFC 6238 |
 
 ### The caveats, stated plainly
@@ -436,7 +439,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **No independent audit.** Before any public release the crypto integration
+5. **Some features exist on the server and nowhere in the app.** Two-factor
+   setup, the wipe code and blocking are implemented and tested server-side,
+   and the app has no screen for any of them: today they are set through the
+   API. Login already honours all three. The feature table above marks them
+   🔧 rather than ✅ for exactly this reason.
+6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
 The full list, with the reasoning, is in
@@ -458,6 +466,13 @@ npm install
 npm run migrate               # migrations also run automatically on boot
 npm run dev                   # http://localhost:8080
 ```
+
+A server you run yourself needs no licensing configuration: `LICENSE_REQUIRED`
+defaults to `false`, the server then answers `required: false`, and no client
+ever asks anyone for a key. Setting it to `true` also requires
+`LICENSE_HASH_SECRET`, and the server refuses to boot without it rather than
+run a paid service that cannot tell who has paid — see
+[`docs/licensing.md`](docs/licensing.md#configuration).
 
 ```bash
 curl http://localhost:8080/health
@@ -556,6 +571,7 @@ Among the things those tests assert:
 | `POST /v1/groups` | Create a group with encrypted metadata |
 | `POST /v1/media` | Upload an already-encrypted attachment |
 | `PUT /v1/backup` | Upload an already-encrypted backup |
+| `GET /v1/licenses/me` | What this account's license looks like, and whether this server wants one |
 | `POST /v1/licenses/redeem` | Bind a license key to this account |
 
 Full route list in [`docs/architecture.md`](docs/architecture.md).
@@ -582,7 +598,7 @@ privio-messenger/
 │   ├── migrations/           SQL schema
 │   └── test/                 91 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
-└── docs/                   Architecture, security model, design system
+└── docs/                   Architecture, security model, design system, licensing, Libre
 ```
 
 ---
@@ -608,11 +624,22 @@ The full system — typography, spacing, every screen and component — is in
 
 ## Roadmap
 
-**V1** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
-Media · Notifications · Backup
+**Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
+Media · Voice messages · Backup · Channels · Join links · Read receipts and
+typing · Replies and reactions · Disappearing messages · License activation
 
-**V2** — Channels · Voice and video calls · Multi-device · Advanced privacy ·
-Disguise mode · Wipe code
+**Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
+Multi-device · Push registration in the client · The screens the server is
+already waiting for: two-factor setup, wipe code, blocking
+
+**Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
+the local history
+
+Before any of that ships to a store: the official `libsignal` behind FFI, an
+external review of the crypto integration, and a pass on a real device for the
+file picker and the microphone. Those are in
+[the caveats](#the-caveats-stated-plainly), not on this list, because they are
+conditions rather than features.
 
 ---
 
@@ -696,6 +723,7 @@ screen deleted.
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
+| [Client editions](app/README.md) | The four builds, what separates them, and how to build each |
 
 <div align="center">
 <br>
