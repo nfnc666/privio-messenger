@@ -34,9 +34,12 @@ void main() {
       // hand has to reach the server as the same 16 symbols it was minted as.
       expect(
         normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'),
-        normaliseLicenseKey('PRIVIO 0111V ABCD EFGH JKMN'),
+        normaliseLicenseKey('PRIVIO 011V ABCD EFGH JKMN'),
       );
-      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'), '0111VABCDEFGHJKMN');
+      // Four symbols in, four symbols out: O, I, L and U each fold to one
+      // character, so the body stays the 16 symbols it was minted as.
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn'), '011VABCDEFGHJKMN');
+      expect(normaliseLicenseKey('privio-oilu-abcd-efgh-jkmn').length, licenseKeyBodyLength);
     });
 
     test('strips the prefix before folding, so its own I and O survive', () {
@@ -328,6 +331,32 @@ void main() {
       await license.refresh();
 
       expect(license.state?.atDeviceLimit, isTrue);
+    });
+
+    test('a server with no licence endpoint is a server that sells nothing', () async {
+      // 404 is an answer, not an error: an older deployment that has never
+      // heard of licences must not be shown a key screen that cannot work.
+      final license = LicenseController(
+        _client(
+          (_) => _json(const {'error': 'not_found', 'message': 'no route'}, 404),
+        ),
+      );
+
+      await license.refresh();
+
+      expect(license.state?.enforced, isFalse);
+      expect(license.isOffered, isFalse);
+      expect(license.error, isNull);
+    });
+
+    test('any other failure leaves the last known answer alone', () async {
+      final license = LicenseController(
+        _client((_) => _json(const {'error': 'server_error'}, 500)),
+      );
+
+      await license.refresh();
+
+      expect(license.state, isNull, reason: 'a 500 says nothing about a licence');
     });
 
     test('a server that does not report the numbers claims no limit', () async {

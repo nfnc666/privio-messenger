@@ -95,6 +95,10 @@ class Message {
     this.attachment,
     this.expiresAt,
     this.clientId,
+    this.replyToId,
+    this.replyPreview,
+    this.replySender,
+    this.reactions = const {},
   });
 
   final String id;
@@ -125,6 +129,20 @@ class Message {
   /// message arriving twice.
   final String? clientId;
 
+  /// Set when this message replies to another. The quote travelled with it, so
+  /// it renders even if the original is gone from this device.
+  final String? replyToId;
+  final String? replyPreview;
+  final String? replySender;
+
+  /// Who reacted with what: account id to emoji, one each.
+  ///
+  /// One per person rather than a list, because a reaction is a position and
+  /// somebody changing theirs should replace it, not add to it.
+  final Map<String, String> reactions;
+
+  bool get isReply => replyToId != null;
+
   bool get isVoice => kind == MessageKind.voice;
 
   bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
@@ -133,6 +151,7 @@ class Message {
     DeliveryState? state,
     Attachment? attachment,
     DateTime? expiresAt,
+    Map<String, String>? reactions,
   }) =>
       Message(
         id: id,
@@ -147,6 +166,10 @@ class Message {
         attachment: attachment ?? this.attachment,
         expiresAt: expiresAt ?? this.expiresAt,
         clientId: clientId,
+        replyToId: replyToId,
+        replyPreview: replyPreview,
+        replySender: replySender,
+        reactions: reactions ?? this.reactions,
       );
 }
 

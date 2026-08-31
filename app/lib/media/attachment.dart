@@ -113,6 +113,9 @@ class MessagePayload {
     this.groupKey,
     this.expiresInSeconds,
     this.clientId,
+    this.replyToId,
+    this.replyPreview,
+    this.replySender,
   })  : mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -125,7 +128,9 @@ class MessagePayload {
         waveform = null,
         receiptIds = null,
         receiptKind = null,
-        typingAt = null;
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -151,7 +156,42 @@ class MessagePayload {
         clientId = null,
         receiptIds = null,
         receiptKind = null,
-        typingAt = null;
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null;
+
+  /// A reaction to one message.
+  ///
+  /// Control, not conversation: it changes a message that is already there
+  /// rather than adding one. Removing a reaction is the same payload with an
+  /// empty emoji, so there is one shape to send, receive and reason about.
+  const MessagePayload.reaction({
+    required String this.reactionTo,
+    required String this.reactionEmoji,
+  })  : body = '',
+        mediaId = null,
+        mediaKey = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null;
 
   /// A receipt for messages that arrived, or were read.
   ///
@@ -176,7 +216,12 @@ class MessagePayload {
         waveform = null,
         expiresInSeconds = null,
         clientId = null,
-        typingAt = null;
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
   /// — delivered late, or after the app was closed — can be recognised as stale
@@ -198,7 +243,12 @@ class MessagePayload {
         expiresInSeconds = null,
         clientId = null,
         receiptIds = null,
-        receiptKind = null;
+        receiptKind = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -213,12 +263,17 @@ class MessagePayload {
     this.waveform,
     this.expiresInSeconds,
     this.clientId,
+    this.replyToId,
+    this.replyPreview,
+    this.replySender,
   })  : keyScope = null,
         keyScopeId = null,
         deliveredKey = null,
         receiptIds = null,
         receiptKind = null,
-        typingAt = null;
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -235,6 +290,17 @@ class MessagePayload {
     final groupKey = json['gk'] as String?;
     final expiresInSeconds = json['ex'] as int?;
     final clientId = json['ci'] as String?;
+    final quote = (
+      id: json['qi'] as String?,
+      preview: json['qp'] as String?,
+      sender: json['qs'] as String?,
+    );
+    if (json['t'] == 'reaction') {
+      return MessagePayload.reaction(
+        reactionTo: json['rt'] as String,
+        reactionEmoji: json['re'] as String? ?? '',
+      );
+    }
     if (json['t'] == 'receipt') {
       return MessagePayload.receipt(
         receiptIds: (json['ri'] as List<dynamic>? ?? const []).cast<String>(),
@@ -267,6 +333,9 @@ class MessagePayload {
             .toList(),
         expiresInSeconds: expiresInSeconds,
         clientId: clientId,
+        replyToId: quote.id,
+        replyPreview: quote.preview,
+        replySender: quote.sender,
       );
     }
     return MessagePayload.text(
@@ -275,6 +344,9 @@ class MessagePayload {
       groupKey: groupKey,
       expiresInSeconds: expiresInSeconds,
       clientId: clientId,
+      replyToId: quote.id,
+      replyPreview: quote.preview,
+      replySender: quote.sender,
     );
   }
 
@@ -345,6 +417,25 @@ class MessagePayload {
   /// epoch. A notice that arrives long after that is stale and ignored.
   final int? typingAt;
 
+  /// On a reaction: the client id of the message being reacted to.
+  final String? reactionTo;
+
+  /// The emoji, or empty to take a reaction back.
+  final String? reactionEmoji;
+
+  /// On a reply: the client id of the message being replied to.
+  final String? replyToId;
+
+  /// A short quote of that message, carried with the reply.
+  ///
+  /// Sent rather than looked up, because the other side may have deleted the
+  /// original, or it may have disappeared on their timer — and a reply that
+  /// quotes nothing is a reply to nothing.
+  final String? replyPreview;
+
+  /// Who wrote the quoted message, as the sender labels them.
+  final String? replySender;
+
   /// The same payload with a profile key attached.
   ///
   /// A method rather than a rebuild at each call site: this type has grown
@@ -368,6 +459,9 @@ class MessagePayload {
         waveform: waveform,
         expiresInSeconds: expiresInSeconds,
         clientId: clientId,
+        replyToId: replyToId,
+        replyPreview: replyPreview,
+        replySender: replySender,
       );
     }
     return MessagePayload.text(
@@ -376,6 +470,9 @@ class MessagePayload {
       groupKey: groupKey,
       expiresInSeconds: expiresInSeconds,
       clientId: clientId,
+      replyToId: replyToId,
+      replyPreview: replyPreview,
+      replySender: replySender,
     );
   }
 
@@ -383,10 +480,14 @@ class MessagePayload {
 
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
+  bool get isReaction => reactionTo != null;
+
+  /// True when the reaction takes one back rather than adding one.
+  bool get clearsReaction => isReaction && (reactionEmoji ?? '').isEmpty;
 
   /// True for anything that is machinery rather than conversation, and so must
   /// never end up in a chat.
-  bool get isControl => isReceipt || isTyping || isKeyDelivery;
+  bool get isControl => isReceipt || isTyping || isReaction || isKeyDelivery;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -398,20 +499,28 @@ class MessagePayload {
 
   String encode() => jsonEncode({
         'v': 1,
-        't': isReceipt
-            ? 'receipt'
-            : isTyping
-                ? 'typing'
-                : isKeyDelivery
-                    ? 'key'
-                    : isMedia
-                        ? 'media'
-                        : 'text',
+        't': isReaction
+            ? 'reaction'
+            : isReceipt
+                ? 'receipt'
+                : isTyping
+                    ? 'typing'
+                    : isKeyDelivery
+                        ? 'key'
+                        : isMedia
+                            ? 'media'
+                            : 'text',
         'b': body,
         if (expiresInSeconds != null) 'ex': expiresInSeconds,
         if (clientId != null) 'ci': clientId,
         if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
         if (isTyping) 'ta': typingAt,
+        if (isReaction) ...{'rt': reactionTo, 're': reactionEmoji},
+        if (replyToId != null) ...{
+          'qi': replyToId,
+          if (replyPreview != null) 'qp': replyPreview,
+          if (replySender != null) 'qs': replySender,
+        },
         if (isKeyDelivery) ...{
           'ks': keyScope,
           'ki': keyScopeId,

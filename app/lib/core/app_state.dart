@@ -244,13 +244,18 @@ class AppState extends ChangeNotifier {
   void _onSignedIn() {
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
-    final controller = conversations;
+    final controller = conversations..accountId = _accountId;
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
-    // A key entered before the account existed is redeemed the moment there is
-    // an account to bind it to. Quietly: a failure here leaves a signed-in,
-    // readable app and a message on the licence screen, not a blocked launch.
+    // Whether this server sells access is a property of the server, so it has
+    // to be asked rather than assumed. Never blocks the UI.
+    //
+    // A key entered before the account existed is spent first, the moment there
+    // is an account to bind it to; redeeming already brings the status back, so
+    // only the case where there was nothing to redeem needs the extra call. A
+    // failure here leaves a signed-in, readable app and a message on the
+    // licence screen, not a blocked launch.
     unawaited(license.redeemPending().then((redeemed) {
       if (!redeemed) return license.refresh();
       return null;
@@ -306,6 +311,8 @@ class AppState extends ChangeNotifier {
     services.store.clear();
     _channels?.dispose();
     _channels = null;
+    _license?.dispose();
+    _license = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -316,6 +323,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
     _license?.dispose();

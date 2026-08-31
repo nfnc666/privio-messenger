@@ -193,6 +193,32 @@ again.
 | `license_required` | 403 | The gate: activate a key to send |
 | `license_already_issued` | 409 | This order already has a license |
 
+## In the app
+
+`lib/core/license_controller.dart` holds the client side, and holds it thinly:
+it asks `GET /v1/licenses/me`, shows the answer, and turns error codes into
+sentences. It never decides that anyone is licensed.
+
+* The activation screen runs at first launch, before there is an account, and
+  again from Settings afterwards. The **Privio License** row in Settings appears
+  only when the server sells licences or the account already holds one. On a
+  self-hosted deployment there is nothing to buy, so there is no prompt either
+  — at launch or later.
+* The key field folds Crockford aliases as you type and sends the canonical
+  `PRIVIO-XXXX-…` form. The server folds again on arrival; doing it on both
+  sides is what makes the key that is stored and the key that was typed the
+  same string.
+* A key that is not even 16 symbols is refused on the device. Redemption allows
+  five attempts per ten minutes, and a typo should not spend one.
+* A `403 license_required` on send is turned into "Activate your license to send
+  messages", with a button to the screen, rather than repeating the server's
+  wording.
+* A server old enough to lack the endpoint answers 404, which the client reads
+  as "does not require a license" instead of showing an error.
+
+Removing that screen from a build changes nothing: the gate is a `preHandler`
+here, not a condition there.
+
 ## Store purchases
 
 Apple and Google receipts are validated server-side and written to the same

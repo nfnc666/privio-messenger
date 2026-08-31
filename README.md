@@ -124,6 +124,29 @@ The switches are reciprocal: turning read receipts off stops this device sending
 them **and** showing other people's. A setting that took without giving would be
 a different feature wearing this one's name.
 
+### Replies and reactions
+
+Hold a message. Six emoji and a Reply, and both go out the same way everything
+else does: sealed for each of the recipient's devices, over the Signal session
+that chat already has.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/reply-01-actions.png" width="200"><br><sub><b>1.</b> Hold a message: quick reactions and Reply.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/reply-02-reaction.png" width="200"><br><sub><b>2.</b> The reaction reaches the other device and sits under the bubble.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/reply-03-composing.png" width="200"><br><sub><b>3.</b> Replying: the quote is shown while it is being written.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/reply-04-quoted.png" width="200"><br><sub><b>4.</b> It arrives quoted — attributed correctly on both sides.</sub></td>
+</tr>
+</table>
+
+A reply carries its own copy of the quoted line rather than a pointer the
+server could resolve, so quoting works even where the other device has since
+deleted the original, and the server learns nothing about which message was
+answered. A reaction is one emoji per person per message: sending a different
+one replaces it, sending the same one again clears it. A reaction to a message
+this device does not have is dropped rather than invented — an empty bubble
+with a heart on it would be a message the server made up.
+
 ### A backup only you can open
 
 A history sealed on the device, a key that exists nowhere else, and a new
@@ -191,6 +214,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice messages** | ✅ | Hold to record, slide to cancel, pause, preview, 1x/1.5x/2x; sealed before upload |
 | **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches, 1:1 |
+| **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
@@ -354,6 +378,19 @@ their own clocks. Asking a server to forget something is trusting it to.
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.
 
+**The app fetches nothing from a third party to draw itself.** A Flutter web
+build normally pulls its renderer from `gstatic.com` and its fallback font from
+Google's font CDN on first paint, which tells a company that has nothing to do
+with this messenger who opened it, from which address, and when. Both now ship
+inside the build: the renderer is loaded from the bundled CanvasKit
+(`app/web/flutter_bootstrap.js`) and the typeface from `app/assets/fonts`
+(Roboto, Apache-2.0), declared as the app's own family so it is the file that
+actually renders. One gap remains and is worth naming: on the **web** build,
+emoji glyphs are not in the bundled font, so the engine still asks Google's CDN
+for them — the alternative is a 10 MB colour-emoji file in every download. On
+iOS and Android the system supplies emoji and nothing is fetched. Verifying
+that on a real device is part of the device pass below.
+
 ---
 
 ## Cryptography
@@ -455,7 +492,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  73 passing
 
 cd app && flutter analyze && flutter test
-#  183 passing
+#  198 passing
 ```
 
 Among the things those tests assert:
@@ -489,6 +526,9 @@ Among the things those tests assert:
 - the **wrong recovery key** opens nothing, and a failed restore leaves the device's history alone
 - a recovery key survives being **written down and typed back in**, including O for 0
 - a receipt is **never** filed as a message, and carries no readable word on the wire
+- an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
+- a **reaction** to a message this device does not have is dropped, not turned into a bubble
+- a reply's quote travels **inside the sealed payload**, so the server never learns what answered what
 - delivery state **never walks backwards**, however receipts are ordered
 - a receipt names **specific messages**, not "everything up to now"
 - a session token in a socket URL is **redacted** before it reaches the logs
@@ -529,12 +569,14 @@ privio-messenger/
 │   ├── lib/screens/          One file per screen
 │   ├── lib/widgets/          Shared components
 │   ├── lib/theme/            Design tokens
-│   └── test/                 22 tests, incl. the crypto round trip
+│   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
+│   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
+│   └── test/                 198 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 35 tests against real PostgreSQL
+│   └── test/                 73 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system
 ```

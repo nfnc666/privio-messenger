@@ -136,6 +136,14 @@ class LicenseController extends ChangeNotifier {
       final body = await _api.licenseStatus();
       await _adopt(LicenseState.fromJson(body));
       _error = null;
+    } on ApiException catch (failure) {
+      // A server old enough to have no licence endpoint is a server that does
+      // not sell anything. Reading its 404 as "nothing to activate" is what
+      // stops the app offering a key screen that could never work.
+      if (failure.statusCode == 404) {
+        await _adopt(const LicenseState(licensed: false, enforced: false));
+        _error = null;
+      }
     } on Object {
       // Leave the last known state in place. Offline is not unlicensed.
     }
