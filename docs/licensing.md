@@ -142,8 +142,13 @@ it asks `GET /v1/licenses/me`, shows the answer, and turns error codes into
 sentences. It never decides that anyone is licensed.
 
 * A new account is asked **once**, at first start, on a server that answered
-  `required: true`: `AppStage.activation` sits between signing in and the app,
-  and shows `lib/screens/activation_screen.dart`. It is a step, not a wall —
+  `required: true` **and** in a build that is activated with a key — the Libre
+  build and the APK from the website. `AppStage.activation` sits between
+  signing in and the app, and shows `lib/screens/activation_screen.dart`. A
+  Play or App Store build was paid for at the moment it was installed and is
+  never shown a key field; if it still comes back unlicensed, that is a
+  receipt to settle with the store, and the License row in Settings says so.
+  It is a step, not a wall —
   "Not now" goes through to the app, because the server itself lets an
   unlicensed account sign in and read. Refusing entry would be the client
   inventing a restriction the server does not apply.

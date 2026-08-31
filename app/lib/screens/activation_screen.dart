@@ -7,7 +7,9 @@ import '../widgets/license_key_field.dart';
 import '../widgets/privio_logo.dart';
 
 /// The activation step, shown once after an account is created on a server
-/// that sells access.
+/// that sells access — and only in the builds that are activated with a key,
+/// which is the Libre build and the APK from the website. A store build was
+/// paid for when it was installed, so it never reaches this screen.
 ///
 /// It is a step, not a wall. The server lets an unlicensed account sign in and
 /// read what has already arrived — only sending is gated — so a screen that
@@ -43,7 +45,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final theme = Theme.of(context);
-    final edition = PrivioEdition.current;
+    final edition = state.edition;
 
     return Scaffold(
       body: SafeArea(
@@ -75,37 +77,30 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: PrivioSpacing.xxxl),
-                if (edition.usesLicenseKey) ...[
-                  LicenseKeyField(
-                    controller: _key,
-                    enabled: !license.busy,
-                    onChanged: license.clearError,
-                    onSubmitted: () => _activate(state),
-                  ),
-                  if (license.error != null) ...[
-                    const SizedBox(height: PrivioSpacing.lg),
-                    _Failure(message: license.error!),
-                  ],
-                  const SizedBox(height: PrivioSpacing.xl),
-                  FilledButton(
-                    onPressed: license.busy ? null : () => _activate(state),
-                    child: license.busy
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: PrivioColors.background,
-                            ),
-                          )
-                        : const Text('Activate'),
-                  ),
-                ] else
-                  Text(
-                    'This build is paid for through the store it came from. If it is not '
-                    'active yet, restore your purchase there and reopen Privio.',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                LicenseKeyField(
+                  controller: _key,
+                  enabled: !license.busy,
+                  onChanged: license.clearError,
+                  onSubmitted: () => _activate(state),
+                ),
+                if (license.error != null) ...[
+                  const SizedBox(height: PrivioSpacing.lg),
+                  _Failure(message: license.error!),
+                ],
+                const SizedBox(height: PrivioSpacing.xl),
+                FilledButton(
+                  onPressed: license.busy ? null : () => _activate(state),
+                  child: license.busy
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: PrivioColors.background,
+                          ),
+                        )
+                      : const Text('Activate'),
+                ),
                 const SizedBox(height: PrivioSpacing.md),
                 TextButton(
                   onPressed: license.busy ? null : () => state.leaveActivation(),

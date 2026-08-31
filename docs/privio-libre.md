@@ -61,6 +61,21 @@ the gate lives on the server and not in the client. See
 Self-hosting needs no key at all: a server with `LICENSE_REQUIRED=false`
 answers `required: false`, and the client then never asks for one.
 
+Only the two key-activated builds ever ask. `PrivioEdition.usesLicenseKey` is
+what decides, and it is a build-time fact:
+
+| Build | How it is paid for | Asked for a key at first start |
+| --- | --- | --- |
+| `libre` (F-Droid) | A key from privio.com | Yes |
+| `direct` (APK from privio.com) | A key from privio.com | Yes |
+| `play` (Google Play) | Play Billing, at install | No |
+| `appstore` (App Store) | The App Store, at install | No |
+
+A store build that comes back unlicensed is a receipt to settle with the
+store, not something its owner can type their way out of, so it is never shown
+a key field — the License row in Settings says where to restore the purchase
+instead.
+
 ## Building it yourself
 
 ```bash

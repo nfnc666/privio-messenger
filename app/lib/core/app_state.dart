@@ -6,6 +6,7 @@ import 'api_client.dart';
 import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'edition.dart';
 import 'license_controller.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
@@ -26,13 +27,19 @@ class AppState extends ChangeNotifier {
     PrivioServices? services,
     SecureStore? store,
     BiometricGate? biometrics,
+    PrivioEdition? edition,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
-        _biometrics = biometrics ?? LocalAuthBiometricGate();
+        _biometrics = biometrics ?? LocalAuthBiometricGate(),
+        edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
   final BiometricGate _biometrics;
+
+  /// Which build this is. Injectable only so a test can be a store build; a
+  /// shipped app has exactly one, fixed at compile time.
+  final PrivioEdition edition;
 
   PrivioServices? _services;
   ConversationController? _conversations;
@@ -226,6 +233,13 @@ class AppState extends ChangeNotifier {
   Future<void> _askAboutLicense() async {
     await license.refresh();
     if (!license.needsActivation) return;
+    // Only the builds that are activated with a key ask for one. An App Store
+    // or Play build was paid for at the moment it was installed, so there is
+    // nothing for its owner to type — putting a key field in front of them
+    // would be asking for something this build cannot have. If such a build
+    // still comes back unlicensed, that is a receipt to settle with the store,
+    // and the License row in Settings is where it says so.
+    if (!edition.usesLicenseKey) return;
     // Never over the lock screen, and never over a sign-out that happened while
     // the request was in flight.
     if (_stage != AppStage.ready) return;

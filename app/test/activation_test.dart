@@ -7,12 +7,14 @@ import 'package:http/testing.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/biometric_gate.dart';
+import 'package:privio/core/edition.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/screens/activation_screen.dart';
+import 'package:privio/screens/license_screen.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
@@ -108,11 +110,13 @@ Future<void> settle(AppState state) async {
 Future<AppState> signUpOn(
   FakeLicenseServer server, {
   SecureStore? store,
+  String edition = 'libre',
 }) async {
   final state = AppState(
     services: await servicesFor(server),
     store: store ?? InMemorySecureStore(),
     biometrics: const NoBiometrics(),
+    edition: PrivioEdition.parse(edition),
   );
   await state.initialise();
   await state.register(username: 'nina', password: 'correct-horse-battery');
@@ -133,6 +137,28 @@ void main() {
 
     expect(state.stage, AppStage.ready);
     expect(server.statusCalls, 1, reason: 'it is still asked, and the answer is no');
+  });
+
+  test('the APK from the website asks, like the Libre build', () async {
+    final state = await signUpOn(FakeLicenseServer(enforced: true), edition: 'direct');
+
+    expect(state.stage, AppStage.activation);
+  });
+
+  test('a store build is never asked for a key', () async {
+    // Paid for at the moment it was installed. A key field would be asking for
+    // something this build has no way to have.
+    for (final edition in ['play', 'appstore']) {
+      final server = FakeLicenseServer(enforced: true);
+      final state = await signUpOn(server, edition: edition);
+
+      expect(state.stage, AppStage.ready, reason: '$edition should go straight in');
+      expect(
+        server.statusCalls,
+        1,
+        reason: 'the license is still read — Settings has something to say',
+      );
+    }
   });
 
   test('an account that already holds a license is not asked', () async {
@@ -306,6 +332,24 @@ void main() {
     await tester.pump();
 
     expect(state.stage, AppStage.ready);
+  });
+
+  testWidgets('a store build is told to settle it with the store, not with a key',
+      (tester) async {
+    final state = await tester.runAsync(
+      () => signUpOn(FakeLicenseServer(enforced: true), edition: 'appstore'),
+    ) as AppState;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PrivioTheme.dark(),
+        home: PrivioScope(notifier: state, child: const LicenseScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Handled by the store'), findsOneWidget);
+    expect(find.byType(LicenseKeyField), findsNothing);
   });
 
   testWidgets('"Not now" leaves for the app without a key', (tester) async {

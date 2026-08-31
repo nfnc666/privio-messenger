@@ -73,7 +73,9 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = license.state;
-    final edition = PrivioEdition.current;
+    // From the app rather than the constant, so this screen and the activation
+    // step at first start always describe the same build.
+    final edition = PrivioScope.of(context).edition;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(

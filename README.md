@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-319%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-323%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -492,7 +492,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  91 passing
 
 cd app && flutter analyze && flutter test
-#  228 passing
+#  232 passing
 ```
 
 Among the things those tests assert:
@@ -528,6 +528,7 @@ Among the things those tests assert:
 - a receipt is **never** filed as a message, and carries no readable word on the wire
 - a **self-hosted** server never puts a license key in front of anyone, because it says it needs none
 - "Not now" at first start is remembered **per account**, so the next account is still asked
+- a **store build** is never asked for a key, on the very same server that asks the Libre build
 - typing the printed `PRIVIO-` prefix by hand does not end up **inside** the key
 - an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
 - a **reaction** to a message this device does not have is dropped, not turned into a bubble
@@ -574,7 +575,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 228 tests, incl. the crypto round trip
+│   └── test/                 232 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -634,10 +635,14 @@ relay, is redeemed once, and belongs to one account for good. It does not
 unlock the app — you already have all of the app. Self-hosted servers require
 no key at all.
 
-### Asked once, at first start
+### Asked once, at first start — in the builds that use a key
 
 On a server that sells access, a new account is asked for its key immediately
-after it is created, instead of finding out later that it cannot send.
+after it is created, instead of finding out later that it cannot send. That is
+the **Libre build and the APK from privio.com**. A Play or App Store build was
+paid for at the moment it was installed, so it is never shown a key field: it
+goes straight into the app, and if it still comes back unlicensed that is a
+receipt to settle with the store.
 
 <table>
 <tr>
@@ -645,6 +650,13 @@ after it is created, instead of finding out later that it cannot send.
 <td align="center" width="25%"><img src="docs/screenshots/activation-03-key.png" width="200"><br><sub><b>2.</b> The field formats as you type; case and separators do not matter.</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/activation-02-refused.png" width="200"><br><sub><b>3.</b> A key the server does not know is said plainly, and the step stays put.</sub></td>
 <td align="center" width="25%"><img src="docs/screenshots/activation-04-later.png" width="200"><br><sub><b>4.</b> After "Not now": still there, in Settings, marked <i>Not active</i>.</sub></td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/activation-05-store.png" width="200"><br><sub>The same server, a store build: no key field anywhere, because there is no key its owner could have.</sub></td>
+<td width="75%"></td>
 </tr>
 </table>
 
