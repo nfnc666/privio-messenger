@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
 import 'screens/auth_screen.dart';
+import 'screens/license_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
 import 'screens/splash_screen.dart';
@@ -80,6 +81,10 @@ class _StageRouter extends StatelessWidget {
       duration: const Duration(milliseconds: 300),
       child: switch (state.stage) {
         AppStage.splash || AppStage.initialising => const SplashScreen(),
+        // Before the account, not after: a key is what the hosted service is
+        // paid for, and asking once the user is already inside would be asking
+        // them to pay for something they were let into for free.
+        AppStage.activation => const LicenseScreen(firstRun: true),
         AppStage.welcome => WelcomeScreen(
             onGetStarted: () => _openAuth(context, AuthMode.signUp),
             // Restoring starts by signing back into the account: a backup holds

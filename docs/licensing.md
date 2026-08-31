@@ -35,6 +35,57 @@ never decides whether anyone is licensed.
                     POST /v1/messages         ◄─── refused while unlicensed
 ```
 
+## What the user goes through
+
+```
+  install                                          Privio Libre from F-Droid
+     │
+     ▼
+  first launch          GET /v1/server        ──►  does this server sell
+     │                  (no auth, no account)      licences at all?
+     │                  ◄── licenseRequired
+     ▼
+  "Enter License Key"   ── shape checked on device, held in the keystore
+     │                     (or walked past — the screen is not a wall)
+     ▼
+  create the account    POST /v1/accounts     ──►  account + first device
+     │
+     ▼
+  key is spent          POST /v1/licenses/redeem   bound to the account,
+     │                  Bearer <session>      ──►  atomically, once
+     │                  ◄── licensed, maxDevices   pending key cleared
+     ▼
+  normal use            status cached locally so the app can say something
+                        true while offline — a cache, never a gate
+```
+
+The order is the point. A key is what the hosted service is paid for, so it is
+asked for before the account rather than after: asking later would mean letting
+someone in for free and then presenting a bill. But the screen has a way past
+it. Someone who has not bought a key yet, or who is about to point the app at
+their own server, can create an account and read what arrives — the server
+holds back sending, and nothing else.
+
+`GET /v1/server` exists for exactly one reason: the app has to know whether to
+show that screen before anyone has signed in, which the authenticated licence
+endpoint cannot answer. It is the only endpoint an unauthenticated caller can
+reach, and it carries policy — never state, never a secret.
+
+## Devices
+
+`licenses.max_devices` is what a purchase is worth. It is checked when a device
+registers, inside the transaction that already holds the account row lock, so a
+licence revoked mid-registration cannot be raced past.
+
+An account with no active licence falls back to `DEFAULT_DEVICE_LIMIT`, and a
+revoked licence drops it back to the same place rather than to zero: someone
+who has lost a licence can still reach their account and read what already
+arrived, which is the same split the send gate uses.
+
+`GET /v1/licenses/me` reports `maxDevices` and how many are in use, so a client
+can say "2 of 5" rather than guess. An older server reports neither, and a
+client that sees neither must not claim a limit.
+
 ## Storage
 
 Only `hmac_sha256(LICENSE_HASH_SECRET, normalised_key)` is stored. The hash has
@@ -92,6 +143,12 @@ The app collects the key on its activation screen
 (`app/lib/screens/license_screen.dart`) and shows what the server answered.
 That screen is a courier, not a gate.
 
+The same goes for the status cached in the keystore. It exists so a launch with
+no signal renders the truth rather than a question mark, and so a paying user is
+never accused of not having paid because a request timed out. It decides
+nothing: a value the device holds is one deleted line away from being bypassed
+in a build anyone can compile.
+
 **Client-side checks are cosmetic.** Privio Libre is open source; anyone can
 build it with the license screen removed. Only the server refusing service
 enforces anything, which is why the gate is a `preHandler` here and not a
@@ -110,12 +167,14 @@ client knows not to ask for a key at all.
 | GET | `/v1/licenses/me` | session | `{ licensed, source, redeemedAt, required }` |
 | POST | `/v1/internal/licenses` | issuer token | Issue a license for a paid order |
 | POST | `/v1/internal/licenses/revoke` | issuer token | Revoke after a chargeback |
+| GET | `/v1/server` | none | Whether this server requires a licence at all |
 
 Redemption is rate limited to 5 attempts per 10 minutes per device.
 
 ### Issuing is once-only
 
-`POST /v1/internal/licenses` returns the plaintext key exactly once. A retried
+`POST /v1/internal/licenses` takes an optional `maxDevices` and returns the
+plaintext key exactly once. A retried
 webhook for the same `(paymentProvider, paymentReference)` gets `409
 license_already_issued` with the license id — not a second key, because the
 order was only paid once and the plaintext no longer exists on this side.

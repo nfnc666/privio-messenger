@@ -7,6 +7,7 @@ import 'package:privio/core/api_client.dart';
 import 'package:privio/core/edition.dart';
 import 'package:privio/core/license_controller.dart';
 import 'package:privio/core/license_key.dart';
+import 'package:privio/core/secure_store.dart';
 
 PrivioApiClient _client(
   http.Response Function(http.Request request) respond, {
@@ -183,6 +184,162 @@ void main() {
       fail = true;
       await license.refresh();
       expect(license.state?.licensed, isTrue);
+    });
+  });
+
+  group('the key entered before there is an account', () {
+    test('is held, then spent the moment an account exists', () async {
+      // The launch screen cannot redeem: there is nobody to bind a key to yet.
+      // It keeps the key, and the first sign-in cashes it in.
+      final store = InMemorySecureStore();
+      final seen = <http.Request>[];
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': true, 'source': 'key'}), seen: seen),
+        store: store,
+      );
+
+      expect(await license.hold('privio 2345 6789 abcd efgh'), isTrue);
+      expect(await store.readPendingLicenseKey(), 'PRIVIO-2345-6789-ABCD-EFGH');
+      expect(seen, isEmpty, reason: 'holding a key talks to nobody');
+
+      expect(await license.redeemPending(), isTrue);
+      expect(
+        await store.readPendingLicenseKey(),
+        isNull,
+        reason: 'a spent bearer secret is not worth keeping',
+      );
+    });
+
+    test('a malformed key never reaches the keystore', () async {
+      final store = InMemorySecureStore();
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': true})),
+        store: store,
+      );
+
+      expect(await license.hold('PRIVIO-2345'), isFalse);
+      expect(await store.readPendingLicenseKey(), isNull);
+      expect(license.error, contains('not complete'));
+    });
+
+    test('nothing held means nothing to redeem', () async {
+      final seen = <http.Request>[];
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': true}), seen: seen),
+        store: InMemorySecureStore(),
+      );
+
+      expect(await license.redeemPending(), isFalse);
+      expect(seen, isEmpty);
+    });
+
+    test('a key that can never work again is dropped rather than retried', () async {
+      // Redemption is rate limited. Re-sending a key that belongs to someone
+      // else on every launch would spend the account's attempts on a key that
+      // is gone for good.
+      final store = InMemorySecureStore();
+      final license = LicenseController(
+        _client(
+          (_) => _json(
+            const {'error': 'license_already_redeemed', 'message': 'used'},
+            409,
+          ),
+        ),
+        store: store,
+      );
+
+      await license.hold('PRIVIO-2345-6789-ABCD-EFGH');
+      expect(await license.redeemPending(), isFalse);
+      expect(await store.readPendingLicenseKey(), isNull);
+    });
+
+    test('a key that failed on a flat network is kept for the next try', () async {
+      final store = InMemorySecureStore();
+      final license = LicenseController(
+        _client((_) => throw http.ClientException('offline')),
+        store: store,
+      );
+
+      await license.hold('PRIVIO-2345-6789-ABCD-EFGH');
+      expect(await license.redeemPending(), isFalse);
+      expect(
+        await store.readPendingLicenseKey(),
+        'PRIVIO-2345-6789-ABCD-EFGH',
+        reason: 'a lost connection must not cost someone their purchase',
+      );
+    });
+  });
+
+  group('the cached status', () {
+    test('survives a cold start so the first frame is not a question mark', () async {
+      final store = InMemorySecureStore();
+      final first = LicenseController(
+        _client(
+          (_) => _json(const {
+            'licensed': true,
+            'required': true,
+            'source': 'key',
+            'maxDevices': 5,
+            'devices': 2,
+          }),
+        ),
+        store: store,
+      );
+      await first.refresh();
+
+      // A second controller over a server that cannot be reached at all.
+      final second = LicenseController(
+        _client((_) => throw http.ClientException('offline')),
+        store: store,
+      );
+      await second.restore();
+
+      expect(second.state?.licensed, isTrue);
+      expect(second.state?.maxDevices, 5);
+      expect(second.state?.devices, 2);
+    });
+
+    test('a cache that will not parse is thrown away, not crashed on', () async {
+      final store = InMemorySecureStore();
+      await store.writeLicenseCache('{not json');
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': false})),
+        store: store,
+      );
+
+      await license.restore();
+
+      expect(license.state, isNull);
+      expect(await store.readLicenseCache(), isNull);
+    });
+
+    test('reports the device allowance the licence was sold with', () async {
+      final license = LicenseController(
+        _client(
+          (_) => _json(const {
+            'licensed': true,
+            'required': true,
+            'maxDevices': 2,
+            'devices': 2,
+          }),
+        ),
+      );
+
+      await license.refresh();
+
+      expect(license.state?.atDeviceLimit, isTrue);
+    });
+
+    test('a server that does not report the numbers claims no limit', () async {
+      // An older server says nothing about devices. Inventing a limit it does
+      // not enforce would be worse than saying nothing.
+      final license = LicenseController(
+        _client((_) => _json(const {'licensed': true, 'required': true})),
+      );
+
+      await license.refresh();
+
+      expect(license.state?.atDeviceLimit, isFalse);
     });
   });
 

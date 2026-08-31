@@ -42,6 +42,24 @@ abstract interface class SecureStore {
   Future<bool> biometricsEnabled();
   Future<void> setBiometricsEnabled(bool enabled);
 
+  /// A license key entered before there was an account to bind it to.
+  ///
+  /// Held only between the activation screen and the first successful sign-in,
+  /// and cleared the moment it is redeemed: afterwards the key is spent, and
+  /// keeping a spent bearer secret is a liability rather than a convenience.
+  Future<String?> readPendingLicenseKey();
+  Future<void> writePendingLicenseKey(String? key);
+
+  /// The last answer the server gave about this account's license, as JSON.
+  ///
+  /// A cache, never a gate. This app is open source: a check against a value
+  /// the device itself holds is one deleted line away from being bypassed, so
+  /// nothing here decides whether anyone is served. It exists so the app can
+  /// say something true while offline instead of accusing a paying user of not
+  /// having paid.
+  Future<String?> readLicenseCache();
+  Future<void> writeLicenseCache(String? json);
+
   /// Used by sign-out and by the wipe code: leaves nothing recoverable behind.
   Future<void> wipe();
 }
@@ -62,6 +80,8 @@ class KeystoreSecureStore implements SecureStore {
   static const _lastBackupKey = 'privio.backup.last_at';
   static const _backupIntervalKey = 'privio.backup.interval';
   static const _biometricsKey = 'privio.lock.biometrics';
+  static const _pendingLicenseKey = 'privio.license.pending_key';
+  static const _licenseCacheKey = 'privio.license.status';
 
   static const _iosOptions = IOSOptions(
     accessibility: KeychainAccessibility.first_unlock_this_device,
@@ -73,6 +93,9 @@ class KeystoreSecureStore implements SecureStore {
 
   Future<void> _write(String key, String value) =>
       _storage.write(key: key, value: value, iOptions: _iosOptions, aOptions: _androidOptions);
+
+  Future<void> _clear(String key) =>
+      _storage.delete(key: key, iOptions: _iosOptions, aOptions: _androidOptions);
 
   @override
   Future<String?> readToken() => _read(_tokenKey);
@@ -142,6 +165,20 @@ class KeystoreSecureStore implements SecureStore {
 
   @override
   Future<void> setBiometricsEnabled(bool enabled) => _write(_biometricsKey, '$enabled');
+
+  @override
+  Future<String?> readPendingLicenseKey() => _read(_pendingLicenseKey);
+
+  @override
+  Future<void> writePendingLicenseKey(String? key) =>
+      key == null ? _clear(_pendingLicenseKey) : _write(_pendingLicenseKey, key);
+
+  @override
+  Future<String?> readLicenseCache() => _read(_licenseCacheKey);
+
+  @override
+  Future<void> writeLicenseCache(String? json) =>
+      json == null ? _clear(_licenseCacheKey) : _write(_licenseCacheKey, json);
 
   @override
   Future<void> wipe() =>
@@ -216,6 +253,30 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> setBiometricsEnabled(bool enabled) async =>
       _entries['biometrics'] = '$enabled';
+
+  @override
+  Future<String?> readPendingLicenseKey() async => _entries['pendingLicenseKey'];
+
+  @override
+  Future<void> writePendingLicenseKey(String? key) async {
+    if (key == null) {
+      _entries.remove('pendingLicenseKey');
+    } else {
+      _entries['pendingLicenseKey'] = key;
+    }
+  }
+
+  @override
+  Future<String?> readLicenseCache() async => _entries['licenseCache'];
+
+  @override
+  Future<void> writeLicenseCache(String? json) async {
+    if (json == null) {
+      _entries.remove('licenseCache');
+    } else {
+      _entries['licenseCache'] = json;
+    }
+  }
 
   @override
   Future<void> wipe() async => _entries.clear();

@@ -20,6 +20,10 @@ export interface LicenseStatus {
   licensed: boolean;
   source?: string;
   redeemedAt?: string;
+  /** Active devices this license covers. */
+  maxDevices?: number;
+  /** How many of them are in use, so a client can say "3 of 5" without guessing. */
+  devices?: number;
 }
 
 function requireSecret(): string {
@@ -72,14 +76,22 @@ export async function issueLicense(input: {
   paymentProvider: string;
   paymentReference: string;
   source?: 'key' | 'apple' | 'google';
+  /** Omitted means the column default, which is what every earlier license has. */
+  maxDevices?: number;
 }): Promise<IssueResult> {
   const licenseKey = generateLicenseKey();
 
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `INSERT INTO licenses (key_hash, source, payment_provider, payment_reference)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [licenseHash(licenseKey), input.source ?? 'key', input.paymentProvider, input.paymentReference],
+      `INSERT INTO licenses (key_hash, source, payment_provider, payment_reference, max_devices)
+       VALUES ($1, $2, $3, $4, COALESCE($5, 5)) RETURNING id`,
+      [
+        licenseHash(licenseKey),
+        input.source ?? 'key',
+        input.paymentProvider,
+        input.paymentReference,
+        input.maxDevices ?? null,
+      ],
     );
     return { status: 'issued', licenseKey, licenseId: rows[0]!.id };
   } catch (err) {
@@ -124,10 +136,10 @@ export async function redeem(key: string, accountId: string): Promise<LicenseSta
   const hash = licenseHash(key);
 
   const { rows } = await pool
-    .query<{ source: string; redeemed_at: Date }>(
+    .query<{ source: string; redeemed_at: Date; max_devices: number }>(
       `UPDATE licenses SET redeemed_by = $2, redeemed_at = now()
         WHERE key_hash = $1 AND status = 'active' AND redeemed_by IS NULL
-        RETURNING source, redeemed_at`,
+        RETURNING source, redeemed_at, max_devices`,
       [hash, accountId],
     )
     .catch((err: { code?: string }) => {
@@ -148,6 +160,8 @@ export async function redeem(key: string, accountId: string): Promise<LicenseSta
       licensed: true,
       source: claimed.source,
       redeemedAt: claimed.redeemed_at.toISOString(),
+      maxDevices: claimed.max_devices,
+      devices: await activeDeviceCount(accountId),
     };
   }
 
@@ -158,7 +172,11 @@ export async function redeem(key: string, accountId: string): Promise<LicenseSta
     redeemed_by: string | null;
     source: string;
     redeemed_at: Date | null;
-  }>('SELECT status, redeemed_by, source, redeemed_at FROM licenses WHERE key_hash = $1', [hash]);
+    max_devices: number;
+  }>(
+    'SELECT status, redeemed_by, source, redeemed_at, max_devices FROM licenses WHERE key_hash = $1',
+    [hash],
+  );
 
   const license = found[0];
   if (!license) throw ApiError.notFound('license_not_found', 'No such license key');
@@ -171,14 +189,25 @@ export async function redeem(key: string, accountId: string): Promise<LicenseSta
       licensed: true,
       source: license.source,
       redeemedAt: license.redeemed_at?.toISOString(),
+      maxDevices: license.max_devices,
+      devices: await activeDeviceCount(accountId),
     };
   }
   throw ApiError.conflict('license_already_redeemed', 'This key has already been used');
 }
 
+/** Devices that count against the limit: registered and not revoked. */
+async function activeDeviceCount(accountId: string): Promise<number> {
+  const { rows } = await pool.query<{ count: string }>(
+    'SELECT count(*) FROM devices WHERE account_id = $1 AND revoked_at IS NULL',
+    [accountId],
+  );
+  return Number(rows[0]!.count);
+}
+
 export async function statusFor(accountId: string): Promise<LicenseStatus> {
-  const { rows } = await pool.query<{ source: string; redeemed_at: Date }>(
-    `SELECT source, redeemed_at FROM licenses
+  const { rows } = await pool.query<{ source: string; redeemed_at: Date; max_devices: number }>(
+    `SELECT source, redeemed_at, max_devices FROM licenses
       WHERE redeemed_by = $1 AND status = 'active'`,
     [accountId],
   );
@@ -188,6 +217,8 @@ export async function statusFor(accountId: string): Promise<LicenseStatus> {
     licensed: true,
     source: license.source,
     redeemedAt: license.redeemed_at.toISOString(),
+    maxDevices: license.max_devices,
+    devices: await activeDeviceCount(accountId),
   };
 }
 

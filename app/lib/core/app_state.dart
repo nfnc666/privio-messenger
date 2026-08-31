@@ -6,12 +6,18 @@ import 'api_client.dart';
 import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'edition.dart';
 import 'license_controller.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
-enum AppStage { splash, initialising, welcome, locked, ready }
+///
+/// [activation] sits before [welcome] and only on a server that sells licences:
+/// a key is what the hosted service is paid for, so asking for it before an
+/// account is made is the honest order. It is skipped entirely when the server
+/// says it requires none, which is what every self-hosted deployment says.
+enum AppStage { splash, initialising, activation, welcome, locked, ready }
 
 /// App-wide session and lock state.
 ///
@@ -70,7 +76,8 @@ class AppState extends ChangeNotifier {
 
   /// Activation state. Created lazily like the others, and refreshed on sign-in
   /// so the settings entry knows whether it has anything to say.
-  LicenseController get license => _license ??= LicenseController(services.api);
+  LicenseController get license =>
+      _license ??= LicenseController(services.api, store: _store);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and finds out
@@ -92,14 +99,47 @@ class AppState extends ChangeNotifier {
     final hasPin = await _store.hasPin();
     _setProgress(1);
 
+    unawaited(license.restore());
+
     if (token == null) {
-      _stage = AppStage.welcome;
+      _stage = await _needsActivationFirst() ? AppStage.activation : AppStage.welcome;
     } else {
       services.api.useToken(token);
       _sessionToken = token;
       _stage = hasPin ? AppStage.locked : AppStage.ready;
       if (_stage == AppStage.ready) _onSignedIn();
     }
+    notifyListeners();
+  }
+
+  /// Whether to put the key screen in front of a brand-new install.
+  ///
+  /// Three ways to answer no, and all of them matter: this build is sold
+  /// through a store, a key is already waiting to be redeemed, or the server
+  /// does not require one. The last is the only question that needs the
+  /// network — and if it cannot be reached, the answer is still no. A launch
+  /// screen that a flaky connection can turn into a paywall would be a bug
+  /// worse than a missed prompt.
+  Future<bool> _needsActivationFirst() async {
+    if (!PrivioEdition.current.usesLicenseKey) return false;
+    if (await _store.readPendingLicenseKey() != null) return false;
+    try {
+      final info = await services.api.serverInfo();
+      return info['licenseRequired'] as bool? ?? false;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Leaves the activation screen for the sign-up flow, with or without a key.
+  ///
+  /// Not blocking on the key is deliberate: someone may be about to join a
+  /// server that needs none, or may want to buy one after seeing the app. The
+  /// server refuses to relay for an unlicensed account either way, so nothing
+  /// is given away by letting them through.
+  void continuePastActivation() {
+    if (_stage != AppStage.activation) return;
+    _stage = AppStage.welcome;
     notifyListeners();
   }
 
@@ -208,7 +248,13 @@ class AppState extends ChangeNotifier {
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
-    unawaited(license.refresh());
+    // A key entered before the account existed is redeemed the moment there is
+    // an account to bind it to. Quietly: a failure here leaves a signed-in,
+    // readable app and a message on the licence screen, not a blocked launch.
+    unawaited(license.redeemPending().then((redeemed) {
+      if (!redeemed) return license.refresh();
+      return null;
+    }));
   }
 
   // --- Lock -----------------------------------------------------------------

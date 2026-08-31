@@ -3,6 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import { config } from '../src/config.js';
 import { pool } from '../src/db/pool.js';
 import { licenseHash, normaliseLicenseKey } from '../src/services/licenses.js';
+import { DEFAULT_DEVICE_LIMIT } from '../src/services/devices.js';
 import {
   bearer,
   closePool,
@@ -275,7 +276,6 @@ describe('license enforcement', () => {
   after(async () => {
     (config as { LICENSE_REQUIRED: boolean }).LICENSE_REQUIRED = false;
     await h.close();
-    await closePool();
   });
 
   it('refuses a send from an unlicensed account', async () => {
@@ -352,3 +352,132 @@ describe('license enforcement', () => {
     assert.ok(judy.accountId);
   });
 });
+
+describe('device entitlement', () => {
+  let h: TestHarness;
+
+  before(async () => {
+    h = await createHarness();
+  });
+  after(async () => {
+    await h.close();
+    await closePool();
+  });
+
+  /** Buys a license covering a given number of devices. */
+  async function issueFor(reference: string, maxDevices?: number): Promise<string> {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/v1/internal/licenses',
+      headers: issuer,
+      payload: { paymentProvider: 'stripe', paymentReference: reference, maxDevices },
+    });
+    assert.equal(response.statusCode, 201, response.body);
+    return response.json().licenseKey as string;
+  }
+
+  async function addDevice(user: TestUser) {
+    return h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      payload: {
+        username: user.username,
+        password: 'correct-horse-battery',
+        device: deviceBody(deviceFixture()),
+      },
+    });
+  }
+
+  it('tells an unauthenticated client whether a key is needed', async () => {
+    // The app asks for a key on first launch, before anyone has signed in, so
+    // this is the only place it can learn the answer.
+    const response = await h.app.inject({ method: 'GET', url: '/v1/server' });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().licenseRequired, config.LICENSE_REQUIRED);
+    assert.equal(
+      response.json().token,
+      undefined,
+      'the public endpoint carries policy, never state',
+    );
+  });
+
+  it('reports how many devices the license covers and how many are in use', async () => {
+    const kim = await registerUser(h.app, 'kim');
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(kim),
+      payload: { licenseKey: await issueFor('stripe_kim', 2) },
+    });
+
+    const status = await h.app.inject({
+      method: 'GET',
+      url: '/v1/licenses/me',
+      headers: bearer(kim),
+    });
+
+    assert.equal(status.json().maxDevices, 2);
+    assert.equal(status.json().devices, 1, 'the device it registered with');
+  });
+
+  it('caps devices at what the license was sold with', async () => {
+    const leo = await registerUser(h.app, 'leo');
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(leo),
+      payload: { licenseKey: await issueFor('stripe_leo', 2) },
+    });
+
+    const second = await addDevice(leo);
+    assert.equal(second.statusCode, 200, 'the second device is within the licence');
+
+    const third = await addDevice(leo);
+    assert.equal(third.statusCode, 409);
+    assert.equal(third.json().error, 'too_many_devices');
+    assert.match(third.json().message, /2 active devices/);
+  });
+
+  it('a revoked license drops the account back to the default limit', async () => {
+    // Not to zero: an account that has lost its licence can still reach itself
+    // and read what already arrived, which is the same split the send gate uses.
+    const mia = await registerUser(h.app, 'mia');
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(mia),
+      payload: { licenseKey: await issueFor('stripe_mia', 1) },
+    });
+
+    const blocked = await addDevice(mia);
+    assert.equal(blocked.statusCode, 409, 'one device is all that licence covers');
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/internal/licenses/revoke',
+      headers: issuer,
+      payload: { paymentProvider: 'stripe', paymentReference: 'stripe_mia' },
+    });
+
+    const allowed = await addDevice(mia);
+    assert.equal(allowed.statusCode, 200, response(allowed));
+  });
+
+  it('an account with no license gets the default limit', async () => {
+    const nora = await registerUser(h.app, 'nora');
+
+    for (let i = 1; i < DEFAULT_DEVICE_LIMIT; i += 1) {
+      const added = await addDevice(nora);
+      assert.equal(added.statusCode, 200, `device ${i + 1}: ${added.body}`);
+    }
+
+    const overflow = await addDevice(nora);
+    assert.equal(overflow.statusCode, 409);
+    assert.equal(overflow.json().error, 'too_many_devices');
+  });
+});
+
+function response(r: { statusCode: number; body: string }): string {
+  return `${r.statusCode}: ${r.body}`;
+}

@@ -373,6 +373,14 @@ class PrivioApiClient {
 
   // --- Licensing ------------------------------------------------------------
 
+  /// What this server is and whether it sells licences at all.
+  ///
+  /// The only call the app makes before anyone has signed in. It has to be:
+  /// the key screen comes first, and whether to show it is the server's answer,
+  /// not the build's — a self-hosted deployment says `licenseRequired: false`
+  /// and is never asked for a key.
+  Future<Map<String, dynamic>> serverInfo() => _send('GET', '/v1/server');
+
   /// What this account's license looks like from the server's side.
   ///
   /// `required` is the field that matters most: a self-hosted deployment

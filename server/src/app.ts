@@ -134,5 +134,22 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
 
   app.get('/health', async () => ({ status: 'ok', version: '0.1.0' }));
 
+  /**
+   * What a client has to know before it has an account.
+   *
+   * `licenseRequired` is the one that matters: the app asks for a key on first
+   * launch, and it can only know whether to do that before anyone has signed
+   * in — which rules out the authenticated licence endpoint. A self-hosted
+   * server answers false here and is never asked for a key at all.
+   *
+   * Deliberately public and deliberately empty of anything else: this is the
+   * one endpoint an unauthenticated caller can reach, so it carries policy, not
+   * state, and nothing here is a secret.
+   */
+  app.get('/v1/server', async () => ({
+    version: '0.1.0',
+    licenseRequired: config.LICENSE_REQUIRED,
+  }));
+
   return app;
 }

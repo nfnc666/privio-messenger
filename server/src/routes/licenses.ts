@@ -27,6 +27,8 @@ const paymentSchema = z.object({
   paymentProvider: z.string().trim().min(1).max(32),
   paymentReference: z.string().trim().min(1).max(255),
   source: z.enum(['key', 'apple', 'google']).optional(),
+  /** How many devices this purchase covers. Omitted means the standard licence. */
+  maxDevices: z.number().int().min(1).max(50).optional(),
 });
 
 const licenseRoutes: FastifyPluginAsync = async (app) => {

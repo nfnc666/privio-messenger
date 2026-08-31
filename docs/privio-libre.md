@@ -68,7 +68,7 @@ cd app
 flutter pub get
 flutter build apk --release --flavor libre \
   --dart-define=PRIVIO_EDITION=libre \
-  --dart-define=PRIVIO_API_URL=https://api.privio.com
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 ```
 
 Full instructions, including the store builds, are in
