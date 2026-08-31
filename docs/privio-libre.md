@@ -2,7 +2,7 @@
 
 Privio Libre is the free-software build of the Privio client: the same app as
 everywhere else, with nothing in it that cannot be built from source. It is
-what F-Droid ships, and what the direct APK on privio.com is cut from.
+what F-Droid ships, and what the direct APK on getprivio.com is cut from.
 
 Its public home is
 [privio-libre-open-source-fdroid](https://github.com/nfnc666/privio-libre-open-source-fdroid),
@@ -54,7 +54,7 @@ Two different things share a word:
 | | |
 | --- | --- |
 | **The licence** | AGPL-3.0. What you may do with the code. Never expires, cannot be revoked. |
-| **A license key** | What pays for the hosted relay. Bought on privio.com, redeemed once, bound to one account. |
+| **A license key** | What pays for the hosted relay. Bought on getprivio.com, redeemed once, bound to one account. |
 
 The key does not unlock the app. You already have all of the app, and can
 build it yourself with the activation screen deleted — which is exactly why
@@ -69,8 +69,8 @@ what decides, and it is a build-time fact:
 
 | Build | How it is paid for | Asked for a key at first start |
 | --- | --- | --- |
-| `libre` (F-Droid) | A key from privio.com | Yes |
-| `direct` (APK from privio.com) | A key from privio.com | Yes |
+| `libre` (F-Droid) | A key from getprivio.com | Yes |
+| `direct` (APK from getprivio.com) | A key from getprivio.com | Yes |
 | `play` (Google Play) | Play Billing, at install | No |
 | `appstore` (App Store) | The App Store, at install | No |
 

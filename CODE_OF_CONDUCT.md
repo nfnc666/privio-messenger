@@ -33,7 +33,7 @@ directed at a participant because of their involvement here.
 
 ## Enforcement
 
-Reports go to **conduct@privio.com**. Include what happened, where, and links
+Reports go to **conduct@getprivio.com**. Include what happened, where, and links
 if there are any. If your report concerns a maintainer, say so — it will be
 handled by someone else.
 

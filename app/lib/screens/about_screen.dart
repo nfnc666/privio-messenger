@@ -54,8 +54,8 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.xxl),
           SettingsSection(
             children: [
-              SettingsRow(label: 'Website', onTap: () => copy('Website', 'https://privio.com')),
-              SettingsRow(label: 'Support', onTap: () => copy('Address', 'support@privio.com')),
+              SettingsRow(label: 'Website', onTap: () => copy('Website', 'https://getprivio.com')),
+              SettingsRow(label: 'Support', onTap: () => copy('Address', 'support@getprivio.com')),
               SettingsRow(label: 'Terms of Service', onTap: () {}),
               SettingsRow(label: 'Privacy Policy', onTap: () {}),
             ],

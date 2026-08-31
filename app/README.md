@@ -6,8 +6,8 @@ The Flutter client, for Android and iOS. One source tree, four editions.
 
 | Edition | Channel | Paid for by | Proprietary code |
 | --- | --- | --- | --- |
-| `libre` | F-Droid | A license key from privio.com | None |
-| `direct` | APK from privio.com | A license key from privio.com | None |
+| `libre` | F-Droid | A license key from getprivio.com | None |
+| `direct` | APK from getprivio.com | A license key from getprivio.com | None |
 | `play` | Google Play | Play Billing | Allowed |
 | `appstore` | App Store | App Store purchase | Allowed |
 
