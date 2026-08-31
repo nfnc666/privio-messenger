@@ -79,7 +79,9 @@ switch; the product is designed dark-first and the mockups are all dark.
 
 ## Screen inventory
 
-Numbers match the mockup sheet.
+Numbers match the mockup sheet. The two rows without a number are not on it:
+licensing came after it was drawn, and both follow its parts rather than
+introducing anything new.
 
 | # | Screen | Route | Milestone |
 | --- | --- | --- | --- |
@@ -107,6 +109,8 @@ Numbers match the mockup sheet.
 | 23 | Change password | `/settings/password` | V1 |
 | 24 | Two-factor authentication | `/settings/2fa` | V1 |
 | 25 | Language | `/settings/language` | V1 |
+| — | Activation (first start, licensed servers only) | stage, not a route | V1 |
+| — | Privio License | `/settings/license` | V1 |
 
 ### Navigation bar
 

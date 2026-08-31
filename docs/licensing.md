@@ -139,9 +139,10 @@ That split is deliberate. An unlicensed user can still reach their account and
 activate it, and messages that were already delivered never become unreadable
 because of a billing state.
 
-The app collects the key on its activation screen
-(`app/lib/screens/license_screen.dart`) and shows what the server answered.
-That screen is a courier, not a gate.
+The app collects the key in two places — the activation step at first start
+(`app/lib/screens/activation_screen.dart`) and the License screen in Settings
+(`app/lib/screens/license_screen.dart`) — and both only show what the server
+answered. They are couriers, not gates.
 
 The same goes for the status cached in the keystore. It exists so a launch with
 no signal renders the truth rather than a question mark, and so a paying user is
@@ -199,20 +200,46 @@ again.
 it asks `GET /v1/licenses/me`, shows the answer, and turns error codes into
 sentences. It never decides that anyone is licensed.
 
-* The activation screen runs at first launch, before there is an account, and
-  again from Settings afterwards. The **Privio License** row in Settings appears
-  only when the server sells licences or the account already holds one. On a
-  self-hosted deployment there is nothing to buy, so there is no prompt either
-  — at launch or later.
+* The key screen (`lib/screens/activation_screen.dart`, `AppStage.activation`)
+  is reached from two directions, on a server that answered `required: true`
+  and in a build that is activated with a key — the Libre build and the APK
+  from the website. **Before the account**, on a fresh install: there is nobody
+  to bind a key to yet, so it is held in the keystore and spent by the first
+  sign-in. And **once per account after signing in**, for anyone who walked
+  past it and is still unlicensed. A
+  Play or App Store build was paid for at the moment it was installed and is
+  never shown a key field; if it still comes back unlicensed, that is a
+  receipt to settle with the store, and the License row in Settings says so.
+  It is a step, not a wall —
+  "Not now" goes through to the app, because the server itself lets an
+  unlicensed account sign in and read. Refusing entry would be the client
+  inventing a restriction the server does not apply.
+* That question is remembered per account (`privio.license.activation_asked_for`
+  in the keystore), so someone who skipped it is not asked again on every
+  launch; a second account on the same device is asked in its turn, and a
+  successful activation is not recorded at all — the server simply stops
+  saying a key is needed.
+* The **Privio License** row in Settings appears only when the server answered
+  `required: true`, and reads *Not active* until a key is redeemed. On a
+  self-hosted deployment there is nothing to buy, so there is no payment prompt
+  anywhere.
 * The key field folds Crockford aliases as you type and sends the canonical
-  `PRIVIO-XXXX-…` form. The server folds again on arrival; doing it on both
-  sides is what makes the key that is stored and the key that was typed the
-  same string.
-* A key that is not even 16 symbols is refused on the device. Redemption allows
-  five attempts per ten minutes, and a typo should not spend one.
-* A `403 license_required` on send is turned into "Activate your license to send
-  messages", with a button to the screen, rather than repeating the server's
-  wording.
+  `PRIVIO-XXXX-…` form; the server folds again on arrival, and doing it on both
+  sides is what makes the key that was typed and the key that is stored the
+  same string. A key that is not even 16 symbols is refused on the device:
+  redemption allows five attempts per ten minutes, and a typo should not spend
+  one. It is one widget
+  (`lib/widgets/license_key_field.dart`) shared by both screens, so a key typed
+  at first start and a key typed in Settings reach the server in the same
+  shape. Typing the printed `PRIVIO` prefix by hand is not folded into the key
+  body — the prefix contains an I and an O of its own — and backspace clears
+  the field rather than putting the prefix back.
+* A `403 license_required` on send is turned into "Activate your license to
+  send messages", with a button to the screen, rather than repeating the
+  server's wording.
+* A server old enough to lack the endpoint answers 404, which the client reads
+  as "does not require a license" instead of showing an error. Every other
+  failure leaves the last known answer alone — offline is not unlicensed.
 * A server old enough to lack the endpoint answers 404, which the client reads
   as "does not require a license" instead of showing an error.
 

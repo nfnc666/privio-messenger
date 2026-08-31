@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/edition.dart';
 import '../core/license_controller.dart';
-import '../core/license_key.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/license_key_field.dart';
 
 /// Activation: where a Privio License Key is turned into a licensed account.
 ///
@@ -13,15 +12,7 @@ import '../theme/privio_colors.dart';
 /// paid for in the store, and this screen says so rather than offering a field
 /// that could never work for them.
 class LicenseScreen extends StatefulWidget {
-  const LicenseScreen({super.key, this.firstRun = false});
-
-  /// True when this is the launch screen rather than a settings page.
-  ///
-  /// There is no account yet at that point, so the key cannot be redeemed —
-  /// it is held in the keystore and spent the moment an account exists. The
-  /// screen also stops being a dead end: someone who has not bought a key yet,
-  /// or who is about to join a server that needs none, can walk past it.
-  final bool firstRun;
+  const LicenseScreen({super.key});
 
   @override
   State<LicenseScreen> createState() => _LicenseScreenState();
@@ -33,7 +24,6 @@ class _LicenseScreenState extends State<LicenseScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.firstRun) return;
     // The status may be stale — the key could have been redeemed on another
     // device since the app started.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -48,15 +38,6 @@ class _LicenseScreenState extends State<LicenseScreen> {
   }
 
   Future<void> _activate(LicenseController license) async {
-    if (widget.firstRun) {
-      // Nothing to bind a key to yet. Keep it, and move on to making the
-      // account that will own it.
-      if (!await license.hold(_key.text)) return;
-      if (!mounted) return;
-      PrivioScope.of(context).continuePastActivation();
-      return;
-    }
-
     final ok = await license.redeem(_key.text);
     if (!mounted) return;
     if (!ok) return;
@@ -72,41 +53,29 @@ class _LicenseScreenState extends State<LicenseScreen> {
     final license = PrivioScope.of(context).license;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Privio License'),
-        automaticallyImplyLeading: !widget.firstRun,
-      ),
+      appBar: AppBar(title: const Text('Privio License')),
       body: ListenableBuilder(
         listenable: license,
-        builder: (context, _) => _Body(
-          license: license,
-          field: _key,
-          onActivate: _activate,
-          firstRun: widget.firstRun,
-        ),
+        builder: (context, _) => _Body(license: license, field: _key, onActivate: _activate),
       ),
     );
   }
 }
 
 class _Body extends StatelessWidget {
-  const _Body({
-    required this.license,
-    required this.field,
-    required this.onActivate,
-    this.firstRun = false,
-  });
+  const _Body({required this.license, required this.field, required this.onActivate});
 
   final LicenseController license;
   final TextEditingController field;
   final Future<void> Function(LicenseController) onActivate;
-  final bool firstRun;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = license.state;
-    final edition = PrivioEdition.current;
+    // From the app rather than the constant, so this screen and the activation
+    // step at first start always describe the same build.
+    final edition = PrivioScope.of(context).edition;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -116,9 +85,7 @@ class _Body extends StatelessWidget {
         PrivioSpacing.xxxl,
       ),
       children: [
-        if (firstRun)
-          _Activation(license: license, field: field, onActivate: onActivate, firstRun: true)
-        else if (state == null)
+        if (state == null)
           const _Note(
             icon: Icons.cloud_off_rounded,
             title: 'Not checked yet',
@@ -165,17 +132,11 @@ class _Body extends StatelessWidget {
 }
 
 class _Activation extends StatelessWidget {
-  const _Activation({
-    required this.license,
-    required this.field,
-    required this.onActivate,
-    this.firstRun = false,
-  });
+  const _Activation({required this.license, required this.field, required this.onActivate});
 
   final LicenseController license;
   final TextEditingController field;
   final Future<void> Function(LicenseController) onActivate;
-  final bool firstRun;
 
   @override
   Widget build(BuildContext context) {
@@ -187,26 +148,16 @@ class _Activation extends StatelessWidget {
         Text('Enter your license key', style: theme.textTheme.titleMedium),
         const SizedBox(height: PrivioSpacing.sm),
         Text(
-          firstRun
-              ? 'Buy a key at privio.com/license, then type it here. It is kept on this '
-                  'device and activated as soon as your account exists — a key belongs to '
-                  'an account, and there is not one yet.'
-              : 'Buy a key at privio.com/license, then type it here. Until it is activated '
-                  'this account can sign in and read what has already arrived, but not send.',
+          'Buy a key at privio.com/license, then type it here. Until it is activated '
+          'this account can sign in and read what has already arrived, but not send.',
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),
-        TextField(
+        LicenseKeyField(
           controller: field,
-          autocorrect: false,
-          enableSuggestions: false,
-          textCapitalization: TextCapitalization.characters,
-          textInputAction: TextInputAction.done,
           enabled: !license.busy,
-          inputFormatters: const [_LicenseKeyFormatter()],
-          onChanged: (_) => license.clearError(),
-          onSubmitted: (_) => onActivate(license),
-          decoration: const InputDecoration(hintText: licenseKeyFormat),
+          onChanged: license.clearError,
+          onSubmitted: () => onActivate(license),
         ),
         if (license.error != null) ...[
           const SizedBox(height: PrivioSpacing.lg),
@@ -236,23 +187,8 @@ class _Activation extends StatelessWidget {
                     color: PrivioColors.background,
                   ),
                 )
-              : Text(firstRun ? 'Continue' : 'Activate'),
+              : const Text('Activate'),
         ),
-        if (firstRun) ...[
-          const SizedBox(height: PrivioSpacing.sm),
-          TextButton(
-            onPressed: license.busy
-                ? null
-                : () => PrivioScope.of(context).continuePastActivation(),
-            child: const Text('I do not have a key yet'),
-          ),
-          const SizedBox(height: PrivioSpacing.md),
-          Text(
-            'Without a key you can still create an account, sign in and read what arrives. '
-            'Sending is what the server holds back until a key is activated.',
-            style: theme.textTheme.labelSmall,
-          ),
-        ],
       ],
     );
   }
@@ -349,25 +285,6 @@ class _Note extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Formats the field as `PRIVIO-XXXX-XXXX-XXXX-XXXX` while it is being typed,
-/// folding Crockford aliases on the way in so an O typed for a zero is simply
-/// shown as a zero rather than rejected later.
-class _LicenseKeyFormatter extends TextInputFormatter {
-  const _LicenseKeyFormatter();
-
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final body = normaliseLicenseKey(newValue.text);
-    final capped =
-        body.length > licenseKeyBodyLength ? body.substring(0, licenseKeyBodyLength) : body;
-    final text = formatLicenseKey(capped);
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

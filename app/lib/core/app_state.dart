@@ -14,10 +14,18 @@ import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
 ///
-/// [activation] sits before [welcome] and only on a server that sells licences:
-/// a key is what the hosted service is paid for, so asking for it before an
-/// account is made is the honest order. It is skipped entirely when the server
-/// says it requires none, which is what every self-hosted deployment says.
+/// [activation] is the key screen, and it is reached from two directions.
+///
+/// Before the account, on a fresh install of a build that is activated with a
+/// key: what the hosted service is paid for is asked for first, and the key is
+/// held until there is an account to bind it to. And after signing in, once
+/// per account, for anyone who walked past it the first time and is still
+/// unlicensed — because walking past is allowed, and being nagged every launch
+/// is not.
+///
+/// Neither is a wall. The server lets an unlicensed account sign in and read
+/// what has already arrived; only sending is gated. A screen that refused
+/// entry would be claiming a restriction the server does not apply.
 enum AppStage { splash, initialising, activation, welcome, locked, ready }
 
 /// App-wide session and lock state.
@@ -29,13 +37,19 @@ class AppState extends ChangeNotifier {
     PrivioServices? services,
     SecureStore? store,
     BiometricGate? biometrics,
+    PrivioEdition? edition,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
-        _biometrics = biometrics ?? LocalAuthBiometricGate();
+        _biometrics = biometrics ?? LocalAuthBiometricGate(),
+        edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
   final BiometricGate _biometrics;
+
+  /// Which build this is. Injectable only so a test can be a store build; a
+  /// shipped app has exactly one, fixed at compile time.
+  final PrivioEdition edition;
 
   PrivioServices? _services;
   ConversationController? _conversations;
@@ -60,6 +74,13 @@ class AppState extends ChangeNotifier {
 
   /// True while a sign-in or sign-up is in flight.
   bool get busy => _busy;
+
+  /// Whether there is a session behind the current screen.
+  ///
+  /// The activation screen asks this to know which of its two jobs it is
+  /// doing: holding a key for an account that does not exist yet, or redeeming
+  /// one for an account that does.
+  bool get signedIn => _sessionToken != null;
 
   /// The last authentication failure, in words a user can act on.
   String? get authError => _authError;
@@ -126,7 +147,7 @@ class AppState extends ChangeNotifier {
   /// screen that a flaky connection can turn into a paywall would be a bug
   /// worse than a missed prompt.
   Future<bool> _needsActivationFirst() async {
-    if (!PrivioEdition.current.usesLicenseKey) return false;
+    if (!edition.usesLicenseKey) return false;
     if (await _store.readPendingLicenseKey() != null) return false;
     try {
       final info = await services.api.serverInfo();
@@ -134,18 +155,6 @@ class AppState extends ChangeNotifier {
     } on Object {
       return false;
     }
-  }
-
-  /// Leaves the activation screen for the sign-up flow, with or without a key.
-  ///
-  /// Not blocking on the key is deliberate: someone may be about to join a
-  /// server that needs none, or may want to buy one after seeing the app. The
-  /// server refuses to relay for an unlicensed account either way, so nothing
-  /// is given away by letting them through.
-  void continuePastActivation() {
-    if (_stage != AppStage.activation) return;
-    _stage = AppStage.welcome;
-    notifyListeners();
   }
 
   void _setProgress(double value) {
@@ -261,10 +270,64 @@ class AppState extends ChangeNotifier {
     // only the case where there was nothing to redeem needs the extra call. A
     // failure here leaves a signed-in, readable app and a message on the
     // licence screen, not a blocked launch.
-    unawaited(license.redeemPending().then((redeemed) {
-      if (!redeemed) return license.refresh();
-      return null;
-    }));
+    unawaited(
+      license.redeemPending().then((redeemed) async {
+        if (!redeemed) await license.refresh();
+        await _askAboutLicense();
+      }),
+    );
+  }
+
+  /// The second chance: shows the key screen to someone who is signed in,
+  /// still unlicensed, and has not been asked before.
+  ///
+  /// The first chance is the launch screen, before the account. This one exists
+  /// because that screen can be walked past — deliberately — and an account
+  /// that skipped it would otherwise only ever learn it needs a key by trying
+  /// to send and being refused.
+  ///
+  /// Never in front of the app: the answer arrives over the network, and a
+  /// launch that waits on a licence server is a launch that fails when the
+  /// licence server does.
+  Future<void> _askAboutLicense() async {
+    if (!license.needsActivation) return;
+    // Only the builds that are activated with a key ask for one. An App Store
+    // or Play build was paid for at the moment it was installed, so there is
+    // nothing for its owner to type — putting a key field in front of them
+    // would be asking for something this build cannot have. If such a build
+    // still comes back unlicensed, that is a receipt to settle with the store,
+    // and the License row in Settings is where it says so.
+    if (!edition.usesLicenseKey) return;
+    // Never over the lock screen, and never over a sign-out that happened while
+    // the request was in flight.
+    if (_stage != AppStage.ready) return;
+    final accountId = _accountId;
+    if (accountId == null) return;
+    // Asked once per account. Someone who said "Not now" is not asked again on
+    // every launch — the Settings row and the send error are enough after that.
+    if (await _store.readActivationAskedFor() == accountId) return;
+    if (_stage != AppStage.ready) return;
+    _stage = AppStage.activation;
+    notifyListeners();
+  }
+
+  /// Leaves the activation step, for wherever it was entered from.
+  ///
+  /// Before the account there is nothing signed in yet, so it goes back to the
+  /// welcome flow; afterwards it goes into the app. [asked] records that this
+  /// account has now seen the question, which is what "Not now" means — a
+  /// successful activation does not need recording, because the server stops
+  /// saying a key is needed. There is nothing to record before an account
+  /// exists, and nothing that needs it: that screen is only ever shown to an
+  /// install with no session at all.
+  Future<void> leaveActivation({bool asked = true}) async {
+    if (_stage != AppStage.activation) return;
+    final accountId = _accountId;
+    if (asked && accountId != null && _sessionToken != null) {
+      await _store.writeActivationAskedFor(accountId);
+    }
+    _stage = _sessionToken == null ? AppStage.welcome : AppStage.ready;
+    notifyListeners();
   }
 
   // --- Lock -----------------------------------------------------------------
@@ -294,7 +357,10 @@ class AppState extends ChangeNotifier {
   /// flushed, the app is not being used, and it is the point at which "I lost
   /// my phone" starts being a possibility.
   void lock() {
-    if (_stage == AppStage.ready) {
+    // Activation counts as being inside the app: the account is signed in, and
+    // what is on screen is a key someone is typing. Unlocking runs the license
+    // question again, so the step comes back rather than being skipped.
+    if (_stage == AppStage.ready || _stage == AppStage.activation) {
       _conversations
         ?..stop()
         ..flush();

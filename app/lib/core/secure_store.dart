@@ -60,6 +60,14 @@ abstract interface class SecureStore {
   Future<String?> readLicenseCache();
   Future<void> writeLicenseCache(String? json);
 
+  /// The account the activation step has already been put in front of.
+  ///
+  /// Stored per account rather than as a flag, so a second account created on
+  /// the same device is asked in its turn, and the first one is not asked
+  /// again on every launch.
+  Future<String?> readActivationAskedFor();
+  Future<void> writeActivationAskedFor(String accountId);
+
   /// Used by sign-out and by the wipe code: leaves nothing recoverable behind.
   Future<void> wipe();
 }
@@ -82,6 +90,8 @@ class KeystoreSecureStore implements SecureStore {
   static const _biometricsKey = 'privio.lock.biometrics';
   static const _pendingLicenseKey = 'privio.license.pending_key';
   static const _licenseCacheKey = 'privio.license.status';
+
+  static const _activationAskedKey = 'privio.license.activation_asked_for';
 
   static const _iosOptions = IOSOptions(
     accessibility: KeychainAccessibility.first_unlock_this_device,
@@ -180,6 +190,12 @@ class KeystoreSecureStore implements SecureStore {
   Future<void> writeLicenseCache(String? json) =>
       json == null ? _clear(_licenseCacheKey) : _write(_licenseCacheKey, json);
 
+  Future<String?> readActivationAskedFor() => _read(_activationAskedKey);
+
+  @override
+  Future<void> writeActivationAskedFor(String accountId) =>
+      _write(_activationAskedKey, accountId);
+
   @override
   Future<void> wipe() =>
       _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
@@ -277,6 +293,12 @@ class InMemorySecureStore implements SecureStore {
       _entries['licenseCache'] = json;
     }
   }
+
+  Future<String?> readActivationAskedFor() async => _entries['activationAskedFor'];
+
+  @override
+  Future<void> writeActivationAskedFor(String accountId) async =>
+      _entries['activationAskedFor'] = accountId;
 
   @override
   Future<void> wipe() async => _entries.clear();
