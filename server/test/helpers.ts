@@ -6,7 +6,7 @@ import { buildApp } from '../src/app.js';
 import { migrate } from '../src/db/migrate.js';
 import { pool } from '../src/db/pool.js';
 import { InProcessBus } from '../src/services/bus.js';
-import { LoggingPushSender } from '../src/services/push.js';
+import { LoggingPushSender, type PushSender } from '../src/services/push.js';
 import { LocalFileStorage } from '../src/services/storage.js';
 import { deviceRegistrationSchema } from '../src/services/devices.js';
 
@@ -20,14 +20,16 @@ export interface TestHarness {
 let counter = 0;
 
 /** Boots the API against the test database with an in-process bus and temp storage. */
-export async function createHarness(): Promise<TestHarness> {
+export async function createHarness(
+  overrides: { push?: PushSender } = {},
+): Promise<TestHarness> {
   await migrate();
   await truncateAll();
   const dir = await mkdtemp(join(tmpdir(), 'privio-test-'));
   const bus = new InProcessBus();
   const push = new LoggingPushSender();
   const storage = new LocalFileStorage(dir);
-  const app = await buildApp({ bus, push, storage });
+  const app = await buildApp({ bus, push: overrides.push ?? push, storage });
   await app.ready();
   return {
     app,

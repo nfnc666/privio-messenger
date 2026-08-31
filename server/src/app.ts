@@ -68,7 +68,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
       new LoggingPushSender(app.log),
     );
   const storage = deps.storage ?? new LocalFileStorage();
-  const delivery = new DeliveryService(deps.bus, push);
+  const delivery = new DeliveryService(deps.bus, push, app.log);
 
   // Encrypted blobs arrive as raw bytes; everything else is JSON.
   app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) =>

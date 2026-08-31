@@ -80,6 +80,25 @@ to a pinned address while carrying the hostname separately for TLS, which is
 more machinery than a wake-up ping justifies. It is written here rather than
 left to be found.
 
+## A wake-up cannot fail a send
+
+Worth stating because it stopped being obvious the moment a provider became
+something that makes a network call. Before UnifiedPush the sender was a
+logging stub: instant, and incapable of failing. Now it does DNS and an HTTPS
+POST to an address someone else chose.
+
+Two things follow, and both are enforced in `DeliveryService.wake`:
+
+* **Every failure is swallowed.** A distributor that has gone away, a URL that
+  stopped resolving publicly, a vendor refusing a stale token — none of that
+  means the message did not arrive, because it was stored before any of this
+  ran. Letting it through would turn a delivered message into an error the
+  sender sees and retries. Unhandled, it would also take the process down.
+* **The send does not wait past one second.** Otherwise registering an endpoint
+  that black-holes would cost everyone who messages you the full request
+  timeout, which is a cheap thing to do to other people. Stragglers finish on
+  their own; they can no longer reject, so nothing is waiting on them.
+
 ## The fallback
 
 No distributor installed means the socket, which is what every build did

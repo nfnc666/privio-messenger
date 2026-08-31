@@ -9,7 +9,12 @@ import {
   type TestUser,
 } from './helpers.js';
 import { isPrivateAddress, parsePushEndpoint } from '../src/util/outbound.js';
-import { RoutingPushSender, UnifiedPushSender, LoggingPushSender } from '../src/services/push.js';
+import {
+  RoutingPushSender,
+  UnifiedPushSender,
+  LoggingPushSender,
+  type PushSender,
+} from '../src/services/push.js';
 
 describe('outbound endpoint policy', () => {
   it('takes a public https endpoint', () => {
@@ -134,6 +139,95 @@ describe('the wake-up itself', () => {
 
     assert.deepEqual(unified.sent.map((t) => t.deviceId), ['a']);
     assert.deepEqual(rest.sent.map((t) => t.deviceId), ['b']);
+  });
+});
+
+describe('a wake-up that goes wrong', () => {
+  let h: TestHarness;
+
+  after(async () => {
+    await h?.close();
+  });
+
+  it('does not fail the send it belongs to, and does not crash the process', async () => {
+    // The envelope is stored before any of this runs. A distributor that has
+    // gone away, or an endpoint that stopped resolving publicly, is somebody
+    // else's problem — it must not turn a delivered message into an error the
+    // sender sees, and an unhandled rejection here would take the server down.
+    const exploding: PushSender = {
+      notify: async () => {
+        throw new Error('endpoint resolves privately');
+      },
+    };
+    h = await createHarness({ push: exploding });
+
+    const erin = await registerUser(h.app, 'erin');
+    const frank = await registerUser(h.app, 'frank');
+    await h.app.inject({
+      method: 'PUT',
+      url: '/v1/devices/current/push',
+      headers: bearer(frank),
+      payload: { provider: 'unifiedpush', token: 'https://ntfy.sh/UPgone' },
+    });
+
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/v1/messages',
+      headers: bearer(erin),
+      payload: {
+        username: 'frank',
+        messages: [
+          {
+            deviceId: frank.deviceId,
+            registrationId: 4242,
+            type: 'ciphertext',
+            content: Buffer.from('sealed').toString('base64'),
+          },
+        ],
+      },
+    });
+
+    assert.equal(response.statusCode, 202, response.body);
+  });
+
+  it('does not hold the sender behind a distributor that never answers', async () => {
+    // Otherwise registering a black-holing endpoint would cost everyone who
+    // messages you the full request timeout, which is a cheap thing to do to
+    // other people.
+    const hanging: PushSender = { notify: () => new Promise<void>(() => {}) };
+    const slow = await createHarness({ push: hanging });
+
+    const gina = await registerUser(slow.app, 'gina');
+    const hank = await registerUser(slow.app, 'hank');
+    await slow.app.inject({
+      method: 'PUT',
+      url: '/v1/devices/current/push',
+      headers: bearer(hank),
+      payload: { provider: 'unifiedpush', token: 'https://ntfy.sh/UPblackhole' },
+    });
+
+    const started = Date.now();
+    const response = await slow.app.inject({
+      method: 'POST',
+      url: '/v1/messages',
+      headers: bearer(gina),
+      payload: {
+        username: 'hank',
+        messages: [
+          {
+            deviceId: hank.deviceId,
+            registrationId: 4242,
+            type: 'ciphertext',
+            content: Buffer.from('sealed').toString('base64'),
+          },
+        ],
+      },
+    });
+    const elapsed = Date.now() - started;
+
+    assert.equal(response.statusCode, 202, response.body);
+    assert.ok(elapsed < 3000, `the send waited ${elapsed}ms on a dead endpoint`);
+    await slow.close();
   });
 });
 
