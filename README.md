@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-256%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-323%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -47,7 +47,7 @@ No phone number. No email. No address-book upload. You are a username.
 <tr>
 <td align="center"><img src="docs/screenshots/13-devices.png" width="200"><br><sub><b>Devices</b><br>See what is logged in, log it out</sub></td>
 <td align="center"><img src="docs/screenshots/backup-01-empty.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold — and honest when there is none</sub></td>
-<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Push carries no content at all</sub></td>
+<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>The server's pushes carry no content — these switches are still a mockup</sub></td>
 <td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
 <tr>
@@ -195,14 +195,15 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | --- | :---: | --- |
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
-| **Two-factor auth** | ✅ | TOTP (RFC 6238), enforced at login |
-| **Wipe code** | ✅ | Duress code that destroys everything and looks like a typo |
-| **Contacts & blocking** | ✅ | Exact-username lookup, invisible blocking |
+| **Two-factor auth** | 🔧 | TOTP (RFC 6238) is enforced at login and the app asks for the code; the screen to *turn it on* is not built, so today it is set through the API |
+| **Wipe code** | 🔧 | The server destroys the account and answers `invalid_credentials`, and a test proves a wipe is indistinguishable from a typo — but the app has no screen to set one |
+| **Contacts** | ✅ | Exact-username lookup, no address-book upload |
+| **Blocking** | 🔧 | Invisible to the blocked sender, and covered by server tests; nothing in the app calls it yet |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
-| **Push notifications** | ✅ | Contentless wake-ups; APNs/FCM see no metadata |
+| **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
 | **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
@@ -217,10 +218,12 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | V2 — WebRTC over the existing Signal sessions |
+| **Voice & video calls** | 📋 | The Calls tab exists and still shows placeholder entries; the real thing is WebRTC over the Signal sessions that already exist |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | 📋 | V2 — the calculator skin |
+| **Disguise mode** | 📋 | The calculator skin, not started |
+| **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
+| **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
 ✅ done and tested · 🔧 in progress · 📋 planned
 
@@ -257,8 +260,8 @@ sequenceDiagram
  │ Screens · dark, minimal  │                │ Fastify HTTP + WebSocket     │
  │ Local encrypted database │                │                              │
  │ Signal Protocol session  │  sealed bytes  │ accounts · devices · keys    │
- │  · X3DH key agreement    │ ─────────────► │ envelopes · groups           │
- │  · Double Ratchet        │ ◄───────────── │ media · backups              │
+ │  · X3DH key agreement    │ ─────────────► │ envelopes · groups · channels│
+ │  · Double Ratchet        │ ◄───────────── │ media · backups · licenses   │
  │ Keystore / Keychain      │   TLS 1.3      │                              │
  └──────────────────────────┘                └───────────┬──────────────────┘
                                                          │
@@ -277,8 +280,8 @@ sequenceDiagram
 | **Archive** | `app/lib/data/` | The decrypted history, sealed at rest |
 | **Media** | `app/lib/media/` | Metadata scrubbing, per-file encryption, padding |
 | **Crypto** | `app/lib/crypto/` | X3DH, the Double Ratchet, the key store |
-| Transport | `app/lib/core/` | HTTP client, keystore, app state |
-| API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, media, backup |
+| Transport | `app/lib/core/` | HTTP client, keystore, app state, the build's edition |
+| API routes | `server/src/routes/` | Accounts, devices, contacts, messages, groups, channels, media, backup, licenses |
 | Delivery | `server/src/services/` | Queueing, fan-out, push wake-ups |
 | Schema | `server/migrations/` | Every content column is a `bytea` the server cannot read |
 
@@ -404,11 +407,11 @@ implementations of established protocols.
 | Password hashing | Argon2id, 64 MiB, t=3, p=1 |
 | Session tokens | 256-bit random, stored only as SHA-256 |
 | Transport | TLS 1.3 |
-| Attachments | AES-256-GCM, random key per file |
+| Attachments | AES-256-GCM, a fresh random key per file, size padded |
 | Backups | AES-256-GCM under a key derived (HKDF-SHA256) from your recovery key |
 | Local history | AES-256-GCM under a key in the platform keystore |
 | Profile pictures | AES-256-GCM under a profile key, shared only with contacts |
-| Attachments | AES-256-GCM, a fresh random key per file, size padded |
+| License keys at rest | HMAC-SHA256 under a server secret — deterministic, because a redemption arrives with the key and nothing to look it up by |
 | Two-factor | TOTP, RFC 6238 |
 
 ### The caveats, stated plainly
@@ -436,7 +439,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **No independent audit.** Before any public release the crypto integration
+5. **Some features exist on the server and nowhere in the app.** Two-factor
+   setup, the wipe code and blocking are implemented and tested server-side,
+   and the app has no screen for any of them: today they are set through the
+   API. Login already honours all three. The feature table above marks them
+   🔧 rather than ✅ for exactly this reason.
+6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
 The full list, with the reasoning, is in
@@ -458,6 +466,13 @@ npm install
 npm run migrate               # migrations also run automatically on boot
 npm run dev                   # http://localhost:8080
 ```
+
+A server you run yourself needs no licensing configuration: `LICENSE_REQUIRED`
+defaults to `false`, the server then answers `required: false`, and no client
+ever asks anyone for a key. Setting it to `true` also requires
+`LICENSE_HASH_SECRET`, and the server refuses to boot without it rather than
+run a paid service that cannot tell who has paid — see
+[`docs/licensing.md`](docs/licensing.md#configuration).
 
 ```bash
 curl http://localhost:8080/health
@@ -489,10 +504,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  73 passing
+#  91 passing
 
 cd app && flutter analyze && flutter test
-#  198 passing
+#  232 passing
 ```
 
 Among the things those tests assert:
@@ -526,6 +541,10 @@ Among the things those tests assert:
 - the **wrong recovery key** opens nothing, and a failed restore leaves the device's history alone
 - a recovery key survives being **written down and typed back in**, including O for 0
 - a receipt is **never** filed as a message, and carries no readable word on the wire
+- a **self-hosted** server never puts a license key in front of anyone, because it says it needs none
+- "Not now" at first start is remembered **per account**, so the next account is still asked
+- a **store build** is never asked for a key, on the very same server that asks the Libre build
+- typing the printed `PRIVIO-` prefix by hand does not end up **inside** the key
 - an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
 - a **reaction** to a message this device does not have is dropped, not turned into a bubble
 - a reply's quote travels **inside the sealed payload**, so the server never learns what answered what
@@ -552,6 +571,7 @@ Among the things those tests assert:
 | `POST /v1/groups` | Create a group with encrypted metadata |
 | `POST /v1/media` | Upload an already-encrypted attachment |
 | `PUT /v1/backup` | Upload an already-encrypted backup |
+| `GET /v1/licenses/me` | What this account's license looks like, and whether this server wants one |
 | `POST /v1/licenses/redeem` | Bind a license key to this account |
 
 Full route list in [`docs/architecture.md`](docs/architecture.md).
@@ -571,14 +591,14 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 198 tests, incl. the crypto round trip
+│   └── test/                 232 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 73 tests against real PostgreSQL
+│   └── test/                 91 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
-└── docs/                   Architecture, security model, design system
+└── docs/                   Architecture, security model, design system, licensing, Libre
 ```
 
 ---
@@ -604,11 +624,22 @@ The full system — typography, spacing, every screen and component — is in
 
 ## Roadmap
 
-**V1** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
-Media · Notifications · Backup
+**Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
+Media · Voice messages · Backup · Channels · Join links · Read receipts and
+typing · Replies and reactions · Disappearing messages · License activation
 
-**V2** — Channels · Voice and video calls · Multi-device · Advanced privacy ·
-Disguise mode · Wipe code
+**Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
+Multi-device · Push registration in the client · The screens the server is
+already waiting for: two-factor setup, wipe code, blocking
+
+**Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
+the local history
+
+Before any of that ships to a store: the official `libsignal` behind FFI, an
+external review of the crypto integration, and a pass on a real device for the
+file picker and the microphone. Those are in
+[the caveats](#the-caveats-stated-plainly), not on this list, because they are
+conditions rather than features.
 
 ---
 
@@ -630,6 +661,38 @@ A license key is a different thing from the licence: it pays for the hosted
 relay, is redeemed once, and belongs to one account for good. It does not
 unlock the app — you already have all of the app. Self-hosted servers require
 no key at all.
+
+### Asked once, at first start — in the builds that use a key
+
+On a server that sells access, a new account is asked for its key immediately
+after it is created, instead of finding out later that it cannot send. That is
+the **Libre build and the APK from privio.com**. A Play or App Store build was
+paid for at the moment it was installed, so it is never shown a key field: it
+goes straight into the app, and if it still comes back unlicensed that is a
+receipt to settle with the store.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/activation-01-first-start.png" width="200"><br><sub><b>1.</b> Straight after sign-up, and only where the server said it needs one.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-03-key.png" width="200"><br><sub><b>2.</b> The field formats as you type; case and separators do not matter.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-02-refused.png" width="200"><br><sub><b>3.</b> A key the server does not know is said plainly, and the step stays put.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/activation-04-later.png" width="200"><br><sub><b>4.</b> After "Not now": still there, in Settings, marked <i>Not active</i>.</sub></td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/activation-05-store.png" width="200"><br><sub>The same server, a store build: no key field anywhere, because there is no key its owner could have.</sub></td>
+<td width="75%"></td>
+</tr>
+</table>
+
+It is a step, not a wall. The server lets an unlicensed account sign in and
+read what has already arrived — only sending is gated — so **Not now** goes
+through to the app, and the question is not asked again for that account. A
+screen that refused to let anyone past would be the client inventing a
+restriction the server does not apply, in a build anyone can compile with that
+screen deleted.
 
 | | |
 | --- | --- |
@@ -660,6 +723,7 @@ no key at all.
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
+| [Client editions](app/README.md) | The four builds, what separates them, and how to build each |
 
 <div align="center">
 <br>

@@ -71,6 +71,12 @@ class RealtimeConnection {
     try {
       final channel = _connect(_socketUrl);
       _channel = channel;
+      // A handshake that fails — no signal, a captive portal, a proxy that
+      // refuses — reports it on `ready`, not on the stream. The retry is driven
+      // by the stream's onError below, but an error nobody looks at on that
+      // future is an unhandled exception in the zone: on a phone with no
+      // reception, one per attempt.
+      unawaited(channel.ready.catchError((Object _) {}));
       _subscription = channel.stream.listen(
         _onFrame,
         onError: (Object _) => _dropAndRetry(),

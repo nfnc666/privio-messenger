@@ -6,12 +6,17 @@ import 'api_client.dart';
 import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'edition.dart';
 import 'license_controller.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
-enum AppStage { splash, initialising, welcome, locked, ready }
+///
+/// [activation] sits between signing in and the app itself: on a server that
+/// sells access, a brand new account is asked for its key once, before it is
+/// dropped into an empty chat list it cannot write to.
+enum AppStage { splash, initialising, welcome, locked, activation, ready }
 
 /// App-wide session and lock state.
 ///
@@ -22,13 +27,19 @@ class AppState extends ChangeNotifier {
     PrivioServices? services,
     SecureStore? store,
     BiometricGate? biometrics,
+    PrivioEdition? edition,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
-        _biometrics = biometrics ?? LocalAuthBiometricGate();
+        _biometrics = biometrics ?? LocalAuthBiometricGate(),
+        edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
   final BiometricGate _biometrics;
+
+  /// Which build this is. Injectable only so a test can be a store build; a
+  /// shipped app has exactly one, fixed at compile time.
+  final PrivioEdition edition;
 
   PrivioServices? _services;
   ConversationController? _conversations;
@@ -210,7 +221,51 @@ class AppState extends ChangeNotifier {
     unawaited(controller.maintainKeys());
     // Whether this server sells access is a property of the server, so it has
     // to be asked rather than assumed. Never blocks the UI.
-    unawaited(license.refresh());
+    unawaited(_askAboutLicense());
+  }
+
+  /// Asks the server about the license and, on the one answer that needs the
+  /// user, shows the activation step.
+  ///
+  /// Deliberately after the app is already usable rather than in front of it:
+  /// the answer arrives over the network, and a launch that waits on a licence
+  /// server is a launch that fails when the licence server does.
+  Future<void> _askAboutLicense() async {
+    await license.refresh();
+    if (!license.needsActivation) return;
+    // Only the builds that are activated with a key ask for one. An App Store
+    // or Play build was paid for at the moment it was installed, so there is
+    // nothing for its owner to type — putting a key field in front of them
+    // would be asking for something this build cannot have. If such a build
+    // still comes back unlicensed, that is a receipt to settle with the store,
+    // and the License row in Settings is where it says so.
+    if (!edition.usesLicenseKey) return;
+    // Never over the lock screen, and never over a sign-out that happened while
+    // the request was in flight.
+    if (_stage != AppStage.ready) return;
+    final accountId = _accountId;
+    if (accountId == null) return;
+    // Asked once per account. Someone who said "Not now" is not asked again on
+    // every launch — the Settings row and the send error are enough after that.
+    if (await _store.readActivationAskedFor() == accountId) return;
+    if (_stage != AppStage.ready) return;
+    _stage = AppStage.activation;
+    notifyListeners();
+  }
+
+  /// Leaves the activation step for the app itself.
+  ///
+  /// [asked] records that this account has now seen it, which is what "Not now"
+  /// means; a successful activation does not need recording, because the server
+  /// will not ask again.
+  Future<void> leaveActivation({bool asked = true}) async {
+    if (_stage != AppStage.activation) return;
+    final accountId = _accountId;
+    if (asked && accountId != null) {
+      await _store.writeActivationAskedFor(accountId);
+    }
+    _stage = AppStage.ready;
+    notifyListeners();
   }
 
   // --- Lock -----------------------------------------------------------------
@@ -240,7 +295,10 @@ class AppState extends ChangeNotifier {
   /// flushed, the app is not being used, and it is the point at which "I lost
   /// my phone" starts being a possibility.
   void lock() {
-    if (_stage == AppStage.ready) {
+    // Activation counts as being inside the app: the account is signed in, and
+    // what is on screen is a key someone is typing. Unlocking runs the license
+    // question again, so the step comes back rather than being skipped.
+    if (_stage == AppStage.ready || _stage == AppStage.activation) {
       _conversations
         ?..stop()
         ..flush();
