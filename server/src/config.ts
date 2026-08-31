@@ -42,6 +42,16 @@ const schema = z.object({
   LICENSE_HASH_SECRET: z.string().min(32).optional(),
   /** Bearer token the website presents to issue and revoke licenses. */
   LICENSE_ISSUER_TOKEN: z.string().min(32).optional(),
+
+  /**
+   * Comma-separated hosts that may be registered as UnifiedPush endpoints.
+   *
+   * Empty means any publicly routable HTTPS host, which is the point of
+   * UnifiedPush — the distributor is the user's choice, and often their own.
+   * A deployment that would rather not make outbound requests to wherever can
+   * narrow it to the distributors it trusts.
+   */
+  UNIFIEDPUSH_ALLOWED_HOSTS: z.string().default(''),
 }).superRefine((env, ctx) => {
   // Better to refuse to boot than to run a paid server that cannot tell who
   // has paid.

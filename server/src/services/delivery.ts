@@ -1,7 +1,7 @@
 import type { PoolClient } from '../db/pool.js';
 import { pool } from '../db/pool.js';
 import type { DeliveryBus } from './bus.js';
-import type { PushSender } from './push.js';
+import type { PushProvider, PushSender } from './push.js';
 
 export type EnvelopeType =
   | 'prekey'
@@ -71,7 +71,7 @@ export class DeliveryService {
   /** Sends a contentless push to devices that have registered a token. */
   private async wake(deviceIds: string[]): Promise<void> {
     if (deviceIds.length === 0) return;
-    const { rows } = await pool.query<{ id: string; push_provider: 'apns' | 'fcm'; push_token: string }>(
+    const { rows } = await pool.query<{ id: string; push_provider: PushProvider; push_token: string }>(
       `SELECT id, push_provider, push_token FROM devices
        WHERE id = ANY($1::uuid[]) AND revoked_at IS NULL
          AND push_provider IS NOT NULL AND push_token IS NOT NULL`,

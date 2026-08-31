@@ -17,7 +17,7 @@ import { websocketRoutes } from './routes/ws.js';
 import type { DeliveryBus } from './services/bus.js';
 import { DeliveryService } from './services/delivery.js';
 import type { PushSender } from './services/push.js';
-import { LoggingPushSender } from './services/push.js';
+import { LoggingPushSender, RoutingPushSender, UnifiedPushSender } from './services/push.js';
 import type { BlobStorage } from './services/storage.js';
 import { LocalFileStorage } from './services/storage.js';
 import { ApiError } from './util/errors.js';
@@ -57,7 +57,16 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     bodyLimit: config.MAX_ENVELOPE_BYTES * 300,
   });
 
-  const push = deps.push ?? new LoggingPushSender(app.log);
+  // UnifiedPush needs no credentials — the endpoint is the credential — so it
+  // works out of the box, including on a self-hosted server that has no Apple
+  // or Google account at all. APNs and FCM stay on the logging sender until a
+  // deployment plugs real adapters in.
+  const push =
+    deps.push ??
+    new RoutingPushSender(
+      { unifiedpush: new UnifiedPushSender({ log: app.log }) },
+      new LoggingPushSender(app.log),
+    );
   const storage = deps.storage ?? new LocalFileStorage();
   const delivery = new DeliveryService(deps.bus, push);
 

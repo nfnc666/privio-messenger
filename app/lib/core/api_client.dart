@@ -362,9 +362,14 @@ class PrivioApiClient {
   Future<void> revokeDevice(String deviceId) async =>
       _send('DELETE', '/v1/devices/$deviceId');
 
+  /// Registers, or with both arguments null clears, how this device is woken.
+  ///
+  /// For `unifiedpush` the token is an endpoint URL the server will POST to,
+  /// so it is validated there rather than trusted — see the server's
+  /// util/outbound.ts. For APNs and FCM it is an opaque vendor handle.
   Future<void> registerPushToken({
-    required String provider,
-    required String token,
+    required String? provider,
+    required String? token,
   }) async =>
       _send('PUT', '/v1/devices/current/push', body: {
         'provider': provider,

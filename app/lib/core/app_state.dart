@@ -8,6 +8,7 @@ import 'channel_controller.dart';
 import 'conversation_controller.dart';
 import 'edition.dart';
 import 'license_controller.dart';
+import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'secure_store.dart';
 
@@ -40,6 +41,7 @@ class AppState extends ChangeNotifier {
   ConversationController? _conversations;
   ChannelController? _channels;
   LicenseController? _license;
+  WakeUpController? _wakeUp;
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -78,6 +80,9 @@ class AppState extends ChangeNotifier {
   /// so the settings entry knows whether it has anything to say.
   LicenseController get license =>
       _license ??= LicenseController(services.api, store: _store);
+
+  /// How this device asks to be told that something arrived.
+  WakeUpController get wakeUp => _wakeUp ??= WakeUpController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and finds out
@@ -312,6 +317,7 @@ class AppState extends ChangeNotifier {
     _channels?.dispose();
     _channels = null;
     _license?.dispose();
+    _wakeUp?.dispose();
     _license = null;
     await services.archive.clear();
     await _store.wipe();

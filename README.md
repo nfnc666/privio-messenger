@@ -660,6 +660,7 @@ no key at all.
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
+| [Notifications](docs/notifications.md) | Wake-ups without a proprietary push service |
 
 <div align="center">
 <br>
