@@ -125,9 +125,42 @@ channel to a native implementation that does not exist yet, so on a real phone
 today every call answers "no distributor" and the app stays on its socket. That
 is a deliberate seam, not a stub pretending to work: the channel's absence and
 an uninstalled distributor are the same answer, and the app is honest in both
-cases. Finishing it means adding the UnifiedPush Android connector to the
-`libre` flavour and implementing `isAvailable`, `register` and `unregister`
-against it.
+cases.
+
+Three methods have to exist behind `app.privio/unifiedpush`:
+
+| Method | Returns | Does |
+| --- | --- | --- |
+| `isAvailable` | `bool` | Whether any distributor is installed and reachable |
+| `register` | `String?` | Registers and yields the endpoint URL, or null if declined |
+| `unregister` | — | Tells the distributor to forget this app |
+
+### The obvious route may not work, and that is worth knowing first
+
+The natural move is to depend on the UnifiedPush Android connector. Its
+coordinates are `org.unifiedpush.android:connector` — read out of the library's
+own build file, not guessed. But its README advertises releases through
+**JitPack**, and JitPack is not something F-Droid's build server fetches from:
+it builds arbitrary source on demand, which is the opposite of what a
+verifiable build needs. A dependency line pointing there would very likely fail
+the one build this repository exists to make possible.
+
+Whether the same artifact is also published to Maven Central could not be
+checked from here — the network this was written on refuses that host. **Check
+that first.** If it is there, the dependency is straightforward and belongs in
+`libreImplementation`. If it is not, there are two honest ways round it:
+
+* **Vendor the connector.** It is a small Kotlin library; copying it in with its
+  licence intact keeps the build self-contained and reproducible.
+* **Implement the protocol directly.** UnifiedPush is a handful of broadcast
+  intents — the app asks registered distributors to register it, and receives
+  the endpoint back through a `BroadcastReceiver`. No dependency at all, which
+  is the smallest surface of the three.
+
+None of that was written blind on purpose. There is no Android SDK on the
+machine this was built on, so anything committed here would have been Kotlin
+nobody had compiled, in the tree F-Droid builds from. The seam holds until
+someone can run `flutter build apk --flavor libre` and see it go green.
 
 Also not written: APNs and FCM adapters. `LoggingPushSender` records the intent
 and sends nothing, which is why the store builds are not offered a choice yet
