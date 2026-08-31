@@ -135,32 +135,46 @@ Three methods have to exist behind `app.privio/unifiedpush`:
 | `register` | `String?` | Registers and yields the endpoint URL, or null if declined |
 | `unregister` | — | Tells the distributor to forget this app |
 
-### The obvious route may not work, and that is worth knowing first
+### The dependency, and the shape it actually has
 
-The natural move is to depend on the UnifiedPush Android connector. Its
-coordinates are `org.unifiedpush.android:connector` — read out of the library's
-own build file, not guessed. But its README advertises releases through
-**JitPack**, and JitPack is not something F-Droid's build server fetches from:
-it builds arbitrary source on demand, which is the opposite of what a
-verifiable build needs. A dependency line pointing there would very likely fail
-the one build this repository exists to make possible.
+The UnifiedPush Android connector is `org.unifiedpush.android:connector`, and
+it **is** on Maven Central — `3.3.5` is the current release, with the `.aar`
+present. So it belongs in `libreImplementation`, and F-Droid can fetch it like
+any other dependency. (An earlier note here worried that the library was
+JitPack-only, because that is what its README advertises. That was wrong, and
+it is corrected rather than quietly deleted: JitPack would have been a problem,
+Maven Central is not.)
 
-Whether the same artifact is also published to Maven Central could not be
-checked from here — the network this was written on refuses that host. **Check
-that first.** If it is there, the dependency is straightforward and belongs in
-`libreImplementation`. If it is not, there are two honest ways round it:
+```kotlin
+// android/app/build.gradle.kts — the Libre flavour only.
+libreImplementation("org.unifiedpush.android:connector:3.3.5")
+```
 
-* **Vendor the connector.** It is a small Kotlin library; copying it in with its
-  licence intact keeps the build self-contained and reproducible.
-* **Implement the protocol directly.** UnifiedPush is a handful of broadcast
-  intents — the app asks registered distributors to register it, and receives
-  the endpoint back through a `BroadcastReceiver`. No dependency at all, which
-  is the smallest surface of the three.
+One thing to know before writing the platform side, because it is not what the
+Dart interface's shape suggests: **the endpoint does not come back from
+`register()`.** The connector's `UnifiedPush.register(...)` starts a
+conversation with the distributor, and the endpoint arrives later on a
+broadcast, at the app's receiver. So the native half has to hold the pending
+method-channel result until that callback fires — with a timeout, so a
+distributor that never answers does not leave the Dart side waiting forever —
+or the interface has to grow an event channel instead.
 
-None of that was written blind on purpose. There is no Android SDK on the
-machine this was built on, so anything committed here would have been Kotlin
-nobody had compiled, in the tree F-Droid builds from. The seam holds until
-someone can run `flutter build apk --flavor libre` and see it go green.
+The Dart contract is still implementable as written; it just puts that work on
+the native side. That is the right place for it: nothing above the channel
+should have to know that this protocol is asynchronous underneath.
+
+Also worth checking against the pinned version rather than the library's
+`main` branch: the API is mid-rename there (`registerApp` → `register`,
+`unregisterApp` → `unregister`), so code written from what is on `main` may not
+compile against 3.3.5.
+
+The Kotlin itself is still not written, and deliberately so. There is no
+Android SDK on the machine this was built on, and the connector's released
+sources could not be read from here either — only its `main` branch, which is
+mid-rename. Committing Kotlin nobody has compiled, against an API read from the
+wrong branch, into the tree F-Droid builds from is the one mistake that would
+stay invisible until it broke for everyone. The seam holds until someone can
+run `flutter build apk --flavor libre` and watch it go green.
 
 Also not written: APNs and FCM adapters. `LoggingPushSender` records the intent
 and sends nothing, which is why the store builds are not offered a choice yet
