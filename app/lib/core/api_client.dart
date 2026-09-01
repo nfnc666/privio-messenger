@@ -121,6 +121,45 @@ class PrivioApiClient {
 
   Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
+  /// Sets or clears the duress code. Passing null removes it.
+  ///
+  /// The current password is required, and the server refuses a code equal to
+  /// it — a duress code that is the password would fire on an ordinary sign-in.
+  Future<Map<String, dynamic>> setDuressCode({
+    required String currentPassword,
+    required String? duressCode,
+  }) =>
+      _send('PUT', '/v1/accounts/me/duress-code', body: {
+        'currentPassword': currentPassword,
+        'duressCode': duressCode,
+      },);
+
+  /// The duress wipe from a device that is already signed in.
+  ///
+  /// Carries the duress code, not the password: at a lock screen under duress
+  /// there is no password being typed. The server answers exactly as it does to
+  /// a wrong password, so nothing here can be used to find out whether a code
+  /// is set.
+  Future<void> wipeAccount(String duressCode) async =>
+      _send('POST', '/v1/accounts/me/wipe', body: {'duressCode': duressCode});
+
+  // --- Two-factor -----------------------------------------------------------
+
+  /// Starts setup and returns the shared secret, which is the only time it is
+  /// ever handed out. It is not in force until [enableTotp] proves the
+  /// authenticator app can produce a code from it.
+  Future<Map<String, dynamic>> setUpTotp() =>
+      _send('POST', '/v1/accounts/me/totp/setup');
+
+  /// Turns the factor on, once a code from it has been shown to work.
+  Future<Map<String, dynamic>> enableTotp(String code) =>
+      _send('POST', '/v1/accounts/me/totp/enable', body: {'code': code});
+
+  /// Turning it off asks for the password: a factor anyone holding an unlocked
+  /// phone could remove would not be a second factor.
+  Future<Map<String, dynamic>> disableTotp(String currentPassword) =>
+      _send('DELETE', '/v1/accounts/me/totp', body: {'currentPassword': currentPassword});
+
   // --- Contacts -------------------------------------------------------------
 
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
@@ -143,6 +182,11 @@ class PrivioApiClient {
 
   Future<void> block(String accountId) async =>
       _send('POST', '/v1/blocks', body: {'accountId': accountId});
+
+  Future<Map<String, dynamic>> blocks() => _send('GET', '/v1/blocks');
+
+  Future<void> unblock(String accountId) async =>
+      _send('DELETE', '/v1/blocks/$accountId');
 
   // --- Keys and messages ----------------------------------------------------
 

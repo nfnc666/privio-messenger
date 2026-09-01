@@ -1,5 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'passcode.dart';
+
 /// Where the session and the app-lock state live.
 ///
 /// An interface for the same reason [CryptoStorage] is one: the code above it
@@ -15,9 +17,19 @@ abstract interface class SecureStore {
     required String accountId,
   });
 
-  Future<void> setPin(String pin);
-  Future<bool> hasPin();
-  Future<bool> verifyPin(String pin);
+  /// The app-lock passcode and its shape. The shape is stored because the lock
+  /// screen has to know whether to draw a keypad or a text field before anyone
+  /// has typed anything.
+  Future<void> setPasscode(String passcode, PasscodeKind kind);
+  Future<PasscodeKind?> passcodeKind();
+  Future<bool> hasPasscode();
+  Future<bool> verifyPasscode(String passcode);
+  Future<void> clearPasscode();
+
+  /// The duress code, kept here as well as on the server so the lock screen can
+  /// recognise it with no network — which is the situation it exists for.
+  Future<void> setDuressCode(String? code);
+  Future<bool> verifyDuressCode(String code);
 
   /// The key the local message archive is sealed with. Small enough that a
   /// keystore is the right home for it, unlike the archive itself.
@@ -38,9 +50,6 @@ abstract interface class SecureStore {
   Future<void> writeLastBackupAt(DateTime when);
   Future<String?> readBackupInterval();
   Future<void> writeBackupInterval(String interval);
-
-  Future<bool> biometricsEnabled();
-  Future<void> setBiometricsEnabled(bool enabled);
 
   /// A license key entered before there was an account to bind it to.
   ///
@@ -82,12 +91,13 @@ class KeystoreSecureStore implements SecureStore {
   static const _tokenKey = 'privio.session.token';
   static const _usernameKey = 'privio.session.username';
   static const _accountIdKey = 'privio.session.account_id';
-  static const _pinKey = 'privio.lock.pin';
+  static const _passcodeKey = 'privio.lock.pin';
+  static const _passcodeKindKey = 'privio.lock.kind';
+  static const _duressKey = 'privio.lock.duress';
   static const _archiveKeyKey = 'privio.archive.key';
   static const _recoveryKeyKey = 'privio.backup.recovery_key';
   static const _lastBackupKey = 'privio.backup.last_at';
   static const _backupIntervalKey = 'privio.backup.interval';
-  static const _biometricsKey = 'privio.lock.biometrics';
   static const _pendingLicenseKey = 'privio.license.pending_key';
   static const _licenseCacheKey = 'privio.license.status';
 
@@ -127,20 +137,48 @@ class KeystoreSecureStore implements SecureStore {
     await _write(_accountIdKey, accountId);
   }
 
-  /// The PIN is a *local* lock on an already-encrypted database, and the
+  /// The passcode is a *local* lock on an already-encrypted database, and the
   /// keychain is the security boundary that protects it. It is deliberately not
-  /// stretched here: V2 moves PIN handling into the native crypto layer, where
-  /// it derives a key-encryption key with Argon2id instead of being compared.
+  /// stretched here: V2 moves it into the native crypto layer, where it derives
+  /// a key-encryption key with Argon2id instead of being compared.
   @override
-  Future<void> setPin(String pin) => _write(_pinKey, pin);
+  Future<void> setPasscode(String passcode, PasscodeKind kind) async {
+    await _write(_passcodeKey, passcode);
+    await _write(_passcodeKindKey, kind.id);
+  }
 
   @override
-  Future<bool> hasPin() async => await _read(_pinKey) != null;
+  Future<PasscodeKind?> passcodeKind() async =>
+      PasscodeKind.parse(await _read(_passcodeKindKey));
 
   @override
-  Future<bool> verifyPin(String pin) async {
-    final stored = await _read(_pinKey);
-    return stored != null && stored == pin;
+  Future<bool> hasPasscode() async => await _read(_passcodeKey) != null;
+
+  @override
+  Future<void> clearPasscode() async {
+    await _storage.delete(key: _passcodeKey, iOptions: _iosOptions, aOptions: _androidOptions);
+    await _storage.delete(
+      key: _passcodeKindKey,
+      iOptions: _iosOptions,
+      aOptions: _androidOptions,
+    );
+  }
+
+  @override
+  Future<void> setDuressCode(String? code) => code == null
+      ? _storage.delete(key: _duressKey, iOptions: _iosOptions, aOptions: _androidOptions)
+      : _write(_duressKey, code);
+
+  @override
+  Future<bool> verifyDuressCode(String code) async {
+    final stored = await _read(_duressKey);
+    return stored != null && stored == code;
+  }
+
+  @override
+  Future<bool> verifyPasscode(String passcode) async {
+    final stored = await _read(_passcodeKey);
+    return stored != null && stored == passcode;
   }
 
   @override
@@ -171,12 +209,6 @@ class KeystoreSecureStore implements SecureStore {
       _write(_backupIntervalKey, interval);
 
   @override
-  Future<bool> biometricsEnabled() async => await _read(_biometricsKey) == 'true';
-
-  @override
-  Future<void> setBiometricsEnabled(bool enabled) => _write(_biometricsKey, '$enabled');
-
-  @override
   Future<String?> readPendingLicenseKey() => _read(_pendingLicenseKey);
 
   @override
@@ -190,6 +222,7 @@ class KeystoreSecureStore implements SecureStore {
   Future<void> writeLicenseCache(String? json) =>
       json == null ? _clear(_licenseCacheKey) : _write(_licenseCacheKey, json);
 
+  @override
   Future<String?> readActivationAskedFor() => _read(_activationAskedKey);
 
   @override
@@ -227,13 +260,37 @@ class InMemorySecureStore implements SecureStore {
   }
 
   @override
-  Future<void> setPin(String pin) async => _entries['pin'] = pin;
+  Future<void> setPasscode(String passcode, PasscodeKind kind) async {
+    _entries['pin'] = passcode;
+    _entries['pinKind'] = kind.id;
+  }
 
   @override
-  Future<bool> hasPin() async => _entries.containsKey('pin');
+  Future<PasscodeKind?> passcodeKind() async => PasscodeKind.parse(_entries['pinKind']);
 
   @override
-  Future<bool> verifyPin(String pin) async => _entries['pin'] == pin;
+  Future<void> clearPasscode() async {
+    _entries.remove('pin');
+    _entries.remove('pinKind');
+  }
+
+  @override
+  Future<void> setDuressCode(String? code) async {
+    if (code == null) {
+      _entries.remove('duress');
+    } else {
+      _entries['duress'] = code;
+    }
+  }
+
+  @override
+  Future<bool> verifyDuressCode(String code) async => _entries['duress'] == code;
+
+  @override
+  Future<bool> hasPasscode() async => _entries.containsKey('pin');
+
+  @override
+  Future<bool> verifyPasscode(String passcode) async => _entries['pin'] == passcode;
 
   @override
   Future<String?> readArchiveKey() async => _entries['archiveKey'];
@@ -264,13 +321,6 @@ class InMemorySecureStore implements SecureStore {
       _entries['backupInterval'] = interval;
 
   @override
-  Future<bool> biometricsEnabled() async => _entries['biometrics'] == 'true';
-
-  @override
-  Future<void> setBiometricsEnabled(bool enabled) async =>
-      _entries['biometrics'] = '$enabled';
-
-  @override
   Future<String?> readPendingLicenseKey() async => _entries['pendingLicenseKey'];
 
   @override
@@ -294,6 +344,7 @@ class InMemorySecureStore implements SecureStore {
     }
   }
 
+  @override
   Future<String?> readActivationAskedFor() async => _entries['activationAskedFor'];
 
   @override

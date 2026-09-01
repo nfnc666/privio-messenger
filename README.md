@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-323%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-400%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -147,6 +147,120 @@ one replaces it, sending the same one again clears it. A reaction to a message
 this device does not have is dropped rather than invented — an empty bubble
 with a heart on it would be a message the server made up.
 
+### Settings that measured nothing
+
+The Privacy & Security screen used to state "Two-Factor Authentication: On" and
+"Blocked Users: 3" from constants in the widget tree, over accounts that had
+neither. Both are now read from the server — and both now have the screen the
+server had been waiting for since the endpoints were written.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/security-01-privacy.png" width="200"><br><sub><b>1.</b> Every row read from somewhere. Rows nothing could back are gone.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-02-setup.png" width="200"><br><sub><b>2.</b> The QR is drawn on the device; the secret is never sent anywhere to be rendered.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-03-wrong-code.png" width="200"><br><sub><b>3.</b> A wrong code changes nothing — the factor is not on until one is proved.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/security-05-login.png" width="200"><br><sub><b>4.</b> And then the login wants it.</sub></td>
+</tr>
+</table>
+
+Enabling two-factor is two steps on purpose: the server issues a secret, and
+the factor only comes into force once a code from it has been checked. A factor
+switched on without that proof locks out the person who set it up. Turning it
+off asks for the password, because an unlocked phone should not be enough.
+
+That run also found a bug with nothing to do with two-factor. The whole account
+plugin sat behind the login rate limit — ten requests per address per five
+minutes — so reading your own account counted against the budget for guessing
+your password. Opening a settings screen a few times could lock someone out of
+their own account. The tight budget now belongs to the routes that actually
+check a credential, and there is a test that runs against the real limit rather
+than the relaxed one the rest of the suite uses.
+
+### A code that destroys instead of opening
+
+The duress code has been in the schema since the first migration and enforced at
+login ever since: type it instead of your password and the account is
+destroyed, while whoever is watching sees the same refusal a typo gets. Until
+now the only way to arm it was a curl command — the one feature written for
+someone being forced to hand over a phone, and it needed a terminal.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-01-screen.png" width="200"><br><sub><b>1.</b> What it destroys, said plainly, before anything is typed.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-02-same-as-password.png" width="200"><br><sub><b>2.</b> The code may not be the password — an ordinary sign-in would fire it.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-03-set.png" width="200"><br><sub><b>3.</b> Armed. Privio cannot show it back to you; it is stored like a password.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/wipe-04-refused.png" width="200"><br><sub><b>4.</b> Used at sign-in: refused as "username or password is incorrect", and the account is gone.</sub></td>
+</tr>
+</table>
+
+The browser run measured the wipe rather than trusting the message: one device
+before the duress sign-in, zero after, the account row still present so the
+username cannot be claimed by anyone else, and the duress code itself cleared.
+
+### The last screens that made things up
+
+Two screens were still rendering `DemoData`. One of them was **Devices** — the
+screen whose entire job is answering "is anyone else signed in to my account" —
+and it answered with an iPhone 15 Pro, a MacBook Pro, an iPad Pro and a Windows
+PC that did not exist. The other was **Calls**, with five invented entries under
+a comment claiming "the list is real".
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/13-devices.png" width="220"><br><sub><b>1.</b> The devices actually signed in, from the server.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/devices-02-confirm.png" width="220"><br><sub><b>2.</b> Signing one out says what that does, and what it cannot undo.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/devices-03-after.png" width="220"><br><sub><b>3.</b> Gone — session revoked, queue deleted, and the list says so.</sub></td>
+</tr>
+</table>
+
+The endpoints had been there since the first week. The browser run signed one
+account in on two devices, watched both appear, signed one out, and confirmed
+against the database that it went from two to one. `DemoData` is deleted, along
+with the two model classes that were shaped for it — a call whose `timestamp`
+was the string "Yesterday", a device whose `lastActive` was "Last active: 2h
+ago". Nothing in the app renders invented data now.
+
+### The lock screen the app could never reach
+
+`AppStage.locked` and the PIN pad were built early, and nothing in the app ever
+called `setPin` — so the lock could not be switched on, and the screen guarding
+the on-device history was unreachable. It has a screen now, and with it the
+duress code reaches the place a phone is actually taken: already signed in,
+locked, with someone asking for the PIN.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/lock-01-screen.png" width="200"><br><sub><b>1.</b> The app lock, settable at last: 4 digits, 6 digits or a passphrase.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-02-duress-armed.png" width="200"><br><sub><b>2.</b> A duress code shaped like the lock says so: it reaches the lock screen as well as sign-in.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-03-locked.png" width="200"><br><sub><b>3.</b> Reopened: locked. Six dots, because that is the shape this device chose.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-04-after-duress.png" width="200"><br><sub><b>4.</b> The duress code typed here — the same refusal a wrong passcode gets, and the account is gone.</sub></td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/lock-05-passphrase.png" width="200"><br><sub>The same lock with a passphrase chosen: a field instead of a keypad, and no fingerprint icon anywhere.</sub></td>
+<td width="75%"></td>
+</tr>
+</table>
+
+There is no face or fingerprint unlock, and that is the design rather than a
+gap. Biometrics are the one credential a person can be made to present while
+unwilling, asleep or unconscious, and in several places a court can order them
+where it cannot order a passcode. In an app that ships a duress code for
+exactly that situation, offering one would hand back what the duress code is
+there to protect. `local_auth` is not a dependency any more.
+
+The local wipe happens first and unconditionally: the phone is in someone
+else's hands, and the network is the part that might not be there. The history,
+this device's Signal identity and the session go immediately; the server is
+asked afterwards, on a best-effort call carrying the code rather than the
+password — under duress the password is the one thing nobody is about to type.
+A duress code that is not shaped like this device's lock — a phrase where the
+lock is a keypad, six digits where the lock takes four — works at sign-in only,
+and the screen says which kind you have rather than letting you believe it is
+armed somewhere it can never be typed.
+
 ### A backup only you can open
 
 A history sealed on the device, a key that exists nowhere else, and a new
@@ -195,17 +309,17 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | --- | :---: | --- |
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
-| **Two-factor auth** | 🔧 | TOTP (RFC 6238) is enforced at login and the app asks for the code; the screen to *turn it on* is not built, so today it is set through the API |
-| **Wipe code** | 🔧 | The server destroys the account and answers `invalid_credentials`, and a test proves a wipe is indistinguishable from a typo — but the app has no screen to set one |
+| **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
+| **Duress code** | ✅ | Set in the app. Typed at sign-in *or* at the lock screen it destroys the account, and is refused exactly as a wrong password or passcode is |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
-| **Blocking** | 🔧 | Invisible to the blocked sender, and covered by server tests; nothing in the app calls it yet |
+| **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
-| **Device management** | ✅ | List, remote logout, per-device sessions |
-| **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
+| **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
+| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
@@ -218,7 +332,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | The Calls tab exists and still shows placeholder entries; the real thing is WebRTC over the Signal sessions that already exist |
+| **Voice & video calls** | 📋 | The Calls tab says there are none, because there are none. The real thing is WebRTC over the Signal sessions that already exist |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
 | **Disguise mode** | 📋 | The calculator skin, not started |
@@ -439,11 +553,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **Some features exist on the server and nowhere in the app.** Two-factor
-   setup, the wipe code and blocking are implemented and tested server-side,
-   and the app has no screen for any of them: today they are set through the
-   API. Login already honours all three. The feature table above marks them
-   🔧 rather than ✅ for exactly this reason.
+5. **A wipe reaches this device and the server, not other devices.** Typing the
+   duress code destroys this device's history, identity and session, and asks
+   the server to destroy what it holds — devices, queued envelopes, contacts,
+   group memberships, the backup. It cannot reach a *different* phone that is
+   signed in elsewhere, whose local archive stays sealed but present. The
+   screen says so instead of implying a remote kill switch.
 6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
@@ -504,10 +619,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  91 passing
+#  115 passing
 
 cd app && flutter analyze && flutter test
-#  232 passing
+#  285 passing
 ```
 
 Among the things those tests assert:
@@ -544,6 +659,8 @@ Among the things those tests assert:
 - a **self-hosted** server never puts a license key in front of anyone, because it says it needs none
 - "Not now" at first start is remembered **per account**, so the next account is still asked
 - a **store build** is never asked for a key, on the very same server that asks the Libre build
+- two-factor is **not on** until a code from the new secret has been checked, and the secret is forgotten once it is
+- **reading your own account** is not rationed like a login — but guessing a password still is
 - typing the printed `PRIVIO-` prefix by hand does not end up **inside** the key
 - an envelope that arrives **twice** — pushed and polled — is opened once, and never reported as broken
 - a **reaction** to a message this device does not have is dropped, not turned into a bubble
@@ -552,6 +669,9 @@ Among the things those tests assert:
 - a receipt names **specific messages**, not "everything up to now"
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
+- a duress code **equal to the password** is refused, because an ordinary sign-in would fire it
+- the duress code at the lock screen wipes **before** it tries the network, so a phone with no signal still loses its copy
+- turning the app lock off **takes the duress code with it**, rather than leaving a wipe armed on a screen nobody sees
 - blocking is **invisible** to the blocked sender
 
 ---
@@ -591,12 +711,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 232 tests, incl. the crypto round trip
+│   └── test/                 285 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 91 tests against real PostgreSQL
+│   └── test/                 115 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```
@@ -614,7 +734,7 @@ OLED panels most phones ship with.
 | `background` | `#000000` | App background |
 | `surface` | `#0B0B0B` | Cards and list rows |
 | `bubbleOutgoing` | `#0B3B21` | Your messages |
-| `danger` | `#EF4444` | Wipe code, missed calls, destructive actions |
+| `danger` | `#EF4444` | Duress code, missed calls, destructive actions |
 
 The full system — typography, spacing, every screen and component — is in
 [`docs/design-system.md`](docs/design-system.md), measured from the mockups in
@@ -626,11 +746,12 @@ The full system — typography, spacing, every screen and component — is in
 
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
-typing · Replies and reactions · Disappearing messages · License activation
+typing · Replies and reactions · Disappearing messages · License activation ·
+Two-factor · Blocking · Duress code
 
 **Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
-Multi-device · Push registration in the client · The screens the server is
-already waiting for: two-factor setup, wipe code, blocking
+Multi-device · Push registration in the client, the last thing the server
+implements and the app cannot reach
 
 **Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
 the local history

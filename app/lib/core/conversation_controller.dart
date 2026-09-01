@@ -652,16 +652,40 @@ class ConversationController extends ChangeNotifier {
 
   /// Reads the account's privacy settings, so the toggles reflect the server
   /// rather than a default this device guessed.
+  /// Blocks an account and drops the conversation from this device.
+  ///
+  /// The server stops delivering what they send and tells them nothing. Keeping
+  /// the chat on screen afterwards would be odd — it can never grow again — so
+  /// it goes with them, and the archive is rewritten without it.
+  Future<bool> block(String accountId) async {
+    try {
+      await _services.api.block(accountId);
+    } on Object {
+      return false;
+    }
+    _services.store.removeConversation(accountId);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
   Future<void> loadPrivacy() async {
     try {
       final me = await _services.api.me();
-      final privacy = me['privacy'] as Map<String, dynamic>? ?? const {};
-      _readReceipts = privacy['readReceipts'] as bool? ?? true;
-      _typingIndicators = privacy['typingIndicators'] as bool? ?? true;
-      notifyListeners();
+      applyPrivacy(me['privacy'] as Map<String, dynamic>? ?? const {});
     } on Object {
       // Keep whatever is on screen; the settings screen shows the error.
     }
+  }
+
+  /// Takes the privacy object from a read someone else already did.
+  ///
+  /// The settings screen needs the security half of the same account object,
+  /// and asking for it twice spends two of a rate-limited budget on one screen.
+  void applyPrivacy(Map<String, dynamic> privacy) {
+    _readReceipts = privacy['readReceipts'] as bool? ?? true;
+    _typingIndicators = privacy['typingIndicators'] as bool? ?? true;
+    notifyListeners();
   }
 
   Future<void> setReadReceipts(bool enabled) async {

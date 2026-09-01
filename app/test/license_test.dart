@@ -386,9 +386,23 @@ void main() {
       expect(PrivioEdition.parse('play').usesProprietaryServices, isTrue);
     });
 
-    test('the Libre build talks to no push service', () {
-      expect(PrivioEdition.parse('libre').pushProvider, isNull);
+    test('the free builds wake on UnifiedPush, the store builds on their store', () {
+      // The Libre builds had no push service at all until UnifiedPush gave them
+      // one that costs neither a proprietary dependency nor a fixed third
+      // party — the endpoint belongs to a distributor the user chose. The
+      // assertion this replaces still said "no push service", and had been
+      // failing since that landed.
+      expect(PrivioEdition.parse('libre').pushProvider, 'unifiedpush');
+      expect(PrivioEdition.parse('direct').pushProvider, 'unifiedpush');
       expect(PrivioEdition.parse('play').pushProvider, 'fcm');
+      expect(PrivioEdition.parse('appstore').pushProvider, 'apns');
+    });
+
+    test('no free build links a proprietary push SDK', () {
+      for (final edition in PrivioEdition.all.where((e) => e.isLibre)) {
+        expect(edition.usesProprietaryServices, isFalse);
+        expect(edition.pushProvider, isNot(anyOf('fcm', 'apns')));
+      }
     });
 
     test('an unknown edition falls back to Libre rather than crashing', () {

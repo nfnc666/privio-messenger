@@ -205,6 +205,13 @@ class PrivioCrypto {
     };
   }
 
+  /// Destroys this device's identity and every session with it.
+  ///
+  /// After this the device is a stranger to everyone it had spoken to: it can
+  /// register a new identity, and nothing that was sealed to the old one will
+  /// ever open again. Used by the duress wipe.
+  Future<void> wipe() => _store.storage.wipe();
+
   SignalProtocolAddress _address(String accountId, int deviceIndex) =>
       SignalProtocolAddress(accountId, deviceIndex);
 

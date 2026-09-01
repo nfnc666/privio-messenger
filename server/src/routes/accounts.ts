@@ -9,7 +9,26 @@ import { createSession, revokeAllSessions, revokeSession } from '../services/ses
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
-import { config } from '../config.js';
+import { config, rateLimitFactor } from '../config.js';
+
+/**
+ * The budget for routes that check a credential: a password, a wipe code, a
+ * six-digit code. Ten attempts per address per five minutes, which is generous
+ * for a person and useless for a guesser.
+ *
+ * It is declared per route rather than around the plugin, because reading your
+ * own account is not an attempt at anything and must not spend the same
+ * allowance a login does.
+ */
+const guessable = {
+  config: {
+    rateLimit: {
+      max: 10 * rateLimitFactor,
+      timeWindow: '5 minutes',
+      keyGenerator: (request: { ip: string }) => request.ip,
+    },
+  },
+};
 
 // Verifying a throwaway hash on unknown usernames keeps login timing flat, so a
 // failed attempt does not reveal whether the account exists.
@@ -38,7 +57,7 @@ const loginSchema = z.object({
 
 const accountRoutes: FastifyPluginAsync = async (app) => {
   /** Create an account and its first device. No phone number, no email. */
-  app.post('/v1/accounts', async (request, reply) => {
+  app.post('/v1/accounts', guessable, async (request, reply) => {
     const body = parse(registerSchema, request.body);
 
     const existing = await accounts.findByUsername(body.username);
@@ -74,7 +93,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Log in and register the calling device in one step. */
-  app.post('/v1/sessions', async (request) => {
+  app.post('/v1/sessions', guessable, async (request) => {
     const body = parse(loginSchema, request.body);
     const account = await accounts.findByUsername(body.username);
 
@@ -85,8 +104,8 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
 
     const passwordOk = await verifySecret(account.password_hash, body.password);
     if (!passwordOk) {
-      // A duress wipe code looks exactly like a wrong password from outside.
-      if (await accounts.matchesWipeCode(account, body.password)) {
+      // A duress code looks exactly like a wrong password from outside.
+      if (await accounts.matchesDuressCode(account, body.password)) {
         await accounts.wipeAccount(account.id);
       }
       throw ApiError.unauthorized('invalid_credentials', 'Username or password is incorrect');
@@ -133,7 +152,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
       deviceId,
       privacy: account.privacy,
       twoFactorEnabled: account.totp_enabled_at !== null,
-      wipeCodeSet: account.wipe_code_hash !== null,
+      duressCodeSet: account.duress_code_hash !== null,
       createdAt: account.created_at.toISOString(),
     };
   });
@@ -159,7 +178,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Change the account password. Every other session is revoked. */
-  app.post('/v1/accounts/me/password', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.post(
+    '/v1/accounts/me/password',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId, sessionId } = auth(request);
     const body = parse(
       z.object({ currentPassword: z.string().min(1), newPassword: passwordSchema }),
@@ -174,13 +196,16 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return { updated: true, otherSessionsRevoked: revoked };
   });
 
-  /** Set or clear the duress wipe code. */
-  app.put('/v1/accounts/me/wipe-code', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  /** Set or clear the duress code. */
+  app.put(
+    '/v1/accounts/me/duress-code',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(
       z.object({
         currentPassword: z.string().min(1),
-        wipeCode: z.string().min(4).max(128).nullable(),
+        duressCode: z.string().min(4).max(128).nullable(),
       }),
       request.body,
     );
@@ -188,12 +213,44 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     if (!account || !(await verifySecret(account.password_hash, body.currentPassword))) {
       throw ApiError.unauthorized('invalid_credentials', 'Current password is incorrect');
     }
-    if (body.wipeCode && (await verifySecret(account.password_hash, body.wipeCode))) {
-      throw ApiError.badRequest('wipe_code_matches_password', 'Wipe code must differ from the password');
+    if (body.duressCode && (await verifySecret(account.password_hash, body.duressCode))) {
+      throw ApiError.badRequest(
+        'duress_code_matches_password',
+        'Duress code must differ from the password',
+      );
     }
-    await accounts.setWipeCode(accountId, body.wipeCode);
-    return { wipeCodeSet: body.wipeCode !== null };
+    await accounts.setDuressCode(accountId, body.duressCode);
+    return { duressCodeSet: body.duressCode !== null };
   });
+
+  /**
+   * The duress wipe, from a device that is already signed in.
+   *
+   * The login path wipes when the code is typed instead of the password. This
+   * is the other place a person under duress is standing: at the lock screen of
+   * a phone that is already signed in, where there is no password to substitute
+   * for. The device recognises the code offline and then tells the server, so
+   * the queued envelopes and the backup go too.
+   *
+   * It takes the duress code rather than the password on purpose — under duress
+   * the password is the one thing the person is not going to be typing.
+   */
+  app.post(
+    '/v1/accounts/me/wipe',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
+      const { accountId } = auth(request);
+      const body = parse(z.object({ duressCode: z.string().min(1) }), request.body);
+      const account = await accounts.findById(accountId);
+      if (!account || !(await accounts.matchesDuressCode(account, body.duressCode))) {
+        // Same answer a wrong password gets anywhere else. A caller must not be
+        // able to use this to find out whether a duress code exists.
+        throw ApiError.unauthorized('invalid_credentials', 'That code is not right');
+      }
+      await accounts.wipeAccount(accountId);
+      return { wiped: true };
+    },
+  );
 
   /** Step 1 of enabling 2FA: hand the client a secret to show as a QR code. */
   app.post('/v1/accounts/me/totp/setup', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
@@ -211,7 +268,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** Step 2: prove the authenticator app works before the factor becomes mandatory. */
-  app.post('/v1/accounts/me/totp/enable', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.post(
+    '/v1/accounts/me/totp/enable',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(z.object({ code: z.string().regex(/^\d{6}$/) }), request.body);
     const account = await accounts.findById(accountId);
@@ -223,7 +283,10 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return { twoFactorEnabled: true };
   });
 
-  app.delete('/v1/accounts/me/totp', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+  app.delete(
+    '/v1/accounts/me/totp',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
     const { accountId } = auth(request);
     const body = parse(z.object({ currentPassword: z.string().min(1) }), request.body);
     const account = await accounts.findById(accountId);

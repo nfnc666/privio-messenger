@@ -33,10 +33,10 @@ central claim and everything else is subordinate to it.
 independently of it — breaking TLS yields ciphertext.
 
 **A stolen, locked phone.** The local database is encrypted at rest and the app
-is locked by PIN or biometrics. Keys live in the Keychain or Android Keystore,
+is locked by the app-lock passcode. Keys live in the Keychain or Android Keystore,
 hardware-backed where the device offers it.
 
-**Coerced unlock.** The wipe code destroys devices, sessions, queued messages,
+**Coerced unlock.** The duress code destroys devices, sessions, queued messages,
 contacts, group membership and backups, and returns the same error a mistyped
 password returns. Someone watching cannot tell the wipe happened.
 
@@ -369,6 +369,87 @@ as a placeholder, not stored for later. A bubble conjured out of a control
 message is a message the app did not receive and cannot show the contents of,
 and inventing one is a way for a server that reorders or replays envelopes to
 put marks in someone's chat.
+
+## Devices
+
+**The list is the server's answer, not the app's guess.** Every device signed
+in to an account is a device that can decrypt what arrives for it, so "who is
+signed in" is a security question and the screen that answers it renders what
+`GET /v1/devices` returns. It rendered four fabricated devices until this was
+written, which is the worst possible answer to give on that screen.
+
+**Signing one out revokes its sessions and deletes its queue.** What it has
+already decrypted stays on that device: the history is sealed under a key in
+its own keystore, and nothing from another device can reach it. The dialog says
+that rather than implying a remote wipe — the duress code is the only thing
+that destroys a local copy, and only on the device it is typed into.
+
+## The app lock
+
+**A passcode, in one of three shapes.** Four digits, six digits, or a
+passphrase — letters, with digits and symbols if you want them. The shape is
+stored beside the passcode because the lock screen has to know whether to draw
+a keypad or a text field before anyone has typed anything.
+
+**No biometrics, and that is the design.** A face or a fingerprint is the one
+credential that can be used while its owner is unwilling, asleep or
+unconscious, and in several jurisdictions compelled by an order that could not
+compel a passcode. In an app that ships a duress code for exactly that
+situation, offering a biometric unlock would hand back what the duress code is
+there to protect. `local_auth` is not a dependency any more.
+
+**It guards what is already encrypted.** The local archive is sealed with a key
+in the platform keystore whether the lock is on or not; the passcode stops
+someone holding an unlocked phone from reading it. It is compared, not
+stretched — the keystore is the security boundary — and V2 moves it into the
+native crypto layer where it derives a key-encryption key with Argon2id.
+
+## The duress code
+
+**It is a second password that destroys instead of opening.** Typed at sign-in,
+the server deletes the account's devices — which cascades to its sessions,
+prekeys and queued envelopes — along with contacts, group memberships, media
+and the backup, then answers `invalid_credentials`. Someone standing over the
+phone sees what a typo looks like.
+
+**It cannot be the password.** The server refuses to store one that is, because
+an ordinary sign-in would then destroy the account.
+
+**Setting or removing it needs the password.** In both directions: an unlocked
+phone is not authority over the setting that decides whether the account can be
+destroyed.
+
+**What it does not do.** The account row survives, so the username cannot be
+claimed by anyone else afterwards. It also cannot reach a device that is
+already signed in elsewhere — the wipe happens at the sign-in the code is typed
+into, and that device's local archive stays sealed but present. A remote kill
+switch is a different feature, and the screen does not imply this is one.
+
+## Two-factor authentication
+
+**It protects the account, not the messages.** The code is checked by the
+server at login, so it stops someone who has the password from signing a new
+device in. It has nothing to do with the ciphertext: that is opened by a key
+held on the device, and no code can substitute for it. The screen says so,
+because "two-factor encryption" is a thing people believe.
+
+**Enabling it is two steps.** The server issues a secret; the factor only comes
+into force once a code generated from that secret has been checked. Anything
+else enables a factor nobody has proved they can produce, which locks out the
+person who set it up.
+
+**The secret lives in memory for as long as the setup screen does.** It is the
+factor — someone who has it can produce codes forever — so it is dropped as
+soon as the factor is on, and dropped again if the screen is left.
+
+**Removing it asks for the password.** A second factor that an unlocked phone
+could remove on its own would not be a second factor.
+
+**The routes that check a credential are rate limited separately.** Ten
+attempts per address per five minutes covers login, registration, the password
+change, the duress code and both two-factor transitions. Reading your own account
+is not on that budget: it used to be, which meant opening a settings screen a
+few times could lock someone out of their own account for five minutes.
 
 ## Backup
 

@@ -35,8 +35,9 @@ server ignorant at the cost of some convenience, that is deliberate.
 
 Flutter, one codebase for iOS and Android. The client owns every key and does
 every encryption and decryption. It holds the only readable copy of a
-conversation, in a local database encrypted at rest, unlocked by the PIN or
-biometrics.
+conversation, in a local database encrypted at rest, behind an app-lock passcode
+— four digits, six digits or a passphrase, and deliberately never a fingerprint
+or a face.
 
 Layers, outermost first:
 
@@ -54,7 +55,6 @@ Layers, outermost first:
 | State | `lib/core/app_state.dart` | Session and lock stage, via `ChangeNotifier` |
 | Transport | `lib/core/api_client.dart` | HTTP to the API; sealed bytes only |
 | Storage | `lib/core/secure_store.dart` | Keychain / Keystore |
-| Biometrics | `lib/core/biometric_gate.dart` | Face ID / Touch ID, behind an interface |
 
 There is no state-management package: `InheritedNotifier` covers what the app
 needs, and every dependency in a security product is a dependency to audit.
@@ -66,7 +66,7 @@ blob store, so instances scale horizontally behind a load balancer.
 
 | Module | Responsibility |
 | --- | --- |
-| `routes/accounts.ts` | Registration, login, 2FA, wipe code, recovery blob |
+| `routes/accounts.ts` | Registration, login, 2FA, duress code, recovery blob |
 | `routes/devices.ts` | Connected devices, remote logout, prekey distribution |
 | `routes/contacts.ts` | Username lookup, contacts, blocking, invites |
 | `routes/messages.ts` | Per-device envelope send, fetch and acknowledge |
@@ -167,7 +167,7 @@ waveform are payload fields, so the bubble can render before anything is
 fetched, and the server sees a padded blob with no idea how long it is.
 
 Recording and playback sit behind `VoiceRecorder` and `VoicePlayer`, ports in
-the same style as `CryptoStorage` and `BiometricGate`. `PluginVoiceRecorder`
+the same style as `CryptoStorage` and `SecureStore`. `PluginVoiceRecorder`
 picks Opus where the platform supports it and AAC otherwise, polls the level
 meter for the waveform, and on a phone overwrites and deletes the encoder's
 working file the moment its bytes have been read; in a browser there is no file

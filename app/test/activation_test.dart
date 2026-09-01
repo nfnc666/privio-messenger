@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
-import 'package:privio/core/biometric_gate.dart';
 import 'package:privio/core/edition.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
@@ -115,7 +114,6 @@ Future<AppState> signUpOn(
   final state = AppState(
     services: await servicesFor(server),
     store: store ?? InMemorySecureStore(),
-    biometrics: const NoBiometrics(),
     edition: PrivioEdition.parse(edition),
   );
   await state.initialise();
@@ -198,7 +196,6 @@ void main() {
     final second = AppState(
       services: await servicesFor(server),
       store: store,
-      biometrics: const NoBiometrics(),
     );
     await second.initialise();
     await settle(second);
@@ -222,7 +219,6 @@ void main() {
     final second = AppState(
       services: await servicesFor(FakeLicenseServer(enforced: true)),
       store: store,
-      biometrics: const NoBiometrics(),
     );
     await second.initialise();
     await settle(second);

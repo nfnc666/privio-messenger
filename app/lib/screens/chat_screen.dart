@@ -256,6 +256,45 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     state.conversations.setDisappearAfter(widget.accountId, chosen.value);
   }
 
+  /// Blocks the other side of a 1:1 chat.
+  ///
+  /// The server drops what they send afterwards and tells them nothing, so the
+  /// confirmation says that rather than promising them a notice.
+  Future<void> _confirmBlock(AppState state) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text('Block ${widget.title}?'),
+        content: const Text(
+          'Their messages stop arriving. They are not told, and it looks to them '
+          'as though nothing changed. You can lift it in Privacy & Security.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    if (!(yes ?? false) || !mounted) return;
+
+    final blocked = await state.conversations.block(widget.accountId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(blocked ? '${widget.title} is blocked.' : 'Could not block them.'),
+      ),
+    );
+    if (blocked) Navigator.of(context).pop();
+  }
+
   // --- Voice messages -------------------------------------------------------
 
   void _onVoiceFailure(String message) {
@@ -429,8 +468,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   tooltip: 'Invite link',
                 ),
               IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
-              IconButton(
-                onPressed: () => _chooseTimer(state),
+              // The overflow used to open the timer sheet directly, which made
+              // it an icon that meant one specific thing. It is a menu now, so
+              // blocking has somewhere to live.
+              PopupMenuButton<String>(
                 icon: Icon(
                   state.conversations.disappearAfter(widget.accountId) == null
                       ? Icons.more_vert_rounded
@@ -439,7 +480,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ? null
                       : PrivioColors.accent,
                 ),
-                tooltip: 'Disappearing messages',
+                color: PrivioColors.surface,
+                tooltip: 'More',
+                onSelected: (action) => switch (action) {
+                  'timer' => _chooseTimer(state),
+                  'block' => _confirmBlock(state),
+                  _ => null,
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'timer',
+                    child: Text('Disappearing messages'),
+                  ),
+                  if (!widget.isGroup)
+                    const PopupMenuItem(
+                      value: 'block',
+                      child: Text('Block'),
+                    ),
+                ],
               ),
             ],
           ),

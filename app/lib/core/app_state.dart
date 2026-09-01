@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'api_client.dart';
-import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
+import 'security_controller.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
@@ -36,16 +37,13 @@ class AppState extends ChangeNotifier {
   AppState({
     PrivioServices? services,
     SecureStore? store,
-    BiometricGate? biometrics,
     PrivioEdition? edition,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
-        _biometrics = biometrics ?? LocalAuthBiometricGate(),
         edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
-  final BiometricGate _biometrics;
 
   /// Which build this is. Injectable only so a test can be a store build; a
   /// shipped app has exactly one, fixed at compile time.
@@ -55,6 +53,7 @@ class AppState extends ChangeNotifier {
   ConversationController? _conversations;
   ChannelController? _channels;
   LicenseController? _license;
+  SecurityController? _security;
   WakeUpController? _wakeUp;
 
   AppStage _stage = AppStage.splash;
@@ -62,7 +61,8 @@ class AppState extends ChangeNotifier {
   String? _accountId;
   double _initProgress = 0;
   String? _sessionToken;
-  bool _biometricsAvailable = false;
+  bool _screenLockSet = false;
+  PasscodeKind? _passcodeKind;
   bool _busy = false;
   String? _authError;
 
@@ -70,7 +70,13 @@ class AppState extends ChangeNotifier {
   String? get username => _username;
   String? get accountId => _accountId;
   double get initProgress => _initProgress;
-  bool get biometricsAvailable => _biometricsAvailable;
+  /// Whether this device has a passcode on the app. Read at launch, because the
+  /// stage machine needs it anyway.
+  bool get screenLockSet => _screenLockSet;
+
+  /// What shape it has, so the lock screen knows what to draw before anything
+  /// is typed.
+  PasscodeKind? get passcodeKind => _passcodeKind;
 
   /// True while a sign-in or sign-up is in flight.
   bool get busy => _busy;
@@ -105,9 +111,12 @@ class AppState extends ChangeNotifier {
   /// How this device asks to be told that something arrived.
   WakeUpController get wakeUp => _wakeUp ??= WakeUpController(services.api);
 
+  /// The second factor, who may see your last-seen, and who is blocked.
+  SecurityController get security => _security ??= SecurityController(services.api);
+
   /// Runs the "initialising secure environment" step: opens the keystore, loads
-  /// this device's identity, restores a session if there is one, and finds out
-  /// whether biometrics exist.
+  /// this device's identity, restores a session if there is one, and reads
+  /// whether this device has an app lock.
   Future<void> initialise() async {
     _stage = AppStage.initialising;
     notifyListeners();
@@ -121,8 +130,9 @@ class AppState extends ChangeNotifier {
     _accountId = await _store.readAccountId();
     _setProgress(0.7);
 
-    _biometricsAvailable = await _biometrics.isAvailable();
-    final hasPin = await _store.hasPin();
+    final hasPasscode = await _store.hasPasscode();
+    _screenLockSet = hasPasscode;
+    _passcodeKind = await _store.passcodeKind();
     _setProgress(1);
 
     unawaited(license.restore());
@@ -132,7 +142,7 @@ class AppState extends ChangeNotifier {
     } else {
       services.api.useToken(token);
       _sessionToken = token;
-      _stage = hasPin ? AppStage.locked : AppStage.ready;
+      _stage = hasPasscode ? AppStage.locked : AppStage.ready;
       if (_stage == AppStage.ready) _onSignedIn();
     }
     notifyListeners();
@@ -311,6 +321,33 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Turns the app lock on, or changes the passcode.
+  ///
+  /// Nothing in the app could do this until recently: `AppStage.locked` existed,
+  /// the lock screen existed, and no code path ever set a passcode, so the lock
+  /// could never come on.
+  Future<void> setScreenLock(String passcode, PasscodeKind kind) async {
+    await _store.setPasscode(passcode, kind);
+    _screenLockSet = true;
+    _passcodeKind = kind;
+    notifyListeners();
+  }
+
+  /// Turns it off. Takes the duress code with it: a code that unlocks nothing
+  /// cannot be typed at a lock screen that is not there, and leaving it behind
+  /// would be a wipe waiting on a screen nobody sees.
+  Future<void> clearScreenLock() async {
+    await _store.clearPasscode();
+    await _store.setDuressCode(null);
+    _screenLockSet = false;
+    _passcodeKind = null;
+    notifyListeners();
+  }
+
+  /// Stores the duress code locally so the lock screen can recognise it with no
+  /// network. Only ever called with what the server has just accepted.
+  Future<void> rememberDuressCode(String? code) => _store.setDuressCode(code);
+
   /// Leaves the activation step, for wherever it was entered from.
   ///
   /// Before the account there is nothing signed in yet, so it goes back to the
@@ -332,17 +369,67 @@ class AppState extends ChangeNotifier {
 
   // --- Lock -----------------------------------------------------------------
 
-  Future<bool> unlockWithBiometrics() async {
-    if (!_biometricsAvailable || !await _store.biometricsEnabled()) return false;
-    final ok = await _biometrics.authenticate('Unlock Privio');
+  Future<bool> unlockWithPasscode(String passcode) async {
+    // The duress code is checked first and answers false either way: from the
+    // outside, a wipe and a wrong passcode are the same event.
+    if (await _store.verifyDuressCode(passcode)) {
+      await _duressWipe(passcode);
+      return false;
+    }
+    final ok = await _store.verifyPasscode(passcode);
     if (ok) unlock();
     return ok;
   }
 
-  Future<bool> unlockWithPin(String pin) async {
-    final ok = await _store.verifyPin(pin);
-    if (ok) unlock();
-    return ok;
+  /// Destroys everything this device holds, and asks the server to destroy what
+  /// it holds, after the duress code was entered at the lock screen.
+  ///
+  /// Local first, and unconditionally: the phone is in someone else's hands, and
+  /// the network is the part that might not be there. The server call carries
+  /// the code rather than the password, because under duress the password is
+  /// the one thing nobody is about to type.
+  Future<void> _duressWipe(String code) async {
+    final services = _services;
+    if (services != null) {
+      _conversations?.stop();
+      services.store.clear();
+      try {
+        await services.archive.clear();
+      } on Object {
+        // Nothing here may stop the rest of the wipe.
+      }
+      try {
+        await services.crypto.wipe();
+      } on Object {
+        // Same.
+      }
+      unawaited(_wipeOnServer(services, code));
+    }
+    await _store.wipe();
+    _conversations?.dispose();
+    _conversations = null;
+    _channels?.dispose();
+    _channels = null;
+    _license?.dispose();
+    _license = null;
+    _security?.dispose();
+    _security = null;
+    _screenLockSet = false;
+    _passcodeKind = null;
+    _sessionToken = null;
+    _username = null;
+    _accountId = null;
+  }
+
+  /// Best effort, and deliberately not awaited by the caller: a phone with no
+  /// signal must still lose its local copy immediately.
+  Future<void> _wipeOnServer(PrivioServices services, String code) async {
+    try {
+      await services.api.wipeAccount(code);
+    } on Object {
+      // The local wipe has already happened. There is nothing to report to a
+      // screen that is about to be showing a wrong-PIN error.
+    }
   }
 
   void unlock() {
@@ -385,6 +472,9 @@ class AppState extends ChangeNotifier {
     _license?.dispose();
     _wakeUp?.dispose();
     _license = null;
+    _security?.dispose();
+    _security = null;
+    _screenLockSet = false;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -395,6 +485,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _security?.dispose();
     _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
