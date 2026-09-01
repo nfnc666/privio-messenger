@@ -14,8 +14,6 @@ dependencies:
   http: ^1.2.2
   # Keychain on iOS, EncryptedSharedPreferences/Keystore on Android.
   flutter_secure_storage: ^9.2.2
-  # Face ID / Touch ID / Android biometric prompt for the app lock.
-  local_auth: ^2.3.0
   # Renders the invite deep link as a QR code, on-device.
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2

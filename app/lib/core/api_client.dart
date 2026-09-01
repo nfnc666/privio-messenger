@@ -121,27 +121,27 @@ class PrivioApiClient {
 
   Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
-  /// Sets or clears the duress wipe code. Passing null removes it.
+  /// Sets or clears the duress code. Passing null removes it.
   ///
   /// The current password is required, and the server refuses a code equal to
-  /// it — a wipe code that is the password would fire on an ordinary sign-in.
-  Future<Map<String, dynamic>> setWipeCode({
+  /// it — a duress code that is the password would fire on an ordinary sign-in.
+  Future<Map<String, dynamic>> setDuressCode({
     required String currentPassword,
-    required String? wipeCode,
+    required String? duressCode,
   }) =>
-      _send('PUT', '/v1/accounts/me/wipe-code', body: {
+      _send('PUT', '/v1/accounts/me/duress-code', body: {
         'currentPassword': currentPassword,
-        'wipeCode': wipeCode,
+        'duressCode': duressCode,
       },);
 
   /// The duress wipe from a device that is already signed in.
   ///
-  /// Carries the wipe code, not the password: at a lock screen under duress
+  /// Carries the duress code, not the password: at a lock screen under duress
   /// there is no password being typed. The server answers exactly as it does to
   /// a wrong password, so nothing here can be used to find out whether a code
   /// is set.
-  Future<void> wipeAccount(String wipeCode) async =>
-      _send('POST', '/v1/accounts/me/wipe', body: {'wipeCode': wipeCode});
+  Future<void> wipeAccount(String duressCode) async =>
+      _send('POST', '/v1/accounts/me/wipe', body: {'duressCode': duressCode});
 
   // --- Two-factor -----------------------------------------------------------
 

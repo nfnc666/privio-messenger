@@ -6,7 +6,6 @@ import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
-import 'package:privio/core/biometric_gate.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
@@ -63,7 +62,6 @@ void main() {
     final state = AppState(
       services: services,
       store: InMemorySecureStore(),
-      biometrics: const NoBiometrics(),
     );
     await state.initialise();
 
@@ -94,7 +92,6 @@ void main() {
     final state = AppState(
       services: services,
       store: InMemorySecureStore(),
-      biometrics: const NoBiometrics(),
     );
     await state.initialise();
 
@@ -110,7 +107,6 @@ void main() {
     final state = AppState(
       services: services,
       store: InMemorySecureStore(),
-      biometrics: const NoBiometrics(),
     );
     await state.initialise();
 

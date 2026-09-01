@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
-import 'package:privio/core/biometric_gate.dart';
+import 'package:privio/core/passcode.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
@@ -24,16 +24,16 @@ class FakeWipeServer {
   FakeWipeServer({this.reachable = true});
 
   bool reachable;
-  String wipeCode = '9119';
+  String duressCode = '9119';
   final List<String> wipeAttempts = [];
 
   http.Response call(http.Request request) {
     if (!reachable) throw const SocketFailure();
     if (request.url.path == '/v1/accounts/me/wipe') {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      final code = body['wipeCode'] as String;
+      final code = body['duressCode'] as String;
       wipeAttempts.add(code);
-      if (code != wipeCode) {
+      if (code != duressCode) {
         return _json({'error': 'invalid_credentials', 'message': 'no'}, 401);
       }
       return _json({'wiped': true});
@@ -82,7 +82,6 @@ class Device {
         secureStore: store,
       ),
       store: store,
-      biometrics: const NoBiometrics(),
     );
     await state.initialise();
   }
@@ -93,7 +92,7 @@ Future<Device> armedDevice({bool reachable = true}) async {
   final server = FakeWipeServer(reachable: reachable);
   final store = InMemorySecureStore();
   await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
-  await store.setPin('1234');
+  await store.setPasscode('1234', PasscodeKind.digits4);
   await store.setDuressCode('9119');
 
   final archive = InMemoryMessageStore()
@@ -109,30 +108,30 @@ Future<Device> armedDevice({bool reachable = true}) async {
 }
 
 void main() {
-  test('the right PIN unlocks and touches nothing', () async {
+  test('the right passcode unlocks and touches nothing', () async {
     final device = await armedDevice();
     expect(device.state.stage, AppStage.locked);
 
-    expect(await device.state.unlockWithPin('1234'), isTrue);
+    expect(await device.state.unlockWithPasscode('1234'), isTrue);
     expect(device.state.stage, AppStage.ready);
     expect(device.archive.conversations(), isNotEmpty);
     expect(device.server.wipeAttempts, isEmpty);
     device.state.conversations.stop();
   });
 
-  test('a wrong PIN is refused and touches nothing', () async {
+  test('a wrong passcode is refused and touches nothing', () async {
     final device = await armedDevice();
 
-    expect(await device.state.unlockWithPin('4321'), isFalse);
+    expect(await device.state.unlockWithPasscode('4321'), isFalse);
     expect(device.archive.conversations(), isNotEmpty);
     expect(device.server.wipeAttempts, isEmpty);
   });
 
-  test('the duress code answers exactly as a wrong PIN does', () async {
+  test('the duress code answers exactly as a wrong passcode does', () async {
     final device = await armedDevice();
 
     expect(
-      await device.state.unlockWithPin('9119'),
+      await device.state.unlockWithPasscode('9119'),
       isFalse,
       reason: 'a wipe and a typo have to look the same from outside',
     );
@@ -141,12 +140,12 @@ void main() {
 
   test('the duress code destroys what this device holds', () async {
     final device = await armedDevice();
-    await device.state.unlockWithPin('9119');
+    await device.state.unlockWithPasscode('9119');
     await pumpEventQueue();
 
     expect(device.archive.conversations(), isEmpty, reason: 'the history is gone');
     expect(await device.store.readToken(), isNull, reason: 'the session is gone');
-    expect(await device.store.hasPin(), isFalse);
+    expect(await device.store.hasPasscode(), isFalse);
     expect(
       await device.cryptoStorage.readBytes('identity'),
       isNull,
@@ -157,7 +156,7 @@ void main() {
 
   test('and asks the server to destroy what it holds', () async {
     final device = await armedDevice();
-    await device.state.unlockWithPin('9119');
+    await device.state.unlockWithPasscode('9119');
     await pumpEventQueue();
 
     expect(device.server.wipeAttempts, ['9119']);
@@ -167,21 +166,97 @@ void main() {
     // The phone is in someone else's hands. The network is the part that might
     // not be there, so nothing local may wait on it.
     final device = await armedDevice(reachable: false);
-    await device.state.unlockWithPin('9119');
+    await device.state.unlockWithPasscode('9119');
     await pumpEventQueue();
 
     expect(device.archive.conversations(), isEmpty);
     expect(await device.store.readToken(), isNull);
   });
 
+  group('the passcode shapes', () {
+    test('four digits, six digits, or a phrase with a letter in it', () {
+      expect(PasscodeKind.digits4.accepts('1234'), isTrue);
+      expect(PasscodeKind.digits4.accepts('12345'), isFalse);
+      expect(PasscodeKind.digits4.accepts('12a4'), isFalse);
+
+      expect(PasscodeKind.digits6.accepts('123456'), isTrue);
+      expect(PasscodeKind.digits6.accepts('1234'), isFalse);
+
+      expect(PasscodeKind.phrase.accepts('correct horse'), isTrue);
+      expect(PasscodeKind.phrase.accepts('tr0ub4dor&3'), isTrue);
+      // Otherwise choosing "passphrase" and typing digits would be a six-digit
+      // code wearing the label of something stronger.
+      expect(PasscodeKind.phrase.accepts('123456'), isFalse);
+      expect(PasscodeKind.phrase.accepts('abc'), isFalse);
+    });
+
+    test('the complaint says what is wrong, not that something is', () {
+      expect(PasscodeKind.digits4.complaintAbout('1234'), isNull);
+      expect(PasscodeKind.digits6.complaintAbout('12'), 'Six digits.');
+      expect(PasscodeKind.phrase.complaintAbout('ab'), contains('At least'));
+      expect(PasscodeKind.phrase.complaintAbout('123456'), contains('letter'));
+    });
+
+    test('a phrase unlocks the same way a keypad code does', () async {
+      final store = InMemorySecureStore();
+      await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
+      await store.setPasscode('correct horse battery', PasscodeKind.phrase);
+      final device = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await device.boot();
+
+      expect(device.state.stage, AppStage.locked);
+      expect(device.state.passcodeKind, PasscodeKind.phrase);
+      expect(await device.state.unlockWithPasscode('correct horse'), isFalse);
+      expect(await device.state.unlockWithPasscode('correct horse battery'), isTrue);
+      device.state.conversations.stop();
+    });
+
+    test('the shape survives a restart, because the lock screen needs it', () async {
+      final store = InMemorySecureStore();
+      await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
+      final first = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await first.boot();
+      first.state.conversations.stop();
+      await first.state.setScreenLock('123456', PasscodeKind.digits6);
+
+      final second = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await second.boot();
+
+      expect(second.state.stage, AppStage.locked);
+      expect(second.state.passcodeKind, PasscodeKind.digits6);
+    });
+
+    test('a duress code only reaches the lock screen in the lock\'s own shape', () async {
+      // The lock screen has nowhere to type a phrase when it draws a keypad,
+      // and the screen says which one you have rather than letting you believe
+      // it is armed where it cannot be.
+      const lock = PasscodeKind.digits4;
+      expect(lock.accepts('9119'), isTrue);
+      expect(lock.accepts('911911'), isFalse);
+      expect(lock.accepts('open sesame'), isFalse);
+    });
+  });
+
   test('turning the lock off takes the duress code with it', () async {
     final device = await armedDevice();
-    await device.state.unlockWithPin('1234');
+    await device.state.unlockWithPasscode('1234');
     device.state.conversations.stop();
 
     await device.state.clearScreenLock();
 
-    expect(await device.store.hasPin(), isFalse);
+    expect(await device.store.hasPasscode(), isFalse);
     expect(
       await device.store.verifyDuressCode('9119'),
       isFalse,
@@ -200,11 +275,11 @@ void main() {
     await device.boot();
     device.state.conversations.stop();
 
-    expect(device.state.stage, AppStage.ready, reason: 'no PIN, no lock screen');
+    expect(device.state.stage, AppStage.ready, reason: 'no passcode, no lock screen');
     expect(device.state.screenLockSet, isFalse);
 
-    await device.state.setScreenLock('1234');
+    await device.state.setScreenLock('1234', PasscodeKind.digits4);
     expect(device.state.screenLockSet, isTrue);
-    expect(await store.hasPin(), isTrue);
+    expect(await store.hasPasscode(), isTrue);
   });
 }

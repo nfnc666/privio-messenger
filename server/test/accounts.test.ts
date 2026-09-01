@@ -140,9 +140,9 @@ describe('accounts', () => {
     const user = await registerUser(h.app, 'duress');
     const set = await h.app.inject({
       method: 'PUT',
-      url: '/v1/accounts/me/wipe-code',
+      url: '/v1/accounts/me/duress-code',
       headers: bearer(user),
-      payload: { currentPassword: 'correct-horse-battery', wipeCode: '911911' },
+      payload: { currentPassword: 'correct-horse-battery', duressCode: '911911' },
     });
     assert.equal(set.statusCode, 200);
 
@@ -165,18 +165,18 @@ describe('accounts', () => {
     const victim = await registerUser(h.app, 'wanda');
     await h.app.inject({
       method: 'PUT',
-      url: '/v1/accounts/me/wipe-code',
+      url: '/v1/accounts/me/duress-code',
       headers: bearer(victim),
-      payload: { currentPassword: 'correct-horse-battery', wipeCode: '911911' },
+      payload: { currentPassword: 'correct-horse-battery', duressCode: '911911' },
     });
 
     // The wrong code answers exactly as a wrong password does, so this cannot
-    // be used to find out whether a wipe code is set at all.
+    // be used to find out whether a duress code is set at all.
     const wrong = await h.app.inject({
       method: 'POST',
       url: '/v1/accounts/me/wipe',
       headers: bearer(victim),
-      payload: { wipeCode: '000000' },
+      payload: { duressCode: '000000' },
     });
     assert.equal(wrong.statusCode, 401);
     assert.equal(wrong.json().error, 'invalid_credentials');
@@ -185,7 +185,7 @@ describe('accounts', () => {
       method: 'POST',
       url: '/v1/accounts/me/wipe',
       headers: bearer(victim),
-      payload: { wipeCode: '911911' },
+      payload: { duressCode: '911911' },
     });
     assert.equal(wiped.statusCode, 200);
     assert.equal(wiped.json().wiped, true);

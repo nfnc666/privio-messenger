@@ -104,8 +104,8 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
 
     const passwordOk = await verifySecret(account.password_hash, body.password);
     if (!passwordOk) {
-      // A duress wipe code looks exactly like a wrong password from outside.
-      if (await accounts.matchesWipeCode(account, body.password)) {
+      // A duress code looks exactly like a wrong password from outside.
+      if (await accounts.matchesDuressCode(account, body.password)) {
         await accounts.wipeAccount(account.id);
       }
       throw ApiError.unauthorized('invalid_credentials', 'Username or password is incorrect');
@@ -152,7 +152,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
       deviceId,
       privacy: account.privacy,
       twoFactorEnabled: account.totp_enabled_at !== null,
-      wipeCodeSet: account.wipe_code_hash !== null,
+      duressCodeSet: account.duress_code_hash !== null,
       createdAt: account.created_at.toISOString(),
     };
   });
@@ -196,16 +196,16 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return { updated: true, otherSessionsRevoked: revoked };
   });
 
-  /** Set or clear the duress wipe code. */
+  /** Set or clear the duress code. */
   app.put(
-    '/v1/accounts/me/wipe-code',
+    '/v1/accounts/me/duress-code',
     { ...guessable, preHandler: (r) => app.requireAuth(r) },
     async (request) => {
     const { accountId } = auth(request);
     const body = parse(
       z.object({
         currentPassword: z.string().min(1),
-        wipeCode: z.string().min(4).max(128).nullable(),
+        duressCode: z.string().min(4).max(128).nullable(),
       }),
       request.body,
     );
@@ -213,11 +213,14 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     if (!account || !(await verifySecret(account.password_hash, body.currentPassword))) {
       throw ApiError.unauthorized('invalid_credentials', 'Current password is incorrect');
     }
-    if (body.wipeCode && (await verifySecret(account.password_hash, body.wipeCode))) {
-      throw ApiError.badRequest('wipe_code_matches_password', 'Wipe code must differ from the password');
+    if (body.duressCode && (await verifySecret(account.password_hash, body.duressCode))) {
+      throw ApiError.badRequest(
+        'duress_code_matches_password',
+        'Duress code must differ from the password',
+      );
     }
-    await accounts.setWipeCode(accountId, body.wipeCode);
-    return { wipeCodeSet: body.wipeCode !== null };
+    await accounts.setDuressCode(accountId, body.duressCode);
+    return { duressCodeSet: body.duressCode !== null };
   });
 
   /**
@@ -229,7 +232,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
    * for. The device recognises the code offline and then tells the server, so
    * the queued envelopes and the backup go too.
    *
-   * It takes the wipe code rather than the password on purpose — under duress
+   * It takes the duress code rather than the password on purpose — under duress
    * the password is the one thing the person is not going to be typing.
    */
   app.post(
@@ -237,11 +240,11 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     { ...guessable, preHandler: (r) => app.requireAuth(r) },
     async (request) => {
       const { accountId } = auth(request);
-      const body = parse(z.object({ wipeCode: z.string().min(1) }), request.body);
+      const body = parse(z.object({ duressCode: z.string().min(1) }), request.body);
       const account = await accounts.findById(accountId);
-      if (!account || !(await accounts.matchesWipeCode(account, body.wipeCode))) {
+      if (!account || !(await accounts.matchesDuressCode(account, body.duressCode))) {
         // Same answer a wrong password gets anywhere else. A caller must not be
-        // able to use this to find out whether a wipe code exists.
+        // able to use this to find out whether a duress code exists.
         throw ApiError.unauthorized('invalid_credentials', 'That code is not right');
       }
       await accounts.wipeAccount(accountId);

@@ -8,7 +8,7 @@ export interface AccountRow {
   password_hash: string;
   totp_secret: string | null;
   totp_enabled_at: Date | null;
-  wipe_code_hash: string | null;
+  duress_code_hash: string | null;
   privacy: PrivacySettings;
   avatar_media_id: string | null;
   avatar_updated_at: Date | null;
@@ -40,7 +40,7 @@ export async function findById(accountId: string): Promise<AccountRow | null> {
 }
 
 /**
- * Duress wipe. Entering the wipe code where the password goes destroys every
+ * Duress wipe. Entering the duress code where the password goes destroys every
  * device, session, queued envelope, contact and backup for the account, leaving
  * a shell that still answers "wrong password" so the wipe is not observable.
  */
@@ -55,7 +55,7 @@ export async function wipeAccount(accountId: string): Promise<void> {
     await client.query('DELETE FROM media_objects WHERE owner_account_id = $1', [accountId]);
     await client.query(
       `UPDATE accounts
-       SET recovery_blob = NULL, totp_secret = NULL, totp_enabled_at = NULL, wipe_code_hash = NULL
+       SET recovery_blob = NULL, totp_secret = NULL, totp_enabled_at = NULL, duress_code_hash = NULL
        WHERE id = $1`,
       [accountId],
     );
@@ -84,16 +84,16 @@ export async function setPassword(accountId: string, password: string): Promise<
   ]);
 }
 
-export async function setWipeCode(accountId: string, wipeCode: string | null): Promise<void> {
-  await pool.query('UPDATE accounts SET wipe_code_hash = $2 WHERE id = $1', [
+export async function setDuressCode(accountId: string, duressCode: string | null): Promise<void> {
+  await pool.query('UPDATE accounts SET duress_code_hash = $2 WHERE id = $1', [
     accountId,
-    wipeCode === null ? null : await hashSecret(wipeCode),
+    duressCode === null ? null : await hashSecret(duressCode),
   ]);
 }
 
-export async function matchesWipeCode(account: AccountRow, candidate: string): Promise<boolean> {
-  if (!account.wipe_code_hash) return false;
-  return verifySecret(account.wipe_code_hash, candidate);
+export async function matchesDuressCode(account: AccountRow, candidate: string): Promise<boolean> {
+  if (!account.duress_code_hash) return false;
+  return verifySecret(account.duress_code_hash, candidate);
 }
 
 export function publicProfile(account: AccountRow) {

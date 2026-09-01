@@ -7,7 +7,7 @@ import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
 import 'screen_lock_screen.dart';
 import 'two_factor_screen.dart';
-import 'wipe_code_screen.dart';
+import 'duress_code_screen.dart';
 
 /// Privacy and security.
 ///
@@ -143,15 +143,15 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
-                label: 'Wipe Code',
+                label: 'Duress Code',
                 value: switch (security.twoFactorEnabled) {
                   // The same read answers both, so the same null means "not
                   // asked yet" for this row too.
                   null => null,
-                  _ => security.wipeCodeSet ? 'Set' : 'Off',
+                  _ => security.duressCodeSet ? 'Set' : 'Off',
                 },
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const WipeCodeScreen()),
+                  MaterialPageRoute<void>(builder: (_) => const DuressCodeScreen()),
                 ),
               ),
               SettingsRow(

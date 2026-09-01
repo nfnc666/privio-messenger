@@ -33,10 +33,10 @@ central claim and everything else is subordinate to it.
 independently of it — breaking TLS yields ciphertext.
 
 **A stolen, locked phone.** The local database is encrypted at rest and the app
-is locked by PIN or biometrics. Keys live in the Keychain or Android Keystore,
+is locked by the app-lock passcode. Keys live in the Keychain or Android Keystore,
 hardware-backed where the device offers it.
 
-**Coerced unlock.** The wipe code destroys devices, sessions, queued messages,
+**Coerced unlock.** The duress code destroys devices, sessions, queued messages,
 contacts, group membership and backups, and returns the same error a mistyped
 password returns. Someone watching cannot tell the wipe happened.
 
@@ -370,7 +370,27 @@ message is a message the app did not receive and cannot show the contents of,
 and inventing one is a way for a server that reorders or replays envelopes to
 put marks in someone's chat.
 
-## The wipe code
+## The app lock
+
+**A passcode, in one of three shapes.** Four digits, six digits, or a
+passphrase — letters, with digits and symbols if you want them. The shape is
+stored beside the passcode because the lock screen has to know whether to draw
+a keypad or a text field before anyone has typed anything.
+
+**No biometrics, and that is the design.** A face or a fingerprint is the one
+credential that can be used while its owner is unwilling, asleep or
+unconscious, and in several jurisdictions compelled by an order that could not
+compel a passcode. In an app that ships a duress code for exactly that
+situation, offering a biometric unlock would hand back what the duress code is
+there to protect. `local_auth` is not a dependency any more.
+
+**It guards what is already encrypted.** The local archive is sealed with a key
+in the platform keystore whether the lock is on or not; the passcode stops
+someone holding an unlocked phone from reading it. It is compared, not
+stretched — the keystore is the security boundary — and V2 moves it into the
+native crypto layer where it derives a key-encryption key with Argon2id.
+
+## The duress code
 
 **It is a second password that destroys instead of opening.** Typed at sign-in,
 the server deletes the account's devices — which cascades to its sessions,
@@ -413,7 +433,7 @@ could remove on its own would not be a second factor.
 
 **The routes that check a credential are rate limited separately.** Ten
 attempts per address per five minutes covers login, registration, the password
-change, the wipe code and both two-factor transitions. Reading your own account
+change, the duress code and both two-factor transitions. Reading your own account
 is not on that budget: it used to be, which meant opening a settings screen a
 few times could lock someone out of their own account for five minutes.
 

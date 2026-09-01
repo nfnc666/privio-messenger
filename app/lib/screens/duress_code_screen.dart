@@ -3,22 +3,21 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
-import 'screen_lock_screen.dart';
 
 /// The duress code: a second password that destroys the account instead of
 /// opening it, and that looks from the outside exactly like a typo.
 ///
-/// The server has had this since the first migration. It has never had a screen,
-/// which meant the one feature written for someone being forced to hand over a
-/// phone could only be armed with a curl command.
-class WipeCodeScreen extends StatefulWidget {
-  const WipeCodeScreen({super.key});
+/// The server has had this since the first migration. It went without a screen
+/// for just as long, which meant the one feature written for someone being
+/// forced to hand over a phone could only be armed with a curl command.
+class DuressCodeScreen extends StatefulWidget {
+  const DuressCodeScreen({super.key});
 
   @override
-  State<WipeCodeScreen> createState() => _WipeCodeScreenState();
+  State<DuressCodeScreen> createState() => _DuressCodeScreenState();
 }
 
-class _WipeCodeScreenState extends State<WipeCodeScreen> {
+class _DuressCodeScreenState extends State<DuressCodeScreen> {
   final _password = TextEditingController();
   final _code = TextEditingController();
   final _confirm = TextEditingController();
@@ -42,32 +41,35 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
 
   /// Whether a code of this shape can also be entered at the lock screen.
   ///
-  /// The PIN pad takes four digits and submits at the fourth, so a longer or
-  /// non-numeric code has nowhere to be typed there. Saying so is better than
+  /// The lock screen only accepts what its own passcode looks like — four
+  /// digits, six digits, or a passphrase — so a code of any other shape has
+  /// nowhere to be typed there. Saying which one you have is better than
   /// letting someone believe a code is armed on a screen it can never reach.
-  static bool _worksAtTheLockScreen(String code, AppState state) =>
-      state.screenLockSet &&
-      code.length == ScreenLockScreen.pinLength &&
-      int.tryParse(code) != null;
+  static bool _worksAtTheLockScreen(String code, AppState state) {
+    final kind = state.passcodeKind;
+    return state.screenLockSet && kind != null && kind.accepts(code);
+  }
 
   String _lockScreenNote(AppState state) {
-    if (!state.screenLockSet) {
-      return 'At the lock screen it does nothing yet, because there is no app lock '
-          'on this device. Turn one on under Screen Lock, and a four-digit wipe code '
-          'works there too — which is where a phone that is already signed in gets '
-          'taken.';
+    final kind = state.passcodeKind;
+    if (!state.screenLockSet || kind == null) {
+      return 'At the lock screen it does nothing yet, because there is no app lock on '
+          'this device. Turn one on under Screen Lock, and a duress code shaped like '
+          'that lock works there too — which is where a phone that is already signed '
+          'in gets taken.';
     }
     final code = _code.text;
     if (code.isEmpty) {
-      return 'A four-digit wipe code can also be typed at the lock screen, where it '
-          'wipes instead of unlocking. A longer or non-numeric one only works at '
-          'sign-in: the PIN pad has nowhere to type it.';
+      return 'This device unlocks with ${kind.label.toLowerCase()}. A duress code of '
+          'the same shape can be typed at the lock screen, where it destroys instead '
+          'of unlocking. Any other shape works at sign-in only.';
     }
     return _worksAtTheLockScreen(code, state)
-        ? 'This one is four digits, so it works at the lock screen as well as at '
-            'sign-in.'
-        : 'This one is not four digits, so it works at sign-in only — the PIN pad '
-            'has nowhere to type it.';
+        ? 'This one matches the lock on this device, so it works at the lock screen '
+            'as well as at sign-in.'
+        : 'This one does not match the lock on this device '
+            '(${kind.label.toLowerCase()}), so it works at sign-in only — the lock '
+            'screen has nowhere to type it.';
   }
 
   void _clearErrors(SecurityController security) {
@@ -92,9 +94,9 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
 
     final state = PrivioScope.of(context);
     final code = _code.text;
-    final ok = await security.setWipeCode(
+    final ok = await security.setDuressCode(
       currentPassword: _password.text,
-      wipeCode: code,
+      duressCode: code,
     );
     if (!ok || !mounted) return;
 
@@ -110,8 +112,8 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
       SnackBar(
         content: Text(
           _worksAtTheLockScreen(code, state)
-              ? 'Wipe code set. It destroys the account at sign-in and at the lock screen.'
-              : 'Wipe code set. Typing it at sign-in destroys the account.',
+              ? 'Duress code set. It destroys the account at sign-in and at the lock screen.'
+              : 'Duress code set. Typing it at sign-in destroys the account.',
         ),
       ),
     );
@@ -121,12 +123,12 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
     final password = await _askForPassword();
     if (password == null || !mounted) return;
     final state = PrivioScope.of(context);
-    final ok = await security.setWipeCode(currentPassword: password, wipeCode: null);
+    final ok = await security.setDuressCode(currentPassword: password, duressCode: null);
     if (!ok || !mounted) return;
     await state.rememberDuressCode(null);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Wipe code removed.')),
+      const SnackBar(content: Text('Duress code removed.')),
     );
   }
 
@@ -136,7 +138,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Remove the wipe code'),
+        title: const Text('Remove the duress code'),
         content: TextField(
           controller: field,
           obscureText: true,
@@ -165,7 +167,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Wipe Code')),
+      appBar: AppBar(title: const Text('Duress Code')),
       body: ListenableBuilder(
         listenable: Listenable.merge([state, security]),
         builder: (context, _) => ListView(
@@ -201,8 +203,8 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
               ),
             ),
             const SizedBox(height: PrivioSpacing.xl),
-            if (security.wipeCodeSet) ...[
-              Text('A wipe code is set', style: theme.textTheme.titleMedium),
+            if (security.duressCodeSet) ...[
+              Text('A duress code is set', style: theme.textTheme.titleMedium),
               const SizedBox(height: PrivioSpacing.sm),
               Text(
                 'Privio cannot show it to you — it is stored the way a password is. '
@@ -220,7 +222,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
               const SizedBox(height: PrivioSpacing.xl),
             ],
             Text(
-              security.wipeCodeSet ? 'Replace it' : 'Set a wipe code',
+              security.duressCodeSet ? 'Replace it' : 'Set a duress code',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: PrivioSpacing.lg),
@@ -240,7 +242,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
               obscureText: true,
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
-              decoration: const InputDecoration(hintText: 'Wipe code'),
+              decoration: const InputDecoration(hintText: 'Duress code'),
             ),
             const SizedBox(height: PrivioSpacing.md),
             TextField(
@@ -249,7 +251,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
               onSubmitted: (_) => _save(security),
-              decoration: const InputDecoration(hintText: 'Wipe code again'),
+              decoration: const InputDecoration(hintText: 'Duress code again'),
             ),
             if (_localError != null || security.error != null) ...[
               const SizedBox(height: PrivioSpacing.lg),
@@ -280,7 +282,7 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
                         color: PrivioColors.textPrimary,
                       ),
                     )
-                  : Text(security.wipeCodeSet ? 'Replace the code' : 'Set the code'),
+                  : Text(security.duressCodeSet ? 'Replace the code' : 'Set the code'),
             ),
             const SizedBox(height: PrivioSpacing.xxl),
             const Divider(height: 1, color: PrivioColors.border),

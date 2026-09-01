@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
-import 'package:privio/core/biometric_gate.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/core/security_controller.dart';
@@ -30,7 +29,7 @@ class FakeAccountServer {
 
   bool twoFactorEnabled;
   String? issuedSecret;
-  String? wipeCode;
+  String? duressCode;
   String password = 'correct-horse-battery';
   String lastSeen = 'everyone';
   List<Map<String, dynamic>> blocked = [];
@@ -52,7 +51,7 @@ class FakeAccountServer {
         return _json({
           'username': 'nina',
           'twoFactorEnabled': twoFactorEnabled,
-          'wipeCodeSet': wipeCode != null,
+          'duressCodeSet': duressCode != null,
           'privacy': {'lastSeen': lastSeen, 'readReceipts': true, 'typingIndicators': true},
         });
       case ('PATCH', '/v1/accounts/me'):
@@ -84,19 +83,19 @@ class FakeAccountServer {
         twoFactorEnabled = false;
         issuedSecret = null;
         return _json({'twoFactorEnabled': false});
-      case ('PUT', '/v1/accounts/me/wipe-code'):
+      case ('PUT', '/v1/accounts/me/duress-code'):
         if (body['currentPassword'] != password) {
           return _json({'error': 'invalid_credentials', 'message': 'nope'}, 401);
         }
-        final code = body['wipeCode'] as String?;
+        final code = body['duressCode'] as String?;
         if (code == password) {
           return _json(
-            {'error': 'wipe_code_matches_password', 'message': 'must differ'},
+            {'error': 'duress_code_matches_password', 'message': 'must differ'},
             400,
           );
         }
-        wipeCode = code;
-        return _json({'wipeCodeSet': code != null});
+        duressCode = code;
+        return _json({'duressCodeSet': code != null});
       case ('GET', '/v1/blocks'):
         return _json({'blocked': blocked});
       default:
@@ -146,7 +145,6 @@ Future<AppState> appFor(FakeAccountServer server) async {
       secureStore: InMemorySecureStore(),
     ),
     store: InMemorySecureStore(),
-    biometrics: const NoBiometrics(),
   );
   await state.initialise();
   return state;
@@ -228,19 +226,19 @@ void main() {
     });
   });
 
-  group('the wipe code', () {
+  group('the duress code', () {
     test('is set with the password, and shows as set afterwards', () async {
       final server = FakeAccountServer();
       final security = controllerFor(server);
       await security.load();
-      expect(security.wipeCodeSet, isFalse);
+      expect(security.duressCodeSet, isFalse);
 
       expect(
-        await security.setWipeCode(currentPassword: server.password, wipeCode: '911911'),
+        await security.setDuressCode(currentPassword: server.password, duressCode: '911911'),
         isTrue,
       );
-      expect(security.wipeCodeSet, isTrue);
-      expect(server.wipeCode, '911911');
+      expect(security.duressCodeSet, isTrue);
+      expect(server.duressCode, '911911');
     });
 
     test('cannot be the password', () async {
@@ -249,13 +247,13 @@ void main() {
       final security = controllerFor(server);
 
       expect(
-        await security.setWipeCode(
+        await security.setDuressCode(
           currentPassword: server.password,
-          wipeCode: server.password,
+          duressCode: server.password,
         ),
         isFalse,
       );
-      expect(server.wipeCode, isNull);
+      expect(server.duressCode, isNull);
       expect(security.error, contains('different from your password'));
     });
 
@@ -264,31 +262,31 @@ void main() {
       final security = controllerFor(server);
 
       expect(
-        await security.setWipeCode(currentPassword: 'guess', wipeCode: '911911'),
+        await security.setDuressCode(currentPassword: 'guess', duressCode: '911911'),
         isFalse,
       );
-      expect(server.wipeCode, isNull);
+      expect(server.duressCode, isNull);
       expect(security.error, contains('not right'));
     });
 
     test('removing it needs the password too', () async {
-      final server = FakeAccountServer()..wipeCode = '911911';
+      final server = FakeAccountServer()..duressCode = '911911';
       final security = controllerFor(server);
       await security.load();
-      expect(security.wipeCodeSet, isTrue);
+      expect(security.duressCodeSet, isTrue);
 
       expect(
-        await security.setWipeCode(currentPassword: 'guess', wipeCode: null),
+        await security.setDuressCode(currentPassword: 'guess', duressCode: null),
         isFalse,
       );
-      expect(server.wipeCode, '911911', reason: 'an unlocked phone is not authority');
+      expect(server.duressCode, '911911', reason: 'an unlocked phone is not authority');
 
       expect(
-        await security.setWipeCode(currentPassword: server.password, wipeCode: null),
+        await security.setDuressCode(currentPassword: server.password, duressCode: null),
         isTrue,
       );
-      expect(server.wipeCode, isNull);
-      expect(security.wipeCodeSet, isFalse);
+      expect(server.duressCode, isNull);
+      expect(security.duressCodeSet, isFalse);
     });
   });
 

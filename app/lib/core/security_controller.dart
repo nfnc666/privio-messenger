@@ -32,7 +32,7 @@ class SecurityController extends ChangeNotifier {
   final PrivioApiClient _api;
 
   bool? _twoFactorEnabled;
-  bool _wipeCodeSet = false;
+  bool _duressCodeSet = false;
   String _lastSeen = 'everyone';
   List<BlockedUser>? _blocked;
   bool _busy = false;
@@ -42,7 +42,7 @@ class SecurityController extends ChangeNotifier {
   /// claiming a state it has not been told.
   bool? get twoFactorEnabled => _twoFactorEnabled;
 
-  bool get wipeCodeSet => _wipeCodeSet;
+  bool get duressCodeSet => _duressCodeSet;
 
   /// One of `everyone`, `contacts`, `nobody`, matching what the server stores.
   String get lastSeen => _lastSeen;
@@ -85,7 +85,7 @@ class SecurityController extends ChangeNotifier {
     try {
       final me = await _api.me();
       _twoFactorEnabled = me['twoFactorEnabled'] as bool? ?? false;
-      _wipeCodeSet = me['wipeCodeSet'] as bool? ?? false;
+      _duressCodeSet = me['duressCodeSet'] as bool? ?? false;
       final privacy = me['privacy'] as Map<String, dynamic>? ?? const {};
       _privacy = privacy;
       _lastSeen = privacy['lastSeen'] as String? ?? 'everyone';
@@ -117,24 +117,24 @@ class SecurityController extends ChangeNotifier {
     }
   }
 
-  /// Sets or clears the duress wipe code.
+  /// Sets or clears the duress code.
   ///
-  /// Pass null for [wipeCode] to remove it. Both need the password: this is the
+  /// Pass null for [duressCode] to remove it. Both need the password: this is the
   /// setting that destroys the account, and an unlocked phone is not authority
   /// to change it in either direction.
-  Future<bool> setWipeCode({
+  Future<bool> setDuressCode({
     required String currentPassword,
-    required String? wipeCode,
+    required String? duressCode,
   }) async {
     _busy = true;
     _error = null;
     notifyListeners();
     try {
-      final body = await _api.setWipeCode(
+      final body = await _api.setDuressCode(
         currentPassword: currentPassword,
-        wipeCode: wipeCode,
+        duressCode: duressCode,
       );
-      _wipeCodeSet = body['wipeCodeSet'] as bool? ?? wipeCode != null;
+      _duressCodeSet = body['duressCodeSet'] as bool? ?? duressCode != null;
       return true;
     } on ApiException catch (failure) {
       _error = _explain(failure);
@@ -270,8 +270,8 @@ class SecurityController extends ChangeNotifier {
         'totp_already_enabled' => 'Two-factor is already on for this account.',
         'totp_not_set_up' => 'Start the setup again — the secret is gone.',
         'invalid_credentials' => 'That password is not right.',
-        'wipe_code_matches_password' =>
-          'The wipe code has to be different from your password, or an ordinary '
+        'duress_code_matches_password' =>
+          'The duress code has to be different from your password, or an ordinary '
               'sign-in would destroy the account.',
         'rate_limited' => 'Too many attempts. Wait a few minutes.',
         _ => failure.message,

@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'api_client.dart';
-import 'biometric_gate.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
 import '../services/wake_up.dart';
@@ -37,16 +37,13 @@ class AppState extends ChangeNotifier {
   AppState({
     PrivioServices? services,
     SecureStore? store,
-    BiometricGate? biometrics,
     PrivioEdition? edition,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
-        _biometrics = biometrics ?? LocalAuthBiometricGate(),
         edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
-  final BiometricGate _biometrics;
 
   /// Which build this is. Injectable only so a test can be a store build; a
   /// shipped app has exactly one, fixed at compile time.
@@ -64,8 +61,8 @@ class AppState extends ChangeNotifier {
   String? _accountId;
   double _initProgress = 0;
   String? _sessionToken;
-  bool _biometricsAvailable = false;
   bool _screenLockSet = false;
+  PasscodeKind? _passcodeKind;
   bool _busy = false;
   String? _authError;
 
@@ -73,11 +70,13 @@ class AppState extends ChangeNotifier {
   String? get username => _username;
   String? get accountId => _accountId;
   double get initProgress => _initProgress;
-  bool get biometricsAvailable => _biometricsAvailable;
-
-  /// Whether this device has a PIN on the app. Read at launch, because the
+  /// Whether this device has a passcode on the app. Read at launch, because the
   /// stage machine needs it anyway.
   bool get screenLockSet => _screenLockSet;
+
+  /// What shape it has, so the lock screen knows what to draw before anything
+  /// is typed.
+  PasscodeKind? get passcodeKind => _passcodeKind;
 
   /// True while a sign-in or sign-up is in flight.
   bool get busy => _busy;
@@ -116,8 +115,8 @@ class AppState extends ChangeNotifier {
   SecurityController get security => _security ??= SecurityController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
-  /// this device's identity, restores a session if there is one, and finds out
-  /// whether biometrics exist.
+  /// this device's identity, restores a session if there is one, and reads
+  /// whether this device has an app lock.
   Future<void> initialise() async {
     _stage = AppStage.initialising;
     notifyListeners();
@@ -131,9 +130,9 @@ class AppState extends ChangeNotifier {
     _accountId = await _store.readAccountId();
     _setProgress(0.7);
 
-    _biometricsAvailable = await _biometrics.isAvailable();
-    final hasPin = await _store.hasPin();
-    _screenLockSet = hasPin;
+    final hasPasscode = await _store.hasPasscode();
+    _screenLockSet = hasPasscode;
+    _passcodeKind = await _store.passcodeKind();
     _setProgress(1);
 
     unawaited(license.restore());
@@ -143,7 +142,7 @@ class AppState extends ChangeNotifier {
     } else {
       services.api.useToken(token);
       _sessionToken = token;
-      _stage = hasPin ? AppStage.locked : AppStage.ready;
+      _stage = hasPasscode ? AppStage.locked : AppStage.ready;
       if (_stage == AppStage.ready) _onSignedIn();
     }
     notifyListeners();
@@ -322,14 +321,15 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Turns the app lock on, or changes the PIN.
+  /// Turns the app lock on, or changes the passcode.
   ///
-  /// Nothing in the app could do this until now: `AppStage.locked` existed, the
-  /// PIN screen existed, and no code path ever set a PIN, so the lock could
-  /// never come on.
-  Future<void> setScreenLock(String pin) async {
-    await _store.setPin(pin);
+  /// Nothing in the app could do this until recently: `AppStage.locked` existed,
+  /// the lock screen existed, and no code path ever set a passcode, so the lock
+  /// could never come on.
+  Future<void> setScreenLock(String passcode, PasscodeKind kind) async {
+    await _store.setPasscode(passcode, kind);
     _screenLockSet = true;
+    _passcodeKind = kind;
     notifyListeners();
   }
 
@@ -337,17 +337,10 @@ class AppState extends ChangeNotifier {
   /// cannot be typed at a lock screen that is not there, and leaving it behind
   /// would be a wipe waiting on a screen nobody sees.
   Future<void> clearScreenLock() async {
-    await _store.clearPin();
+    await _store.clearPasscode();
     await _store.setDuressCode(null);
-    await _store.setBiometricsEnabled(false);
     _screenLockSet = false;
-    notifyListeners();
-  }
-
-  Future<bool> screenLockUsesBiometrics() => _store.biometricsEnabled();
-
-  Future<void> setScreenLockBiometrics(bool enabled) async {
-    await _store.setBiometricsEnabled(enabled);
+    _passcodeKind = null;
     notifyListeners();
   }
 
@@ -376,21 +369,14 @@ class AppState extends ChangeNotifier {
 
   // --- Lock -----------------------------------------------------------------
 
-  Future<bool> unlockWithBiometrics() async {
-    if (!_biometricsAvailable || !await _store.biometricsEnabled()) return false;
-    final ok = await _biometrics.authenticate('Unlock Privio');
-    if (ok) unlock();
-    return ok;
-  }
-
-  Future<bool> unlockWithPin(String pin) async {
+  Future<bool> unlockWithPasscode(String passcode) async {
     // The duress code is checked first and answers false either way: from the
-    // outside, a wipe and a wrong PIN are the same event.
-    if (await _store.verifyDuressCode(pin)) {
-      await _duressWipe(pin);
+    // outside, a wipe and a wrong passcode are the same event.
+    if (await _store.verifyDuressCode(passcode)) {
+      await _duressWipe(passcode);
       return false;
     }
-    final ok = await _store.verifyPin(pin);
+    final ok = await _store.verifyPasscode(passcode);
     if (ok) unlock();
     return ok;
   }
@@ -429,6 +415,7 @@ class AppState extends ChangeNotifier {
     _security?.dispose();
     _security = null;
     _screenLockSet = false;
+    _passcodeKind = null;
     _sessionToken = null;
     _username = null;
     _accountId = null;

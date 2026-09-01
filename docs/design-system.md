@@ -47,7 +47,7 @@ Sampled from the mockups (JPEG, so values are normalised to clean hex).
 
 | Token | Hex | Use |
 | --- | --- | --- |
-| `danger` | `#EF4444` | Wipe code, missed calls, "Log out all devices", destructive rows |
+| `danger` | `#EF4444` | Duress code, missed calls, "Log out all devices", destructive rows |
 | `warning` | `#F59E0B` | Unverified safety number, degraded connection |
 | `calculatorOperator` | `#FF9F0A` | Operator keys in the iPhone-style disguise calculator only |
 
@@ -88,7 +88,7 @@ introducing anything new.
 | 1 | Splash | `/` | V1 |
 | 2 | Initialising / loading | `/boot` | V1 |
 | 3 | First opening / welcome | `/welcome` | V1 |
-| 4 | PIN entry (+ biometric) | `/lock` | V1 |
+| 4 | Passcode entry (keypad or passphrase) | `/lock` | V1 |
 | 5 | Home / Chats | `/chats` | V1 |
 | 6 | Chat | `/chats/:id` | V1 |
 | 7 | Calls | `/calls` | V2 |
@@ -97,7 +97,7 @@ introducing anything new.
 | 10 | Invite link / QR | `/account/invite` | V1 |
 | 11 | Settings | `/settings` | V1 |
 | 12 | Backup | `/settings/backup` | V1 |
-| 13 | Wipe code | `/settings/wipe-code` | V1 |
+| 13 | Duress code | `/settings/duress-code` | V1 |
 | 14 | Disguise mode | `/settings/disguise` | V2 |
 | 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V2 |
 | 17 | Notifications | `/settings/notifications` | V1 |

@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-351%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-396%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -178,7 +178,7 @@ than the relaxed one the rest of the suite uses.
 
 ### A code that destroys instead of opening
 
-The wipe code has been in the schema since the first migration and enforced at
+The duress code has been in the schema since the first migration and enforced at
 login ever since: type it instead of your password and the account is
 destroyed, while whoever is watching sees the same refusal a typo gets. Until
 now the only way to arm it was a curl command — the one feature written for
@@ -195,7 +195,7 @@ someone being forced to hand over a phone, and it needed a terminal.
 
 The browser run measured the wipe rather than trusting the message: one device
 before the duress sign-in, zero after, the account row still present so the
-username cannot be claimed by anyone else, and the wipe code itself cleared.
+username cannot be claimed by anyone else, and the duress code itself cleared.
 
 ### The lock screen the app could never reach
 
@@ -207,21 +207,36 @@ locked, with someone asking for the PIN.
 
 <table>
 <tr>
-<td align="center" width="25%"><img src="docs/screenshots/lock-01-screen.png" width="200"><br><sub><b>1.</b> The app lock, settable at last, with biometrics as the shortcut.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/lock-02-duress-armed.png" width="200"><br><sub><b>2.</b> A four-digit wipe code says so: it reaches the PIN pad as well as sign-in.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/lock-03-locked.png" width="200"><br><sub><b>3.</b> Reopened: locked.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/lock-04-after-duress.png" width="200"><br><sub><b>4.</b> The duress code typed here — the same refusal a wrong PIN gets, and the account is gone.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-01-screen.png" width="200"><br><sub><b>1.</b> The app lock, settable at last: 4 digits, 6 digits or a passphrase.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-02-duress-armed.png" width="200"><br><sub><b>2.</b> A duress code shaped like the lock says so: it reaches the lock screen as well as sign-in.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-03-locked.png" width="200"><br><sub><b>3.</b> Reopened: locked. Six dots, because that is the shape this device chose.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-04-after-duress.png" width="200"><br><sub><b>4.</b> The duress code typed here — the same refusal a wrong passcode gets, and the account is gone.</sub></td>
 </tr>
 </table>
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/lock-05-passphrase.png" width="200"><br><sub>The same lock with a passphrase chosen: a field instead of a keypad, and no fingerprint icon anywhere.</sub></td>
+<td width="75%"></td>
+</tr>
+</table>
+
+There is no face or fingerprint unlock, and that is the design rather than a
+gap. Biometrics are the one credential a person can be made to present while
+unwilling, asleep or unconscious, and in several places a court can order them
+where it cannot order a passcode. In an app that ships a duress code for
+exactly that situation, offering one would hand back what the duress code is
+there to protect. `local_auth` is not a dependency any more.
 
 The local wipe happens first and unconditionally: the phone is in someone
 else's hands, and the network is the part that might not be there. The history,
 this device's Signal identity and the session go immediately; the server is
 asked afterwards, on a best-effort call carrying the code rather than the
 password — under duress the password is the one thing nobody is about to type.
-A code longer than four digits, or one with letters in it, works at sign-in
-only, and the screen says which kind you have rather than letting you believe
-it is armed somewhere it can never be typed.
+A duress code that is not shaped like this device's lock — a phrase where the
+lock is a keypad, six digits where the lock takes four — works at sign-in only,
+and the screen says which kind you have rather than letting you believe it is
+armed somewhere it can never be typed.
 
 ### A backup only you can open
 
@@ -272,7 +287,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
 | **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
-| **Wipe code** | ✅ | A duress code set in the app. Typed at sign-in *or* at the lock screen it destroys the account, and is refused exactly as a wrong password or PIN is |
+| **Duress code** | ✅ | Set in the app. Typed at sign-in *or* at the lock screen it destroys the account, and is refused exactly as a wrong password or passcode is |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
 | **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
@@ -281,7 +296,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
-| **App lock** | ✅ | A PIN set in the app, biometrics as the shortcut, re-locks on backgrounding |
+| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
@@ -581,10 +596,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  94 passing
+#  115 passing
 
 cd app && flutter analyze && flutter test
-#  257 passing
+#  281 passing
 ```
 
 Among the things those tests assert:
@@ -631,7 +646,7 @@ Among the things those tests assert:
 - a receipt names **specific messages**, not "everything up to now"
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
-- a wipe code **equal to the password** is refused, because an ordinary sign-in would fire it
+- a duress code **equal to the password** is refused, because an ordinary sign-in would fire it
 - the duress code at the lock screen wipes **before** it tries the network, so a phone with no signal still loses its copy
 - turning the app lock off **takes the duress code with it**, rather than leaving a wipe armed on a screen nobody sees
 - blocking is **invisible** to the blocked sender
@@ -673,12 +688,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 257 tests, incl. the crypto round trip
+│   └── test/                 281 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 94 tests against real PostgreSQL
+│   └── test/                 115 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```
@@ -696,7 +711,7 @@ OLED panels most phones ship with.
 | `background` | `#000000` | App background |
 | `surface` | `#0B0B0B` | Cards and list rows |
 | `bubbleOutgoing` | `#0B3B21` | Your messages |
-| `danger` | `#EF4444` | Wipe code, missed calls, destructive actions |
+| `danger` | `#EF4444` | Duress code, missed calls, destructive actions |
 
 The full system — typography, spacing, every screen and component — is in
 [`docs/design-system.md`](docs/design-system.md), measured from the mockups in
@@ -709,7 +724,7 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Wipe code
+Two-factor · Blocking · Duress code
 
 **Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
 Multi-device · Push registration in the client, the last thing the server
