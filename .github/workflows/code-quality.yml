@@ -17,7 +17,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          # No version pin: app/pubspec.yaml requires Flutter >=3.22.0, and a
+          # pin below that fails at `pub get` before anything is checked.
           channel: 'stable'
 
       - name: Get dependencies
