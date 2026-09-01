@@ -134,6 +134,15 @@ class PrivioApiClient {
         'wipeCode': wipeCode,
       },);
 
+  /// The duress wipe from a device that is already signed in.
+  ///
+  /// Carries the wipe code, not the password: at a lock screen under duress
+  /// there is no password being typed. The server answers exactly as it does to
+  /// a wrong password, so nothing here can be used to find out whether a code
+  /// is set.
+  Future<void> wipeAccount(String wipeCode) async =>
+      _send('POST', '/v1/accounts/me/wipe', body: {'wipeCode': wipeCode});
+
   // --- Two-factor -----------------------------------------------------------
 
   /// Starts setup and returns the shared secret, which is the only time it is

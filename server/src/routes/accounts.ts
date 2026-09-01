@@ -220,6 +220,35 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     return { wipeCodeSet: body.wipeCode !== null };
   });
 
+  /**
+   * The duress wipe, from a device that is already signed in.
+   *
+   * The login path wipes when the code is typed instead of the password. This
+   * is the other place a person under duress is standing: at the lock screen of
+   * a phone that is already signed in, where there is no password to substitute
+   * for. The device recognises the code offline and then tells the server, so
+   * the queued envelopes and the backup go too.
+   *
+   * It takes the wipe code rather than the password on purpose — under duress
+   * the password is the one thing the person is not going to be typing.
+   */
+  app.post(
+    '/v1/accounts/me/wipe',
+    { ...guessable, preHandler: (r) => app.requireAuth(r) },
+    async (request) => {
+      const { accountId } = auth(request);
+      const body = parse(z.object({ wipeCode: z.string().min(1) }), request.body);
+      const account = await accounts.findById(accountId);
+      if (!account || !(await accounts.matchesWipeCode(account, body.wipeCode))) {
+        // Same answer a wrong password gets anywhere else. A caller must not be
+        // able to use this to find out whether a wipe code exists.
+        throw ApiError.unauthorized('invalid_credentials', 'That code is not right');
+      }
+      await accounts.wipeAccount(accountId);
+      return { wiped: true };
+    },
+  );
+
   /** Step 1 of enabling 2FA: hand the client a secret to show as a QR code. */
   app.post('/v1/accounts/me/totp/setup', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { accountId, username } = auth(request);

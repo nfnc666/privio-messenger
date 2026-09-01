@@ -264,6 +264,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Turns the app lock on, or changes the PIN.
+  ///
+  /// Nothing in the app could do this until now: `AppStage.locked` existed, the
+  /// PIN screen existed, and no code path ever set a PIN, so the lock could
+  /// never come on.
+  Future<void> setScreenLock(String pin) async {
+    await _store.setPin(pin);
+    _screenLockSet = true;
+    notifyListeners();
+  }
+
+  /// Turns it off. Takes the duress code with it: a code that unlocks nothing
+  /// cannot be typed at a lock screen that is not there, and leaving it behind
+  /// would be a wipe waiting on a screen nobody sees.
+  Future<void> clearScreenLock() async {
+    await _store.clearPin();
+    await _store.setDuressCode(null);
+    await _store.setBiometricsEnabled(false);
+    _screenLockSet = false;
+    notifyListeners();
+  }
+
+  Future<bool> screenLockUsesBiometrics() => _store.biometricsEnabled();
+
+  Future<void> setScreenLockBiometrics(bool enabled) async {
+    await _store.setBiometricsEnabled(enabled);
+    notifyListeners();
+  }
+
+  /// Stores the duress code locally so the lock screen can recognise it with no
+  /// network. Only ever called with what the server has just accepted.
+  Future<void> rememberDuressCode(String? code) => _store.setDuressCode(code);
+
   /// Leaves the activation step for the app itself.
   ///
   /// [asked] records that this account has now seen it, which is what "Not now"
@@ -289,9 +322,65 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> unlockWithPin(String pin) async {
+    // The duress code is checked first and answers false either way: from the
+    // outside, a wipe and a wrong PIN are the same event.
+    if (await _store.verifyDuressCode(pin)) {
+      await _duressWipe(pin);
+      return false;
+    }
     final ok = await _store.verifyPin(pin);
     if (ok) unlock();
     return ok;
+  }
+
+  /// Destroys everything this device holds, and asks the server to destroy what
+  /// it holds, after the duress code was entered at the lock screen.
+  ///
+  /// Local first, and unconditionally: the phone is in someone else's hands, and
+  /// the network is the part that might not be there. The server call carries
+  /// the code rather than the password, because under duress the password is
+  /// the one thing nobody is about to type.
+  Future<void> _duressWipe(String code) async {
+    final services = _services;
+    if (services != null) {
+      _conversations?.stop();
+      services.store.clear();
+      try {
+        await services.archive.clear();
+      } on Object {
+        // Nothing here may stop the rest of the wipe.
+      }
+      try {
+        await services.crypto.wipe();
+      } on Object {
+        // Same.
+      }
+      unawaited(_wipeOnServer(services, code));
+    }
+    await _store.wipe();
+    _conversations?.dispose();
+    _conversations = null;
+    _channels?.dispose();
+    _channels = null;
+    _license?.dispose();
+    _license = null;
+    _security?.dispose();
+    _security = null;
+    _screenLockSet = false;
+    _sessionToken = null;
+    _username = null;
+    _accountId = null;
+  }
+
+  /// Best effort, and deliberately not awaited by the caller: a phone with no
+  /// signal must still lose its local copy immediately.
+  Future<void> _wipeOnServer(PrivioServices services, String code) async {
+    try {
+      await services.api.wipeAccount(code);
+    } on Object {
+      // The local wipe has already happened. There is nothing to report to a
+      // screen that is about to be showing a wrong-PIN error.
+    }
   }
 
   void unlock() {

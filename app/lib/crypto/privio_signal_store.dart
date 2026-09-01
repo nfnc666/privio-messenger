@@ -36,6 +36,10 @@ class PrivioSignalStore extends SignalProtocolStore {
     return PrivioSignalStore(storage, identity, registrationId);
   }
 
+  /// The backing store, so a wipe can reach it. Nothing else should read
+  /// through this: the point of the store is that key material has one home.
+  CryptoStorage get storage => _storage;
+
   final CryptoStorage _storage;
   final IdentityKeyPair _identity;
   final int _registrationId;

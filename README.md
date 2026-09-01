@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-342%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-351%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -197,6 +197,32 @@ The browser run measured the wipe rather than trusting the message: one device
 before the duress sign-in, zero after, the account row still present so the
 username cannot be claimed by anyone else, and the wipe code itself cleared.
 
+### The lock screen the app could never reach
+
+`AppStage.locked` and the PIN pad were built early, and nothing in the app ever
+called `setPin` — so the lock could not be switched on, and the screen guarding
+the on-device history was unreachable. It has a screen now, and with it the
+duress code reaches the place a phone is actually taken: already signed in,
+locked, with someone asking for the PIN.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/lock-01-screen.png" width="200"><br><sub><b>1.</b> The app lock, settable at last, with biometrics as the shortcut.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-02-duress-armed.png" width="200"><br><sub><b>2.</b> A four-digit wipe code says so: it reaches the PIN pad as well as sign-in.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-03-locked.png" width="200"><br><sub><b>3.</b> Reopened: locked.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/lock-04-after-duress.png" width="200"><br><sub><b>4.</b> The duress code typed here — the same refusal a wrong PIN gets, and the account is gone.</sub></td>
+</tr>
+</table>
+
+The local wipe happens first and unconditionally: the phone is in someone
+else's hands, and the network is the part that might not be there. The history,
+this device's Signal identity and the session go immediately; the server is
+asked afterwards, on a best-effort call carrying the code rather than the
+password — under duress the password is the one thing nobody is about to type.
+A code longer than four digits, or one with letters in it, works at sign-in
+only, and the screen says which kind you have rather than letting you believe
+it is armed somewhere it can never be typed.
+
 ### A backup only you can open
 
 A history sealed on the device, a key that exists nowhere else, and a new
@@ -246,7 +272,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
 | **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
-| **Wipe code** | ✅ | A duress code set in the app; typing it at sign-in destroys the account and is refused exactly as a wrong password is |
+| **Wipe code** | ✅ | A duress code set in the app. Typed at sign-in *or* at the lock screen it destroys the account, and is refused exactly as a wrong password or PIN is |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
 | **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
 | **Groups** | ✅ | Create, name (encrypted), send and receive — in the app |
@@ -255,7 +281,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
 | **Device management** | ✅ | List, remote logout, per-device sessions |
-| **App lock** | ✅ | PIN and biometrics, re-locks on backgrounding |
+| **App lock** | ✅ | A PIN set in the app, biometrics as the shortcut, re-locks on backgrounding |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
@@ -489,11 +515,11 @@ A privacy product that overstates itself is worse than one that says nothing.
    confirming both TLDs are actually available) and shipping a `privio://` deep
    link beside them is a launch task; each host is one constant,
    `ChannelService.channelLinkHost` and `groupLinkHost`.
-5. **A wipe reaches the server, not the devices already signed in.** Typing the
-   duress code destroys everything the server holds — devices, queued
-   envelopes, contacts, group memberships, the backup — and the sign-in it was
-   typed into is refused. It cannot reach a phone that is already unlocked and
-   signed in somewhere else, whose local archive stays sealed but present. The
+5. **A wipe reaches this device and the server, not other devices.** Typing the
+   duress code destroys this device's history, identity and session, and asks
+   the server to destroy what it holds — devices, queued envelopes, contacts,
+   group memberships, the backup. It cannot reach a *different* phone that is
+   signed in elsewhere, whose local archive stays sealed but present. The
    screen says so instead of implying a remote kill switch.
 6. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
@@ -555,10 +581,10 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  93 passing
+#  94 passing
 
 cd app && flutter analyze && flutter test
-#  249 passing
+#  257 passing
 ```
 
 Among the things those tests assert:
@@ -606,6 +632,8 @@ Among the things those tests assert:
 - a session token in a socket URL is **redacted** before it reaches the logs
 - a duress wipe is **indistinguishable** from a mistyped password
 - a wipe code **equal to the password** is refused, because an ordinary sign-in would fire it
+- the duress code at the lock screen wipes **before** it tries the network, so a phone with no signal still loses its copy
+- turning the app lock off **takes the duress code with it**, rather than leaving a wipe armed on a screen nobody sees
 - blocking is **invisible** to the blocked sender
 
 ---
@@ -645,12 +673,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 249 tests, incl. the crypto round trip
+│   └── test/                 257 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 93 tests against real PostgreSQL
+│   └── test/                 94 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```

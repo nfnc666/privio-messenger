@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import 'screen_lock_screen.dart';
 
 /// The duress code: a second password that destroys the account instead of
 /// opening it, and that looks from the outside exactly like a typo.
@@ -39,8 +40,40 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
     super.dispose();
   }
 
+  /// Whether a code of this shape can also be entered at the lock screen.
+  ///
+  /// The PIN pad takes four digits and submits at the fourth, so a longer or
+  /// non-numeric code has nowhere to be typed there. Saying so is better than
+  /// letting someone believe a code is armed on a screen it can never reach.
+  static bool _worksAtTheLockScreen(String code, AppState state) =>
+      state.screenLockSet &&
+      code.length == ScreenLockScreen.pinLength &&
+      int.tryParse(code) != null;
+
+  String _lockScreenNote(AppState state) {
+    if (!state.screenLockSet) {
+      return 'At the lock screen it does nothing yet, because there is no app lock '
+          'on this device. Turn one on under Screen Lock, and a four-digit wipe code '
+          'works there too — which is where a phone that is already signed in gets '
+          'taken.';
+    }
+    final code = _code.text;
+    if (code.isEmpty) {
+      return 'A four-digit wipe code can also be typed at the lock screen, where it '
+          'wipes instead of unlocking. A longer or non-numeric one only works at '
+          'sign-in: the PIN pad has nowhere to type it.';
+    }
+    return _worksAtTheLockScreen(code, state)
+        ? 'This one is four digits, so it works at the lock screen as well as at '
+            'sign-in.'
+        : 'This one is not four digits, so it works at sign-in only — the PIN pad '
+            'has nowhere to type it.';
+  }
+
   void _clearErrors(SecurityController security) {
-    if (_localError != null) setState(() => _localError = null);
+    // Also redraws the note under the fields, which says whether a code of this
+    // shape reaches the lock screen.
+    setState(() => _localError = null);
     security.clearError();
   }
 
@@ -57,24 +90,41 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
     }
     setState(() => _localError = null);
 
+    final state = PrivioScope.of(context);
+    final code = _code.text;
     final ok = await security.setWipeCode(
       currentPassword: _password.text,
-      wipeCode: _code.text,
+      wipeCode: code,
     );
     if (!ok || !mounted) return;
+
+    // Only what the server has just accepted is kept here, and only so the lock
+    // screen can recognise it with no network.
+    await state.rememberDuressCode(code);
+    if (!mounted) return;
+
     _password.clear();
     _code.clear();
     _confirm.clear();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Wipe code set. Typing it at sign-in destroys the account.')),
+      SnackBar(
+        content: Text(
+          _worksAtTheLockScreen(code, state)
+              ? 'Wipe code set. It destroys the account at sign-in and at the lock screen.'
+              : 'Wipe code set. Typing it at sign-in destroys the account.',
+        ),
+      ),
     );
   }
 
   Future<void> _remove(SecurityController security) async {
     final password = await _askForPassword();
     if (password == null || !mounted) return;
+    final state = PrivioScope.of(context);
     final ok = await security.setWipeCode(currentPassword: password, wipeCode: null);
     if (!ok || !mounted) return;
+    await state.rememberDuressCode(null);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Wipe code removed.')),
     );
@@ -110,13 +160,14 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final security = PrivioScope.of(context).security;
+    final state = PrivioScope.of(context);
+    final security = state.security;
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Wipe Code')),
       body: ListenableBuilder(
-        listenable: security,
+        listenable: Listenable.merge([state, security]),
         builder: (context, _) => ListView(
           padding: const EdgeInsets.fromLTRB(
             PrivioSpacing.xxl,
@@ -235,11 +286,15 @@ class _WipeCodeScreenState extends State<WipeCodeScreen> {
             const Divider(height: 1, color: PrivioColors.border),
             const SizedBox(height: PrivioSpacing.lg),
             Text(
+              _lockScreenNote(state),
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(
               'What it does not do: the account name stays taken, so nobody can claim '
-              'it afterwards, and it cannot reach a device that is already signed in '
-              'somewhere else — the wipe happens when the code is used to sign in. '
-              'Anyone watching sees the sign-in refused exactly as a mistyped password '
-              'is refused.',
+              'it afterwards, and it cannot reach a different device that is already '
+              'signed in somewhere else. Anyone watching sees the attempt refused '
+              'exactly as a mistyped password or PIN is refused.',
               style: theme.textTheme.labelSmall,
             ),
           ],

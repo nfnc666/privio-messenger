@@ -5,6 +5,7 @@ import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
+import 'screen_lock_screen.dart';
 import 'two_factor_screen.dart';
 import 'wipe_code_screen.dart';
 
@@ -124,6 +125,9 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               SettingsRow(
                 label: 'Screen Lock',
                 value: state.screenLockSet ? 'PIN' : 'Off',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ScreenLockScreen()),
+                ),
               ),
               SettingsRow(
                 label: 'Two-Factor Authentication',

@@ -161,6 +161,49 @@ describe('accounts', () => {
     assert.equal(afterWipe.statusCode, 401, 'the wiped session no longer authenticates');
   });
 
+  it('wipes from a signed-in device when the lock screen gets the duress code', async () => {
+    const victim = await registerUser(h.app, 'wanda');
+    await h.app.inject({
+      method: 'PUT',
+      url: '/v1/accounts/me/wipe-code',
+      headers: bearer(victim),
+      payload: { currentPassword: 'correct-horse-battery', wipeCode: '911911' },
+    });
+
+    // The wrong code answers exactly as a wrong password does, so this cannot
+    // be used to find out whether a wipe code is set at all.
+    const wrong = await h.app.inject({
+      method: 'POST',
+      url: '/v1/accounts/me/wipe',
+      headers: bearer(victim),
+      payload: { wipeCode: '000000' },
+    });
+    assert.equal(wrong.statusCode, 401);
+    assert.equal(wrong.json().error, 'invalid_credentials');
+
+    const wiped = await h.app.inject({
+      method: 'POST',
+      url: '/v1/accounts/me/wipe',
+      headers: bearer(victim),
+      payload: { wipeCode: '911911' },
+    });
+    assert.equal(wiped.statusCode, 200);
+    assert.equal(wiped.json().wiped, true);
+
+    const after = await h.app.inject({
+      method: 'GET',
+      url: '/v1/accounts/me',
+      headers: bearer(victim),
+    });
+    assert.equal(after.statusCode, 401, 'the session went with the devices');
+
+    const devices = await pool.query(
+      'SELECT count(*)::int AS n FROM devices d JOIN accounts a ON a.id = d.account_id WHERE a.username = $1',
+      ['wanda'],
+    );
+    assert.equal(devices.rows[0].n, 0);
+  });
+
   it('revokes other sessions when the password changes', async () => {
     const user = await registerUser(h.app, 'rotator');
     const second = await h.app.inject({

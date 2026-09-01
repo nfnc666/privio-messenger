@@ -18,6 +18,12 @@ abstract interface class SecureStore {
   Future<void> setPin(String pin);
   Future<bool> hasPin();
   Future<bool> verifyPin(String pin);
+  Future<void> clearPin();
+
+  /// The duress code, kept here as well as on the server so the lock screen can
+  /// recognise it with no network — which is the situation it exists for.
+  Future<void> setDuressCode(String? code);
+  Future<bool> verifyDuressCode(String code);
 
   /// The key the local message archive is sealed with. Small enough that a
   /// keystore is the right home for it, unlike the archive itself.
@@ -65,6 +71,7 @@ class KeystoreSecureStore implements SecureStore {
   static const _usernameKey = 'privio.session.username';
   static const _accountIdKey = 'privio.session.account_id';
   static const _pinKey = 'privio.lock.pin';
+  static const _duressKey = 'privio.lock.duress';
   static const _archiveKeyKey = 'privio.archive.key';
   static const _recoveryKeyKey = 'privio.backup.recovery_key';
   static const _lastBackupKey = 'privio.backup.last_at';
@@ -112,6 +119,21 @@ class KeystoreSecureStore implements SecureStore {
 
   @override
   Future<bool> hasPin() async => await _read(_pinKey) != null;
+
+  @override
+  Future<void> clearPin() =>
+      _storage.delete(key: _pinKey, iOptions: _iosOptions, aOptions: _androidOptions);
+
+  @override
+  Future<void> setDuressCode(String? code) => code == null
+      ? _storage.delete(key: _duressKey, iOptions: _iosOptions, aOptions: _androidOptions)
+      : _write(_duressKey, code);
+
+  @override
+  Future<bool> verifyDuressCode(String code) async {
+    final stored = await _read(_duressKey);
+    return stored != null && stored == code;
+  }
 
   @override
   Future<bool> verifyPin(String pin) async {
@@ -191,6 +213,21 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<void> setPin(String pin) async => _entries['pin'] = pin;
+
+  @override
+  Future<void> clearPin() async => _entries.remove('pin');
+
+  @override
+  Future<void> setDuressCode(String? code) async {
+    if (code == null) {
+      _entries.remove('duress');
+    } else {
+      _entries['duress'] = code;
+    }
+  }
+
+  @override
+  Future<bool> verifyDuressCode(String code) async => _entries['duress'] == code;
 
   @override
   Future<bool> hasPin() async => _entries.containsKey('pin');
