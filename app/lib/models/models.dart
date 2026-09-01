@@ -213,40 +213,9 @@ class ChatSummary {
   final Uint8List? avatarBytes;
 }
 
-enum CallDirection { incoming, outgoing, missed }
-
-@immutable
-class CallEntry {
-  const CallEntry({
-    required this.id,
-    required this.contactName,
-    required this.direction,
-    required this.timestamp,
-    this.isVideo = false,
-    this.avatarSeed = 0,
-  });
-
-  final String id;
-  final String contactName;
-  final CallDirection direction;
-  final String timestamp;
-  final bool isVideo;
-  final int avatarSeed;
-}
-
-@immutable
-class LinkedDevice {
-  const LinkedDevice({
-    required this.id,
-    required this.name,
-    required this.platform,
-    required this.lastActive,
-    this.isCurrent = false,
-  });
-
-  final String id;
-  final String name;
-  final String platform;
-  final String lastActive;
-  final bool isCurrent;
-}
+// Calls and linked devices used to have models here, shaped for the demo data
+// that fed them: a call had a `timestamp` that was the string "Yesterday", and
+// a device had a `lastActive` that was the string "Last active: 2h ago". Both
+// are gone with the fabricated lists. Devices are described by
+// `LinkedDevice` in `core/security_controller.dart`, from what the server
+// says; calls will get a model when there are calls.

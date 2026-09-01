@@ -2,6 +2,41 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 
+/// A device signed in to this account.
+@immutable
+class LinkedDevice {
+  const LinkedDevice({
+    required this.id,
+    required this.name,
+    required this.platform,
+    required this.current,
+    required this.lastSeenAt,
+    required this.activeSessions,
+  });
+
+  factory LinkedDevice.fromJson(Map<String, dynamic> json) => LinkedDevice(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Unnamed device',
+        platform: json['platform'] as String? ?? 'unknown',
+        current: json['current'] as bool? ?? false,
+        lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? '')?.toLocal(),
+        activeSessions: json['activeSessions'] as int? ?? 0,
+      );
+
+  final String id;
+  final String name;
+  final String platform;
+
+  /// Whether this row is the device reading it.
+  final bool current;
+
+  final DateTime? lastSeenAt;
+
+  /// How many sessions on this device are still valid. Zero means it holds the
+  /// keys but cannot reach the server until someone signs in on it again.
+  final int activeSessions;
+}
+
 /// Someone this account has blocked.
 @immutable
 class BlockedUser {
@@ -55,6 +90,12 @@ class SecurityController extends ChangeNotifier {
   Map<String, dynamic>? _privacy;
 
   List<BlockedUser>? get blocked => _blocked;
+
+  /// Null until the list has been read. The devices screen showed four
+  /// invented ones for as long as it existed, on the screen whose whole job is
+  /// answering "is anyone else signed in to my account".
+  List<LinkedDevice>? get devices => _devices;
+  List<LinkedDevice>? _devices;
 
   bool get busy => _busy;
 
@@ -230,6 +271,42 @@ class SecurityController extends ChangeNotifier {
     _setUpUrl = null;
   }
 
+  Future<void> loadDevices() async {
+    try {
+      final body = await _api.devices();
+      _devices = [
+        for (final entry in body['devices'] as List<dynamic>? ?? const [])
+          LinkedDevice.fromJson(entry as Map<String, dynamic>),
+      ];
+      _error = null;
+    } on ApiException catch (failure) {
+      _error = failure.message;
+    } on Object {
+      _error = 'Could not reach Privio.';
+    }
+    notifyListeners();
+  }
+
+  /// Signs a device out for good: its sessions are revoked and whatever was
+  /// still queued for it is deleted. It keeps the copy of the history it has
+  /// already decrypted — nothing here can reach that.
+  Future<bool> revokeDevice(String deviceId) async {
+    try {
+      await _api.revokeDevice(deviceId);
+    } on ApiException catch (failure) {
+      _error = _explain(failure);
+      notifyListeners();
+      return false;
+    } on Object {
+      _error = 'Could not reach Privio.';
+      notifyListeners();
+      return false;
+    }
+    _devices = [...?_devices?.where((device) => device.id != deviceId)];
+    notifyListeners();
+    return true;
+  }
+
   Future<void> loadBlocks() async {
     try {
       final body = await _api.blocks();
@@ -274,6 +351,7 @@ class SecurityController extends ChangeNotifier {
           'The duress code has to be different from your password, or an ordinary '
               'sign-in would destroy the account.',
         'rate_limited' => 'Too many attempts. Wait a few minutes.',
+        'device_not_found' => 'That device is already signed out.',
         _ => failure.message,
       };
 }

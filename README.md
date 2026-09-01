@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-396%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-400%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -197,6 +197,29 @@ The browser run measured the wipe rather than trusting the message: one device
 before the duress sign-in, zero after, the account row still present so the
 username cannot be claimed by anyone else, and the duress code itself cleared.
 
+### The last screens that made things up
+
+Two screens were still rendering `DemoData`. One of them was **Devices** — the
+screen whose entire job is answering "is anyone else signed in to my account" —
+and it answered with an iPhone 15 Pro, a MacBook Pro, an iPad Pro and a Windows
+PC that did not exist. The other was **Calls**, with five invented entries under
+a comment claiming "the list is real".
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/13-devices.png" width="220"><br><sub><b>1.</b> The devices actually signed in, from the server.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/devices-02-confirm.png" width="220"><br><sub><b>2.</b> Signing one out says what that does, and what it cannot undo.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/devices-03-after.png" width="220"><br><sub><b>3.</b> Gone — session revoked, queue deleted, and the list says so.</sub></td>
+</tr>
+</table>
+
+The endpoints had been there since the first week. The browser run signed one
+account in on two devices, watched both appear, signed one out, and confirmed
+against the database that it went from two to one. `DemoData` is deleted, along
+with the two model classes that were shaped for it — a call whose `timestamp`
+was the string "Yesterday", a device whose `lastActive` was "Last active: 2h
+ago". Nothing in the app renders invented data now.
+
 ### The lock screen the app could never reach
 
 `AppStage.locked` and the PIN pad were built early, and nothing in the app ever
@@ -295,7 +318,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
-| **Device management** | ✅ | List, remote logout, per-device sessions |
+| **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
 | **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
@@ -309,7 +332,7 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | The Calls tab exists and still shows placeholder entries; the real thing is WebRTC over the Signal sessions that already exist |
+| **Voice & video calls** | 📋 | The Calls tab says there are none, because there are none. The real thing is WebRTC over the Signal sessions that already exist |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
 | **Disguise mode** | 📋 | The calculator skin, not started |
@@ -599,7 +622,7 @@ cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm tes
 #  115 passing
 
 cd app && flutter analyze && flutter test
-#  281 passing
+#  285 passing
 ```
 
 Among the things those tests assert:
@@ -688,7 +711,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 281 tests, incl. the crypto round trip
+│   └── test/                 285 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions

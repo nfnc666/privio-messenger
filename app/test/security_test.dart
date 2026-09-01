@@ -33,6 +33,7 @@ class FakeAccountServer {
   String password = 'correct-horse-battery';
   String lastSeen = 'everyone';
   List<Map<String, dynamic>> blocked = [];
+  List<Map<String, dynamic>> devices = [];
 
   /// The code the authenticator would be showing right now.
   String get code => '123456';
@@ -96,9 +97,20 @@ class FakeAccountServer {
         }
         duressCode = code;
         return _json({'duressCodeSet': code != null});
+      case ('GET', '/v1/devices'):
+        return _json({'devices': devices});
       case ('GET', '/v1/blocks'):
         return _json({'blocked': blocked});
       default:
+        if (request.method == 'DELETE' && path.startsWith('/v1/devices/')) {
+          final id = path.split('/').last;
+          final before = devices.length;
+          devices = [...devices.where((entry) => entry['id'] != id)];
+          if (devices.length == before) {
+            return _json({'error': 'device_not_found', 'message': 'gone'}, 404);
+          }
+          return _json({'revoked': true});
+        }
         if (request.method == 'DELETE' && path.startsWith('/v1/blocks/')) {
           final id = path.split('/').last;
           blocked = [...blocked.where((entry) => entry['accountId'] != id)];
@@ -348,6 +360,69 @@ void main() {
       final security = controllerFor(FakeAccountServer());
 
       expect(security.blocked, isNull, reason: 'the row used to read 3, always');
+    });
+  });
+
+  group('devices', () {
+    test('the list is the account\'s, not four invented ones', () async {
+      // The screen rendered an iPhone, a MacBook, an iPad and a Windows PC out
+      // of DemoData — on the screen whose job is answering "is anyone else
+      // signed in to my account".
+      final server = FakeAccountServer()
+        ..devices = [
+          {
+            'id': 'dev-1',
+            'name': 'Pixel 8',
+            'platform': 'android',
+            'current': true,
+            'activeSessions': 1,
+            'lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+          },
+          {
+            'id': 'dev-2',
+            'name': 'Old phone',
+            'platform': 'android',
+            'current': false,
+            'activeSessions': 1,
+            'lastSeenAt': DateTime.now().subtract(const Duration(days: 3)).toUtc().toIso8601String(),
+          },
+        ];
+      final security = controllerFor(server);
+      await security.loadDevices();
+
+      expect(security.devices, hasLength(2));
+      expect(security.devices!.where((device) => device.current).single.name, 'Pixel 8');
+    });
+
+    test('nothing is claimed before the server has answered', () {
+      expect(controllerFor(FakeAccountServer()).devices, isNull);
+    });
+
+    test('signing one out removes it here and there', () async {
+      final server = FakeAccountServer()
+        ..devices = [
+          {'id': 'dev-1', 'name': 'This', 'platform': 'android', 'current': true, 'activeSessions': 1},
+          {'id': 'dev-2', 'name': 'Other', 'platform': 'ios', 'current': false, 'activeSessions': 1},
+        ];
+      final security = controllerFor(server);
+      await security.loadDevices();
+
+      expect(await security.revokeDevice('dev-2'), isTrue);
+      expect(security.devices!.single.id, 'dev-1');
+      expect(server.devices.single['id'], 'dev-1');
+    });
+
+    test('a device already gone is said plainly, and the list is left alone', () async {
+      final server = FakeAccountServer()
+        ..devices = [
+          {'id': 'dev-1', 'name': 'This', 'platform': 'android', 'current': true, 'activeSessions': 1},
+        ];
+      final security = controllerFor(server);
+      await security.loadDevices();
+
+      expect(await security.revokeDevice('dev-9'), isFalse);
+      expect(security.devices, hasLength(1));
+      expect(security.error, contains('already signed out'));
     });
   });
 

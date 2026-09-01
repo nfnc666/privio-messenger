@@ -370,6 +370,20 @@ message is a message the app did not receive and cannot show the contents of,
 and inventing one is a way for a server that reorders or replays envelopes to
 put marks in someone's chat.
 
+## Devices
+
+**The list is the server's answer, not the app's guess.** Every device signed
+in to an account is a device that can decrypt what arrives for it, so "who is
+signed in" is a security question and the screen that answers it renders what
+`GET /v1/devices` returns. It rendered four fabricated devices until this was
+written, which is the worst possible answer to give on that screen.
+
+**Signing one out revokes its sessions and deletes its queue.** What it has
+already decrypted stays on that device: the history is sealed under a key in
+its own keystore, and nothing from another device can reach it. The dialog says
+that rather than implying a remote wipe — the duress code is the only thing
+that destroys a local copy, and only on the device it is typed into.
+
 ## The app lock
 
 **A passcode, in one of three shapes.** Four digits, six digits, or a
