@@ -6,8 +6,8 @@ The Flutter client, for Android and iOS. One source tree, four editions.
 
 | Edition | Channel | Paid for by | Proprietary code |
 | --- | --- | --- | --- |
-| `libre` | F-Droid | A license key from privio.com | None |
-| `direct` | APK from privio.com | A license key from privio.com | None |
+| `libre` | F-Droid | A license key from getprivio.com | None |
+| `direct` | APK from getprivio.com | A license key from getprivio.com | None |
 | `play` | Google Play | Play Billing | Allowed |
 | `appstore` | App Store | App Store purchase | Allowed |
 
@@ -39,17 +39,17 @@ address on a desktop and the wrong one inside an Android emulator — use
 # F-Droid / direct APK
 flutter build apk --release --flavor libre \
   --dart-define=PRIVIO_EDITION=libre \
-  --dart-define=PRIVIO_API_URL=https://api.privio.com
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 
 # Google Play
 flutter build appbundle --release --flavor play \
   --dart-define=PRIVIO_EDITION=play \
-  --dart-define=PRIVIO_API_URL=https://api.privio.com
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 
 # iOS
 flutter build ipa --release \
   --dart-define=PRIVIO_EDITION=appstore \
-  --dart-define=PRIVIO_API_URL=https://api.privio.com
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 ```
 
 Release builds are currently signed with the debug key — see the TODO in

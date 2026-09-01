@@ -406,9 +406,14 @@ class PrivioApiClient {
   Future<void> revokeDevice(String deviceId) async =>
       _send('DELETE', '/v1/devices/$deviceId');
 
+  /// Registers, or with both arguments null clears, how this device is woken.
+  ///
+  /// For `unifiedpush` the token is an endpoint URL the server will POST to,
+  /// so it is validated there rather than trusted — see the server's
+  /// util/outbound.ts. For APNs and FCM it is an opaque vendor handle.
   Future<void> registerPushToken({
-    required String provider,
-    required String token,
+    required String? provider,
+    required String? token,
   }) async =>
       _send('PUT', '/v1/devices/current/push', body: {
         'provider': provider,
@@ -416,6 +421,14 @@ class PrivioApiClient {
       },);
 
   // --- Licensing ------------------------------------------------------------
+
+  /// What this server is and whether it sells licences at all.
+  ///
+  /// The only call the app makes before anyone has signed in. It has to be:
+  /// the key screen comes first, and whether to show it is the server's answer,
+  /// not the build's — a self-hosted deployment says `licenseRequired: false`
+  /// and is never asked for a key.
+  Future<Map<String, dynamic>> serverInfo() => _send('GET', '/v1/server');
 
   /// What this account's license looks like from the server's side.
   ///

@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Email **security@privio.com**. Do not open a public issue, and do not post
+Email **security@getprivio.com**. Do not open a public issue, and do not post
 details in a pull request or a chat channel before the fix has shipped.
 
 Useful reports include: what you did, what happened, what you expected, the

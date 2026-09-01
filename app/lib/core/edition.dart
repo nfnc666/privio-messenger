@@ -10,7 +10,7 @@ enum PrivioDistribution {
   /// F-Droid. Free software only, activated with a license key.
   libre,
 
-  /// The APK downloaded from privio.com. Same binary contents as [libre],
+  /// The APK downloaded from getprivio.com. Same binary contents as [libre],
   /// different signing and update path.
   direct,
 
@@ -41,7 +41,7 @@ class PrivioEdition {
     id: 'libre',
     name: 'Privio Libre',
     usesLicenseKey: true,
-    pushProvider: null,
+    pushProvider: 'unifiedpush',
   );
 
   static const _direct = PrivioEdition._(
@@ -49,7 +49,7 @@ class PrivioEdition {
     id: 'direct',
     name: 'Privio',
     usesLicenseKey: true,
-    pushProvider: null,
+    pushProvider: 'unifiedpush',
   );
 
   static const _play = PrivioEdition._(
@@ -88,10 +88,13 @@ class PrivioEdition {
 
   /// The wake-up service this build may talk to, or null for none.
   ///
-  /// Null is not a missing feature to be filled in later for [libre]: a push
-  /// service is a third party that learns when a device is being messaged, and
-  /// on F-Droid it would also be a proprietary dependency. The Libre build
-  /// stays on its own socket while it is running, and that is the trade.
+  /// The free builds use UnifiedPush: the endpoint belongs to a distributor
+  /// app the user chose and often runs themselves, so waking the phone costs
+  /// neither a proprietary dependency nor a fixed third party. Where no
+  /// distributor is installed the app falls back to its own socket, which is
+  /// what it did everywhere before.
+  ///
+  /// Whichever it is, the payload is a wake-up and nothing else.
   final String? pushProvider;
 
   /// True for the builds that contain nothing but free software, and can

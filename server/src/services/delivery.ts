@@ -1,7 +1,8 @@
+import type { FastifyBaseLogger } from 'fastify';
 import type { PoolClient } from '../db/pool.js';
 import { pool } from '../db/pool.js';
 import type { DeliveryBus } from './bus.js';
-import type { PushSender } from './push.js';
+import type { PushProvider, PushSender, PushTarget } from './push.js';
 
 export type EnvelopeType =
   | 'prekey'
@@ -36,10 +37,22 @@ export interface StoredEnvelope {
 /** Ephemeral envelope types are dropped rather than queued for an offline device. */
 const EPHEMERAL: ReadonlySet<EnvelopeType> = new Set(['typing']);
 
+/**
+ * How long a send waits for wake-ups before going on without them.
+ *
+ * The envelope is already stored and the live socket already published by the
+ * time this runs, so a push is best effort by definition. It stopped being
+ * free when a provider became something that makes a network call: a recipient
+ * can now register an endpoint that black-holes, and without a deadline every
+ * message to them would cost the *sender* the full request timeout.
+ */
+const WAKE_DEADLINE_MS = 1000;
+
 export class DeliveryService {
   constructor(
     private readonly bus: DeliveryBus,
     private readonly push: PushSender,
+    private readonly log?: FastifyBaseLogger,
   ) {}
 
   /** Persists envelopes, wakes any live socket, and pushes to devices that are offline. */
@@ -71,17 +84,39 @@ export class DeliveryService {
   /** Sends a contentless push to devices that have registered a token. */
   private async wake(deviceIds: string[]): Promise<void> {
     if (deviceIds.length === 0) return;
-    const { rows } = await pool.query<{ id: string; push_provider: 'apns' | 'fcm'; push_token: string }>(
+    const { rows } = await pool.query<{ id: string; push_provider: PushProvider; push_token: string }>(
       `SELECT id, push_provider, push_token FROM devices
        WHERE id = ANY($1::uuid[]) AND revoked_at IS NULL
          AND push_provider IS NOT NULL AND push_token IS NOT NULL`,
       [deviceIds],
     );
-    await Promise.all(
-      rows.map((row) =>
-        this.push.notify({ deviceId: row.id, provider: row.push_provider, token: row.push_token }),
-      ),
+    const pending = rows.map((row) =>
+      this.notifyQuietly({ deviceId: row.id, provider: row.push_provider, token: row.push_token }),
     );
+
+    // Stragglers are left to finish on their own — they can no longer reject,
+    // so nothing is waiting on them and nothing crashes if they fail late.
+    await Promise.race([Promise.all(pending), deadline(WAKE_DEADLINE_MS)]);
+  }
+
+  /**
+   * A wake-up that cannot fail the send it belongs to.
+   *
+   * Every failure here is somebody else's endpoint being wrong: a distributor
+   * that has gone away, a URL that stopped resolving publicly, a vendor
+   * refusing a stale token. None of that means the message did not arrive —
+   * it is already stored — so none of it may turn a successful send into an
+   * error the sender sees and retries.
+   */
+  private async notifyQuietly(target: PushTarget): Promise<void> {
+    try {
+      await this.push.notify(target);
+    } catch (err) {
+      this.log?.debug(
+        { err, deviceId: target.deviceId, provider: target.provider },
+        'wake-up failed',
+      );
+    }
   }
 
   /** Returns queued envelopes for a device, oldest first. */
@@ -114,4 +149,12 @@ export class DeliveryService {
     );
     return rowCount ?? 0;
   }
+}
+
+/** A timer that resolves after [ms] and never holds the process open. */
+function deadline(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
 }

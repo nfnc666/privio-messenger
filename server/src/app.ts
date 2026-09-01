@@ -17,7 +17,7 @@ import { websocketRoutes } from './routes/ws.js';
 import type { DeliveryBus } from './services/bus.js';
 import { DeliveryService } from './services/delivery.js';
 import type { PushSender } from './services/push.js';
-import { LoggingPushSender } from './services/push.js';
+import { LoggingPushSender, RoutingPushSender, UnifiedPushSender } from './services/push.js';
 import type { BlobStorage } from './services/storage.js';
 import { LocalFileStorage } from './services/storage.js';
 import { ApiError } from './util/errors.js';
@@ -57,9 +57,18 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     bodyLimit: config.MAX_ENVELOPE_BYTES * 300,
   });
 
-  const push = deps.push ?? new LoggingPushSender(app.log);
+  // UnifiedPush needs no credentials — the endpoint is the credential — so it
+  // works out of the box, including on a self-hosted server that has no Apple
+  // or Google account at all. APNs and FCM stay on the logging sender until a
+  // deployment plugs real adapters in.
+  const push =
+    deps.push ??
+    new RoutingPushSender(
+      { unifiedpush: new UnifiedPushSender({ log: app.log }) },
+      new LoggingPushSender(app.log),
+    );
   const storage = deps.storage ?? new LocalFileStorage();
-  const delivery = new DeliveryService(deps.bus, push);
+  const delivery = new DeliveryService(deps.bus, push, app.log);
 
   // Encrypted blobs arrive as raw bytes; everything else is JSON.
   app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) =>
@@ -129,6 +138,23 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(websocketRoutes(delivery, deps.bus));
 
   app.get('/health', async () => ({ status: 'ok', version: '0.1.0' }));
+
+  /**
+   * What a client has to know before it has an account.
+   *
+   * `licenseRequired` is the one that matters: the app asks for a key on first
+   * launch, and it can only know whether to do that before anyone has signed
+   * in — which rules out the authenticated licence endpoint. A self-hosted
+   * server answers false here and is never asked for a key at all.
+   *
+   * Deliberately public and deliberately empty of anything else: this is the
+   * one endpoint an unauthenticated caller can reach, so it carries policy, not
+   * state, and nothing here is a secret.
+   */
+  app.get('/v1/server', async () => ({
+    version: '0.1.0',
+    licenseRequired: config.LICENSE_REQUIRED,
+  }));
 
   return app;
 }

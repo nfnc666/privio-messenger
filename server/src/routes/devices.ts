@@ -11,7 +11,16 @@ import {
 } from '../services/devices.js';
 import { findByUsername } from '../services/accounts.js';
 import { ApiError } from '../util/errors.js';
+import { parsePushEndpoint } from '../util/outbound.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
+import { config } from '../config.js';
+
+/** Hosts an endpoint may live on. Empty list means "any public host". */
+function allowedPushHosts(): string[] {
+  return config.UNIFIEDPUSH_ALLOWED_HOSTS.split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter((host) => host.length > 0);
+}
 
 const deviceRoutes: FastifyPluginAsync = async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
@@ -64,13 +73,19 @@ const deviceRoutes: FastifyPluginAsync = async (app) => {
     const { deviceId } = auth(request);
     const body = parse(
       z.object({
-        provider: z.enum(['apns', 'fcm']).nullable(),
+        provider: z.enum(['apns', 'fcm', 'unifiedpush']).nullable(),
         token: z.string().min(1).max(512).nullable(),
       }),
       request.body,
     );
     if ((body.provider === null) !== (body.token === null)) {
       throw ApiError.badRequest('invalid_push_config', 'provider and token must be set or cleared together');
+    }
+    // A UnifiedPush token is not a handle a vendor resolves — it is an address
+    // this server will POST to. Checked here so a bad one is rejected while
+    // someone is looking at it, and again before every send.
+    if (body.provider === 'unifiedpush' && body.token !== null) {
+      parsePushEndpoint(body.token, { allowedHosts: allowedPushHosts() });
     }
     await pool.query('UPDATE devices SET push_provider = $2, push_token = $3 WHERE id = $1', [
       deviceId,

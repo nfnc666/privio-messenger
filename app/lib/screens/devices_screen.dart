@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_state.dart';
 import '../data/demo_data.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
@@ -57,8 +58,54 @@ class DevicesScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+          const _LicenceAllowance(),
         ],
       ),
+    );
+  }
+}
+
+/// How many devices the licence covers, when the server has said.
+///
+/// Rendered from the licence rather than from the list above, and only when
+/// the numbers are actually known: an older server does not report them, and
+/// inventing a limit the server does not enforce would be worse than silence.
+class _LicenceAllowance extends StatelessWidget {
+  const _LicenceAllowance();
+
+  @override
+  Widget build(BuildContext context) {
+    final licence = PrivioScope.of(context).license;
+
+    return ListenableBuilder(
+      listenable: licence,
+      builder: (context, _) {
+        final state = licence.state;
+        final limit = state?.maxDevices;
+        if (state == null || !state.licensed || limit == null) {
+          return const SizedBox.shrink();
+        }
+        final used = state.devices;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PrivioSpacing.xxl,
+            PrivioSpacing.md,
+            PrivioSpacing.xxl,
+            0,
+          ),
+          child: Text(
+            used == null
+                ? 'Your license covers $limit devices.'
+                : 'Your license covers $limit devices. $used in use.',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: state.atDeviceLimit
+                      ? PrivioColors.warning
+                      : PrivioColors.textTertiary,
+                ),
+          ),
+        );
+      },
     );
   }
 }

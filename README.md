@@ -749,7 +749,7 @@ no key at all.
 
 On a server that sells access, a new account is asked for its key immediately
 after it is created, instead of finding out later that it cannot send. That is
-the **Libre build and the APK from privio.com**. A Play or App Store build was
+the **Libre build and the APK from getprivio.com**. A Play or App Store build was
 paid for at the moment it was installed, so it is never shown a key field: it
 goes straight into the app, and if it still comes back unlicensed that is a
 receipt to settle with the store.
@@ -806,6 +806,7 @@ screen deleted.
 | [Design system](docs/design-system.md) | Colours, typography, every screen and component |
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
+| [Notifications](docs/notifications.md) | Wake-ups without a proprietary push service |
 | [Client editions](app/README.md) | The four builds, what separates them, and how to build each |
 
 <div align="center">

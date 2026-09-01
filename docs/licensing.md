@@ -35,6 +35,57 @@ never decides whether anyone is licensed.
                     POST /v1/messages         ◄─── refused while unlicensed
 ```
 
+## What the user goes through
+
+```
+  install                                          Privio Libre from F-Droid
+     │
+     ▼
+  first launch          GET /v1/server        ──►  does this server sell
+     │                  (no auth, no account)      licences at all?
+     │                  ◄── licenseRequired
+     ▼
+  "Enter License Key"   ── shape checked on device, held in the keystore
+     │                     (or walked past — the screen is not a wall)
+     ▼
+  create the account    POST /v1/accounts     ──►  account + first device
+     │
+     ▼
+  key is spent          POST /v1/licenses/redeem   bound to the account,
+     │                  Bearer <session>      ──►  atomically, once
+     │                  ◄── licensed, maxDevices   pending key cleared
+     ▼
+  normal use            status cached locally so the app can say something
+                        true while offline — a cache, never a gate
+```
+
+The order is the point. A key is what the hosted service is paid for, so it is
+asked for before the account rather than after: asking later would mean letting
+someone in for free and then presenting a bill. But the screen has a way past
+it. Someone who has not bought a key yet, or who is about to point the app at
+their own server, can create an account and read what arrives — the server
+holds back sending, and nothing else.
+
+`GET /v1/server` exists for exactly one reason: the app has to know whether to
+show that screen before anyone has signed in, which the authenticated licence
+endpoint cannot answer. It is the only endpoint an unauthenticated caller can
+reach, and it carries policy — never state, never a secret.
+
+## Devices
+
+`licenses.max_devices` is what a purchase is worth. It is checked when a device
+registers, inside the transaction that already holds the account row lock, so a
+licence revoked mid-registration cannot be raced past.
+
+An account with no active licence falls back to `DEFAULT_DEVICE_LIMIT`, and a
+revoked licence drops it back to the same place rather than to zero: someone
+who has lost a licence can still reach their account and read what already
+arrived, which is the same split the send gate uses.
+
+`GET /v1/licenses/me` reports `maxDevices` and how many are in use, so a client
+can say "2 of 5" rather than guess. An older server reports neither, and a
+client that sees neither must not claim a limit.
+
 ## Storage
 
 Only `hmac_sha256(LICENSE_HASH_SECRET, normalised_key)` is stored. The hash has
@@ -93,6 +144,12 @@ The app collects the key in two places — the activation step at first start
 (`app/lib/screens/license_screen.dart`) — and both only show what the server
 answered. They are couriers, not gates.
 
+The same goes for the status cached in the keystore. It exists so a launch with
+no signal renders the truth rather than a question mark, and so a paying user is
+never accused of not having paid because a request timed out. It decides
+nothing: a value the device holds is one deleted line away from being bypassed
+in a build anyone can compile.
+
 **Client-side checks are cosmetic.** Privio Libre is open source; anyone can
 build it with the license screen removed. Only the server refusing service
 enforces anything, which is why the gate is a `preHandler` here and not a
@@ -111,12 +168,14 @@ client knows not to ask for a key at all.
 | GET | `/v1/licenses/me` | session | `{ licensed, source, redeemedAt, required }` |
 | POST | `/v1/internal/licenses` | issuer token | Issue a license for a paid order |
 | POST | `/v1/internal/licenses/revoke` | issuer token | Revoke after a chargeback |
+| GET | `/v1/server` | none | Whether this server requires a licence at all |
 
 Redemption is rate limited to 5 attempts per 10 minutes per device.
 
 ### Issuing is once-only
 
-`POST /v1/internal/licenses` returns the plaintext key exactly once. A retried
+`POST /v1/internal/licenses` takes an optional `maxDevices` and returns the
+plaintext key exactly once. A retried
 webhook for the same `(paymentProvider, paymentReference)` gets `409
 license_already_issued` with the license id — not a second key, because the
 order was only paid once and the plaintext no longer exists on this side.
@@ -141,10 +200,13 @@ again.
 it asks `GET /v1/licenses/me`, shows the answer, and turns error codes into
 sentences. It never decides that anyone is licensed.
 
-* A new account is asked **once**, at first start, on a server that answered
-  `required: true` **and** in a build that is activated with a key — the Libre
-  build and the APK from the website. `AppStage.activation` sits between
-  signing in and the app, and shows `lib/screens/activation_screen.dart`. A
+* The key screen (`lib/screens/activation_screen.dart`, `AppStage.activation`)
+  is reached from two directions, on a server that answered `required: true`
+  and in a build that is activated with a key — the Libre build and the APK
+  from the website. **Before the account**, on a fresh install: there is nobody
+  to bind a key to yet, so it is held in the keystore and spent by the first
+  sign-in. And **once per account after signing in**, for anyone who walked
+  past it and is still unlicensed. A
   Play or App Store build was paid for at the moment it was installed and is
   never shown a key field; if it still comes back unlicensed, that is a
   receipt to settle with the store, and the License row in Settings says so.
@@ -161,15 +223,23 @@ sentences. It never decides that anyone is licensed.
   `required: true`, and reads *Not active* until a key is redeemed. On a
   self-hosted deployment there is nothing to buy, so there is no payment prompt
   anywhere.
-* The key field formats as you type (`PRIVIO-XXXX-…`) but sends what was typed;
-  the folding that matters happens on the server. It is one widget
+* The key field folds Crockford aliases as you type and sends the canonical
+  `PRIVIO-XXXX-…` form; the server folds again on arrival, and doing it on both
+  sides is what makes the key that was typed and the key that is stored the
+  same string. A key that is not even 16 symbols is refused on the device:
+  redemption allows five attempts per ten minutes, and a typo should not spend
+  one. It is one widget
   (`lib/widgets/license_key_field.dart`) shared by both screens, so a key typed
   at first start and a key typed in Settings reach the server in the same
   shape. Typing the printed `PRIVIO` prefix by hand is not folded into the key
   body — the prefix contains an I and an O of its own — and backspace clears
   the field rather than putting the prefix back.
-* A `403 license_required` on send is turned into "Activate your license in
-  Settings to send messages" rather than repeating the server's wording.
+* A `403 license_required` on send is turned into "Activate your license to
+  send messages", with a button to the screen, rather than repeating the
+  server's wording.
+* A server old enough to lack the endpoint answers 404, which the client reads
+  as "does not require a license" instead of showing an error. Every other
+  failure leaves the last known answer alone — offline is not unlicensed.
 * A server old enough to lack the endpoint answers 404, which the client reads
   as "does not require a license" instead of showing an error.
 
