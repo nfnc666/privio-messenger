@@ -37,6 +37,79 @@ describe('media and backup', () => {
     assert.deepEqual(download.rawPayload, sealed);
   });
 
+  it('hands the uploader a token, and only its hash is kept', async () => {
+    const upload = await octet(Buffer.from('sealed'), alice, '/v1/media', 'POST');
+    const { id, token } = upload.json();
+    assert.ok(token, 'the capability is minted at upload');
+
+    const { rows } = await pool.query<{ download_token_hash: Buffer | null }>(
+      'SELECT download_token_hash FROM media_objects WHERE id = $1',
+      [id],
+    );
+    // A read of this table must not be a set of download capabilities.
+    assert.ok(rows[0]!.download_token_hash);
+    assert.ok(!rows[0]!.download_token_hash!.toString('utf8').includes(token));
+  });
+
+  it('another account cannot fetch an attachment without the token', async () => {
+    const mallory = await registerUser(h.app, 'nosy');
+    const upload = await octet(Buffer.from('not for you'), alice, '/v1/media', 'POST');
+    const { id, token } = upload.json();
+
+    // Knowing the id is not enough. It used to be: the route checked that the
+    // caller was signed in and then threw the account away.
+    const bare = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: bearer(mallory),
+    });
+    assert.equal(bare.statusCode, 404, 'and says nothing about whether it exists');
+
+    const wrong = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: { ...bearer(mallory), 'x-privio-media-token': 'not-the-token' },
+    });
+    assert.equal(wrong.statusCode, 404);
+
+    const right = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: { ...bearer(mallory), 'x-privio-media-token': token },
+    });
+    assert.equal(right.statusCode, 200, 'whoever can read the message can fetch the file');
+    assert.deepEqual(right.rawPayload, Buffer.from('not for you'));
+  });
+
+  it('an avatar is fetched by a contact, and not by a stranger', async () => {
+    const friend = await registerUser(h.app, 'friend');
+    const stranger = await registerUser(h.app, 'stranger');
+    const upload = await octet(Buffer.from('a face'), alice, '/v1/media?kind=avatar', 'POST');
+    const { id, token } = upload.json();
+    assert.equal(token, undefined, 'an avatar id is published to contacts; a token with it would be too');
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/contacts',
+      headers: bearer(friend),
+      payload: { username: 'alice' },
+    });
+
+    const byContact = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: bearer(friend),
+    });
+    assert.equal(byContact.statusCode, 200);
+
+    const byStranger = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: bearer(stranger),
+    });
+    assert.equal(byStranger.statusCode, 404, 'a picture is not for anyone who asks');
+  });
+
   it('requires authentication to download an attachment', async () => {
     const upload = await octet(Buffer.from('secret'), alice, '/v1/media', 'POST');
     const anonymous = await h.app.inject({ method: 'GET', url: `/v1/media/${upload.json().id}` });

@@ -278,6 +278,8 @@ abstract final class ArchiveCodec {
                       'byteSize': message.attachment!.byteSize,
                       if (message.attachment!.fileName != null)
                         'fileName': message.attachment!.fileName,
+                      if (message.attachment!.mediaToken != null)
+                        'mediaToken': message.attachment!.mediaToken,
                     },
                 },
             ],
@@ -295,6 +297,7 @@ abstract final class ArchiveCodec {
           mediaType: raw['mediaType'] as String,
           byteSize: raw['byteSize'] as int,
           fileName: raw['fileName'] as String?,
+          mediaToken: raw['mediaToken'] as String?,
         );
 
   static List<Conversation> decode(List<dynamic> raw) {

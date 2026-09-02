@@ -16,6 +16,7 @@ import 'package:privio/media/voice.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
+import 'package:privio/media/attachment.dart';
 import 'package:privio/services/messaging_service.dart';
 
 import 'support/fake_voice.dart';
@@ -40,9 +41,11 @@ class FlakyServer {
         final path = request.url.path;
 
         if (request.method == 'POST' && path == '/v1/media') {
-          final id = 'media-${_nextMedia++}';
-          uploads.add(id);
-          return _json({'id': id}, 201);
+          final n = _nextMedia++;
+          uploads.add('media-$n');
+          // Minted once and never stored: the real server hands the token back
+          // here and keeps only its hash.
+          return _json({'id': 'media-$n', 'token': 'token-$n'}, 201);
         }
         if (request.method == 'GET' && path == '/v1/keys/bob') {
           return _json({'accountId': 'account-bob', 'devices': const []});
@@ -68,12 +71,16 @@ class RecordingMessagingService extends MessagingService {
   RecordingMessagingService({required super.api, required super.crypto});
 
   final List<String> sentClientIds = [];
+
+  /// What each send carried, so a test can check the capability went with it.
+  final List<MessagePayload> sent = [];
   bool failSends = false;
 
   @override
   Future<int> sendPayload(String username, payload) async {
     if (failSends) throw ApiException(503, 'unavailable', 'no route to host');
     sentClientIds.add(payload.clientId as String);
+    sent.add(payload);
     return 1;
   }
 }
@@ -178,6 +185,12 @@ void main() {
     expect(server.uploads, hasLength(1), reason: 'the queue remembered its upload');
     expect(messaging.sentClientIds, hasLength(1));
     expect(controller.queuedCount, 0);
+
+    // And it remembered the token with it. The server issues that once and
+    // keeps only its hash, so a retry that kept the id and dropped the token
+    // would send a message pointing at bytes nobody could ever fetch.
+    expect(messaging.sent.single.mediaId, 'media-1');
+    expect(messaging.sent.single.mediaToken, 'token-1');
   });
 
   test('the same message is never sent twice, however often the queue runs', () async {
