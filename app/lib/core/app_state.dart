@@ -71,6 +71,7 @@ class AppState extends ChangeNotifier {
   String? get username => _username;
   String? get accountId => _accountId;
   double get initProgress => _initProgress;
+
   /// Whether this device has a passcode on the app. Read at launch, because the
   /// stage machine needs it anyway.
   bool get screenLockSet => _screenLockSet;
@@ -132,8 +133,7 @@ class AppState extends ChangeNotifier {
 
   /// Activation state. Created lazily like the others, and refreshed on sign-in
   /// so the settings entry knows whether it has anything to say.
-  LicenseController get license =>
-      _license ??= LicenseController(services.api, store: _store);
+  LicenseController get license => _license ??= LicenseController(services.api, store: _store);
 
   /// How this device asks to be told that something arrived.
   WakeUpController get wakeUp => _wakeUp ??= WakeUpController(services.api);
@@ -203,8 +203,7 @@ class AppState extends ChangeNotifier {
   // --- Authentication -------------------------------------------------------
 
   /// Registers a new account and this device's key material in one step.
-  Future<bool> register({required String username, required String password}) =>
-      _authenticate(
+  Future<bool> register({required String username, required String password}) => _authenticate(
         () async => services.api.register(
           username: username,
           password: password,
@@ -517,7 +516,6 @@ class AppState extends ChangeNotifier {
     _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
-    _license?.dispose();
     _services?.dispose();
     super.dispose();
   }

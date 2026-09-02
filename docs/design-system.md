@@ -93,7 +93,7 @@ introducing anything new.
 | 4 | Passcode entry (keypad or passphrase) | `/lock` | V1 |
 | 5 | Home / Chats | `/chats` | V1 |
 | 6 | Chat | `/chats/:id` | V1 |
-| 7 | Calls | `/calls` | V2 |
+| 7 | Calls | `/calls` | V1 |
 | 8 | Contacts | `/contacts` | V1 |
 | 9 | Account | `/account` | V1 |
 | 10 | Invite link / QR | `/account/invite` | V1 |
@@ -118,10 +118,15 @@ introducing anything new.
 ### Navigation bar
 
 The mockups show four tabs — Chats, Calls, Contacts, Account. The brief lists
-five, with Channels second. Channels and Calls are both V2 features, so V1 ships
-**Chats · Contacts · Account** and the shell adds Calls and Channels as their
-milestones land. `PrivioNavShell` takes the tab list as data so the bar grows
-without a rewrite.
+five, with Channels second. All five ship: Channels and Calls were planned as
+later milestones and both have landed. `PrivioNavShell` takes the tab list as
+data, which is why each arrived as one entry rather than a rewrite.
+
+There is a sixth screen with no tab: the call screen. It is drawn above the
+navigator, in the `MaterialApp` builder, so it covers whatever is open —
+including a pushed chat or settings screen. It is the one place in the app that
+deliberately sits outside the routing, because a ringing phone is not something
+to go looking for in a tab.
 
 ## Component notes from the mockups
 

@@ -301,6 +301,48 @@ group you joined by a link never appeared in the chat list until somebody spoke
 in it; and the permission sheet's **Save** button sat below the fold on a
 390×844 screen. All three are fixed.
 
+### A call the server routes without knowing who is calling
+
+Setting up a call means the two devices telling each other how to be reached.
+That exchange — the SDP offer and answer, and the ICE candidates — is a list of
+every address each device has: local, public, and whatever the network in
+between reveals. Send it in the open and the relay learns where both people
+are, which is most of what a call would have told it anyway.
+
+So it does not go in the open. A call signal is a payload like any other: sealed
+to the other device over the Signal session the chat already uses, handed to the
+server as ciphertext, and matched to a call on the far side. The server needed
+no new endpoint for calls at all — the existing envelope queue was already the
+right shape, and that is the whole point.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/call-01-ringing.png" width="220"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/call-02-connected.png" width="220"><br><sub><b>2.</b> Connected — media over DTLS-SRTP, keys agreed device to device.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/call-03-log.png" width="220"><br><sub><b>3.</b> The log is on the device and nowhere else.</sub></td>
+</tr>
+</table>
+
+The media itself is libwebrtc's, through `flutter_webrtc`, encrypted with
+DTLS-SRTP as that library implements it. Privio writes no cipher of its own
+here, as everywhere else. What Privio owns is the part that goes wrong — a
+goodbye for a call that already ended, a candidate arriving before anyone
+picked up, two people calling each other in the same second — and that part sits
+behind an interface so all of it is tested without a microphone in the room.
+
+Two honest limits. There is no STUN server yet, so the devices try only the
+addresses they can see for themselves: that works on the same network and
+behind simple NATs, and fails behind strict ones. Point a build at one with
+`--dart-define=PRIVIO_ICE_SERVERS=stun:stun.example.org:3478`. And a call can
+only arrive while the app is open, because waking a closed app needs the push
+registration that is still missing on the client.
+
+Driving it in a real browser, two accounts on one machine, is what turned up
+the bug worth having: the call screen was swapped in at the app's `home` route,
+so it rendered *underneath* anything the user had pushed. The callee's phone
+rang; the caller sat looking at their own chat with no way to hang up. It lives
+above the navigator now, and a test pins it there.
+
 ### Nothing on a screen that the screen cannot do
 
 The last pass through Settings pulled the controls that only looked like
@@ -350,7 +392,9 @@ because the socket and the poll each delivered the same envelope once.
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | The Calls tab says there are none, because there are none. The real thing is WebRTC over the Signal sessions that already exist |
+| **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
+| **Video calls** | 🔧 | The protocol carries the media kind and the connection opens a camera; there is no picture on screen yet, so the app places voice calls only |
+| **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
 | **Disguise mode** | 📋 | The calculator skin, not started |
@@ -729,7 +773,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 287 tests, incl. the crypto round trip
+│   └── test/                 303 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -765,11 +809,11 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code
+Two-factor · Blocking · Duress code · Encrypted voice calls
 
-**Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
-Multi-device · Push registration in the client, the last thing the server
-implements and the app cannot reach
+**Next** — Video on screen (the connection already carries it) · A STUN server,
+so calls connect from behind a strict NAT · Ringing a closed app, which needs
+the push registration the server is already waiting for · Multi-device
 
 **Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
 the local history

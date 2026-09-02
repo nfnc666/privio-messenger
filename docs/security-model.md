@@ -332,6 +332,31 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Calls
+
+**The setup travels sealed, and that is the point.** An SDP offer enumerates
+every address the device believes it has. Signalling in the open would hand the
+relay both parties' addresses — most of what the call itself would have
+revealed. Privio sends offers, answers and ICE candidates as ordinary sealed
+payloads over the existing Signal session, so the server relays a call knowing
+what it knows about a message: which two accounts, and when.
+
+**The media is libwebrtc's.** DTLS-SRTP, keys agreed in the handshake between
+the two devices, implemented by the library rather than by Privio. The rule
+against writing our own cryptography applies here as everywhere.
+
+**What a call still leaks.** Once media flows peer to peer, each side learns
+the other's IP address — that is what a direct connection is. A relay would
+hide it from the other party and reveal it to the relay instead; Privio runs
+neither yet, and the honest statement is that a 1:1 call today shows your
+address to the person you are calling. Traffic analysis also gets an easier
+target than with messages: a call is a continuous stream of a recognisable
+shape and length.
+
+**The log is local.** Call history is written on the device when a call ends,
+kept in the encrypted key store, capped, and erasable from the Calls screen.
+The server holds none of it.
+
 ## Receipts and typing
 
 **They are messages, cryptographically.** A receipt and a typing notice go

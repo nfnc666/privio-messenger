@@ -93,8 +93,7 @@ class ConversationController extends ChangeNotifier {
       (_services.store.conversationWith(conversationId)?.isTypingAt(DateTime.now()) ?? false);
 
   List<ChatSummary> get chats => [
-        for (final conversation in _services.store.conversations())
-          _summarise(conversation),
+        for (final conversation in _services.store.conversations()) _summarise(conversation),
       ];
 
   List<Message> messagesWith(String accountId) =>
@@ -399,8 +398,7 @@ class ConversationController extends ChangeNotifier {
       _error = switch (failure) {
         // The one send failure the user can do something about, so it says
         // what rather than repeating the server's wording.
-        ApiException(code: 'license_required') =>
-          'Activate your license to send messages.',
+        ApiException(code: 'license_required') => 'Activate your license to send messages.',
         ApiException(:final message) => message,
         _ => 'Could not send message',
       };
@@ -756,9 +754,7 @@ class ConversationController extends ChangeNotifier {
 
   /// Files a receipt that arrived: moves my own messages forward a state.
   void _applyReceipt(String conversationId, MessagePayload payload) {
-    final state = payload.receiptKind == 'read'
-        ? DeliveryState.read
-        : DeliveryState.delivered;
+    final state = payload.receiptKind == 'read' ? DeliveryState.read : DeliveryState.delivered;
     final changed = _services.store.markStateByClientIds(
       conversationId,
       (payload.receiptIds ?? const []).toSet(),
@@ -949,9 +945,7 @@ class ConversationController extends ChangeNotifier {
 
   void _attachDelivered(PendingSend pending, String mediaId) {
     final conversation = _services.store.conversationWith(pending.conversationId);
-    final message = conversation?.messages
-        .where((m) => m.id == pending.clientId)
-        .firstOrNull;
+    final message = conversation?.messages.where((m) => m.id == pending.clientId).firstOrNull;
     if (conversation == null || message == null) return;
     _services.store.replace(
       pending.conversationId,
@@ -1047,6 +1041,13 @@ class ConversationController extends ChangeNotifier {
     // group name and leaves no trace in the chat.
     if (incoming.payload.isKeyDelivery) {
       await _storeDeliveredKey(incoming.payload);
+      return;
+    }
+    // A call signal is machinery too, and the most time-critical of it: an
+    // offer that sits in the queue is a phone that never rings.
+    final call = incoming.payload.call;
+    if (call != null) {
+      await _services.calls.handleSignal(incoming.senderAccountId, call);
       return;
     }
     if (incoming.payload.isReceipt) {

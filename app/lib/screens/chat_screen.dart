@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../calls/call.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
 import '../models/models.dart';
@@ -63,9 +64,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final replyTo = _replyingTo;
     _composer.clear();
     setState(() => _replyingTo = null);
-    await PrivioScope.of(context)
-        .conversations
-        .send(widget.accountId, text, replyTo: replyTo);
+    await PrivioScope.of(context).conversations.send(widget.accountId, text, replyTo: replyTo);
     _scrollToEnd();
   }
 
@@ -143,8 +142,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // A platform whose picker is missing answers with a future that never
       // completes, which looks to the user like a button that does nothing. The
       // timeout turns that into a message they can act on.
-      picked = await FilePicker.pickFiles(withData: true)
-          .timeout(const Duration(minutes: 2));
+      picked = await FilePicker.pickFiles(withData: true).timeout(const Duration(minutes: 2));
     } on TimeoutException {
       if (mounted) _showError('The file picker did not respond.');
       return;
@@ -467,7 +465,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   icon: const Icon(Icons.link_rounded),
                   tooltip: 'Invite link',
                 ),
-              IconButton(onPressed: () {}, icon: const Icon(Icons.call_outlined), tooltip: 'Voice call'),
+              // Groups have no call yet: a group call is a different piece of
+              // machinery, not the same one with more people in it.
+              if (!widget.isGroup)
+                IconButton(
+                  onPressed: () => unawaited(
+                    state.services.calls.place(
+                      CallParty(
+                        accountId: widget.accountId,
+                        username: widget.title,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.call_outlined),
+                  tooltip: 'Voice call',
+                ),
               // The overflow used to open the timer sheet directly, which made
               // it an icon that meant one specific thing. It is a menu now, so
               // blocking has somewhere to live.
@@ -608,8 +620,7 @@ class _ErrorBanner extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
             ),
           ),
-          if (onActivate != null)
-            TextButton(onPressed: onActivate, child: const Text('Activate')),
+          if (onActivate != null) TextButton(onPressed: onActivate, child: const Text('Activate')),
         ],
       ),
     );
@@ -804,7 +815,6 @@ class _TrailingAction extends StatelessWidget {
     );
   }
 }
-
 
 /// The strip above the composer while a reply is being written.
 class _ReplyBar extends StatelessWidget {
