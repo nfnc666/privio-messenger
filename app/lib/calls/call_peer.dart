@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+
 import 'call_signal.dart';
 
 /// Where a peer connection is in its life.
@@ -78,6 +80,22 @@ abstract interface class CallPeer {
 
   /// Routes to the loudspeaker rather than the earpiece.
   Future<void> setSpeakerOn(bool on);
+
+  /// A view of the picture arriving from the other side, or null while there
+  /// is none — an audio call, or a video one that has not started flowing yet.
+  ///
+  /// A widget rather than a stream of frames, because rendering video is the
+  /// one part of a call the platform has to do for itself: on the phones it is
+  /// a native texture, on the web an element the browser composites. Handing
+  /// out frames would mean copying every one of them through Dart for nothing.
+  Widget? remoteView();
+
+  /// A view of what this device's camera is sending, for the small window.
+  Widget? localView();
+
+  /// Fires when a view appears or goes away, so the screen can rebuild. The
+  /// remote picture arrives some time after the connection does.
+  Stream<void> get videoChanged;
 
   /// Releases the microphone, the camera and the connection.
   Future<void> close();

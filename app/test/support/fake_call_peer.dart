@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:privio/calls/call_peer.dart';
 import 'package:privio/calls/call_signal.dart';
 
@@ -73,8 +74,29 @@ class FakeCallPeer implements CallPeer {
   Future<void> setSpeakerOn(bool on) async => speakerOn = on;
 
   @override
+  Widget? remoteView() => remotePicture ? const SizedBox.shrink(key: Key('remote')) : null;
+
+  @override
+  Widget? localView() => cameraOn ? const SizedBox.shrink(key: Key('local')) : null;
+
+  @override
+  Stream<void> get videoChanged => _video.stream;
+
+  final _video = StreamController<void>.broadcast();
+
+  /// Whether a picture has arrived from the other side.
+  bool remotePicture = false;
+
+  /// Pretends the other side's camera came through.
+  void showRemotePicture() {
+    remotePicture = true;
+    if (!_video.isClosed) _video.add(null);
+  }
+
+  @override
   Future<void> close() async {
     closed = true;
+    await _video.close();
     _push(CallPeerState.closed);
     await _candidates.close();
     await _states.close();

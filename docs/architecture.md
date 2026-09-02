@@ -281,6 +281,13 @@ a call therefore tells it exactly what routing a message tells it — that two
 accounts exchanged something, and when. It never sees an SDP, which is a list
 of the addresses each device can be reached on.
 
+**Video.** `CallPeer` hands out two widgets rather than frames — rendering
+video is the one part of a call the platform must do itself, a native texture
+on the phones and a composited element on the web, and copying frames through
+Dart would buy nothing. The renderers are built and disposed with the
+connection: one outliving its stream is a black rectangle, one built per
+rebuild leaks textures.
+
 **The state machine is ours; the media is not.** `CallService` decides what a
 signal means — whose call it belongs to, whether the line is busy, what a
 goodbye for a call that already ended does — and drives `CallPeer`, an

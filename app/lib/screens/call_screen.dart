@@ -48,53 +48,122 @@ class _CallScreenState extends State<CallScreen> {
     final theme = Theme.of(context);
     final ringing = call.state == CallState.ringing;
 
+    final remote = call.isVideo ? calls.remoteVideo : null;
+    final local = call.isVideo && call.cameraOn ? calls.localVideo : null;
+
     return Scaffold(
       backgroundColor: PrivioColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(flex: 2),
-            CircleAvatar(
-              radius: 48,
-              backgroundColor: PrivioColors.surface,
-              child: Text(
-                call.party.username.characters.first.toUpperCase(),
-                style: theme.textTheme.displaySmall,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // The other person's picture, behind everything. Until it arrives
+          // this is the ordinary voice-call screen, which is also what an
+          // audio call stays as.
+          if (remote != null) Positioned.fill(child: remote),
+          if (remote != null)
+            // Enough of a scrim that white text stays readable over whatever
+            // the camera happens to be pointed at.
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    // Held dark long enough at the top to cover the name, the
+                    // timer and the line about encryption, which is the one
+                    // claim on this screen that has to stay readable.
+                    colors: [
+                      Colors.black87,
+                      Colors.black54,
+                      Colors.transparent,
+                      Colors.black87,
+                    ],
+                    stops: [0, 0.16, 0.42, 1],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: PrivioSpacing.lg),
-            Text(call.party.username, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: PrivioSpacing.sm),
-            Text(_status(call), style: theme.textTheme.bodyMedium),
-            const SizedBox(height: PrivioSpacing.md),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          SafeArea(
+            child: Column(
               children: [
-                const Icon(Icons.lock_rounded, size: 12, color: PrivioColors.textTertiary),
-                const SizedBox(width: PrivioSpacing.xs),
-                Text(
-                  'End-to-end encrypted',
-                  style: theme.textTheme.labelSmall,
+                // Over a picture the name sits at the top, under the dark end
+                // of the scrim. Centred, it landed in the middle of whatever
+                // the other camera was pointed at — white text over a bright
+                // frame, which is legible until the moment it is not.
+                if (remote != null) const SizedBox(height: PrivioSpacing.lg),
+                if (remote == null) ...[
+                  const Spacer(flex: 2),
+                  CircleAvatar(
+                    radius: 48,
+                    backgroundColor: PrivioColors.surface,
+                    child: Text(
+                      call.party.username.characters.first.toUpperCase(),
+                      style: theme.textTheme.displaySmall,
+                    ),
+                  ),
+                  const SizedBox(height: PrivioSpacing.lg),
+                ],
+                Text(call.party.username, style: theme.textTheme.headlineSmall),
+                const SizedBox(height: PrivioSpacing.sm),
+                Text(_status(call), style: theme.textTheme.bodyMedium),
+                const SizedBox(height: PrivioSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.lock_rounded,
+                      size: 12,
+                      // Tertiary grey disappears into a camera feed. Over a
+                      // picture this line is lifted rather than left as
+                      // decoration nobody can read.
+                      color: remote == null ? PrivioColors.textTertiary : Colors.white70,
+                    ),
+                    const SizedBox(width: PrivioSpacing.xs),
+                    Text(
+                      'End-to-end encrypted',
+                      style: remote == null
+                          ? theme.textTheme.labelSmall
+                          : theme.textTheme.labelSmall?.copyWith(color: Colors.white70),
+                    ),
+                  ],
                 ),
+                Spacer(flex: remote == null ? 3 : 1),
+                if (ringing)
+                  _RingingControls(
+                    onAccept: calls.accept,
+                    onDecline: calls.decline,
+                  )
+                else
+                  _InCallControls(
+                    muted: call.muted,
+                    speakerOn: call.speakerOn,
+                    video: call.isVideo,
+                    cameraOn: call.cameraOn,
+                    onMute: calls.toggleMute,
+                    onSpeaker: calls.toggleSpeaker,
+                    onCamera: calls.toggleCamera,
+                    onHangUp: calls.hangUp,
+                  ),
+                const SizedBox(height: PrivioSpacing.xxxl),
               ],
             ),
-            const Spacer(flex: 3),
-            if (ringing)
-              _RingingControls(
-                onAccept: calls.accept,
-                onDecline: calls.decline,
-              )
-            else
-              _InCallControls(
-                muted: call.muted,
-                speakerOn: call.speakerOn,
-                onMute: calls.toggleMute,
-                onSpeaker: calls.toggleSpeaker,
-                onHangUp: calls.hangUp,
+          ),
+          // This device's own camera, small and out of the way.
+          if (local != null)
+            Positioned(
+              right: PrivioSpacing.lg,
+              // Below the name when that has moved to the top, so the two do
+              // not sit on each other on a narrow screen.
+              top: MediaQuery.of(context).padding.top +
+                  (remote == null ? PrivioSpacing.lg : 108),
+              width: 100,
+              height: 140,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.all(PrivioRadius.card),
+                child: ColoredBox(color: PrivioColors.surface, child: local),
               ),
-            const SizedBox(height: PrivioSpacing.xxxl),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -156,15 +225,26 @@ class _InCallControls extends StatelessWidget {
   const _InCallControls({
     required this.muted,
     required this.speakerOn,
+    required this.video,
+    required this.cameraOn,
     required this.onMute,
     required this.onSpeaker,
+    required this.onCamera,
     required this.onHangUp,
   });
 
   final bool muted;
   final bool speakerOn;
+
+  /// Whether this call negotiated a camera at all. A voice call gets no camera
+  /// button, because turning one on mid-call is a renegotiation this does not
+  /// do yet — and a button that silently does nothing is the thing this app
+  /// keeps deleting.
+  final bool video;
+  final bool cameraOn;
   final Future<void> Function() onMute;
   final Future<void> Function() onSpeaker;
+  final Future<void> Function() onCamera;
   final Future<void> Function() onHangUp;
 
   @override
@@ -178,6 +258,13 @@ class _InCallControls extends StatelessWidget {
           colour: muted ? PrivioColors.accent : PrivioColors.surface,
           onTap: onMute,
         ),
+        if (video)
+          _CallButton(
+            icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+            label: cameraOn ? 'Camera' : 'Camera off',
+            colour: cameraOn ? PrivioColors.surface : PrivioColors.accent,
+            onTap: onCamera,
+          ),
         _CallButton(
           icon: Icons.call_end_rounded,
           label: 'End',

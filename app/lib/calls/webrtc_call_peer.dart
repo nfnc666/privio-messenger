@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 
 import 'call_peer.dart';
@@ -47,9 +48,14 @@ class WebRtcCallPeer implements CallPeer {
   rtc.MediaStream? _remote;
   CallPeerState _state = CallPeerState.idle;
 
-  /// The other side's picture, once there is one, for the UI to render.
-  rtc.MediaStream? get remoteStream => _remote;
-  rtc.MediaStream? get localStream => _local;
+  /// Renderers, built only for a video call and disposed with the connection.
+  ///
+  /// They belong to the peer rather than to the screen: a renderer outliving
+  /// its stream is a black rectangle, and one built per rebuild is a leak of
+  /// native textures.
+  rtc.RTCVideoRenderer? _localRenderer;
+  rtc.RTCVideoRenderer? _remoteRenderer;
+  final _videoChanged = StreamController<void>.broadcast();
 
   @override
   Future<void> open({required CallMedia media}) async {
@@ -88,6 +94,14 @@ class WebRtcCallPeer implements CallPeer {
       await connection.addTrack(track, _local!);
     }
 
+    if (media.isVideo) {
+      final local = rtc.RTCVideoRenderer();
+      await local.initialize();
+      local.srcObject = _local;
+      _localRenderer = local;
+      _videoChanged.add(null);
+    }
+
     connection.onIceCandidate = (candidate) {
       // An empty candidate is the end-of-gathering marker, not a path.
       if (candidate.candidate == null) return;
@@ -101,7 +115,11 @@ class WebRtcCallPeer implements CallPeer {
       );
     };
     connection.onTrack = (event) {
-      if (event.streams.isNotEmpty) _remote = event.streams.first;
+      if (event.streams.isEmpty) return;
+      _remote = event.streams.first;
+      // A video track can arrive after the connection is up, so the renderer
+      // is built when the picture turns up rather than when the call starts.
+      if (event.track.kind == 'video') unawaited(_showRemote());
     };
     connection.onConnectionState = (state) => _push(_translate(state));
 
@@ -176,12 +194,51 @@ class WebRtcCallPeer implements CallPeer {
   }
 
   @override
+  Widget? remoteView() {
+    final renderer = _remoteRenderer;
+    return renderer == null ? null : rtc.RTCVideoView(renderer, objectFit: _cover);
+  }
+
+  @override
+  Widget? localView() {
+    final renderer = _localRenderer;
+    return renderer == null
+        ? null
+        // Mirrored, because a self-view that is not mirrored looks wrong to
+        // the person in it — every video app does this.
+        : rtc.RTCVideoView(renderer, objectFit: _cover, mirror: true);
+  }
+
+  @override
+  Stream<void> get videoChanged => _videoChanged.stream;
+
+  Future<void> _showRemote() async {
+    if (_remoteRenderer != null) {
+      _remoteRenderer!.srcObject = _remote;
+      return;
+    }
+    final renderer = rtc.RTCVideoRenderer();
+    await renderer.initialize();
+    renderer.srcObject = _remote;
+    _remoteRenderer = renderer;
+    if (!_videoChanged.isClosed) _videoChanged.add(null);
+  }
+
+  static const rtc.RTCVideoViewObjectFit _cover =
+      rtc.RTCVideoViewObjectFit.RTCVideoViewObjectFitCover;
+
+  @override
   Future<void> close() async {
     // Order matters: stopping the tracks is what turns the camera light off,
     // and it has to happen even if closing the connection throws.
     for (final track in _local?.getTracks() ?? const <rtc.MediaStreamTrack>[]) {
       await track.stop();
     }
+    // Renderers first, so nothing is still pointing at a stream being disposed.
+    await _localRenderer?.dispose();
+    await _remoteRenderer?.dispose();
+    _localRenderer = null;
+    _remoteRenderer = null;
     await _local?.dispose();
     _local = null;
     _remote = null;
@@ -190,6 +247,7 @@ class WebRtcCallPeer implements CallPeer {
     _push(CallPeerState.closed);
     await _candidates.close();
     await _states.close();
+    await _videoChanged.close();
   }
 
   rtc.RTCPeerConnection _require() {

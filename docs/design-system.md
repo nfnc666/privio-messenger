@@ -110,7 +110,6 @@ introducing anything new.
 | 22 | About Privio | `/settings/about` | V1 |
 | 23 | Change password | `/settings/password` | V1 |
 | 24 | Two-factor authentication | `/settings/2fa` | V1 |
-| 25 | Language | `/settings/language` | V1 |
 | — | Activation (first start, licensed servers only) | stage, not a route | V1 |
 | — | Privio License | `/settings/license` | V1 |
 | — | Blocked users | `/settings/blocked` | V1 |
@@ -127,6 +126,10 @@ navigator, in the `MaterialApp` builder, so it covers whatever is open —
 including a pushed chat or settings screen. It is the one place in the app that
 deliberately sits outside the routing, because a ringing phone is not something
 to go looking for in a tab.
+
+There is no Language screen. The mockup sheet has one and Settings carried a
+row reading "English" that opened nothing; Privio is English-only, so the row
+is gone rather than offering a choice that does not exist.
 
 ## Component notes from the mockups
 

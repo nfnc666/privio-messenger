@@ -317,15 +317,26 @@ right shape, and that is the whole point.
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/screenshots/call-01-ringing.png" width="220"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/call-02-connected.png" width="220"><br><sub><b>2.</b> Connected — media over DTLS-SRTP, keys agreed device to device.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/call-03-log.png" width="220"><br><sub><b>3.</b> The log is on the device and nowhere else.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-01-ringing.png" width="180"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-02-connected.png" width="180"><br><sub><b>2.</b> Connected — DTLS-SRTP, keys agreed device to device.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-04-video.png" width="180"><br><sub><b>3.</b> Video, with your own camera in the corner.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-05-camera-off.png" width="180"><br><sub><b>4.</b> Camera off stops the track, not just the icon.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-03-log.png" width="180"><br><sub><b>5.</b> The log is on the device and nowhere else.</sub></td>
 </tr>
 </table>
 
 The media itself is libwebrtc's, through `flutter_webrtc`, encrypted with
 DTLS-SRTP as that library implements it. Privio writes no cipher of its own
-here, as everywhere else. What Privio owns is the part that goes wrong — a
+here, as everywhere else.
+
+Video is the same call with a camera in it. The remote picture is drawn
+full-bleed with the name, the timer and the line about encryption held over a
+scrim at the top — centred, they sat in the middle of whatever the other camera
+happened to be pointed at. Your own camera goes in a small mirrored window, and
+the camera button disables the track rather than only the icon. A voice call
+gets no camera button at all: turning one on mid-call is a renegotiation this
+does not do yet, and a button that quietly does nothing is the thing this app
+keeps deleting. What Privio owns is the part that goes wrong — a
 goodbye for a call that already ended, a candidate arriving before anyone
 picked up, two people calling each other in the same second — and that part sits
 behind an interface so all of it is tested without a microphone in the room.
@@ -479,7 +490,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
-| **Video calls** | 🔧 | The protocol carries the media kind and the connection opens a camera; there is no picture on screen yet, so the app places voice calls only |
+| **Video calls** | ✅ | The camera button in a chat places one: the other side's picture full-bleed, your own in a small window, and a camera you can turn off mid-call |
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
@@ -860,7 +871,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 331 tests, incl. the crypto round trip
+│   └── test/                 335 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -896,11 +907,11 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code · Encrypted voice calls · Disguise mode
+Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
 
-**Next** — Video on screen (the connection already carries it) · A STUN server,
-so calls connect from behind a strict NAT · Ringing a closed app, which needs
-the push registration the server is already waiting for · Multi-device
+**Next** — A STUN server, so calls connect from behind a strict NAT · Ringing a
+closed app, which needs the push registration the server is already waiting
+for · Multi-device
 
 **Later** — Sealed sender · SQLCipher for the local history
 
