@@ -11,6 +11,7 @@ import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
+import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
@@ -53,7 +54,10 @@ class SocketFailure implements Exception {
 }
 
 class Device {
-  Device({required this.server, required this.store, required this.archive});
+  Device({required this.server, required this.store, required this.archive, this.launcher});
+
+  /// Stands in for the platform's launcher entry where a test drives one.
+  final LauncherDisguise? launcher;
 
   final FakeWipeServer server;
   final InMemorySecureStore store;
@@ -82,13 +86,14 @@ class Device {
         secureStore: store,
       ),
       store: store,
+      launcher: launcher ?? const NoLauncherDisguise(),
     );
     await state.initialise();
   }
 }
 
 /// A device that is signed in, locked with a PIN, and armed with a duress code.
-Future<Device> armedDevice({bool reachable = true}) async {
+Future<Device> armedDevice({bool reachable = true, LauncherDisguise? launcher}) async {
   final server = FakeWipeServer(reachable: reachable);
   final store = InMemorySecureStore();
   await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
@@ -102,7 +107,7 @@ Future<Device> armedDevice({bool reachable = true}) async {
       Message(id: '1', body: 'the thing they want to read', sentAt: DateTime.now(), isMine: false),
     );
 
-  final device = Device(server: server, store: store, archive: archive);
+  final device = Device(server: server, store: store, archive: archive, launcher: launcher);
   await device.boot();
   return device;
 }

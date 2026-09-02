@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
@@ -35,8 +36,9 @@ class DisguiseScreen extends StatelessWidget {
               ),
               child: Text(
                 'A locked Privio opens to a working calculator instead of a lock '
-                'screen. Typing your passcode and pressing = opens Privio; any '
-                'other sum is a sum.',
+                'screen. Any sum that comes to your passcode opens Privio when '
+                'you press =, so the code itself never has to appear on screen. '
+                'Every other sum is just a sum.',
                 style: theme.textTheme.bodyMedium,
               ),
             ),
@@ -84,8 +86,23 @@ class DisguiseScreen extends StatelessWidget {
                 ),
               ),
             ],
+            if (state.disguiseError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  PrivioSpacing.xxl,
+                  PrivioSpacing.md,
+                  PrivioSpacing.xxl,
+                  0,
+                ),
+                child: Text(
+                  '${state.disguiseError} The lock screen changed anyway; the '
+                  'home screen did not.',
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: PrivioColors.danger),
+                ),
+              ),
             const SizedBox(height: PrivioSpacing.xl),
-            const _WhatItDoesNotDo(),
+            _WhatItDoesNotDo(launcher: state.launcherCapability),
           ],
         ),
       ),
@@ -137,33 +154,61 @@ class _NeedsNumericLock extends StatelessWidget {
   }
 }
 
+/// What the home screen will look like, and what the disguise still cannot do.
+///
+/// Written from what the platform actually reports rather than from a general
+/// claim, because the two differ: Android changes the icon and the name, iOS
+/// changes the icon and cannot change the name, and the web build changes
+/// neither. An app that promised the same thing everywhere would be wrong on
+/// two platforms out of three.
 class _WhatItDoesNotDo extends StatelessWidget {
-  const _WhatItDoesNotDo();
+  const _WhatItDoesNotDo({required this.launcher});
+
+  final LauncherCapability launcher;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('What this does not do', style: Theme.of(context).textTheme.titleSmall),
+          Text('On the home screen', style: theme.textTheme.titleSmall),
+          const SizedBox(height: PrivioSpacing.sm),
+          Text(_homeScreen, style: theme.textTheme.labelSmall),
+          const SizedBox(height: PrivioSpacing.lg),
+          Text('What this does not do', style: theme.textTheme.titleSmall),
           const SizedBox(height: PrivioSpacing.sm),
           Text(
-            'The app is still called Privio in the launcher and still has its '
-            'icon. This hides what is on the screen from someone looking at it, '
-            'not the fact that Privio is installed from someone going through '
-            'the phone. Changing the icon and the name needs work on the Android '
-            'and iOS side that is not done.\n\n'
-            'It is also not a defence against anyone with the phone for long: '
-            'the app, its size and its network traffic are all still there to '
-            'find. What it is good at is the ordinary case — a screen glanced '
-            'at, or a phone handed over unlocked.',
-            style: Theme.of(context).textTheme.labelSmall,
+            'It is not a defence against anyone who has the phone for long. The '
+            'app is still installed, and its size, its files and its network '
+            'traffic are all still there to find by anyone who looks properly. '
+            'What it is good at is the ordinary case — a screen glanced at, or '
+            'a phone handed over unlocked.',
+            style: theme.textTheme.labelSmall,
           ),
         ],
       ),
     );
+  }
+
+  String get _homeScreen {
+    if (launcher.icon && launcher.name) {
+      return 'Privio\'s icon becomes a calculator and its name becomes '
+          '"Calculator". Your launcher may take a few seconds to redraw. '
+          'Turning the disguise off puts both back.';
+    }
+    if (launcher.icon) {
+      return 'Privio\'s icon becomes a calculator. The name stays "Privio": '
+          'iOS fixes an app\'s name when it is built and offers no way to '
+          'change it afterwards. iOS also shows an alert of its own saying the '
+          'icon changed, which no app can turn off.';
+    }
+    return 'On this device the icon and the name do not change — only what the '
+        'app opens to. Someone going through the home screen still finds '
+        'Privio by name.';
   }
 }
 

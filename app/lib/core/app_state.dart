@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
@@ -39,12 +40,18 @@ class AppState extends ChangeNotifier {
     PrivioServices? services,
     SecureStore? store,
     PrivioEdition? edition,
+    LauncherDisguise? launcher,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
+        _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
+
+  /// The app's entry in the launcher. Injectable so a test can drive a device
+  /// that refuses the change, which is a case no emulator here can produce.
+  final LauncherDisguise _launcherDisguise;
 
   /// Which build this is. Injectable only so a test can be a store build; a
   /// shipped app has exactly one, fixed at compile time.
@@ -65,6 +72,8 @@ class AppState extends ChangeNotifier {
   bool _screenLockSet = false;
   PasscodeKind? _passcodeKind;
   CalculatorSkin? _disguise;
+  LauncherCapability _launcher = LauncherCapability.none;
+  String? _disguiseError;
   double _textScale = 1;
   bool _busy = false;
   String? _authError;
@@ -92,6 +101,14 @@ class AppState extends ChangeNotifier {
   /// into one. Rather than quietly offering a disguise that could never be got
   /// past, the setting says so and points at the screen lock.
   bool get disguiseAvailable => _screenLockSet && (_passcodeKind?.isNumeric ?? false);
+
+  /// What this device can change about the launcher entry: on Android both the
+  /// icon and the name, on iOS the icon only, and on the web neither.
+  LauncherCapability get launcherCapability => _launcher;
+
+  /// Set when the launcher refused a change, so the screen can say the icon did
+  /// not move rather than leaving someone to find out from the home screen.
+  String? get disguiseError => _disguiseError;
 
   /// How much larger or smaller than the design's size text is drawn. The one
   /// appearance setting that does something: the rest of that screen used to be
@@ -175,6 +192,11 @@ class AppState extends ChangeNotifier {
     _screenLockSet = hasPasscode;
     _passcodeKind = await _store.passcodeKind();
     _disguise = CalculatorSkin.parse(await _store.readDisguise());
+    // Deliberately not awaited. Nothing about starting up depends on what the
+    // launcher can do — only the wording on one settings screen does — and a
+    // start-up that blocks on a platform channel is a start-up that hangs
+    // wherever the channel has nobody on the other end.
+    unawaited(_readLauncherCapability());
     _setProgress(1);
 
     unawaited(license.restore());
@@ -387,6 +409,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _readLauncherCapability() async {
+    final capability = await _launcherDisguise.capability();
+    if (capability == _launcher) return;
+    _launcher = capability;
+    notifyListeners();
+  }
+
   /// Puts the disguise on, or takes it off.
   ///
   /// Turning the lock off takes it with it, so this cannot outlive the code
@@ -395,6 +424,16 @@ class AppState extends ChangeNotifier {
     if (skin != null && !disguiseAvailable) return;
     await _store.writeDisguise(skin?.name);
     _disguise = skin;
+    _disguiseError = null;
+    // The lock screen is Privio's to change and the launcher is the platform's
+    // to refuse. The setting takes effect either way — a disguise that is on
+    // everywhere except the home screen is still worth having — and the failure
+    // is reported rather than swallowed.
+    try {
+      await _launcherDisguise.apply(skin);
+    } on LauncherDisguiseException catch (failure) {
+      _disguiseError = failure.message;
+    }
     notifyListeners();
   }
 

@@ -53,11 +53,13 @@ android {
         create("libre") {
             dimension = "distribution"
             resValue("string", "app_name", "Privio Libre")
+            resValue("string", "calculator_name", "Calculator")
             buildConfigField("String", "PRIVIO_EDITION", "\"libre\"")
         }
         create("play") {
             dimension = "distribution"
             resValue("string", "app_name", "Privio")
+            resValue("string", "calculator_name", "Calculator")
             buildConfigField("String", "PRIVIO_EDITION", "\"play\"")
         }
     }

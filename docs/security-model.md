@@ -335,9 +335,18 @@ it, and Privio says so rather than implying otherwise.
 ## Disguise mode
 
 **What it is.** A locked device opens to a working calculator instead of a lock
-screen. The passcode typed in as a number and `=` opens Privio; the duress code
+screen, and the launcher entry becomes a calculator too. Any sum whose answer
+is the passcode opens Privio on `=`; any sum whose answer is the duress code
 does what the duress code does, through the same path as the lock screen, so
 there is one place where a code is checked and not two.
+
+**The answer is compared, not the keys.** Typing the code works because a
+number evaluates to itself, and so does any sum reaching it — which means the
+code need never be on the screen where it can be read over a shoulder or caught
+by a camera. It also means an idle sum could in principle land on the code by
+accident: one in ten thousand for four digits, one in a million for six, and
+only while the phone is locked and someone is doing arithmetic on it. Worth
+knowing; not worth giving up the shoulder-surfing property for.
 
 **A wrong code is not treated as one.** No shake, no attempt counter, no pause
 while something is verified — the calculator adds the number up. Anything else
@@ -351,13 +360,25 @@ unusable setting: a passphrase cannot be typed on a keypad with no letters.
 Clearing the screen lock clears the disguise, and so does a wipe — a calculator
 whose code nobody holds is a locked-out phone, not a secure one.
 
-**What it does not do.** The launcher still shows Privio's name and icon. This
-hides the contents of the screen from someone looking at it, not the app's
-presence from someone going through the phone; that needs an activity-alias on
-Android and an alternate icon on iOS, which is not implemented. Nor does it
-survive real examination: the package, its size and its traffic are all still
-there. It is a defence against a glance and against handing over an unlocked
-phone, and it should be described as exactly that.
+**The launcher entry.** On Android the icon and the name both change: two
+`activity-alias` entries point at the same activity, and the wanted one is
+enabled before the other is disabled — with no enabled alias, even for an
+instant, some launchers drop the app and Android may stop the process. On iOS
+only the icon changes: an app's display name is fixed at build time with no
+public API to change it, and swapping the icon raises a system alert that
+cannot be suppressed. The app asks the platform what it can do and words the
+setting from the answer, rather than making one promise on both.
+
+**What it does not do.** It does not survive examination. The package is still
+installed under its own application id, and its size, its files and its network
+traffic are all still there. A changed icon and name defeat a glance at a home
+screen, not a search. It is a defence against being looked at and against
+handing over an unlocked phone, and it should be described as exactly that.
+
+**Unverified.** The Android and iOS implementations have not been run: the
+development environment has no Android SDK and no macOS. The Dart side is
+tested, including a device that refuses the swap; the platform side is written
+and reviewed and nothing more.
 
 ## Calls
 

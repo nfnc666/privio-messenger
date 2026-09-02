@@ -4,6 +4,7 @@ import 'package:privio/app.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/passcode.dart';
 import 'package:privio/disguise/calculator.dart';
+import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/disguise/skin.dart';
 import 'package:privio/screens/calculator_screen.dart';
 import 'package:privio/screens/pin_screen.dart';
@@ -20,6 +21,28 @@ Future<void> tapKey(WidgetTester tester, String label) async {
 Future<void> typeCode(WidgetTester tester, String code) async {
   for (final digit in code.split('')) {
     await tapKey(tester, digit);
+  }
+}
+
+
+/// A launcher that records what it was asked to show, and can refuse.
+class FakeLauncher implements LauncherDisguise {
+  FakeLauncher({this.capable = const LauncherCapability(icon: true, name: true), this.refuses});
+
+  final LauncherCapability capable;
+
+  /// When set, [apply] throws it — the device that will not swap its icon.
+  final String? refuses;
+
+  final List<CalculatorSkin?> applied = [];
+
+  @override
+  Future<LauncherCapability> capability() async => capable;
+
+  @override
+  Future<void> apply(CalculatorSkin? skin) async {
+    if (refuses != null) throw LauncherDisguiseException(refuses!);
+    applied.add(skin);
   }
 }
 
@@ -42,6 +65,50 @@ void main() {
         CalculatorSkin.iphone,
         reason: 'the setting refuses rather than storing something unusable',
       );
+    });
+
+    test('the launcher is told to change, and told to change back', () async {
+      final launcher = FakeLauncher();
+      final device = await armedDevice(launcher: launcher);
+      addTearDown(device.state.conversations.stop);
+
+      await device.state.setDisguise(CalculatorSkin.iphone);
+      expect(launcher.applied, [CalculatorSkin.iphone]);
+      expect(device.state.disguiseError, isNull);
+
+      await device.state.setDisguise(null);
+      expect(launcher.applied, [CalculatorSkin.iphone, null], reason: 'and put back');
+    });
+
+    test('a launcher that refuses does not stop the disguise, and is reported', () async {
+      final device = await armedDevice(
+        launcher: FakeLauncher(refuses: 'This device cannot change the app icon.'),
+      );
+      addTearDown(device.state.conversations.stop);
+
+      await device.state.setDisguise(CalculatorSkin.iphone);
+      expect(
+        device.state.disguise,
+        CalculatorSkin.iphone,
+        reason: 'the lock screen is ours to change even when the home screen is not',
+      );
+      expect(device.state.disguiseError, contains('cannot change the app icon'));
+    });
+
+    test('what the platform can change is read from the platform', () async {
+      final device = await armedDevice(
+        launcher: FakeLauncher(capable: const LauncherCapability(icon: true, name: false)),
+      );
+      addTearDown(device.state.conversations.stop);
+
+      // Read after start-up rather than during it, so a platform channel with
+      // nobody on the other end cannot hold the app on its splash screen.
+      await Future<void>.delayed(Duration.zero);
+
+      // iOS: the icon swaps, the name cannot. The screen says so rather than
+      // promising a rename that will not happen.
+      expect(device.state.launcherCapability.icon, isTrue);
+      expect(device.state.launcherCapability.name, isFalse);
     });
 
     test('turning the lock off takes the disguise with it', () async {
@@ -110,6 +177,25 @@ void main() {
       expect(device.state.stage, AppStage.ready);
     });
 
+    testWidgets('any sum that reaches the code opens Privio', (tester) async {
+      final device = await armedDevice();
+      addTearDown(device.state.conversations.stop);
+      await device.state.setDisguise(CalculatorSkin.iphone);
+
+      await tester.pumpWidget(PrivioApp(state: device.state));
+      await tester.pump(const Duration(seconds: 1));
+
+      // 1000 + 234 is 1234, and the code never appears on the screen for
+      // anyone standing behind you to read.
+      await typeCode(tester, '1000');
+      await tapKey(tester, '+');
+      await typeCode(tester, '234');
+      await tapKey(tester, '=');
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(device.state.stage, AppStage.ready);
+    });
+
     testWidgets('a wrong code just does arithmetic', (tester) async {
       final device = await armedDevice();
       addTearDown(device.state.conversations.stop);
@@ -138,7 +224,10 @@ void main() {
       await tester.pumpWidget(PrivioApp(state: device.state));
       await tester.pump(const Duration(seconds: 1));
 
-      await typeCode(tester, '9119');
+      // As a sum, too: the duress code is the answer, not the keystrokes.
+      await typeCode(tester, '9000');
+      await tapKey(tester, '+');
+      await typeCode(tester, '119');
       await tapKey(tester, '=');
       await tester.pump(const Duration(milliseconds: 400));
 

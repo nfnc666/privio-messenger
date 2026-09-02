@@ -345,46 +345,68 @@ above the navigator now, and a test pins it there.
 
 ### A calculator that calculates
 
-Disguise mode replaces the lock screen with a calculator. Type the passcode and
-press `=` and Privio opens; type the duress code and press `=` and the duress
-code does what it always does; type anything else and you get the answer,
-because it is a calculator.
+Disguise mode replaces the lock screen with a calculator, and replaces the
+launcher entry with one too. Any sum that comes to the passcode opens Privio
+when you press `=`. Any sum that comes to the duress code does what the duress
+code does. Anything else gets the answer, because it is a calculator.
 
 <table>
 <tr>
-<td align="center" width="25%"><img src="docs/screenshots/disguise-04-setting.png" width="200"><br><sub><b>1.</b> Off, or one of two skins.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/disguise-01-iphone.png" width="200"><br><sub><b>2.</b> What a locked phone opens to.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/disguise-02-sum.png" width="200"><br><sub><b>3.</b> 12 × 9. It has to be right.</sub></td>
-<td align="center" width="25%"><img src="docs/screenshots/disguise-03-samsung.png" width="200"><br><sub><b>4.</b> The other skin.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-04-setting.png" width="180"><br><sub><b>1.</b> Off, or one of two skins.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-01-iphone.png" width="180"><br><sub><b>2.</b> What a locked phone opens to.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-02-sum.png" width="180"><br><sub><b>3.</b> 1000 + 234, and 1234 never appears.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-03-samsung.png" width="180"><br><sub><b>4.</b> The other skin.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-05-icon.png" width="120"><br><sub><b>5.</b> And on the home screen.</sub></td>
 </tr>
 </table>
 
-The arithmetic is the feature. A pad that echoes digits without adding them is
-the thing someone notices, so it is a real immediate-execution calculator —
-chained operations, repeated `=`, AC that becomes C, percent that means a tip
-after `+` and a hundredth on its own, `Error` on a divide by zero — with
-thirteen tests on the arithmetic alone. It is a plain object with no widgets in
-it, which is why that was cheap.
+**The answer is what is checked, not the keystrokes.** Typing the code and
+pressing `=` works because a number on its own evaluates to itself — but so
+does `1000 + 234`, which means the code never has to appear on screen for
+somebody standing behind you to read. A wrong answer is not treated as a wrong
+code either: no shake, no counter, no pause that says something was verified.
+That pause is the only thing a disguise really has to avoid.
 
-A wrong code is not treated as a wrong code: no shake, no counter, no pause
-that says something was checked. It is a number, and the calculator adds it.
+**The arithmetic is the feature.** A pad that echoes digits without adding them
+is precisely what gets noticed, so this is a real immediate-execution
+calculator — chained operations left to right, a repeating `=`, AC that becomes
+C, percent that means a tip after `+` and a hundredth on its own, `Error` on a
+divide by zero, grouped thousands, exponent notation past nine digits. It is a
+plain object with no widgets in it, which is why thirteen tests on the
+arithmetic alone were cheap, and they caught the percent key computing
+`200 + 10 %` as 400.
 
-Two skins, because a disguise works by being unremarkable and a calculator that
-does not look like the one the phone already ships is exactly what gets asked
-about.
+**The home screen changes too.** On Android the icon and the name both swap:
+the launcher entry is an `activity-alias`, so there are two of them pointing at
+the same activity and turning the disguise on enables one and disables the
+other — in that order, because a moment with no enabled alias drops the app off
+some launchers. On iOS the icon swaps through `setAlternateIconName`; the name
+does not, because iOS fixes an app's display name at build time and offers no
+API to change it, and iOS shows an alert of its own that no app can suppress.
+The settings screen says which of those applies to the device it is running on
+rather than making one promise everywhere, and if the launcher refuses the
+change it says the lock screen changed and the home screen did not.
 
-**What it does not do**, said on the screen itself as well as here: the app is
-still called Privio in the launcher and still has its icon. This hides what is
-on the screen from someone looking at it, not that Privio is installed from
-someone going through the phone — that needs an icon and name swap on the
-Android and iOS side, which is not done. It is for the ordinary case: a screen
-glanced at, a phone handed over unlocked.
+**Two skins**, because a disguise works by being unremarkable and a calculator
+that does not look like the one the phone already ships is exactly what gets
+asked about.
 
-It also cannot be switched on without a numeric passcode, and says so rather
-than offering it: a calculator has ten keys and no letters, so a passphrase
-could never be typed into one. Turning the screen lock off takes the disguise
-with it, and so does a wipe — a calculator nobody holds the code to is a
-locked-out phone.
+It cannot be switched on without a numeric passcode, and says so rather than
+offering it: a calculator has ten keys and no letters. Turning the screen lock
+off takes the disguise with it, and so do a wipe and a sign-out — a calculator
+whose code nobody holds is a locked-out phone.
+
+**What it still does not do.** It is not a defence against anyone who has the
+phone for long: the app is installed, and its size, its files and its traffic
+are all there to find by anyone who looks properly. It is for the ordinary case
+— a screen glanced at, a phone handed over unlocked.
+
+**What has not been run.** The Kotlin and the Swift are unverified from here:
+this environment has no Android SDK and no macOS, so neither was compiled and
+no launcher has actually redrawn. The Dart side of it — when the swap is asked
+for, what happens when the platform refuses, what each platform is allowed to
+promise — is behind an interface and tested. Treat the icon swap as written and
+reviewed, not as demonstrated.
 
 ### Nothing on a screen that the screen cannot do
 
@@ -440,7 +462,8 @@ because the socket and the poll each delivered the same envelope once.
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. The passcode and `=` opens it; the duress code and `=` wipes; anything else is arithmetic |
+| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic |
+| **Calculator icon and name** | 🔧 | Android swaps both through launcher aliases, iOS swaps the icon (it has no API for the name). Written and unit-tested behind an interface; neither platform has been run on a device from here |
 | **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
 | **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
@@ -816,7 +839,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 325 tests, incl. the crypto round trip
+│   └── test/                 329 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -858,8 +881,7 @@ Two-factor · Blocking · Duress code · Encrypted voice calls · Disguise mode
 so calls connect from behind a strict NAT · Ringing a closed app, which needs
 the push registration the server is already waiting for · Multi-device
 
-**Later** — Swapping the launcher icon and name, which is what would hide that
-Privio is installed at all · Sealed sender · SQLCipher for the local history
+**Later** — Sealed sender · SQLCipher for the local history
 
 Before any of that ships to a store: the official `libsignal` behind FFI, an
 external review of the crypto integration, and a pass on a real device for the

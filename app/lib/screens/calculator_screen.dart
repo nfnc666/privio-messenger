@@ -37,23 +37,28 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   Future<void> _press(CalculatorKey key) async {
     if (_checking) return;
 
-    // Read the typed digits before the key is handled: `=` is about to clear
-    // the entry, and it is the entry that a code is compared against.
-    final typed = _calculator.entry;
-    if (key == CalculatorKey.equals && typed.isNotEmpty) {
-      setState(() => _checking = true);
-      final opened = await PrivioScope.of(context).unlockWithPasscode(typed);
-      if (!mounted) return;
-      setState(() => _checking = false);
-      // Right code: the app is already switching away from this screen.
-      if (opened) return;
-    }
-
-    // A wrong code is not a wrong code here. It is a number, and the
-    // calculator does what a calculator does with it — no shake, no counter,
-    // no pause that says something was checked.
+    // The sum happens first, always. A wrong code is not a wrong code here: it
+    // is a number, and the calculator adds it up — no shake, no counter, no
+    // pause that says something was checked. That pause is the only thing a
+    // disguise really has to avoid.
     setState(() => _calculator.press(key));
     unawaited(HapticFeedback.selectionClick());
+    if (key != CalculatorKey.equals) return;
+
+    // Then the answer is compared, not the keys. Typing the code and pressing
+    // `=` works because a number on its own evaluates to itself — and so does
+    // any sum that reaches it, which means the code itself never has to appear
+    // on the screen for anyone standing nearby to read.
+    final answer = _calculator.result;
+    if (answer.isEmpty || answer == '0') return;
+
+    _checking = true;
+    final opened = await PrivioScope.of(context).unlockWithPasscode(answer);
+    if (!mounted) return;
+    _checking = false;
+    // Right code: the app is already switching away from this screen. Wrong
+    // one: the answer is on the screen, which is where it would be anyway.
+    if (opened) return;
   }
 
   @override

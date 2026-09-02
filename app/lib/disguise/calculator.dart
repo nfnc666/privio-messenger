@@ -58,6 +58,14 @@ class Calculator {
   String get entry => _entry;
   String _entry = '';
 
+  /// What is on the screen, with the formatting taken back off.
+  ///
+  /// The display is grouped — `1,234` — and a code is not. This is what a
+  /// passcode is compared against after `=`, so that any sum reaching the right
+  /// answer opens Privio and the digits of the code never have to appear on
+  /// screen at all.
+  String get result => _display.replaceAll(',', '');
+
   /// True while nothing has been typed and no sum is in progress, which is when
   /// the clear key says AC rather than C.
   bool get isCleared => _entry.isEmpty && _pending == null && _display == '0';

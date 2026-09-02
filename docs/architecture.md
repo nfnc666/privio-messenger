@@ -247,6 +247,23 @@ sender, not a preview, not a count. The device wakes, connects, and decrypts
 locally. APNs and FCM therefore see traffic, not content or social graph.
 `PushSender` is the interface; `LoggingPushSender` is the development default.
 
+## Disguise mode
+
+The lock screen is replaced by a calculator (`lib/disguise/`, `lib/screens/
+calculator_screen.dart`) and the launcher entry by a second one.
+
+`Calculator` is a plain object: keys in, display out, no widgets. The unlock
+check compares its *answer* to the passcode, so any sum reaching the code opens
+the app and the code itself need not be typed.
+
+`LauncherDisguise` is the port for the home-screen half, over a
+`app.privio/launcher` method channel. Android enables one `activity-alias` and
+disables the other; iOS calls `setAlternateIconName`. The port reports what the
+platform can change — Android icon and name, iOS icon only, web neither — and
+the settings screen is worded from that answer. The capability is read after
+start-up rather than during it: a start-up that awaits a platform channel hangs
+wherever nothing answers, which is every widget test and the web build.
+
 ## Calls
 
 WebRTC peer to peer, media encrypted with DTLS-SRTP by libwebrtc through
