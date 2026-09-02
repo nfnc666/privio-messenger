@@ -26,6 +26,12 @@ abstract interface class SecureStore {
   Future<bool> verifyPasscode(String passcode);
   Future<void> clearPasscode();
 
+  /// How much larger or smaller text should be drawn than the design's size.
+  /// Not a secret; it lives here because this is the app's only local store
+  /// that survives a relaunch, the same reason the backup interval does.
+  Future<double?> readTextScale();
+  Future<void> writeTextScale(double scale);
+
   /// The duress code, kept here as well as on the server so the lock screen can
   /// recognise it with no network — which is the situation it exists for.
   Future<void> setDuressCode(String? code);
@@ -94,6 +100,7 @@ class KeystoreSecureStore implements SecureStore {
   static const _passcodeKey = 'privio.lock.pin';
   static const _passcodeKindKey = 'privio.lock.kind';
   static const _duressKey = 'privio.lock.duress';
+  static const _textScaleKey = 'privio.appearance.text_scale';
   static const _archiveKeyKey = 'privio.archive.key';
   static const _recoveryKeyKey = 'privio.backup.recovery_key';
   static const _lastBackupKey = 'privio.backup.last_at';
@@ -163,6 +170,13 @@ class KeystoreSecureStore implements SecureStore {
       aOptions: _androidOptions,
     );
   }
+
+  @override
+  Future<double?> readTextScale() async =>
+      double.tryParse(await _read(_textScaleKey) ?? '');
+
+  @override
+  Future<void> writeTextScale(double scale) => _write(_textScaleKey, '$scale');
 
   @override
   Future<void> setDuressCode(String? code) => code == null
@@ -273,6 +287,12 @@ class InMemorySecureStore implements SecureStore {
     _entries.remove('pin');
     _entries.remove('pinKind');
   }
+
+  @override
+  Future<double?> readTextScale() async => double.tryParse(_entries['textScale'] ?? '');
+
+  @override
+  Future<void> writeTextScale(double scale) async => _entries['textScale'] = '$scale';
 
   @override
   Future<void> setDuressCode(String? code) async {

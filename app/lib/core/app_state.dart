@@ -63,6 +63,7 @@ class AppState extends ChangeNotifier {
   String? _sessionToken;
   bool _screenLockSet = false;
   PasscodeKind? _passcodeKind;
+  double _textScale = 1;
   bool _busy = false;
   String? _authError;
 
@@ -77,6 +78,32 @@ class AppState extends ChangeNotifier {
   /// What shape it has, so the lock screen knows what to draw before anything
   /// is typed.
   PasscodeKind? get passcodeKind => _passcodeKind;
+
+  /// How much larger or smaller than the design's size text is drawn. The one
+  /// appearance setting that does something: the rest of that screen used to be
+  /// four rows that did nothing at all.
+  double get textScale => _textScale;
+
+  /// The sizes offered, as multipliers of the design.
+  static const Map<String, double> textScales = {
+    'Small': 0.9,
+    'Medium': 1,
+    'Large': 1.15,
+    'Larger': 1.3,
+  };
+
+  String get textScaleLabel => textScales.entries
+      .firstWhere(
+        (entry) => (entry.value - _textScale).abs() < 0.01,
+        orElse: () => const MapEntry('Medium', 1),
+      )
+      .key;
+
+  Future<void> setTextScale(double scale) async {
+    _textScale = scale;
+    notifyListeners();
+    await _store.writeTextScale(scale);
+  }
 
   /// True while a sign-in or sign-up is in flight.
   bool get busy => _busy;
@@ -130,6 +157,7 @@ class AppState extends ChangeNotifier {
     _accountId = await _store.readAccountId();
     _setProgress(0.7);
 
+    _textScale = await _store.readTextScale() ?? 1;
     final hasPasscode = await _store.hasPasscode();
     _screenLockSet = hasPasscode;
     _passcodeKind = await _store.passcodeKind();

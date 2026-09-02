@@ -56,6 +56,18 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
         theme: PrivioTheme.dark(),
         darkTheme: PrivioTheme.dark(),
         themeMode: ThemeMode.dark,
+        // The one appearance setting that is real, applied where every screen
+        // sees it rather than by each screen remembering to. Read through the
+        // scope rather than off the field, so changing it redraws the app
+        // instead of waiting for the next relaunch.
+        builder: (context, child) {
+          final scale = PrivioScope.of(context).textScale;
+          return MediaQuery.withClampedTextScaling(
+            minScaleFactor: scale,
+            maxScaleFactor: scale,
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         home: const _StageRouter(),
       ),
     );

@@ -105,6 +105,13 @@ No distributor installed means the socket, which is what every build did
 before: messages arrive while Privio is open, and not otherwise. The settings
 screen says so plainly rather than showing a switch that silently does nothing.
 
+The same rule cleared the rest of that screen. It used to carry five toggles —
+message notifications, group notifications, sound, vibration, show preview —
+none of which set anything: sound, vibration, the light and what shows on the
+lock screen are the operating system's own settings for Privio, and an app
+cannot decide them from the inside. The delivery path is the one thing on that
+screen Privio actually owns, so it is the one thing left on it.
+
 An Android foreground service holding that socket open — a persistent
 notification, and an exemption from battery optimisation — is the other way to
 be woken without a third party. It is not implemented. It is a real option and

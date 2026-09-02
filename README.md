@@ -47,7 +47,7 @@ No phone number. No email. No address-book upload. You are a username.
 <tr>
 <td align="center"><img src="docs/screenshots/13-devices.png" width="200"><br><sub><b>Devices</b><br>See what is logged in, log it out</sub></td>
 <td align="center"><img src="docs/screenshots/backup-01-empty.png" width="200"><br><sub><b>Backup</b><br>Sealed with a key only you hold — and honest when there is none</sub></td>
-<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>The server's pushes carry no content — these switches are still a mockup</sub></td>
+<td align="center"><img src="docs/screenshots/12-notifications.png" width="200"><br><sub><b>Notifications</b><br>Only the delivery path is Privio's to decide — the rest is your phone's</sub></td>
 <td align="center"><img src="docs/screenshots/group-03-member.png" width="200"><br><sub><b>Groups</b><br>The name is decrypted by members, never by the server</sub></td>
 </tr>
 <tr>
@@ -76,7 +76,7 @@ No phone number. No email. No address-book upload. You are a username.
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/channel-11-promoted.png" width="200"><br><sub><b>After a promotion</b></sub></td>
-<td align="center"><img src="docs/screenshots/14-appearance.png" width="200"><br><sub><b>Appearance</b></sub></td>
+<td align="center"><img src="docs/screenshots/14-appearance.png" width="200"><br><sub><b>Appearance</b><br>Text size, and nothing that only looks settable</sub></td>
 <td align="center"><img src="docs/screenshots/16-about.png" width="200"><br><sub><b>About</b></sub></td>
 <td align="center"></td>
 </tr>
@@ -301,6 +301,23 @@ group you joined by a link never appeared in the chat list until somebody spoke
 in it; and the permission sheet's **Save** button sat below the fold on a
 390×844 screen. All three are fixed.
 
+### Nothing on a screen that the screen cannot do
+
+The last pass through Settings pulled the controls that only looked like
+controls: five notification toggles that set nothing, a Light-theme half that
+was never built, and rows for chat wallpaper, accent colour and app icon that
+led nowhere. What is left on Notifications is the delivery path, which is the
+one thing there Privio actually decides; what is left on Appearance is text
+size, and that one is real — four sizes, applied to every screen at once and
+still in place after a restart.
+
+Each of those passes turned up a bug under the decoration. The Devices screen
+was listing four invented devices while answering the one question that screen
+exists for; a settings screen opened a few times could exhaust a *login-grade*
+rate limit and lock someone out of their own account; and a message that had
+arrived perfectly well was reported as "1 message(s) could not be decrypted",
+because the socket and the poll each delivered the same envelope once.
+
 ---
 
 ## What works today
@@ -317,9 +334,10 @@ in it; and the permission sheet's **Save** button sat below the fold on a
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
-| **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the client never registers one, and the Notifications screen is still a mockup |
+| **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the Notifications screen offers the UnifiedPush path on the free builds, and the platform connector that would register a real token is not written yet |
 | **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
 | **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
+| **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
@@ -711,7 +729,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 285 tests, incl. the crypto round trip
+│   └── test/                 287 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions

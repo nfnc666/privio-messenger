@@ -6,7 +6,12 @@ import '../services/wake_up.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/settings_row.dart';
 
-/// Screen 17: notification settings.
+/// Screen 17: how this device gets told that something arrived.
+///
+/// Only the delivery path is Privio's to decide. How a notification then looks
+/// — sound, vibration, the lock screen — is the operating system's own setting
+/// for this app, and the five switches that used to imply otherwise set nothing
+/// at all.
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -15,14 +20,6 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final Map<String, bool> _toggles = {
-    'Message Notifications': true,
-    'Group Notifications': true,
-    'Call Notifications': true,
-    'In-App Sounds': true,
-    'LED Indicator': true,
-  };
-
   @override
   void initState() {
     super.initState();
@@ -45,25 +42,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               listenable: wakeUp,
               builder: (context, _) => _Delivery(wakeUp: wakeUp),
             ),
-          SettingsSection(
-            children: [
-              for (final entry in _toggles.entries)
-                SettingsRow(
-                  label: entry.key,
-                  trailing: Switch(
-                    value: entry.value,
-                    onChanged: (value) => setState(() => _toggles[entry.key] = value),
-                  ),
-                ),
-            ],
-          ),
-          SettingsSection(
-            caption: 'Preview',
-            children: [
-              SettingsRow(label: 'Vibrate', value: 'Default', onTap: () {}),
-              SettingsRow(label: 'Preview Message', value: 'When Unlocked', onTap: () {}),
-            ],
-          ),
           const SizedBox(height: PrivioSpacing.lg),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
@@ -72,6 +50,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               'and decrypted on this device, so nobody in the middle, including '
               'whoever runs the service that woke it, sees who wrote to you.',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          const SizedBox(height: PrivioSpacing.lg),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+            child: Text(
+              'Sound, vibration, the light and whether anything shows on the lock '
+              'screen belong to your phone\'s own settings for Privio, not to this '
+              'screen. There used to be five switches here that set nothing; they '
+              'are gone rather than left looking like they worked.',
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
         ],
