@@ -1,4 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:privio/calls/ice_servers.dart';
+import 'package:privio/core/api_client.dart';
 import 'package:privio/calls/call.dart';
 import 'package:privio/calls/call_peer.dart';
 import 'package:privio/calls/call_signal.dart';
@@ -43,8 +49,8 @@ void main() {
     final end = CallEnd(who, peers);
     end.calls = CallService(
       messaging: who.messaging,
-      peers: () {
-        final peer = FakeCallPeer(failsWith: peerFails);
+      peers: (iceServers) {
+        final peer = FakeCallPeer(failsWith: peerFails)..iceServers = iceServers;
         peers.add(peer);
         return peer;
       },
@@ -385,6 +391,53 @@ void main() {
       reason: 'a renderer outliving its stream is a black rectangle',
     );
     expect(alice.calls.localVideo, isNull);
+  });
+
+  test('a call is built with the servers already held, and asks for none', () async {
+    var asked = 0;
+    final ice = IceServerCache(
+      api: PrivioApiClient(
+        baseUrl: Uri.parse('https://api.test'),
+        client: MockClient((request) async {
+          asked += 1;
+          return http.Response(
+            jsonEncode({
+              'iceServers': [
+                {'urls': 'turns:turn.example.org:5349', 'username': '1', 'credential': 'x'},
+              ],
+              'expiresAt': null,
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }),
+      )..useToken('token'),
+    );
+    // What the app does when it comes up, long before anyone dials.
+    await ice.ensure();
+    expect(asked, 1);
+
+    final peers = <FakeCallPeer>[];
+    final dialler = CallService(
+      messaging: alice.who.messaging,
+      peers: (iceServers) {
+        final peer = FakeCallPeer()..iceServers = iceServers;
+        peers.add(peer);
+        return peer;
+      },
+      lookUp: (accountId) async => directory[accountId],
+      ice: ice,
+      store: InMemorySecureStore(),
+    );
+    addTearDown(dialler.dispose);
+
+    await dialler.place(bobParty);
+    expect(peers.single.iceServers.single['urls'], 'turns:turn.example.org:5349');
+    expect(
+      asked,
+      1,
+      reason: 'a request at dial time would tell the server a call is starting',
+    );
   });
 
   test('a call signal never shows up as a message', () async {

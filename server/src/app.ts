@@ -6,6 +6,7 @@ import { config, rateLimitFactor } from './config.js';
 import authPlugin from './plugins/auth.js';
 import accountRoutes from './routes/accounts.js';
 import contactRoutes from './routes/contacts.js';
+import callRoutes from './routes/calls.js';
 import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
 import groupRoutes from './routes/groups.js';
@@ -128,6 +129,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(accountRoutes);
 
   await app.register(deviceRoutes);
+  await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes);

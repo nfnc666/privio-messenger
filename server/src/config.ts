@@ -26,6 +26,32 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   /**
+   * STUN and TURN servers this deployment offers its clients, comma-separated
+   * (`stun:stun.example.org:3478,turns:turn.example.org:5349`).
+   *
+   * Configured here rather than baked into each build so that a self-hoster
+   * sets it once and every client picks it up. Empty is a real answer and the
+   * default: the two devices then try only the addresses they can see for
+   * themselves, which works on one network and behind simple NATs, and fails
+   * behind strict ones.
+   */
+  ICE_SERVERS: z.string().default(''),
+  /**
+   * Shared secret for time-limited TURN credentials, as coturn's
+   * `use-auth-secret` / `static-auth-secret` expects.
+   *
+   * A TURN server needs a username and password, and a fixed pair shipped in a
+   * client is a public TURN server within a day. With this set, the API mints
+   * a username of `<expiry>` and an HMAC-SHA1 password over it, which is the
+   * scheme coturn implements. Without it, any TURN URL configured above is
+   * offered without credentials — which only works on a server that wants
+   * none.
+   */
+  TURN_SECRET: z.string().min(16).optional(),
+  /** How long a minted TURN credential is good for. */
+  TURN_TTL_SECONDS: z.coerce.number().int().positive().default(12 * 60 * 60),
+
+  /**
    * Whether this deployment sells access. The hosted server sets it true and
    * refuses to relay for unlicensed accounts; a self-hosted server leaves it
    * false, because a licence for infrastructure you already run means nothing.

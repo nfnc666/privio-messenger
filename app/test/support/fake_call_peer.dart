@@ -27,6 +27,9 @@ class FakeCallPeer implements CallPeer {
   bool cameraOn = false;
   bool speakerOn = false;
   CallMedia? media;
+
+  /// What the service handed over when this connection was built.
+  List<Map<String, dynamic>> iceServers = const [];
   String? remoteOffer;
   String? remoteAnswer;
   final List<String> remoteCandidates = [];

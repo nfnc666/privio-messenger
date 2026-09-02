@@ -414,12 +414,25 @@ the two devices, implemented by the library rather than by Privio. The rule
 against writing our own cryptography applies here as everywhere.
 
 **What a call still leaks.** Once media flows peer to peer, each side learns
-the other's IP address — that is what a direct connection is. A relay would
-hide it from the other party and reveal it to the relay instead; Privio runs
-neither yet, and the honest statement is that a 1:1 call today shows your
-address to the person you are calling. Traffic analysis also gets an easier
-target than with messages: a call is a continuous stream of a recognisable
-shape and length.
+the other's IP address — that is what a direct connection is. A TURN relay
+moves that exposure rather than removing it: the two parties stop seeing each
+other's address and whoever runs the relay sees both, along with how much is
+flowing. The media stays DTLS-SRTP end to end, so a relay carries ciphertext
+it holds no key for. Privio runs no relay; a deployment configures its own
+through `ICE_SERVERS`, or none. Traffic analysis also gets an easier target
+than with messages: a call is a continuous stream of a recognisable shape and
+length.
+
+**TURN credentials name no account.** They are minted per request under
+coturn's shared-secret scheme, with the expiry as the username. The scheme
+allows an account id there and Privio leaves it out on purpose: it would buy
+per-account rate limiting on the relay and cost exactly the linkage — this
+account placed these calls — that the rest of the server refuses to hold.
+
+**When they are fetched is itself metadata.** Clients ask at sign-in and hold
+the answer, never at the moment of a call. A request at dial time would tell
+the server a call was starting, which the sealed signalling otherwise denies
+it.
 
 **The log is local.** Call history is written on the device when a call ends,
 kept in the encrypted key store, capped, and erasable from the Calls screen.

@@ -430,6 +430,12 @@ class PrivioApiClient {
   /// and is never asked for a key.
   Future<Map<String, dynamic>> serverInfo() => _send('GET', '/v1/server');
 
+  /// Where this deployment's STUN and TURN servers are, with credentials for
+  /// the relay if it has one.
+  ///
+  /// Authenticated, because a TURN credential is somebody's bandwidth.
+  Future<Map<String, dynamic>> iceServers() => _send('GET', '/v1/calls/ice');
+
   /// What this account's license looks like from the server's side.
   ///
   /// `required` is the field that matters most: a self-hosted deployment

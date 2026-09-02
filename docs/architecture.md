@@ -298,12 +298,27 @@ the tests use a fake and drive both ends over real Signal sessions.
 `CallService` serialises its sends rather than starting a second seal before
 the first has finished.
 
-**Not yet:** no STUN or TURN server runs, so the two devices try only the
-addresses they can see for themselves — same network and simple NATs work,
-strict ones do not. `--dart-define=PRIVIO_ICE_SERVERS=...` points a build at
-one. No TURN also means no fallback relay; when one exists it will see
-encrypted media only. And a call reaches a closed app only once the client
-registers for push.
+**Finding each other.** `ICE_SERVERS` on the server lists the STUN and TURN
+addresses this deployment offers, and `GET /v1/calls/ice` hands them to
+authenticated clients — configuration in one place rather than compiled into
+every build. With `TURN_SECRET` set, the API mints coturn `use-auth-secret`
+credentials: username is the expiry, password is its base64 HMAC-SHA1. No
+account id goes in the username, so a relay operator cannot tie relayed calls to
+accounts. The endpoint is authenticated because relay capacity published openly
+is somebody else's bandwidth.
+
+`IceServerCache` on the client fetches at sign-in and holds until the credential
+is near expiry. Not per call: a request at dial time would tell the server that
+a call is starting, which is the one thing the sealed signalling otherwise keeps
+from it.
+
+A TURN relay carries the media, which stays DTLS-SRTP between the two devices —
+the relay holds no key. It does see both addresses and the volume. That is the
+trade: a relay hides each party's address from the other and shows both to
+whoever runs it.
+
+**Not yet:** a call reaches a closed app only once the client registers for
+push.
 
 Call history stays on the device, in the encrypted key store, and is erasable
 on its own.
