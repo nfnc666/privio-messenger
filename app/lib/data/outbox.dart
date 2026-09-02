@@ -28,6 +28,7 @@ class PendingSend {
     this.username,
     this.groupKey,
     this.mediaId,
+    this.mediaToken,
     this.expiresInSeconds,
     this.attempts = 0,
   });
@@ -62,6 +63,12 @@ class PendingSend {
   /// not upload the same recording a second time.
   final String? mediaId;
 
+  /// What the server will accept as permission to download the blob, kept here
+  /// so a retry after a failed *send* still has it. Uploading returns it once
+  /// and the server stores only its hash: dropping it here would leave a blob
+  /// on the server that nobody, including its sender, could ever fetch.
+  final String? mediaToken;
+
   final int? expiresInSeconds;
 
   /// How many times this has been tried. Only used to back off.
@@ -69,7 +76,7 @@ class PendingSend {
 
   Duration get duration => Duration(milliseconds: durationMs);
 
-  PendingSend copyWith({String? mediaId, int? attempts}) => PendingSend(
+  PendingSend copyWith({String? mediaId, String? mediaToken, int? attempts}) => PendingSend(
         clientId: clientId,
         conversationId: conversationId,
         isGroup: isGroup,
@@ -82,6 +89,7 @@ class PendingSend {
         durationMs: durationMs,
         waveform: waveform,
         mediaId: mediaId ?? this.mediaId,
+        mediaToken: mediaToken ?? this.mediaToken,
         expiresInSeconds: expiresInSeconds,
         attempts: attempts ?? this.attempts,
       );
@@ -99,6 +107,7 @@ class PendingSend {
         'durationMs': durationMs,
         'waveform': waveform,
         if (mediaId != null) 'mediaId': mediaId,
+        if (mediaToken != null) 'mediaToken': mediaToken,
         if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
         'attempts': attempts,
       };
@@ -118,6 +127,7 @@ class PendingSend {
             .map((value) => (value as num).toDouble())
             .toList(),
         mediaId: json['mediaId'] as String?,
+        mediaToken: json['mediaToken'] as String?,
         expiresInSeconds: json['expiresInSeconds'] as int?,
         attempts: json['attempts'] as int? ?? 0,
       );

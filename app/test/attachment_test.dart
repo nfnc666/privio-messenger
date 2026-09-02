@@ -10,6 +10,50 @@ Uint8List fixture(String name) => File('test/fixtures/$name').readAsBytesSync();
 String asText(List<int> bytes) => utf8.decode(bytes, allowMalformed: true);
 
 void main() {
+  group('the download capability', () {
+    test('rides inside the sealed payload, next to the key', () {
+      const payload = MessagePayload.media(
+        mediaId: 'blob-1',
+        mediaKey: 'a2V5',
+        mediaToken: 'the-capability',
+        mediaType: 'image/jpeg',
+        byteSize: 10,
+      );
+
+      final wire = payload.encode();
+      expect(wire, contains('the-capability'));
+      expect(MessagePayload.decode(wire).mediaToken, 'the-capability');
+    });
+
+    test('survives having a profile key attached, like every other field', () {
+      const payload = MessagePayload.media(
+        mediaId: 'blob-1',
+        mediaKey: 'a2V5',
+        mediaToken: 'the-capability',
+        mediaType: 'image/jpeg',
+        byteSize: 10,
+      );
+
+      // This method exists because hand-written copies kept dropping fields.
+      expect(payload.withProfileKey('cGs=').mediaToken, 'the-capability');
+    });
+
+    test('an older payload without one still decodes', () {
+      final wire = jsonEncode({
+        'v': 1,
+        't': 'media',
+        'b': '',
+        'id': 'blob-1',
+        'k': 'a2V5',
+        'm': 'image/jpeg',
+        's': 10,
+      });
+
+      expect(MessagePayload.decode(wire).mediaToken, isNull);
+      expect(MessagePayload.decode(wire).mediaId, 'blob-1');
+    });
+  });
+
   group('sealing a file', () {
     test('strips the metadata before anything else happens', () async {
       final photo = fixture('photo_with_exif.jpg');

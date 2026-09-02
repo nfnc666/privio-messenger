@@ -449,20 +449,32 @@ class PrivioApiClient {
 
   // --- Media and backup -----------------------------------------------------
 
-  /// Uploads bytes that are already encrypted; returns the object id to put in
-  /// the message alongside the key.
-  Future<String> uploadMedia(List<int> sealedBytes) async {
+  /// An uploaded blob: where it lives, and what opens it.
+  ///
+  /// The token is handed back once and never stored server-side, so it has to
+  /// travel inside the sealed payload with the media key. Losing it means the
+  /// bytes cannot be fetched again, which is the point.
+  Future<({String id, String? token})> uploadMedia(
+    List<int> sealedBytes, {
+    bool avatar = false,
+  }) async {
     final response = await _client.post(
-      _url('/v1/media'),
+      _url('/v1/media', avatar ? const {'kind': 'avatar'} : null),
       headers: {..._headers, 'content-type': 'application/octet-stream'},
       body: sealedBytes,
     );
     final body = await _decode(response);
-    return body['id'] as String;
+    return (id: body['id'] as String, token: body['token'] as String?);
   }
 
-  Future<List<int>> downloadMedia(String id) async {
-    final response = await _client.get(_url('/v1/media/$id'), headers: _headers);
+  Future<List<int>> downloadMedia(String id, {String? token}) async {
+    final response = await _client.get(
+      _url('/v1/media/$id'),
+      headers: {
+        ..._headers,
+        if (token != null) 'x-privio-media-token': token,
+      },
+    );
     if (response.statusCode >= 400) await _decode(response);
     return response.bodyBytes;
   }

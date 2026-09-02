@@ -126,12 +126,13 @@ class MessagingService {
     String caption = '',
   }) async {
     final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
-    final mediaId = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(sealed.bytes);
 
     await sendPayload(
       username,
       MessagePayload.media(
-        mediaId: mediaId,
+        mediaId: blob.id,
+        mediaToken: blob.token,
         mediaKey: base64Encode(sealed.key),
         mediaType: sealed.report.mediaType,
         byteSize: sealed.plainLength,
@@ -161,12 +162,13 @@ class MessagingService {
       recording.bytes,
       declaredType: recording.mediaType,
     );
-    final mediaId = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(sealed.bytes);
 
     await sendPayload(
       username,
       MessagePayload.media(
-        mediaId: mediaId,
+        mediaId: blob.id,
+        mediaToken: blob.token,
         mediaKey: base64Encode(sealed.key),
         mediaType: recording.mediaType,
         byteSize: sealed.plainLength,
@@ -190,12 +192,13 @@ class MessagingService {
       recording.bytes,
       declaredType: recording.mediaType,
     );
-    final mediaId = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(sealed.bytes);
 
     await sendPayloadToGroup(
       groupId,
       MessagePayload.media(
-        mediaId: mediaId,
+        mediaId: blob.id,
+        mediaToken: blob.token,
         mediaKey: base64Encode(sealed.key),
         mediaType: recording.mediaType,
         byteSize: sealed.plainLength,
@@ -254,9 +257,9 @@ class MessagingService {
       key: await _crypto.profileKey(),
       declaredType: 'image/jpeg',
     );
-    final mediaId = await _api.uploadMedia(sealed);
-    await _api.setAvatar(mediaId);
-    return mediaId;
+    final blob = await _api.uploadMedia(sealed, avatar: true);
+    await _api.setAvatar(blob.id);
+    return blob.id;
   }
 
   /// Opens someone's profile picture, given the profile key they sent.
@@ -270,7 +273,7 @@ class MessagingService {
     if (!payload.isMedia) {
       throw ArgumentError.value(payload, 'payload', 'Not an attachment');
     }
-    final sealed = await _api.downloadMedia(payload.mediaId!);
+    final sealed = await _api.downloadMedia(payload.mediaId!, token: payload.mediaToken);
     return AttachmentCipher.open(
       Uint8List.fromList(sealed),
       base64Decode(payload.mediaKey!),
@@ -562,12 +565,13 @@ class MessagingService {
     String? groupKey,
   }) async {
     final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
-    final mediaId = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(sealed.bytes);
 
     await sendPayloadToGroup(
       groupId,
       MessagePayload.media(
-        mediaId: mediaId,
+        mediaId: blob.id,
+        mediaToken: blob.token,
         mediaKey: base64Encode(sealed.key),
         mediaType: sealed.report.mediaType,
         byteSize: sealed.plainLength,

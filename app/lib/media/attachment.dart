@@ -133,6 +133,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         reactionEmoji = null,
+        mediaToken = null,
         call = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
@@ -165,6 +166,7 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
+        mediaToken = null,
         call = null;
 
   /// A reaction to one message.
@@ -196,6 +198,7 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
+        mediaToken = null,
         call = null;
 
   /// A receipt for messages that arrived, or were read.
@@ -227,6 +230,7 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
+        mediaToken = null,
         call = null;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
@@ -255,11 +259,13 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
+        mediaToken = null,
         call = null;
 
   const MessagePayload.media({
     required String this.mediaId,
     required String this.mediaKey,
+    this.mediaToken,
     required String this.mediaType,
     required int this.byteSize,
     this.fileName,
@@ -313,7 +319,8 @@ class MessagePayload {
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
-        replySender = null;
+        replySender = null,
+        mediaToken = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -366,6 +373,7 @@ class MessagePayload {
       return MessagePayload.media(
         mediaId: json['id'] as String,
         mediaKey: json['k'] as String,
+        mediaToken: json['tk'] as String?,
         mediaType: json['m'] as String,
         byteSize: json['s'] as int,
         fileName: json['n'] as String?,
@@ -401,6 +409,14 @@ class MessagePayload {
 
   /// Base64. Never leaves the end-to-end encrypted envelope.
   final String? mediaKey;
+
+  /// What the server will accept as permission to download this blob.
+  ///
+  /// Handed out once at upload and never stored server-side, so it travels
+  /// here — sealed, beside the key that opens what it fetches. Whoever can
+  /// read the message can fetch the file, and nobody else, without the server
+  /// ever being told who that is.
+  final String? mediaToken;
 
   /// The name the sender chose. It rides inside the encrypted payload, so the
   /// server never sees "passport_scan.pdf".
@@ -496,6 +512,7 @@ class MessagePayload {
       return MessagePayload.media(
         mediaId: mediaId!,
         mediaKey: mediaKey!,
+        mediaToken: mediaToken,
         mediaType: mediaType!,
         byteSize: byteSize!,
         fileName: fileName,
@@ -585,6 +602,7 @@ class MessagePayload {
         if (isMedia) ...{
           'id': mediaId,
           'k': mediaKey,
+          if (mediaToken != null) 'tk': mediaToken,
           'm': mediaType,
           's': byteSize,
           if (fileName != null) 'n': fileName,

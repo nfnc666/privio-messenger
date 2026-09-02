@@ -51,10 +51,19 @@ class Attachment {
     required this.mediaType,
     required this.byteSize,
     this.fileName,
+    this.mediaToken,
   });
 
   final String mediaId;
   final String mediaKey;
+
+  /// What the server accepts as permission to download the bytes.
+  ///
+  /// Kept with the message rather than fetched again, because it is issued once
+  /// at upload and the server stores only its hash. Null on anything filed
+  /// before this existed, and on an attachment of one's own — the uploader is
+  /// always allowed.
+  final String? mediaToken;
   final String mediaType;
   final int byteSize;
   final String? fileName;

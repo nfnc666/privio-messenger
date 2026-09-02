@@ -555,6 +555,9 @@ class ConversationController extends ChangeNotifier {
         MessagePayload.media(
           mediaId: attachment.mediaId,
           mediaKey: attachment.mediaKey,
+          // Without this the server has no reason to hand the bytes over, and
+          // the bubble sits on a spinner that never resolves.
+          mediaToken: attachment.mediaToken,
           mediaType: attachment.mediaType,
           byteSize: attachment.byteSize,
           fileName: attachment.fileName,
@@ -912,14 +915,23 @@ class ConversationController extends ChangeNotifier {
   /// a second time.
   Future<bool> _deliver(PendingSend pending) async {
     var mediaId = pending.mediaId;
+    var mediaToken = pending.mediaToken;
     if (mediaId == null) {
-      mediaId = await _services.api.uploadMedia(pending.sealedBytes);
+      final blob = await _services.api.uploadMedia(pending.sealedBytes);
+      mediaId = blob.id;
+      mediaToken = blob.token;
       final index = _outbox.indexWhere((p) => p.clientId == pending.clientId);
-      if (index != -1) _outbox[index] = pending.copyWith(mediaId: mediaId);
+      if (index != -1) {
+        // Both, together. The token is issued once, so a retry that kept the id
+        // and lost the token would send a message pointing at a blob nobody can
+        // fetch.
+        _outbox[index] = pending.copyWith(mediaId: mediaId, mediaToken: mediaToken);
+      }
     }
 
     final payload = MessagePayload.media(
       mediaId: mediaId,
+      mediaToken: mediaToken,
       mediaKey: pending.mediaKey,
       mediaType: pending.mediaType,
       byteSize: pending.plainLength,
@@ -939,11 +951,13 @@ class ConversationController extends ChangeNotifier {
     }
 
     // Now that it is on the server, the bubble can point at the ciphertext.
-    _attachDelivered(pending, mediaId);
+    // The token goes with it: `pending` is the entry as it was *before* the
+    // upload, so reading it off there would file a record with no capability.
+    _attachDelivered(pending, mediaId, mediaToken);
     return true;
   }
 
-  void _attachDelivered(PendingSend pending, String mediaId) {
+  void _attachDelivered(PendingSend pending, String mediaId, String? mediaToken) {
     final conversation = _services.store.conversationWith(pending.conversationId);
     final message = conversation?.messages.where((m) => m.id == pending.clientId).firstOrNull;
     if (conversation == null || message == null) return;
@@ -955,6 +969,7 @@ class ConversationController extends ChangeNotifier {
         attachment: Attachment(
           mediaId: mediaId,
           mediaKey: pending.mediaKey,
+          mediaToken: mediaToken,
           mediaType: pending.mediaType,
           byteSize: pending.plainLength,
         ),
@@ -1135,6 +1150,7 @@ class ConversationController extends ChangeNotifier {
           ? Attachment(
               mediaId: payload.mediaId!,
               mediaKey: payload.mediaKey!,
+              mediaToken: payload.mediaToken,
               mediaType: payload.mediaType!,
               byteSize: payload.byteSize!,
               fileName: payload.fileName,

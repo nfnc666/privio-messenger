@@ -156,6 +156,29 @@ the row. Client side that is `ChannelService.deliverPendingKeys` on one end and
 a `MessagePayload.key` intercepted in `ConversationController` on the other,
 which stores the key and shows nothing in the chat.
 
+## Attachments
+
+The client picks a random key, scrubs the file's metadata, pads it into a size
+bucket, seals it, and uploads ciphertext. The key goes inside the E2EE message.
+
+Downloading is a **capability**. The upload mints an unguessable token, returns
+it once, and stores only its SHA-256 — `GET /v1/media/:id` needs the token in
+`x-privio-media-token` and compares in constant time. The token travels in the
+sealed payload beside the media key, so the server authorises the bytes without
+being told who may have them. The id alone used to be the capability, which
+meant a read of `media_objects` was a set of capabilities for every blob in it.
+
+The token is issued once, so every place that remembers a blob has to remember
+it too: `Attachment` on the stored message, `PendingSend` in the outbox, and
+the archive's serialisation of both. A retry that kept the id and dropped the
+token would send a message pointing at bytes nobody could fetch — and a copy
+that dropped it on the receiving side left the bubble on a spinner, which is
+how it was found.
+
+Avatars are marked `kind = 'avatar'` and carry no token: their id is published
+to contacts, so a token would be published with it. They are authorised by the
+contact list instead.
+
 ## Voice messages
 
 A voice message is an attachment with two extra fields, not a second transport.

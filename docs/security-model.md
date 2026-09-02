@@ -332,6 +332,36 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Attachment downloads
+
+**A capability, not a recipient list.** The server cannot know who a message
+went to without being told, and telling it would hand it the metadata this
+design exists to withhold. So the uploader is given an unguessable token, puts
+it inside the sealed payload beside the media key, and whoever can open the
+message can fetch the blob. The server authorises the bytes without ever
+learning who is entitled to them.
+
+**Why the id was not enough.** The id was the capability, and 122 random bits
+of it, so it was never guessable. But it is also the primary key, sitting in
+the clear next to the ciphertext: a read of `media_objects` was a set of
+download capabilities for everything in it. Only the token's hash is stored,
+for the reason a password's is — an attacker with database access and no blob
+access now gains nothing.
+
+**What that was worth, honestly.** The bytes were always sealed under a key the
+server never had, so nothing was ever readable. What leaked was existence,
+exact size, and the ability to take a copy of the ciphertext and keep it. That
+last one matters most: harvested ciphertext outlives the thirty-day expiry and
+any future weakness in the cipher.
+
+**Avatars are the other kind, and are marked as such.** Their id is published
+to contacts on purpose, so a token would be published with it and buy nothing.
+They are authorised by the contact list instead: the owner, or an account that
+has the owner as a contact. A stranger with the id is refused.
+
+**"Not yours" and "no such thing" are the same answer.** Telling them apart
+would say whether an id exists.
+
 ## Disguise mode
 
 **What it is.** A locked device opens to a working calculator instead of a lock
@@ -625,9 +655,10 @@ naming what is missing today.
 7. **TOTP secrets are stored in plaintext in the database.** They should be
    encrypted with a server-held key so a database leak alone does not defeat the
    second factor.
-8. **Attachment ids are the download capability.** Any authenticated user who
-   learns an id can fetch the (encrypted) bytes. Ids are unguessable and objects
-   expire, but per-recipient authorisation would be stronger.
+8. **Nothing here — this one is closed.** It used to read: attachment ids are
+   the download capability, so any authenticated user who learns an id can
+   fetch the encrypted bytes. See "Attachment downloads" above for what
+   replaced it.
 9. **The link domains are not registered.** Links are generated against
    `privio.channel` for channels and `privio.group` for groups, neither of
    which this project owns, so nothing on the open internet answers them. This
