@@ -173,6 +173,50 @@ void main() {
     expect(await device.store.readToken(), isNull);
   });
 
+  group('text size', () {
+    test('is remembered, and comes back at the size it was left', () async {
+      final store = InMemorySecureStore();
+      final first = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await first.boot();
+      first.state.conversations.stop();
+
+      expect(first.state.textScale, 1, reason: 'the design size, until asked otherwise');
+      expect(first.state.textScaleLabel, 'Medium');
+
+      await first.state.setTextScale(AppState.textScales['Larger']!);
+      expect(first.state.textScaleLabel, 'Larger');
+
+      final second = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await second.boot();
+      second.state.conversations.stop();
+
+      expect(second.state.textScale, AppState.textScales['Larger']);
+    });
+
+    test('an unrecognised scale falls back to a label rather than crashing', () async {
+      final store = InMemorySecureStore();
+      await store.writeTextScale(1.07);
+      final device = Device(
+        server: FakeWipeServer(),
+        store: store,
+        archive: InMemoryMessageStore(),
+      );
+      await device.boot();
+      device.state.conversations.stop();
+
+      expect(device.state.textScale, 1.07, reason: 'what was stored is what applies');
+      expect(device.state.textScaleLabel, 'Medium', reason: 'no row is ticked wrongly');
+    });
+  });
+
   group('the passcode shapes', () {
     test('four digits, six digits, or a phrase with a letter in it', () {
       expect(PasscodeKind.digits4.accepts('1234'), isTrue);

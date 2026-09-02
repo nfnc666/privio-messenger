@@ -51,8 +51,10 @@ Sampled from the mockups (JPEG, so values are normalised to clean hex).
 | `warning` | `#F59E0B` | Unverified safety number, degraded connection |
 | `calculatorOperator` | `#FF9F0A` | Operator keys in the iPhone-style disguise calculator only |
 
-There is no light theme in V1 beyond what the Appearance screen offers as a
-switch; the product is designed dark-first and the mockups are all dark.
+There is no light theme. The product is designed dark-first, the mockups are
+all dark, and the Appearance screen used to carry a switch for a light half
+that was never built — it is gone rather than left offering something the app
+cannot do.
 
 ## Typography
 
