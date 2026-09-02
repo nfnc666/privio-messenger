@@ -5,12 +5,12 @@ import 'skin.dart';
 
 /// What the platform underneath can actually change about the launcher entry.
 ///
-/// Not a boolean, because the two platforms differ in a way people need told:
-/// Android can change both the icon and the name; iOS can change the icon and
-/// **cannot** change the name — an app's display name is fixed at build time
-/// and there is no public API for it. Saying "the app becomes a calculator" on
-/// a phone where the name stays "Privio" would be the app lying about its own
-/// disguise.
+/// Not a boolean, because a platform can manage one and not the other. Android
+/// changes both, through its launcher aliases. iOS is not asked at all: it can
+/// swap an icon and cannot change a name — an app's display name is fixed at
+/// build time with no public API — and a calculator icon still labelled Privio
+/// is a disguise that says its own name, so the whole feature is withheld
+/// there rather than shipped half-working.
 @immutable
 class LauncherCapability {
   const LauncherCapability({required this.icon, required this.name});
@@ -66,9 +66,14 @@ class PlatformLauncherDisguise implements LauncherDisguise {
 
   static const MethodChannel _channel = MethodChannel('app.privio/launcher');
 
+  /// iOS has no handler on the other end of this channel, on purpose. Asking
+  /// anyway would work — it would answer nothing — but not asking is the
+  /// clearer statement that the feature is not offered there.
+  static bool get _supported => defaultTargetPlatform != TargetPlatform.iOS;
+
   @override
   Future<LauncherCapability> capability() async {
-    if (kIsWeb) return LauncherCapability.none;
+    if (kIsWeb || !_supported) return LauncherCapability.none;
     try {
       final answer = await _channel.invokeMapMethod<String, dynamic>('capability');
       if (answer == null) return LauncherCapability.none;
@@ -87,7 +92,7 @@ class PlatformLauncherDisguise implements LauncherDisguise {
 
   @override
   Future<void> apply(CalculatorSkin? skin) async {
-    if (kIsWeb) return;
+    if (kIsWeb || !_supported) return;
     try {
       await _channel.invokeMethod<void>('apply', {'skin': skin?.name});
     } on PlatformException catch (failure) {

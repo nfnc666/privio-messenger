@@ -258,11 +258,15 @@ the app and the code itself need not be typed.
 
 `LauncherDisguise` is the port for the home-screen half, over a
 `app.privio/launcher` method channel. Android enables one `activity-alias` and
-disables the other; iOS calls `setAlternateIconName`. The port reports what the
-platform can change — Android icon and name, iOS icon only, web neither — and
-the settings screen is worded from that answer. The capability is read after
-start-up rather than during it: a start-up that awaits a platform channel hangs
-wherever nothing answers, which is every widget test and the web build.
+disables the other, then reads the result back. The port reports what the
+platform can change — Android icon and name, web neither — and the settings
+screen is worded from that answer. The capability is read after start-up rather
+than during it: a start-up that awaits a platform channel hangs wherever nothing
+answers, which is every widget test and the web build.
+
+The whole feature is withheld on iOS (`AppState.platformSupportsDisguise`),
+which cannot rename an app: the setting is absent, the lock screen is the
+ordinary one, and a stored disguise is cleared at start-up.
 
 ## Calls
 

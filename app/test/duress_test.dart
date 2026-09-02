@@ -54,7 +54,16 @@ class SocketFailure implements Exception {
 }
 
 class Device {
-  Device({required this.server, required this.store, required this.archive, this.launcher});
+  Device({
+    required this.server,
+    required this.store,
+    required this.archive,
+    this.launcher,
+    this.supportsDisguise = true,
+  });
+
+  /// Whether this stands in for a phone the disguise is offered on.
+  final bool supportsDisguise;
 
   /// Stands in for the platform's launcher entry where a test drives one.
   final LauncherDisguise? launcher;
@@ -87,13 +96,18 @@ class Device {
       ),
       store: store,
       launcher: launcher ?? const NoLauncherDisguise(),
+      supportsDisguise: supportsDisguise,
     );
     await state.initialise();
   }
 }
 
 /// A device that is signed in, locked with a PIN, and armed with a duress code.
-Future<Device> armedDevice({bool reachable = true, LauncherDisguise? launcher}) async {
+Future<Device> armedDevice({
+  bool reachable = true,
+  LauncherDisguise? launcher,
+  bool supportsDisguise = true,
+}) async {
   final server = FakeWipeServer(reachable: reachable);
   final store = InMemorySecureStore();
   await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
@@ -107,7 +121,13 @@ Future<Device> armedDevice({bool reachable = true, LauncherDisguise? launcher}) 
       Message(id: '1', body: 'the thing they want to read', sentAt: DateTime.now(), isMine: false),
     );
 
-  final device = Device(server: server, store: store, archive: archive, launcher: launcher);
+  final device = Device(
+    server: server,
+    store: store,
+    archive: archive,
+    launcher: launcher,
+    supportsDisguise: supportsDisguise,
+  );
   await device.boot();
   return device;
 }

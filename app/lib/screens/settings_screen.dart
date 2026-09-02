@@ -59,12 +59,17 @@ class SettingsScreen extends StatelessWidget {
                 label: 'Backup',
                 onTap: () => open(const BackupScreen()),
               ),
-              SettingsRow(
-                icon: Icons.visibility_off_outlined,
-                label: 'Disguise mode',
-                value: state.disguise?.label,
-                onTap: () => open(const DisguiseScreen()),
-              ),
+              // Not on iOS, where the app's name cannot be changed and the
+              // disguise would name itself. A row leading to an explanation of
+              // why there is nothing here is still a row about a feature this
+              // phone does not have.
+              if (state.disguiseSupported)
+                SettingsRow(
+                  icon: Icons.visibility_off_outlined,
+                  label: 'Disguise mode',
+                  value: state.disguise?.label,
+                  onTap: () => open(const DisguiseScreen()),
+                ),
               // There was a Language row here, reading "English", that opened
               // nothing. Privio is English-only; a row saying so as though it
               // were a choice is a choice the app does not offer.

@@ -361,13 +361,30 @@ Clearing the screen lock clears the disguise, and so does a wipe — a calculato
 whose code nobody holds is a locked-out phone, not a secure one.
 
 **The launcher entry.** On Android the icon and the name both change: two
-`activity-alias` entries point at the same activity, and the wanted one is
-enabled before the other is disabled — with no enabled alias, even for an
-instant, some launchers drop the app and Android may stop the process. On iOS
-only the icon changes: an app's display name is fixed at build time with no
-public API to change it, and swapping the icon raises a system alert that
-cannot be suppressed. The app asks the platform what it can do and words the
-setting from the answer, rather than making one promise on both.
+`activity-alias` entries point at the same activity, each with its own
+`android:label` and `android:icon`, and the wanted one is enabled before the
+other is disabled — with no enabled alias, even for an instant, some launchers
+drop the app and Android may stop the process. The result is read back, because
+some manufacturer builds accept the call and change nothing.
+
+What changes is the launcher entry and only that. Android's app list, the app
+info screen and the name shown in a permission prompt all read the
+`<application>` label, which is fixed at build time. A home screen shows a
+calculator; Settings → Apps still shows Privio. A shortcut someone pinned by
+hand points at the old alias and may need pinning again.
+
+**Not offered on iOS.** iOS can swap an icon and cannot change a name: an app's
+display name is fixed at build time with no public API to change it. A
+calculator icon still labelled *Privio* is a disguise that names itself, and it
+invites the one question the disguise exists to prevent — so the feature is
+withheld there entirely rather than shipped in the half that works. There is no
+calculator, no setting and no lock-screen replacement on iOS; the platform is
+not even asked, and a disguise stored by an earlier install is dropped at
+start-up so no device can be left locked behind a screen it will never draw.
+
+Withholding rather than degrading is the deliberate choice here. A partial
+disguise is not a weaker version of the same protection; it is a different and
+worse thing, because the user believes they have the protection.
 
 **What it does not do.** It does not survive examination. The package is still
 installed under its own application id, and its size, its files and its network
@@ -375,10 +392,13 @@ traffic are all still there. A changed icon and name defeat a glance at a home
 screen, not a search. It is a defence against being looked at and against
 handing over an unlocked phone, and it should be described as exactly that.
 
-**Unverified.** The Android and iOS implementations have not been run: the
-development environment has no Android SDK and no macOS. The Dart side is
-tested, including a device that refuses the swap; the platform side is written
-and reviewed and nothing more.
+**Unverified.** The Android implementation has not been run. This environment's
+egress proxy blocks `dl.google.com`, so the Android SDK cannot be installed and
+the app has never been compiled for Android. The manifest has been parsed and
+checked structurally; the Dart side is tested, including a device that refuses
+the swap and a device the disguise is not offered on. The Kotlin is written and
+reviewed and nothing more, and a real device pass belongs on the pre-release
+list beside the file picker and the microphone.
 
 ## Calls
 

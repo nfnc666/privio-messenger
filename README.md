@@ -376,16 +376,33 @@ plain object with no widgets in it, which is why thirteen tests on the
 arithmetic alone were cheap, and they caught the percent key computing
 `200 + 10 %` as 400.
 
-**The home screen changes too.** On Android the icon and the name both swap:
+**The home screen changes too — on Android.** Both the icon and the name swap:
 the launcher entry is an `activity-alias`, so there are two of them pointing at
-the same activity and turning the disguise on enables one and disables the
+the same activity, and turning the disguise on enables one and disables the
 other — in that order, because a moment with no enabled alias drops the app off
-some launchers. On iOS the icon swaps through `setAlternateIconName`; the name
-does not, because iOS fixes an app's display name at build time and offers no
-API to change it, and iOS shows an alert of its own that no app can suppress.
-The settings screen says which of those applies to the device it is running on
-rather than making one promise everywhere, and if the launcher refuses the
-change it says the lock screen changed and the home screen did not.
+some launchers and can have Android stop the process. The alias's own
+`android:label` is what the launcher draws, which is why the name changes and
+not only the icon. The swap is read back afterwards and reported as a failure
+if the system accepted the call and changed nothing.
+
+Precisely, and this is the limit of it: what changes is the *launcher entry*.
+Android's own app list — Settings, app info, the name shown when Privio asks
+for a permission — reads the `<application>` label, which is fixed when the app
+is built and cannot be changed at runtime. Someone scrolling the home screen
+sees a calculator; someone opening Settings → Apps sees Privio.
+
+**Not on iOS.** iOS can swap an icon and cannot change a name: an app's display
+name is fixed when it is built and there is no public API to change it. That
+would leave an iPhone showing a calculator icon still labelled *Privio* —
+a disguise that says its own name underneath itself, which is worse than none,
+because it invites exactly the question the disguise exists to avoid. So the
+feature is not shipped on iOS at all: no calculator, no setting, no lock-screen
+replacement. The row is absent from Settings rather than present and
+explaining itself, and a disguise stored by some earlier install is dropped on
+start-up rather than leaving the app locked behind a screen it will never draw.
+
+That was a deliberate call over shipping the half that works. Half a disguise
+is not a smaller disguise.
 
 **Two skins**, because a disguise works by being unremarkable and a calculator
 that does not look like the one the phone already ships is exactly what gets
@@ -401,12 +418,16 @@ phone for long: the app is installed, and its size, its files and its traffic
 are all there to find by anyone who looks properly. It is for the ordinary case
 — a screen glanced at, a phone handed over unlocked.
 
-**What has not been run.** The Kotlin and the Swift are unverified from here:
-this environment has no Android SDK and no macOS, so neither was compiled and
-no launcher has actually redrawn. The Dart side of it — when the swap is asked
-for, what happens when the platform refuses, what each platform is allowed to
-promise — is behind an interface and tested. Treat the icon swap as written and
-reviewed, not as demonstrated.
+**What has not been run.** The Kotlin is unverified from here: `dl.google.com`
+is blocked by this environment's egress proxy, so the Android SDK cannot be
+fetched and the app has never been compiled for Android — no launcher has
+actually redrawn. What has been checked is the manifest, by parsing it: one
+activity with no launcher filter, two aliases targeting it, one enabled with
+Privio's label and icon and one disabled with the calculator's, and
+`calculator_name` defined for both flavours. The Dart side — when the swap is
+asked for, what happens when the platform refuses, which devices are offered it
+— is behind an interface and tested. Treat the icon and name swap as written
+and reviewed, not as demonstrated.
 
 ### Nothing on a screen that the screen cannot do
 
@@ -462,8 +483,8 @@ because the socket and the poll each delivered the same envelope once.
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic |
-| **Calculator icon and name** | 🔧 | Android swaps both through launcher aliases, iOS swaps the icon (it has no API for the name). Written and unit-tested behind an interface; neither platform has been run on a device from here |
+| **Disguise mode** | ✅ | Android and the web build: a locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic. Not offered on iOS |
+| **Calculator icon and name** | 🔧 | Android only, through activity aliases: both the icon and the name on the launcher entry. Not offered on iOS at all — see below. Written and unit-tested behind an interface; the Kotlin has not been compiled from here, because the environment has no Android SDK |
 | **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
 | **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
@@ -839,7 +860,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 329 tests, incl. the crypto round trip
+│   └── test/                 331 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions

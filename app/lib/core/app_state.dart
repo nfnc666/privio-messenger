@@ -41,10 +41,25 @@ class AppState extends ChangeNotifier {
     SecureStore? store,
     PrivioEdition? edition,
     LauncherDisguise? launcher,
+    bool? supportsDisguise,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
+        disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
         edition = edition ?? PrivioEdition.current;
+
+  /// Whether this platform can wear the disguise at all.
+  ///
+  /// iOS cannot, so it is not offered there. An app's display name on iOS is
+  /// fixed when it is built and there is no public API to change it, which
+  /// would leave an iPhone showing a calculator icon still labelled Privio —
+  /// a disguise that says its own name underneath itself. Half a disguise is
+  /// not a small version of one; it is the thing it was meant to prevent.
+  static bool get platformSupportsDisguise =>
+      defaultTargetPlatform != TargetPlatform.iOS;
+
+  /// False on iOS. Injectable so a test can be either kind of device.
+  final bool disguiseSupported;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
@@ -100,7 +115,8 @@ class AppState extends ChangeNotifier {
   /// A calculator has ten keys and no letters, so a passphrase cannot be typed
   /// into one. Rather than quietly offering a disguise that could never be got
   /// past, the setting says so and points at the screen lock.
-  bool get disguiseAvailable => _screenLockSet && (_passcodeKind?.isNumeric ?? false);
+  bool get disguiseAvailable =>
+      disguiseSupported && _screenLockSet && (_passcodeKind?.isNumeric ?? false);
 
   /// What this device can change about the launcher entry: on Android both the
   /// icon and the name, on iOS the icon only, and on the web neither.
@@ -192,6 +208,12 @@ class AppState extends ChangeNotifier {
     _screenLockSet = hasPasscode;
     _passcodeKind = await _store.passcodeKind();
     _disguise = CalculatorSkin.parse(await _store.readDisguise());
+    if (!disguiseSupported && _disguise != null) {
+      // A device that cannot wear it must not be left locked behind it — a
+      // restored install, or a build where support was withdrawn.
+      _disguise = null;
+      await _store.writeDisguise(null);
+    }
     // Deliberately not awaited. Nothing about starting up depends on what the
     // launcher can do — only the wording on one settings screen does — and a
     // start-up that blocks on a platform channel is a start-up that hangs
