@@ -341,12 +341,29 @@ goodbye for a call that already ended, a candidate arriving before anyone
 picked up, two people calling each other in the same second — and that part sits
 behind an interface so all of it is tested without a microphone in the room.
 
-Two honest limits. There is no STUN server yet, so the devices try only the
-addresses they can see for themselves: that works on the same network and
-behind simple NATs, and fails behind strict ones. Point a build at one with
-`--dart-define=PRIVIO_ICE_SERVERS=stun:stun.example.org:3478`. And a call can
-only arrive while the app is open, because waking a closed app needs the push
-registration that is still missing on the client.
+**Where to find each other comes from the server.** A deployment sets
+`ICE_SERVERS` once — a STUN address, a TURN address, or neither — and every
+client picks it up from `GET /v1/calls/ice`; nothing is compiled into the
+build. Where a TURN relay needs credentials, the server mints time-limited ones
+under coturn's `use-auth-secret` scheme, because a fixed username and password
+shipped inside a client is a public relay within a day. The username is the
+expiry and nothing else: putting an account id in it, as the scheme allows,
+would let the relay operator tie every relayed call to an account, which is the
+exact linkage the rest of this server is built to avoid.
+
+Clients fetch it when they sign in and hold it until it is close to expiring —
+deliberately **not** when a call starts. Asking at that moment would tell the
+server a call is about to happen, and the signalling is sealed precisely so it
+cannot know that. A test pins it, and the server's own request log across a real
+call shows the fetch at sign-in and none at dial time.
+
+Configure nothing and you get nothing, which is a real answer: the two devices
+then try only the addresses they can see for themselves, which works on the same
+network and behind simple NATs and fails behind strict ones. Privio runs no
+relay of its own to point you at.
+
+One limit remains: a call can only arrive while the app is open, because waking
+a closed app needs the push registration that is still missing on the client.
 
 Driving it in a real browser, two accounts on one machine, is what turned up
 the bug worth having: the call screen was swapped in at the app's `home` route,
@@ -490,6 +507,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
+| **STUN / TURN** | ✅ | Configured on the server and handed to clients, with time-limited TURN credentials that name no account. Privio runs no relay of its own — a deployment points at its own, or at none |
 | **Video calls** | ✅ | The camera button in a chat places one: the other side's picture full-bleed, your own in a small window, and a camera you can turn off mid-call |
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
@@ -749,6 +767,12 @@ ever asks anyone for a key. Setting it to `true` also requires
 run a paid service that cannot tell who has paid — see
 [`docs/licensing.md`](docs/licensing.md#configuration).
 
+Calls find each other through whatever `ICE_SERVERS` names — a STUN address, a
+TURN address, both, or nothing. Clients read it from the server, so pointing a
+deployment at a relay is one line in `.env` rather than a rebuilt app. A TURN
+server that wants credentials gets time-limited ones minted per request; set
+`TURN_SECRET` to the same value as coturn's `static-auth-secret`.
+
 ```bash
 curl http://localhost:8080/health
 # {"status":"ok","version":"0.1.0"}
@@ -871,12 +895,12 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 335 tests, incl. the crypto round trip
+│   └── test/                 343 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 115 tests against real PostgreSQL
+│   └── test/                 120 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```
@@ -909,9 +933,8 @@ Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
 
-**Next** — A STUN server, so calls connect from behind a strict NAT · Ringing a
-closed app, which needs the push registration the server is already waiting
-for · Multi-device
+**Next** — Ringing a closed app, which needs the push registration the server
+is already waiting for · Multi-device
 
 **Later** — Sealed sender · SQLCipher for the local history
 

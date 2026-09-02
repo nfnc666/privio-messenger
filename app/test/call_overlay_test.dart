@@ -52,7 +52,7 @@ Future<(AppState, CallService)> signedInApp() async {
   await store.writeSession(token: 'session', username: 'nina', accountId: 'acc-nina');
   final calls = CallService(
     messaging: messaging,
-    peers: FakeCallPeer.new,
+    peers: (_) => FakeCallPeer(),
     lookUp: (accountId) async => CallParty(accountId: accountId, username: 'rosa'),
     store: store,
   );

@@ -106,4 +106,6 @@ abstract interface class CallPeer {
 /// A factory rather than one long-lived object: a connection belongs to one
 /// call, and reusing one across calls is how state from a finished call leaks
 /// into the next.
-typedef CallPeerFactory = CallPeer Function();
+/// Takes the ICE servers so each call is built with whatever the deployment
+/// currently offers, rather than whatever was compiled in.
+typedef CallPeerFactory = CallPeer Function(List<Map<String, dynamic>> iceServers);

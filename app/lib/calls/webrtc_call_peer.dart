@@ -16,7 +16,14 @@ import 'call_signal.dart';
 /// Signal session the two already have, so the addresses in them are not
 /// readable by the server that relays them.
 class WebRtcCallPeer implements CallPeer {
-  WebRtcCallPeer({List<String>? iceServers}) : _iceServers = iceServers ?? configuredIceServers;
+  /// [iceServers] comes from the server, already shaped for WebRTC. The
+  /// build-time list is a fallback for a deployment that offers none.
+  WebRtcCallPeer({List<Map<String, dynamic>>? iceServers})
+      : _iceServers = (iceServers == null || iceServers.isEmpty)
+            ? [
+                for (final url in configuredIceServers) {'urls': url},
+              ]
+            : iceServers;
 
   /// Where to ask "what is my public address".
   ///
@@ -38,7 +45,7 @@ class WebRtcCallPeer implements CallPeer {
           if (url.trim().isNotEmpty) url.trim(),
       ];
 
-  final List<String> _iceServers;
+  final List<Map<String, dynamic>> _iceServers;
 
   final _candidates = StreamController<String>.broadcast();
   final _states = StreamController<CallPeerState>.broadcast();
@@ -80,9 +87,7 @@ class WebRtcCallPeer implements CallPeer {
     }
 
     final connection = await rtc.createPeerConnection({
-      'iceServers': [
-        for (final url in _iceServers) {'urls': url},
-      ],
+      'iceServers': _iceServers,
       // Trickle ICE: candidates go out as they are found rather than all at
       // once at the end, which is what keeps the wait before a call connects
       // to about a second.

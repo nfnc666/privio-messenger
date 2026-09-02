@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/widgets.dart';
 
 import '../calls/call.dart';
+import '../calls/ice_servers.dart';
 import '../calls/call_peer.dart';
 import '../calls/call_signal.dart';
 import '../core/secure_store.dart';
@@ -27,6 +28,7 @@ class CallService extends ChangeNotifier {
     required MessagingService messaging,
     required CallPeerFactory peers,
     required Future<CallParty?> Function(String accountId) lookUp,
+    IceServerCache? ice,
     SecureStore? store,
     Duration ringTimeout = const Duration(seconds: 45),
     DateTime Function() now = DateTime.now,
@@ -34,6 +36,7 @@ class CallService extends ChangeNotifier {
   })  : _messaging = messaging,
         _peers = peers,
         _lookUp = lookUp,
+        _ice = ice,
         _store = store,
         _ringTimeout = ringTimeout,
         _now = now,
@@ -42,6 +45,7 @@ class CallService extends ChangeNotifier {
   final MessagingService _messaging;
   final CallPeerFactory _peers;
   final Future<CallParty?> Function(String accountId) _lookUp;
+  final IceServerCache? _ice;
   final SecureStore? _store;
   final Duration _ringTimeout;
   final DateTime Function() _now;
@@ -352,7 +356,11 @@ class CallService extends ChangeNotifier {
   }
 
   Future<CallPeer?> _openPeer(CallMedia media) async {
-    final peer = _peers();
+    // Whatever was already fetched. Deliberately not a fresh request: asking
+    // the server for relay details the moment a call starts would tell it a
+    // call is starting, and the signalling is sealed precisely so it cannot
+    // know that.
+    final peer = _peers(_ice?.current.servers ?? const []);
     try {
       await peer.open(media: media);
     } on CallPeerException catch (failure) {

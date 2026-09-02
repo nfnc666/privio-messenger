@@ -357,6 +357,10 @@ class AppState extends ChangeNotifier {
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
+    // Where a call would find a relay, fetched now rather than when someone
+    // dials: asking at the moment of a call tells the server a call is about
+    // to happen, and everything else about a call is sealed from it.
+    unawaited(services.ice.ensure());
     // Whether this server sells access is a property of the server, so it has
     // to be asked rather than assumed. Never blocks the UI.
     //
@@ -507,6 +511,7 @@ class AppState extends ChangeNotifier {
     final services = _services;
     if (services != null) {
       _conversations?.stop();
+      services.ice.clear();
       services.store.clear();
       try {
         await services.archive.clear();
@@ -584,6 +589,7 @@ class AppState extends ChangeNotifier {
     }
     services.api.useToken(null);
     _sessionToken = null;
+    services.ice.clear();
     services.store.clear();
     _channels?.dispose();
     _channels = null;

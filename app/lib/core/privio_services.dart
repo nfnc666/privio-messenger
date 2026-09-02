@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../calls/call.dart';
+import '../calls/ice_servers.dart';
 import '../calls/webrtc_call_peer.dart';
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
@@ -37,10 +38,12 @@ class PrivioServices {
     // Assembled here rather than in the initialiser list because it is built
     // out of three of the fields above. A caller may still pass its own, which
     // is how a test drives a call without a microphone in the room.
+    ice = IceServerCache(api: api);
     this.calls = calls ??
         CallService(
           messaging: messaging,
-          peers: WebRtcCallPeer.new,
+          peers: (iceServers) => WebRtcCallPeer(iceServers: iceServers),
+          ice: ice,
           lookUp: (accountId) async {
             final known = store.conversationWith(accountId)?.user;
             return known == null ? null : CallParty(accountId: accountId, username: known.username);
@@ -91,6 +94,13 @@ class PrivioServices {
   /// as ordinary sealed payloads, so the addresses inside it are not the
   /// server's to read.
   late final CallService calls;
+
+  /// Where this deployment's STUN and TURN servers are, held between calls.
+  ///
+  /// Filled when the app is up rather than when a call starts: asking at the
+  /// moment of a call would tell the server that one is about to happen, and
+  /// the signalling is sealed precisely so it cannot know that.
+  late final IceServerCache ice;
 
   /// Recording and playback sit behind interfaces for the same reason the
   /// keystore does: the whole voice-message path is testable without hardware,
