@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
@@ -63,6 +64,7 @@ class AppState extends ChangeNotifier {
   String? _sessionToken;
   bool _screenLockSet = false;
   PasscodeKind? _passcodeKind;
+  CalculatorSkin? _disguise;
   double _textScale = 1;
   bool _busy = false;
   String? _authError;
@@ -79,6 +81,17 @@ class AppState extends ChangeNotifier {
   /// What shape it has, so the lock screen knows what to draw before anything
   /// is typed.
   PasscodeKind? get passcodeKind => _passcodeKind;
+
+  /// Which calculator this device opens to when locked, or null for the lock
+  /// screen.
+  CalculatorSkin? get disguise => _disguise;
+
+  /// True when a disguise could be switched on at all.
+  ///
+  /// A calculator has ten keys and no letters, so a passphrase cannot be typed
+  /// into one. Rather than quietly offering a disguise that could never be got
+  /// past, the setting says so and points at the screen lock.
+  bool get disguiseAvailable => _screenLockSet && (_passcodeKind?.isNumeric ?? false);
 
   /// How much larger or smaller than the design's size text is drawn. The one
   /// appearance setting that does something: the rest of that screen used to be
@@ -161,6 +174,7 @@ class AppState extends ChangeNotifier {
     final hasPasscode = await _store.hasPasscode();
     _screenLockSet = hasPasscode;
     _passcodeKind = await _store.passcodeKind();
+    _disguise = CalculatorSkin.parse(await _store.readDisguise());
     _setProgress(1);
 
     unawaited(license.restore());
@@ -366,8 +380,21 @@ class AppState extends ChangeNotifier {
   Future<void> clearScreenLock() async {
     await _store.clearPasscode();
     await _store.setDuressCode(null);
+    await _store.writeDisguise(null);
     _screenLockSet = false;
     _passcodeKind = null;
+    _disguise = null;
+    notifyListeners();
+  }
+
+  /// Puts the disguise on, or takes it off.
+  ///
+  /// Turning the lock off takes it with it, so this cannot outlive the code
+  /// that opens it: a calculator nobody can get past is a locked-out phone.
+  Future<void> setDisguise(CalculatorSkin? skin) async {
+    if (skin != null && !disguiseAvailable) return;
+    await _store.writeDisguise(skin?.name);
+    _disguise = skin;
     notifyListeners();
   }
 
@@ -443,6 +470,9 @@ class AppState extends ChangeNotifier {
     _security = null;
     _screenLockSet = false;
     _passcodeKind = null;
+    // In memory as well as on disk. A disguise left set after a wipe would send
+    // whoever holds the phone next to a calculator with no code to get past it.
+    _disguise = null;
     _sessionToken = null;
     _username = null;
     _accountId = null;
@@ -502,6 +532,8 @@ class AppState extends ChangeNotifier {
     _security?.dispose();
     _security = null;
     _screenLockSet = false;
+    _passcodeKind = null;
+    _disguise = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;

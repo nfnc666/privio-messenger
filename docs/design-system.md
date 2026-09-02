@@ -100,8 +100,8 @@ introducing anything new.
 | 11 | Settings | `/settings` | V1 |
 | 12 | Backup | `/settings/backup` | V1 |
 | 13 | Duress code | `/settings/duress-code` | V1 |
-| 14 | Disguise mode | `/settings/disguise` | V2 |
-| 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V2 |
+| 14 | Disguise mode | `/settings/disguise` | V1 |
+| 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V1 |
 | 17 | Notifications | `/settings/notifications` | V1 |
 | 18 | Data and storage | `/settings/storage` | V1 |
 | 19 | Privacy and security | `/settings/privacy` | V1 |
@@ -146,7 +146,11 @@ to go looking for in a tab.
   chevron in `textTertiary`, grouped on `surface` cards with 12px radius.
   Destructive rows drop the icon and colour the label `danger`.
 - **Toggles:** accent track when on, `surfaceHigh` when off.
-- **Calculator disguise:** two skins. iPhone uses circular keys with
-  `calculatorOperator` on the right column; Samsung uses rounded-square keys with
-  accent operators. Both must behave as a real calculator — the secret code is
-  entered as a normal expression and only the `=` key opens Privio.
+- **Calculator disguise:** two skins, both shipped. iPhone uses circular keys
+  with `calculatorOperator` on the right column against true black; Samsung uses
+  rounded squares with accent operators on `#1B1B1D`. One grid, one arithmetic
+  model, two sets of clothes. Both behave as a real calculator — the code is
+  entered as a normal number and only `=` opens Privio, and a wrong one is
+  simply added up. The pad is sized from the screen's width and capped at 62% of
+  its height, so it fills the screen on a phone and shrinks rather than
+  overflowing on anything shorter.

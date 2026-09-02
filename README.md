@@ -343,6 +343,49 @@ so it rendered *underneath* anything the user had pushed. The callee's phone
 rang; the caller sat looking at their own chat with no way to hang up. It lives
 above the navigator now, and a test pins it there.
 
+### A calculator that calculates
+
+Disguise mode replaces the lock screen with a calculator. Type the passcode and
+press `=` and Privio opens; type the duress code and press `=` and the duress
+code does what it always does; type anything else and you get the answer,
+because it is a calculator.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/disguise-04-setting.png" width="200"><br><sub><b>1.</b> Off, or one of two skins.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/disguise-01-iphone.png" width="200"><br><sub><b>2.</b> What a locked phone opens to.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/disguise-02-sum.png" width="200"><br><sub><b>3.</b> 12 × 9. It has to be right.</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/disguise-03-samsung.png" width="200"><br><sub><b>4.</b> The other skin.</sub></td>
+</tr>
+</table>
+
+The arithmetic is the feature. A pad that echoes digits without adding them is
+the thing someone notices, so it is a real immediate-execution calculator —
+chained operations, repeated `=`, AC that becomes C, percent that means a tip
+after `+` and a hundredth on its own, `Error` on a divide by zero — with
+thirteen tests on the arithmetic alone. It is a plain object with no widgets in
+it, which is why that was cheap.
+
+A wrong code is not treated as a wrong code: no shake, no counter, no pause
+that says something was checked. It is a number, and the calculator adds it.
+
+Two skins, because a disguise works by being unremarkable and a calculator that
+does not look like the one the phone already ships is exactly what gets asked
+about.
+
+**What it does not do**, said on the screen itself as well as here: the app is
+still called Privio in the launcher and still has its icon. This hides what is
+on the screen from someone looking at it, not that Privio is installed from
+someone going through the phone — that needs an icon and name swap on the
+Android and iOS side, which is not done. It is for the ordinary case: a screen
+glanced at, a phone handed over unlocked.
+
+It also cannot be switched on without a numeric passcode, and says so rather
+than offering it: a calculator has ten keys and no letters, so a passphrase
+could never be typed into one. Turning the screen lock off takes the disguise
+with it, and so does a wipe — a calculator nobody holds the code to is a
+locked-out phone.
+
 ### Nothing on a screen that the screen cannot do
 
 The last pass through Settings pulled the controls that only looked like
@@ -397,7 +440,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | 📋 | The calculator skin, not started |
+| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. The passcode and `=` opens it; the duress code and `=` wipes; anything else is arithmetic |
 | **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
 | **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
@@ -773,7 +816,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 303 tests, incl. the crypto round trip
+│   └── test/                 325 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -809,14 +852,14 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code · Encrypted voice calls
+Two-factor · Blocking · Duress code · Encrypted voice calls · Disguise mode
 
 **Next** — Video on screen (the connection already carries it) · A STUN server,
 so calls connect from behind a strict NAT · Ringing a closed app, which needs
 the push registration the server is already waiting for · Multi-device
 
-**Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
-the local history
+**Later** — Swapping the launcher icon and name, which is what would hide that
+Privio is installed at all · Sealed sender · SQLCipher for the local history
 
 Before any of that ships to a store: the official `libsignal` behind FFI, an
 external review of the crypto integration, and a pass on a real device for the

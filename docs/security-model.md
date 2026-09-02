@@ -332,6 +332,33 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Disguise mode
+
+**What it is.** A locked device opens to a working calculator instead of a lock
+screen. The passcode typed in as a number and `=` opens Privio; the duress code
+does what the duress code does, through the same path as the lock screen, so
+there is one place where a code is checked and not two.
+
+**A wrong code is not treated as one.** No shake, no attempt counter, no pause
+while something is verified — the calculator adds the number up. Anything else
+is a tell, and a tell is the only thing a disguise has to avoid.
+
+**It replaces the lock screen rather than sitting in front of it.** Two screens
+to get past would be two screens to explain.
+
+**It requires a numeric passcode**, and refuses rather than storing an
+unusable setting: a passphrase cannot be typed on a keypad with no letters.
+Clearing the screen lock clears the disguise, and so does a wipe — a calculator
+whose code nobody holds is a locked-out phone, not a secure one.
+
+**What it does not do.** The launcher still shows Privio's name and icon. This
+hides the contents of the screen from someone looking at it, not the app's
+presence from someone going through the phone; that needs an activity-alias on
+Android and an alternate icon on iOS, which is not implemented. Nor does it
+survive real examination: the package, its size and its traffic are all still
+there. It is a defence against a glance and against handing over an unlocked
+phone, and it should be described as exactly that.
+
 ## Calls
 
 **The setup travels sealed, and that is the point.** An SDP offer enumerates

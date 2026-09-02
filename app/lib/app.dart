@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/app_state.dart';
 import 'screens/activation_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/calculator_screen.dart';
 import 'screens/call_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
@@ -105,7 +106,11 @@ class _StageRouter extends StatelessWidget {
             // where the recovery key goes in, and this says so on the way.
             onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
           ),
-        AppStage.locked => const PinScreen(),
+        // A disguise replaces the lock screen; it does not sit in front of
+        // it. Two screens to get past would be two screens to ask about.
+        AppStage.locked => state.disguise == null
+            ? const PinScreen()
+            : CalculatorScreen(skin: state.disguise!),
         AppStage.activation => const ActivationScreen(),
         AppStage.ready => const NavShell(),
       },

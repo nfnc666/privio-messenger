@@ -7,6 +7,7 @@ import 'about_screen.dart';
 import 'appearance_screen.dart';
 import 'backup_screen.dart';
 import 'devices_screen.dart';
+import 'disguise_screen.dart';
 import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
@@ -60,11 +61,13 @@ class SettingsScreen extends StatelessWidget {
               ),
               SettingsRow(
                 icon: Icons.visibility_off_outlined,
-                label: 'Disguise Mode',
-                value: 'V2',
-                onTap: () {},
+                label: 'Disguise mode',
+                value: state.disguise?.label,
+                onTap: () => open(const DisguiseScreen()),
               ),
-              SettingsRow(icon: Icons.language_rounded, label: 'Language', value: 'English', onTap: () {}),
+              // There was a Language row here, reading "English", that opened
+              // nothing. Privio is English-only; a row saying so as though it
+              // were a choice is a choice the app does not offer.
               // Only where there is something to activate. A self-hosted
               // server says it requires no license, and this row goes away.
               if (state.license.isOffered)
