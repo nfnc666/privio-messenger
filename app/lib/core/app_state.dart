@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
+import '../disguise/launcher_disguise.dart';
+import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
@@ -38,12 +40,18 @@ class AppState extends ChangeNotifier {
     PrivioServices? services,
     SecureStore? store,
     PrivioEdition? edition,
+    LauncherDisguise? launcher,
   })  : _injectedServices = services,
         _store = store ?? const KeystoreSecureStore(),
+        _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         edition = edition ?? PrivioEdition.current;
 
   final PrivioServices? _injectedServices;
   final SecureStore _store;
+
+  /// The app's entry in the launcher. Injectable so a test can drive a device
+  /// that refuses the change, which is a case no emulator here can produce.
+  final LauncherDisguise _launcherDisguise;
 
   /// Which build this is. Injectable only so a test can be a store build; a
   /// shipped app has exactly one, fixed at compile time.
@@ -63,6 +71,9 @@ class AppState extends ChangeNotifier {
   String? _sessionToken;
   bool _screenLockSet = false;
   PasscodeKind? _passcodeKind;
+  CalculatorSkin? _disguise;
+  LauncherCapability _launcher = LauncherCapability.none;
+  String? _disguiseError;
   double _textScale = 1;
   bool _busy = false;
   String? _authError;
@@ -71,6 +82,7 @@ class AppState extends ChangeNotifier {
   String? get username => _username;
   String? get accountId => _accountId;
   double get initProgress => _initProgress;
+
   /// Whether this device has a passcode on the app. Read at launch, because the
   /// stage machine needs it anyway.
   bool get screenLockSet => _screenLockSet;
@@ -78,6 +90,25 @@ class AppState extends ChangeNotifier {
   /// What shape it has, so the lock screen knows what to draw before anything
   /// is typed.
   PasscodeKind? get passcodeKind => _passcodeKind;
+
+  /// Which calculator this device opens to when locked, or null for the lock
+  /// screen.
+  CalculatorSkin? get disguise => _disguise;
+
+  /// True when a disguise could be switched on at all.
+  ///
+  /// A calculator has ten keys and no letters, so a passphrase cannot be typed
+  /// into one. Rather than quietly offering a disguise that could never be got
+  /// past, the setting says so and points at the screen lock.
+  bool get disguiseAvailable => _screenLockSet && (_passcodeKind?.isNumeric ?? false);
+
+  /// What this device can change about the launcher entry: on Android both the
+  /// icon and the name, on iOS the icon only, and on the web neither.
+  LauncherCapability get launcherCapability => _launcher;
+
+  /// Set when the launcher refused a change, so the screen can say the icon did
+  /// not move rather than leaving someone to find out from the home screen.
+  String? get disguiseError => _disguiseError;
 
   /// How much larger or smaller than the design's size text is drawn. The one
   /// appearance setting that does something: the rest of that screen used to be
@@ -132,8 +163,7 @@ class AppState extends ChangeNotifier {
 
   /// Activation state. Created lazily like the others, and refreshed on sign-in
   /// so the settings entry knows whether it has anything to say.
-  LicenseController get license =>
-      _license ??= LicenseController(services.api, store: _store);
+  LicenseController get license => _license ??= LicenseController(services.api, store: _store);
 
   /// How this device asks to be told that something arrived.
   WakeUpController get wakeUp => _wakeUp ??= WakeUpController(services.api);
@@ -161,6 +191,12 @@ class AppState extends ChangeNotifier {
     final hasPasscode = await _store.hasPasscode();
     _screenLockSet = hasPasscode;
     _passcodeKind = await _store.passcodeKind();
+    _disguise = CalculatorSkin.parse(await _store.readDisguise());
+    // Deliberately not awaited. Nothing about starting up depends on what the
+    // launcher can do — only the wording on one settings screen does — and a
+    // start-up that blocks on a platform channel is a start-up that hangs
+    // wherever the channel has nobody on the other end.
+    unawaited(_readLauncherCapability());
     _setProgress(1);
 
     unawaited(license.restore());
@@ -203,8 +239,7 @@ class AppState extends ChangeNotifier {
   // --- Authentication -------------------------------------------------------
 
   /// Registers a new account and this device's key material in one step.
-  Future<bool> register({required String username, required String password}) =>
-      _authenticate(
+  Future<bool> register({required String username, required String password}) => _authenticate(
         () async => services.api.register(
           username: username,
           password: password,
@@ -367,8 +402,38 @@ class AppState extends ChangeNotifier {
   Future<void> clearScreenLock() async {
     await _store.clearPasscode();
     await _store.setDuressCode(null);
+    await _store.writeDisguise(null);
     _screenLockSet = false;
     _passcodeKind = null;
+    _disguise = null;
+    notifyListeners();
+  }
+
+  Future<void> _readLauncherCapability() async {
+    final capability = await _launcherDisguise.capability();
+    if (capability == _launcher) return;
+    _launcher = capability;
+    notifyListeners();
+  }
+
+  /// Puts the disguise on, or takes it off.
+  ///
+  /// Turning the lock off takes it with it, so this cannot outlive the code
+  /// that opens it: a calculator nobody can get past is a locked-out phone.
+  Future<void> setDisguise(CalculatorSkin? skin) async {
+    if (skin != null && !disguiseAvailable) return;
+    await _store.writeDisguise(skin?.name);
+    _disguise = skin;
+    _disguiseError = null;
+    // The lock screen is Privio's to change and the launcher is the platform's
+    // to refuse. The setting takes effect either way — a disguise that is on
+    // everywhere except the home screen is still worth having — and the failure
+    // is reported rather than swallowed.
+    try {
+      await _launcherDisguise.apply(skin);
+    } on LauncherDisguiseException catch (failure) {
+      _disguiseError = failure.message;
+    }
     notifyListeners();
   }
 
@@ -444,6 +509,9 @@ class AppState extends ChangeNotifier {
     _security = null;
     _screenLockSet = false;
     _passcodeKind = null;
+    // In memory as well as on disk. A disguise left set after a wipe would send
+    // whoever holds the phone next to a calculator with no code to get past it.
+    _disguise = null;
     _sessionToken = null;
     _username = null;
     _accountId = null;
@@ -503,6 +571,8 @@ class AppState extends ChangeNotifier {
     _security?.dispose();
     _security = null;
     _screenLockSet = false;
+    _passcodeKind = null;
+    _disguise = null;
     await services.archive.clear();
     await _store.wipe();
     _username = null;
@@ -517,7 +587,6 @@ class AppState extends ChangeNotifier {
     _license?.dispose();
     _channels?.dispose();
     _conversations?.dispose();
-    _license?.dispose();
     _services?.dispose();
     super.dispose();
   }

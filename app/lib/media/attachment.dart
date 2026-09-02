@@ -1,4 +1,6 @@
 import 'dart:convert';
+
+import '../calls/call_signal.dart';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
@@ -130,7 +132,8 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
-        reactionEmoji = null;
+        reactionEmoji = null,
+        call = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -161,7 +164,8 @@ class MessagePayload {
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
-        replySender = null;
+        replySender = null,
+        call = null;
 
   /// A reaction to one message.
   ///
@@ -191,7 +195,8 @@ class MessagePayload {
         typingAt = null,
         replyToId = null,
         replyPreview = null,
-        replySender = null;
+        replySender = null,
+        call = null;
 
   /// A receipt for messages that arrived, or were read.
   ///
@@ -221,7 +226,8 @@ class MessagePayload {
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
-        replySender = null;
+        replySender = null,
+        call = null;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
   /// — delivered late, or after the app was closed — can be recognised as stale
@@ -248,7 +254,8 @@ class MessagePayload {
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
-        replySender = null;
+        replySender = null,
+        call = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -273,7 +280,40 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
-        reactionEmoji = null;
+        reactionEmoji = null,
+        call = null;
+
+  /// One step in setting up, or tearing down, a call.
+  ///
+  /// Control, never conversation: it must not appear in a chat, and it carries
+  /// no body to appear with. It rides here rather than on its own endpoint so
+  /// that the SDP — which lists the addresses this device can be reached on —
+  /// is sealed to the other device exactly as a sentence is. A server that
+  /// could read it would learn where both people are.
+  const MessagePayload.callSignal(CallSignal this.call)
+      : body = '',
+        mediaId = null,
+        mediaKey = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -295,6 +335,11 @@ class MessagePayload {
       preview: json['qp'] as String?,
       sender: json['qs'] as String?,
     );
+    if (json['t'] == 'call') {
+      return MessagePayload.callSignal(
+        CallSignal.fromJson((json['cl'] as Map<String, dynamic>?) ?? const {}),
+      );
+    }
     if (json['t'] == 'reaction') {
       return MessagePayload.reaction(
         reactionTo: json['rt'] as String,
@@ -328,9 +373,8 @@ class MessagePayload {
         profileKey: profileKey,
         groupKey: groupKey,
         voiceDurationMs: json['vd'] as int?,
-        waveform: (json['wf'] as List<dynamic>?)
-            ?.map((value) => (value as num).toDouble())
-            .toList(),
+        waveform:
+            (json['wf'] as List<dynamic>?)?.map((value) => (value as num).toDouble()).toList(),
         expiresInSeconds: expiresInSeconds,
         clientId: clientId,
         replyToId: quote.id,
@@ -436,6 +480,9 @@ class MessagePayload {
   /// Who wrote the quoted message, as the sender labels them.
   final String? replySender;
 
+  /// The call signal this payload carries, if it carries one.
+  final CallSignal? call;
+
   /// The same payload with a profile key attached.
   ///
   /// A method rather than a rebuild at each call site: this type has grown
@@ -478,6 +525,7 @@ class MessagePayload {
 
   bool get isMedia => mediaId != null;
 
+  bool get isCall => call != null;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
@@ -487,7 +535,7 @@ class MessagePayload {
 
   /// True for anything that is machinery rather than conversation, and so must
   /// never end up in a chat.
-  bool get isControl => isReceipt || isTyping || isReaction || isKeyDelivery;
+  bool get isControl => isReceipt || isTyping || isReaction || isKeyDelivery || isCall;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -497,22 +545,28 @@ class MessagePayload {
   /// True when this payload is a key for someone, not a message to show.
   bool get isKeyDelivery => deliveredKey != null;
 
+  /// The one word that tells the other side how to read the rest.
+  ///
+  /// A getter rather than a ternary inside [encode]: it was a six-deep nested
+  /// conditional, and each new payload kind made it harder to see that exactly
+  /// one branch can win.
+  String get _typeTag {
+    if (isCall) return 'call';
+    if (isReaction) return 'reaction';
+    if (isReceipt) return 'receipt';
+    if (isTyping) return 'typing';
+    if (isKeyDelivery) return 'key';
+    if (isMedia) return 'media';
+    return 'text';
+  }
+
   String encode() => jsonEncode({
         'v': 1,
-        't': isReaction
-            ? 'reaction'
-            : isReceipt
-                ? 'receipt'
-                : isTyping
-                    ? 'typing'
-                    : isKeyDelivery
-                        ? 'key'
-                        : isMedia
-                            ? 'media'
-                            : 'text',
+        't': _typeTag,
         'b': body,
         if (expiresInSeconds != null) 'ex': expiresInSeconds,
         if (clientId != null) 'ci': clientId,
+        if (isCall) 'cl': call!.toJson(),
         if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
         if (isTyping) 'ta': typingAt,
         if (isReaction) ...{'rt': reactionTo, 're': reactionEmoji},
@@ -535,11 +589,12 @@ class MessagePayload {
           's': byteSize,
           if (fileName != null) 'n': fileName,
           if (voiceDurationMs != null) 'vd': voiceDurationMs,
-          if (waveform != null) 'wf': [
-            // Two decimals is all a 48-bar sparkline can show, and fewer digits
-            // is less shape of someone's voice on the wire.
-            for (final bar in waveform!) double.parse(bar.toStringAsFixed(2)),
-          ],
+          if (waveform != null)
+            'wf': [
+              // Two decimals is all a 48-bar sparkline can show, and fewer digits
+              // is less shape of someone's voice on the wire.
+              for (final bar in waveform!) double.parse(bar.toStringAsFixed(2)),
+            ],
         },
       });
 }

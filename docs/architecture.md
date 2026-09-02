@@ -247,12 +247,55 @@ sender, not a preview, not a count. The device wakes, connects, and decrypts
 locally. APNs and FCM therefore see traffic, not content or social graph.
 `PushSender` is the interface; `LoggingPushSender` is the development default.
 
-## Calls (V2)
+## Disguise mode
 
-WebRTC peer-to-peer with DTLS-SRTP, keyed through the same Signal sessions that
-protect messages. The server relays signalling as `call_signal` envelopes and
-provides a TURN relay for networks that cannot connect directly — TURN sees
-encrypted media only. Call history stays on the device.
+The lock screen is replaced by a calculator (`lib/disguise/`, `lib/screens/
+calculator_screen.dart`) and the launcher entry by a second one.
+
+`Calculator` is a plain object: keys in, display out, no widgets. The unlock
+check compares its *answer* to the passcode, so any sum reaching the code opens
+the app and the code itself need not be typed.
+
+`LauncherDisguise` is the port for the home-screen half, over a
+`app.privio/launcher` method channel. Android enables one `activity-alias` and
+disables the other; iOS calls `setAlternateIconName`. The port reports what the
+platform can change — Android icon and name, iOS icon only, web neither — and
+the settings screen is worded from that answer. The capability is read after
+start-up rather than during it: a start-up that awaits a platform channel hangs
+wherever nothing answers, which is every widget test and the web build.
+
+## Calls
+
+WebRTC peer to peer, media encrypted with DTLS-SRTP by libwebrtc through
+`flutter_webrtc`. Privio adds no cryptography of its own here.
+
+**Signalling is a message.** The offer, the answer and every ICE candidate are
+`MessagePayload.callSignal` payloads, sealed per device over the Signal session
+the two already have and queued as ordinary envelopes. The server got no new
+endpoint for calls: the envelope queue was already the right shape, and routing
+a call therefore tells it exactly what routing a message tells it — that two
+accounts exchanged something, and when. It never sees an SDP, which is a list
+of the addresses each device can be reached on.
+
+**The state machine is ours; the media is not.** `CallService` decides what a
+signal means — whose call it belongs to, whether the line is busy, what a
+goodbye for a call that already ended does — and drives `CallPeer`, an
+interface. `WebRtcCallPeer` is the one implementation that touches hardware;
+the tests use a fake and drive both ends over real Signal sessions.
+
+**Signals leave in order.** They are sealed to a ratchet, which is stateful, so
+`CallService` serialises its sends rather than starting a second seal before
+the first has finished.
+
+**Not yet:** no STUN or TURN server runs, so the two devices try only the
+addresses they can see for themselves — same network and simple NATs work,
+strict ones do not. `--dart-define=PRIVIO_ICE_SERVERS=...` points a build at
+one. No TURN also means no fallback relay; when one exists it will see
+encrypted media only. And a call reaches a closed app only once the client
+registers for push.
+
+Call history stays on the device, in the encrypted key store, and is erasable
+on its own.
 
 ## What the server can and cannot see
 

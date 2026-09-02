@@ -93,15 +93,15 @@ introducing anything new.
 | 4 | Passcode entry (keypad or passphrase) | `/lock` | V1 |
 | 5 | Home / Chats | `/chats` | V1 |
 | 6 | Chat | `/chats/:id` | V1 |
-| 7 | Calls | `/calls` | V2 |
+| 7 | Calls | `/calls` | V1 |
 | 8 | Contacts | `/contacts` | V1 |
 | 9 | Account | `/account` | V1 |
 | 10 | Invite link / QR | `/account/invite` | V1 |
 | 11 | Settings | `/settings` | V1 |
 | 12 | Backup | `/settings/backup` | V1 |
 | 13 | Duress code | `/settings/duress-code` | V1 |
-| 14 | Disguise mode | `/settings/disguise` | V2 |
-| 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V2 |
+| 14 | Disguise mode | `/settings/disguise` | V1 |
+| 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V1 |
 | 17 | Notifications | `/settings/notifications` | V1 |
 | 18 | Data and storage | `/settings/storage` | V1 |
 | 19 | Privacy and security | `/settings/privacy` | V1 |
@@ -118,10 +118,15 @@ introducing anything new.
 ### Navigation bar
 
 The mockups show four tabs — Chats, Calls, Contacts, Account. The brief lists
-five, with Channels second. Channels and Calls are both V2 features, so V1 ships
-**Chats · Contacts · Account** and the shell adds Calls and Channels as their
-milestones land. `PrivioNavShell` takes the tab list as data so the bar grows
-without a rewrite.
+five, with Channels second. All five ship: Channels and Calls were planned as
+later milestones and both have landed. `PrivioNavShell` takes the tab list as
+data, which is why each arrived as one entry rather than a rewrite.
+
+There is a sixth screen with no tab: the call screen. It is drawn above the
+navigator, in the `MaterialApp` builder, so it covers whatever is open —
+including a pushed chat or settings screen. It is the one place in the app that
+deliberately sits outside the routing, because a ringing phone is not something
+to go looking for in a tab.
 
 ## Component notes from the mockups
 
@@ -141,7 +146,11 @@ without a rewrite.
   chevron in `textTertiary`, grouped on `surface` cards with 12px radius.
   Destructive rows drop the icon and colour the label `danger`.
 - **Toggles:** accent track when on, `surfaceHigh` when off.
-- **Calculator disguise:** two skins. iPhone uses circular keys with
-  `calculatorOperator` on the right column; Samsung uses rounded-square keys with
-  accent operators. Both must behave as a real calculator — the secret code is
-  entered as a normal expression and only the `=` key opens Privio.
+- **Calculator disguise:** two skins, both shipped. iPhone uses circular keys
+  with `calculatorOperator` on the right column against true black; Samsung uses
+  rounded squares with accent operators on `#1B1B1D`. One grid, one arithmetic
+  model, two sets of clothes. Both behave as a real calculator — the code is
+  entered as a normal number and only `=` opens Privio, and a wrong one is
+  simply added up. The pad is sized from the screen's width and capped at 62% of
+  its height, so it fills the screen on a phone and shrinks rather than
+  overflowing on anything shorter.

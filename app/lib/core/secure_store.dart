@@ -32,6 +32,23 @@ abstract interface class SecureStore {
   Future<double?> readTextScale();
   Future<void> writeTextScale(double scale);
 
+  /// Which calculator skin the disguise wears, or null when it is off.
+  ///
+  /// Stored beside the passcode rather than in a settings file, because it is
+  /// part of the lock: whether this device opens to a calculator is exactly as
+  /// sensitive as the code that gets past it.
+  Future<String?> readDisguise();
+  Future<void> writeDisguise(String? skin);
+
+  /// The call log, as JSON, or null when there is none.
+  ///
+  /// It lives with the keys rather than in the message archive because it is
+  /// not a conversation: it is a list of who this account has spoken to and
+  /// when, which is exactly the kind of thing worth keeping encrypted at rest
+  /// and worth being able to erase on its own.
+  Future<String?> readCallLog();
+  Future<void> writeCallLog(String? json);
+
   /// The duress code, kept here as well as on the server so the lock screen can
   /// recognise it with no network — which is the situation it exists for.
   Future<void> setDuressCode(String? code);
@@ -101,6 +118,8 @@ class KeystoreSecureStore implements SecureStore {
   static const _passcodeKindKey = 'privio.lock.kind';
   static const _duressKey = 'privio.lock.duress';
   static const _textScaleKey = 'privio.appearance.text_scale';
+  static const _callLogKey = 'privio.calls.log';
+  static const _disguiseKey = 'privio.disguise.skin';
   static const _archiveKeyKey = 'privio.archive.key';
   static const _recoveryKeyKey = 'privio.backup.recovery_key';
   static const _lastBackupKey = 'privio.backup.last_at';
@@ -155,8 +174,7 @@ class KeystoreSecureStore implements SecureStore {
   }
 
   @override
-  Future<PasscodeKind?> passcodeKind() async =>
-      PasscodeKind.parse(await _read(_passcodeKindKey));
+  Future<PasscodeKind?> passcodeKind() async => PasscodeKind.parse(await _read(_passcodeKindKey));
 
   @override
   Future<bool> hasPasscode() async => await _read(_passcodeKey) != null;
@@ -172,11 +190,26 @@ class KeystoreSecureStore implements SecureStore {
   }
 
   @override
-  Future<double?> readTextScale() async =>
-      double.tryParse(await _read(_textScaleKey) ?? '');
+  Future<double?> readTextScale() async => double.tryParse(await _read(_textScaleKey) ?? '');
 
   @override
   Future<void> writeTextScale(double scale) => _write(_textScaleKey, '$scale');
+
+  @override
+  Future<String?> readDisguise() => _read(_disguiseKey);
+
+  @override
+  Future<void> writeDisguise(String? skin) => skin == null
+      ? _storage.delete(key: _disguiseKey, iOptions: _iosOptions, aOptions: _androidOptions)
+      : _write(_disguiseKey, skin);
+
+  @override
+  Future<String?> readCallLog() => _read(_callLogKey);
+
+  @override
+  Future<void> writeCallLog(String? json) => json == null
+      ? _storage.delete(key: _callLogKey, iOptions: _iosOptions, aOptions: _androidOptions)
+      : _write(_callLogKey, json);
 
   @override
   Future<void> setDuressCode(String? code) => code == null
@@ -212,15 +245,13 @@ class KeystoreSecureStore implements SecureStore {
       DateTime.tryParse(await _read(_lastBackupKey) ?? '');
 
   @override
-  Future<void> writeLastBackupAt(DateTime when) =>
-      _write(_lastBackupKey, when.toIso8601String());
+  Future<void> writeLastBackupAt(DateTime when) => _write(_lastBackupKey, when.toIso8601String());
 
   @override
   Future<String?> readBackupInterval() => _read(_backupIntervalKey);
 
   @override
-  Future<void> writeBackupInterval(String interval) =>
-      _write(_backupIntervalKey, interval);
+  Future<void> writeBackupInterval(String interval) => _write(_backupIntervalKey, interval);
 
   @override
   Future<String?> readPendingLicenseKey() => _read(_pendingLicenseKey);
@@ -240,12 +271,10 @@ class KeystoreSecureStore implements SecureStore {
   Future<String?> readActivationAskedFor() => _read(_activationAskedKey);
 
   @override
-  Future<void> writeActivationAskedFor(String accountId) =>
-      _write(_activationAskedKey, accountId);
+  Future<void> writeActivationAskedFor(String accountId) => _write(_activationAskedKey, accountId);
 
   @override
-  Future<void> wipe() =>
-      _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
+  Future<void> wipe() => _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
 }
 
 /// In-memory store for tests. Never used in a shipped build.
@@ -295,6 +324,30 @@ class InMemorySecureStore implements SecureStore {
   Future<void> writeTextScale(double scale) async => _entries['textScale'] = '$scale';
 
   @override
+  Future<String?> readDisguise() async => _entries['disguise'];
+
+  @override
+  Future<void> writeDisguise(String? skin) async {
+    if (skin == null) {
+      _entries.remove('disguise');
+    } else {
+      _entries['disguise'] = skin;
+    }
+  }
+
+  @override
+  Future<String?> readCallLog() async => _entries['callLog'];
+
+  @override
+  Future<void> writeCallLog(String? json) async {
+    if (json == null) {
+      _entries.remove('callLog');
+    } else {
+      _entries['callLog'] = json;
+    }
+  }
+
+  @override
   Future<void> setDuressCode(String? code) async {
     if (code == null) {
       _entries.remove('duress');
@@ -322,12 +375,10 @@ class InMemorySecureStore implements SecureStore {
   Future<String?> readRecoveryKey() async => _entries['recoveryKey'];
 
   @override
-  Future<void> writeRecoveryKey(String base32Key) async =>
-      _entries['recoveryKey'] = base32Key;
+  Future<void> writeRecoveryKey(String base32Key) async => _entries['recoveryKey'] = base32Key;
 
   @override
-  Future<DateTime?> readLastBackupAt() async =>
-      DateTime.tryParse(_entries['lastBackupAt'] ?? '');
+  Future<DateTime?> readLastBackupAt() async => DateTime.tryParse(_entries['lastBackupAt'] ?? '');
 
   @override
   Future<void> writeLastBackupAt(DateTime when) async =>
@@ -337,8 +388,7 @@ class InMemorySecureStore implements SecureStore {
   Future<String?> readBackupInterval() async => _entries['backupInterval'];
 
   @override
-  Future<void> writeBackupInterval(String interval) async =>
-      _entries['backupInterval'] = interval;
+  Future<void> writeBackupInterval(String interval) async => _entries['backupInterval'] = interval;
 
   @override
   Future<String?> readPendingLicenseKey() async => _entries['pendingLicenseKey'];

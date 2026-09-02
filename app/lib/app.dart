@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'core/app_state.dart';
 import 'screens/activation_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/calculator_screen.dart';
+import 'screens/call_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
 import 'screens/splash_screen.dart';
@@ -65,7 +67,7 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
           return MediaQuery.withClampedTextScaling(
             minScaleFactor: scale,
             maxScaleFactor: scale,
-            child: child ?? const SizedBox.shrink(),
+            child: _CallOverlay(child: child ?? const SizedBox.shrink()),
           );
         },
         home: const _StageRouter(),
@@ -104,10 +106,50 @@ class _StageRouter extends StatelessWidget {
             // where the recovery key goes in, and this says so on the way.
             onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
           ),
-        AppStage.locked => const PinScreen(),
+        // A disguise replaces the lock screen; it does not sit in front of
+        // it. Two screens to get past would be two screens to ask about.
+        AppStage.locked => state.disguise == null
+            ? const PinScreen()
+            : CalculatorScreen(skin: state.disguise!),
         AppStage.activation => const ActivationScreen(),
         AppStage.ready => const NavShell(),
       },
+    );
+  }
+}
+
+/// A live call, over everything.
+///
+/// It goes in the [MaterialApp] builder rather than in the stage router, which
+/// is where it was first put and where it did not work: the router is the
+/// `home` route, so a call screen swapped in there rendered *underneath* any
+/// screen the user had pushed. Someone starting a call from a chat watched the
+/// callee's phone ring and saw their own chat, with no way to hang up. Here it
+/// is above the navigator, so it covers whatever is open.
+///
+/// It is still gated on the app being unlocked: the lock screen is the whole
+/// point of the lock screen. Until Privio can wake a closed app for a call, an
+/// incoming one can only arrive while it is open anyway.
+class _CallOverlay extends StatelessWidget {
+  const _CallOverlay({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = PrivioScope.of(context);
+    if (state.stage != AppStage.ready) return child;
+
+    return ListenableBuilder(
+      listenable: state.services.calls,
+      builder: (context, under) {
+        final call = state.services.calls.current;
+        if (call == null || !call.isLive) return under!;
+        return Stack(
+          children: [under!, Positioned.fill(child: CallScreen(call: call))],
+        );
+      },
+      child: child,
     );
   }
 }

@@ -301,6 +301,113 @@ group you joined by a link never appeared in the chat list until somebody spoke
 in it; and the permission sheet's **Save** button sat below the fold on a
 390×844 screen. All three are fixed.
 
+### A call the server routes without knowing who is calling
+
+Setting up a call means the two devices telling each other how to be reached.
+That exchange — the SDP offer and answer, and the ICE candidates — is a list of
+every address each device has: local, public, and whatever the network in
+between reveals. Send it in the open and the relay learns where both people
+are, which is most of what a call would have told it anyway.
+
+So it does not go in the open. A call signal is a payload like any other: sealed
+to the other device over the Signal session the chat already uses, handed to the
+server as ciphertext, and matched to a call on the far side. The server needed
+no new endpoint for calls at all — the existing envelope queue was already the
+right shape, and that is the whole point.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/call-01-ringing.png" width="220"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/call-02-connected.png" width="220"><br><sub><b>2.</b> Connected — media over DTLS-SRTP, keys agreed device to device.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/call-03-log.png" width="220"><br><sub><b>3.</b> The log is on the device and nowhere else.</sub></td>
+</tr>
+</table>
+
+The media itself is libwebrtc's, through `flutter_webrtc`, encrypted with
+DTLS-SRTP as that library implements it. Privio writes no cipher of its own
+here, as everywhere else. What Privio owns is the part that goes wrong — a
+goodbye for a call that already ended, a candidate arriving before anyone
+picked up, two people calling each other in the same second — and that part sits
+behind an interface so all of it is tested without a microphone in the room.
+
+Two honest limits. There is no STUN server yet, so the devices try only the
+addresses they can see for themselves: that works on the same network and
+behind simple NATs, and fails behind strict ones. Point a build at one with
+`--dart-define=PRIVIO_ICE_SERVERS=stun:stun.example.org:3478`. And a call can
+only arrive while the app is open, because waking a closed app needs the push
+registration that is still missing on the client.
+
+Driving it in a real browser, two accounts on one machine, is what turned up
+the bug worth having: the call screen was swapped in at the app's `home` route,
+so it rendered *underneath* anything the user had pushed. The callee's phone
+rang; the caller sat looking at their own chat with no way to hang up. It lives
+above the navigator now, and a test pins it there.
+
+### A calculator that calculates
+
+Disguise mode replaces the lock screen with a calculator, and replaces the
+launcher entry with one too. Any sum that comes to the passcode opens Privio
+when you press `=`. Any sum that comes to the duress code does what the duress
+code does. Anything else gets the answer, because it is a calculator.
+
+<table>
+<tr>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-04-setting.png" width="180"><br><sub><b>1.</b> Off, or one of two skins.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-01-iphone.png" width="180"><br><sub><b>2.</b> What a locked phone opens to.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-02-sum.png" width="180"><br><sub><b>3.</b> 1000 + 234, and 1234 never appears.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-03-samsung.png" width="180"><br><sub><b>4.</b> The other skin.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/disguise-05-icon.png" width="120"><br><sub><b>5.</b> And on the home screen.</sub></td>
+</tr>
+</table>
+
+**The answer is what is checked, not the keystrokes.** Typing the code and
+pressing `=` works because a number on its own evaluates to itself — but so
+does `1000 + 234`, which means the code never has to appear on screen for
+somebody standing behind you to read. A wrong answer is not treated as a wrong
+code either: no shake, no counter, no pause that says something was verified.
+That pause is the only thing a disguise really has to avoid.
+
+**The arithmetic is the feature.** A pad that echoes digits without adding them
+is precisely what gets noticed, so this is a real immediate-execution
+calculator — chained operations left to right, a repeating `=`, AC that becomes
+C, percent that means a tip after `+` and a hundredth on its own, `Error` on a
+divide by zero, grouped thousands, exponent notation past nine digits. It is a
+plain object with no widgets in it, which is why thirteen tests on the
+arithmetic alone were cheap, and they caught the percent key computing
+`200 + 10 %` as 400.
+
+**The home screen changes too.** On Android the icon and the name both swap:
+the launcher entry is an `activity-alias`, so there are two of them pointing at
+the same activity and turning the disguise on enables one and disables the
+other — in that order, because a moment with no enabled alias drops the app off
+some launchers. On iOS the icon swaps through `setAlternateIconName`; the name
+does not, because iOS fixes an app's display name at build time and offers no
+API to change it, and iOS shows an alert of its own that no app can suppress.
+The settings screen says which of those applies to the device it is running on
+rather than making one promise everywhere, and if the launcher refuses the
+change it says the lock screen changed and the home screen did not.
+
+**Two skins**, because a disguise works by being unremarkable and a calculator
+that does not look like the one the phone already ships is exactly what gets
+asked about.
+
+It cannot be switched on without a numeric passcode, and says so rather than
+offering it: a calculator has ten keys and no letters. Turning the screen lock
+off takes the disguise with it, and so do a wipe and a sign-out — a calculator
+whose code nobody holds is a locked-out phone.
+
+**What it still does not do.** It is not a defence against anyone who has the
+phone for long: the app is installed, and its size, its files and its traffic
+are all there to find by anyone who looks properly. It is for the ordinary case
+— a screen glanced at, a phone handed over unlocked.
+
+**What has not been run.** The Kotlin and the Swift are unverified from here:
+this environment has no Android SDK and no macOS, so neither was compiled and
+no launcher has actually redrawn. The Dart side of it — when the swap is asked
+for, what happens when the platform refuses, what each platform is allowed to
+promise — is behind an interface and tested. Treat the icon swap as written and
+reviewed, not as demonstrated.
+
 ### Nothing on a screen that the screen cannot do
 
 The last pass through Settings pulled the controls that only looked like
@@ -350,10 +457,13 @@ because the socket and the poll each delivered the same envelope once.
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
-| **Voice & video calls** | 📋 | The Calls tab says there are none, because there are none. The real thing is WebRTC over the Signal sessions that already exist |
+| **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
+| **Video calls** | 🔧 | The protocol carries the media kind and the connection opens a camera; there is no picture on screen yet, so the app places voice calls only |
+| **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | 📋 | The calculator skin, not started |
+| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic |
+| **Calculator icon and name** | 🔧 | Android swaps both through launcher aliases, iOS swaps the icon (it has no API for the name). Written and unit-tested behind an interface; neither platform has been run on a device from here |
 | **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
 | **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
@@ -729,7 +839,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 287 tests, incl. the crypto round trip
+│   └── test/                 329 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -765,14 +875,13 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code
+Two-factor · Blocking · Duress code · Encrypted voice calls · Disguise mode
 
-**Next** — Voice and video calls (WebRTC over the sessions that already exist) ·
-Multi-device · Push registration in the client, the last thing the server
-implements and the app cannot reach
+**Next** — Video on screen (the connection already carries it) · A STUN server,
+so calls connect from behind a strict NAT · Ringing a closed app, which needs
+the push registration the server is already waiting for · Multi-device
 
-**Later** — Disguise mode (the calculator skin) · Sealed sender · SQLCipher for
-the local history
+**Later** — Sealed sender · SQLCipher for the local history
 
 Before any of that ships to a store: the official `libsignal` behind FFI, an
 external review of the crypto integration, and a pass on a real device for the
