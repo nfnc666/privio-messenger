@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../calls/call.dart';
 import '../calls/call_peer.dart';
@@ -52,6 +52,7 @@ class CallService extends ChangeNotifier {
   Timer? _ringing;
   StreamSubscription<String>? _candidates;
   StreamSubscription<CallPeerState>? _peerStates;
+  StreamSubscription<void>? _video;
 
   /// The offer this device has been sent and not yet answered.
   String? _pendingOffer;
@@ -72,6 +73,13 @@ class CallService extends ChangeNotifier {
   String? _error;
 
   ActiveCall? get current => _call;
+
+  /// The call's own video surfaces, or null when there is nothing to show.
+  ///
+  /// Exposed rather than the peer itself, so the screen can draw the picture
+  /// without being handed the connection to poke at.
+  Widget? get remoteVideo => _peer?.remoteView();
+  Widget? get localVideo => _peer?.localView();
   List<CallRecord> get history => List.unmodifiable(_history);
   String? get error => _error;
 
@@ -356,6 +364,9 @@ class CallService extends ChangeNotifier {
     _peer = peer;
     _candidates = peer.localCandidates.listen(_sendCandidate);
     _peerStates = peer.states.listen(_onPeerState);
+    // A picture turning up is a reason to redraw and nothing else, so it is
+    // simply forwarded as a change.
+    _video = peer.videoChanged.listen((_) => notifyListeners());
     return peer;
   }
 
@@ -391,8 +402,10 @@ class CallService extends ChangeNotifier {
   Future<void> _closePeer() async {
     await _candidates?.cancel();
     await _peerStates?.cancel();
+    await _video?.cancel();
     _candidates = null;
     _peerStates = null;
+    _video = null;
     await _peer?.close();
     _peer = null;
   }

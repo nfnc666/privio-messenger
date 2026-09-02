@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../calls/call.dart';
+import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
 import '../models/models.dart';
@@ -409,6 +410,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _call(AppState state, CallMedia media) => state.services.calls.place(
+        CallParty(accountId: widget.accountId, username: widget.title),
+        media: media,
+      );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -467,19 +473,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ),
               // Groups have no call yet: a group call is a different piece of
               // machinery, not the same one with more people in it.
-              if (!widget.isGroup)
+              if (!widget.isGroup) ...[
                 IconButton(
-                  onPressed: () => unawaited(
-                    state.services.calls.place(
-                      CallParty(
-                        accountId: widget.accountId,
-                        username: widget.title,
-                      ),
-                    ),
-                  ),
+                  onPressed: () => unawaited(_call(state, CallMedia.video)),
+                  icon: const Icon(Icons.videocam_outlined),
+                  tooltip: 'Video call',
+                ),
+                IconButton(
+                  onPressed: () => unawaited(_call(state, CallMedia.audio)),
                   icon: const Icon(Icons.call_outlined),
                   tooltip: 'Voice call',
                 ),
+              ],
               // The overflow used to open the timer sheet directly, which made
               // it an icon that meant one specific thing. It is a menu now, so
               // blocking has somewhere to live.

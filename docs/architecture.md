@@ -258,11 +258,15 @@ the app and the code itself need not be typed.
 
 `LauncherDisguise` is the port for the home-screen half, over a
 `app.privio/launcher` method channel. Android enables one `activity-alias` and
-disables the other; iOS calls `setAlternateIconName`. The port reports what the
-platform can change — Android icon and name, iOS icon only, web neither — and
-the settings screen is worded from that answer. The capability is read after
-start-up rather than during it: a start-up that awaits a platform channel hangs
-wherever nothing answers, which is every widget test and the web build.
+disables the other, then reads the result back. The port reports what the
+platform can change — Android icon and name, web neither — and the settings
+screen is worded from that answer. The capability is read after start-up rather
+than during it: a start-up that awaits a platform channel hangs wherever nothing
+answers, which is every widget test and the web build.
+
+The whole feature is withheld on iOS (`AppState.platformSupportsDisguise`),
+which cannot rename an app: the setting is absent, the lock screen is the
+ordinary one, and a stored disguise is cleared at start-up.
 
 ## Calls
 
@@ -276,6 +280,13 @@ endpoint for calls: the envelope queue was already the right shape, and routing
 a call therefore tells it exactly what routing a message tells it — that two
 accounts exchanged something, and when. It never sees an SDP, which is a list
 of the addresses each device can be reached on.
+
+**Video.** `CallPeer` hands out two widgets rather than frames — rendering
+video is the one part of a call the platform must do itself, a native texture
+on the phones and a composited element on the web, and copying frames through
+Dart would buy nothing. The renderers are built and disposed with the
+connection: one outliving its stream is a black rectangle, one built per
+rebuild leaks textures.
 
 **The state machine is ours; the media is not.** `CallService` decides what a
 signal means — whose call it belongs to, whether the line is busy, what a

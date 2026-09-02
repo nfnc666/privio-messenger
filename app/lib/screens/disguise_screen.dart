@@ -196,15 +196,14 @@ class _WhatItDoesNotDo extends StatelessWidget {
 
   String get _homeScreen {
     if (launcher.icon && launcher.name) {
-      return 'Privio\'s icon becomes a calculator and its name becomes '
-          '"Calculator". Your launcher may take a few seconds to redraw. '
-          'Turning the disguise off puts both back.';
-    }
-    if (launcher.icon) {
-      return 'Privio\'s icon becomes a calculator. The name stays "Privio": '
-          'iOS fixes an app\'s name when it is built and offers no way to '
-          'change it afterwards. iOS also shows an alert of its own saying the '
-          'icon changed, which no app can turn off.';
+      return 'On the home screen and in the app drawer, Privio becomes a '
+          'calculator icon called "Calculator". Your launcher may take a few '
+          'seconds to redraw, and an icon you pinned to the home screen '
+          'yourself may need pinning again. Turning the disguise off puts it '
+          'back.\n\n'
+          'Android\'s own app list — Settings, app info, the name shown when '
+          'Privio asks for a permission — still says Privio. That name is set '
+          'when the app is built and no app can change it while running.';
     }
     return 'On this device the icon and the name do not change — only what the '
         'app opens to. Someone going through the home screen still finds '

@@ -23,6 +23,10 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     // Android can change both. iOS answers differently, and the
                     // app is told rather than assuming.
+                    // Android changes both, on the launcher entry. The name in
+                    // Settings > Apps comes from the application label and is
+                    // fixed at build time; the app says so rather than claiming
+                    // the disguise is complete.
                     "capability" -> result.success(mapOf("icon" to true, "name" to true))
                     "apply" -> {
                         val disguised = call.argument<String?>("skin") != null
@@ -60,6 +64,14 @@ class MainActivity : FlutterActivity() {
 
         setAlias(wanted, enabled = true)
         setAlias(other, enabled = false)
+
+        // Read it back. Some manufacturer builds accept the call and change
+        // nothing, and an icon that quietly did not move is worse than one that
+        // reports it could not: the whole point of the setting is that someone
+        // is about to rely on what their home screen shows.
+        if (!isEnabled(wanted)) {
+            throw IllegalStateException("Android did not apply the launcher change.")
+        }
     }
 
     private fun setAlias(alias: String, enabled: Boolean) {
@@ -73,6 +85,11 @@ class MainActivity : FlutterActivity() {
             state,
             PackageManager.DONT_KILL_APP,
         )
+    }
+
+    private fun isEnabled(alias: String): Boolean {
+        val setting = packageManager.getComponentEnabledSetting(ComponentName(packageName, alias))
+        return setting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
     }
 
     private companion object {

@@ -67,6 +67,44 @@ void main() {
       );
     });
 
+    test('an iPhone is not offered it at all', () async {
+      final launcher = FakeLauncher();
+      final device = await armedDevice(launcher: launcher, supportsDisguise: false);
+      addTearDown(device.state.conversations.stop);
+
+      expect(device.state.disguiseSupported, isFalse);
+      expect(
+        device.state.disguiseAvailable,
+        isFalse,
+        reason: 'a numeric lock is set; the platform is the reason',
+      );
+
+      await device.state.setDisguise(CalculatorSkin.iphone);
+      expect(device.state.disguise, isNull);
+      expect(launcher.applied, isEmpty, reason: 'the platform is not even asked');
+    });
+
+    test('a disguise stored on a device that cannot wear it is dropped', () async {
+      // A restored install, or a build where support was withdrawn: the app
+      // must not come back locked behind a calculator it will never show.
+      final device = await armedDevice();
+      addTearDown(device.state.conversations.stop);
+      await device.state.setDisguise(CalculatorSkin.samsung);
+      expect(await device.store.readDisguise(), 'samsung');
+
+      final onIphone = Device(
+        server: device.server,
+        store: device.store,
+        archive: device.archive,
+        supportsDisguise: false,
+      );
+      await onIphone.boot();
+      addTearDown(onIphone.state.conversations.stop);
+
+      expect(onIphone.state.disguise, isNull);
+      expect(await device.store.readDisguise(), isNull, reason: 'and forgotten, not just hidden');
+    });
+
     test('the launcher is told to change, and told to change back', () async {
       final launcher = FakeLauncher();
       final device = await armedDevice(launcher: launcher);

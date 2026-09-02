@@ -328,6 +328,65 @@ void main() {
     expect(bob.peer.media, CallMedia.video);
   });
 
+  test('the picture is offered only once it has arrived', () async {
+    await alice.calls.place(bobParty, media: CallMedia.video);
+    await settle();
+    await bob.calls.accept();
+    await settle();
+
+    expect(
+      alice.calls.remoteVideo,
+      isNull,
+      reason: 'a video call connects before any frame does',
+    );
+    expect(alice.calls.localVideo, isNotNull, reason: 'but this camera is already on');
+
+    alice.peer.showRemotePicture();
+    await Future<void>.delayed(Duration.zero);
+    expect(alice.calls.remoteVideo, isNotNull);
+  });
+
+  test('a voice call never offers a picture', () async {
+    await alice.calls.place(bobParty);
+    await settle();
+    await bob.calls.accept();
+    await settle();
+
+    expect(alice.calls.localVideo, isNull);
+    expect(alice.calls.remoteVideo, isNull);
+  });
+
+  test('the camera can be turned off mid-call, and the picture goes with it', () async {
+    await alice.calls.place(bobParty, media: CallMedia.video);
+    await settle();
+    await bob.calls.accept();
+    await settle();
+    expect(alice.calls.localVideo, isNotNull);
+
+    await alice.calls.toggleCamera();
+    expect(alice.peer.cameraOn, isFalse, reason: 'the track is disabled, not just the icon');
+    expect(alice.calls.localVideo, isNull);
+    expect(alice.calls.current!.cameraOn, isFalse);
+  });
+
+  test('a call that ended offers nothing to draw', () async {
+    await alice.calls.place(bobParty, media: CallMedia.video);
+    await settle();
+    await bob.calls.accept();
+    await settle();
+    alice.peer.showRemotePicture();
+    await Future<void>.delayed(Duration.zero);
+    expect(alice.calls.remoteVideo, isNotNull);
+
+    await alice.calls.hangUp();
+    expect(
+      alice.calls.remoteVideo,
+      isNull,
+      reason: 'a renderer outliving its stream is a black rectangle',
+    );
+    expect(alice.calls.localVideo, isNull);
+  });
+
   test('a call signal never shows up as a message', () async {
     await alice.calls.place(bobParty);
     final received = await bob.who.messaging.receive();

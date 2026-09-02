@@ -100,8 +100,8 @@ introducing anything new.
 | 11 | Settings | `/settings` | V1 |
 | 12 | Backup | `/settings/backup` | V1 |
 | 13 | Duress code | `/settings/duress-code` | V1 |
-| 14 | Disguise mode | `/settings/disguise` | V1 |
-| 15–16 | Calculator disguise (iPhone / Samsung) | `/disguise` | V1 |
+| 14 | Disguise mode | `/settings/disguise` | V1, not on iOS |
+| 15–16 | Calculator disguise (iPhone / Samsung skin) | `/disguise` | V1, not on iOS |
 | 17 | Notifications | `/settings/notifications` | V1 |
 | 18 | Data and storage | `/settings/storage` | V1 |
 | 19 | Privacy and security | `/settings/privacy` | V1 |
@@ -110,7 +110,6 @@ introducing anything new.
 | 22 | About Privio | `/settings/about` | V1 |
 | 23 | Change password | `/settings/password` | V1 |
 | 24 | Two-factor authentication | `/settings/2fa` | V1 |
-| 25 | Language | `/settings/language` | V1 |
 | — | Activation (first start, licensed servers only) | stage, not a route | V1 |
 | — | Privio License | `/settings/license` | V1 |
 | — | Blocked users | `/settings/blocked` | V1 |
@@ -127,6 +126,10 @@ navigator, in the `MaterialApp` builder, so it covers whatever is open —
 including a pushed chat or settings screen. It is the one place in the app that
 deliberately sits outside the routing, because a ringing phone is not something
 to go looking for in a tab.
+
+There is no Language screen. The mockup sheet has one and Settings carried a
+row reading "English" that opened nothing; Privio is English-only, so the row
+is gone rather than offering a choice that does not exist.
 
 ## Component notes from the mockups
 
@@ -146,11 +149,15 @@ to go looking for in a tab.
   chevron in `textTertiary`, grouped on `surface` cards with 12px radius.
   Destructive rows drop the icon and colour the label `danger`.
 - **Toggles:** accent track when on, `surfaceHigh` when off.
-- **Calculator disguise:** two skins, both shipped. iPhone uses circular keys
-  with `calculatorOperator` on the right column against true black; Samsung uses
-  rounded squares with accent operators on `#1B1B1D`. One grid, one arithmetic
-  model, two sets of clothes. Both behave as a real calculator — the code is
-  entered as a normal number and only `=` opens Privio, and a wrong one is
-  simply added up. The pad is sized from the screen's width and capped at 62% of
-  its height, so it fills the screen on a phone and shrinks rather than
-  overflowing on anything shorter.
+- **Calculator disguise:** two skins. The iPhone-style one uses circular keys
+  with `calculatorOperator` on the right column against true black; the
+  Samsung-style one uses rounded squares with accent operators on `#1B1B1D`.
+  One grid, one arithmetic model, two sets of clothes. Both behave as a real
+  calculator: any sum whose answer is the passcode opens Privio on `=`, and
+  every other answer is just an answer. The pad is sized from the screen's
+  width and capped at 62% of its height, so it fills the screen on a phone and
+  shrinks rather than overflowing on anything shorter.
+
+  Screens 14–16 do not exist on an iPhone. The feature is withheld on iOS,
+  which cannot rename an app, so a disguise there would carry Privio's own name
+  under a calculator icon.

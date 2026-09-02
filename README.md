@@ -317,15 +317,26 @@ right shape, and that is the whole point.
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/screenshots/call-01-ringing.png" width="220"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/call-02-connected.png" width="220"><br><sub><b>2.</b> Connected — media over DTLS-SRTP, keys agreed device to device.</sub></td>
-<td align="center" width="33%"><img src="docs/screenshots/call-03-log.png" width="220"><br><sub><b>3.</b> The log is on the device and nowhere else.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-01-ringing.png" width="180"><br><sub><b>1.</b> The offer arrives sealed; the phone rings with a name.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-02-connected.png" width="180"><br><sub><b>2.</b> Connected — DTLS-SRTP, keys agreed device to device.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-04-video.png" width="180"><br><sub><b>3.</b> Video, with your own camera in the corner.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-05-camera-off.png" width="180"><br><sub><b>4.</b> Camera off stops the track, not just the icon.</sub></td>
+<td align="center" width="20%"><img src="docs/screenshots/call-03-log.png" width="180"><br><sub><b>5.</b> The log is on the device and nowhere else.</sub></td>
 </tr>
 </table>
 
 The media itself is libwebrtc's, through `flutter_webrtc`, encrypted with
 DTLS-SRTP as that library implements it. Privio writes no cipher of its own
-here, as everywhere else. What Privio owns is the part that goes wrong — a
+here, as everywhere else.
+
+Video is the same call with a camera in it. The remote picture is drawn
+full-bleed with the name, the timer and the line about encryption held over a
+scrim at the top — centred, they sat in the middle of whatever the other camera
+happened to be pointed at. Your own camera goes in a small mirrored window, and
+the camera button disables the track rather than only the icon. A voice call
+gets no camera button at all: turning one on mid-call is a renegotiation this
+does not do yet, and a button that quietly does nothing is the thing this app
+keeps deleting. What Privio owns is the part that goes wrong — a
 goodbye for a call that already ended, a candidate arriving before anyone
 picked up, two people calling each other in the same second — and that part sits
 behind an interface so all of it is tested without a microphone in the room.
@@ -376,16 +387,33 @@ plain object with no widgets in it, which is why thirteen tests on the
 arithmetic alone were cheap, and they caught the percent key computing
 `200 + 10 %` as 400.
 
-**The home screen changes too.** On Android the icon and the name both swap:
+**The home screen changes too — on Android.** Both the icon and the name swap:
 the launcher entry is an `activity-alias`, so there are two of them pointing at
-the same activity and turning the disguise on enables one and disables the
+the same activity, and turning the disguise on enables one and disables the
 other — in that order, because a moment with no enabled alias drops the app off
-some launchers. On iOS the icon swaps through `setAlternateIconName`; the name
-does not, because iOS fixes an app's display name at build time and offers no
-API to change it, and iOS shows an alert of its own that no app can suppress.
-The settings screen says which of those applies to the device it is running on
-rather than making one promise everywhere, and if the launcher refuses the
-change it says the lock screen changed and the home screen did not.
+some launchers and can have Android stop the process. The alias's own
+`android:label` is what the launcher draws, which is why the name changes and
+not only the icon. The swap is read back afterwards and reported as a failure
+if the system accepted the call and changed nothing.
+
+Precisely, and this is the limit of it: what changes is the *launcher entry*.
+Android's own app list — Settings, app info, the name shown when Privio asks
+for a permission — reads the `<application>` label, which is fixed when the app
+is built and cannot be changed at runtime. Someone scrolling the home screen
+sees a calculator; someone opening Settings → Apps sees Privio.
+
+**Not on iOS.** iOS can swap an icon and cannot change a name: an app's display
+name is fixed when it is built and there is no public API to change it. That
+would leave an iPhone showing a calculator icon still labelled *Privio* —
+a disguise that says its own name underneath itself, which is worse than none,
+because it invites exactly the question the disguise exists to avoid. So the
+feature is not shipped on iOS at all: no calculator, no setting, no lock-screen
+replacement. The row is absent from Settings rather than present and
+explaining itself, and a disguise stored by some earlier install is dropped on
+start-up rather than leaving the app locked behind a screen it will never draw.
+
+That was a deliberate call over shipping the half that works. Half a disguise
+is not a smaller disguise.
 
 **Two skins**, because a disguise works by being unremarkable and a calculator
 that does not look like the one the phone already ships is exactly what gets
@@ -401,12 +429,16 @@ phone for long: the app is installed, and its size, its files and its traffic
 are all there to find by anyone who looks properly. It is for the ordinary case
 — a screen glanced at, a phone handed over unlocked.
 
-**What has not been run.** The Kotlin and the Swift are unverified from here:
-this environment has no Android SDK and no macOS, so neither was compiled and
-no launcher has actually redrawn. The Dart side of it — when the swap is asked
-for, what happens when the platform refuses, what each platform is allowed to
-promise — is behind an interface and tested. Treat the icon swap as written and
-reviewed, not as demonstrated.
+**What has not been run.** The Kotlin is unverified from here: `dl.google.com`
+is blocked by this environment's egress proxy, so the Android SDK cannot be
+fetched and the app has never been compiled for Android — no launcher has
+actually redrawn. What has been checked is the manifest, by parsing it: one
+activity with no launcher filter, two aliases targeting it, one enabled with
+Privio's label and icon and one disabled with the calculator's, and
+`calculator_name` defined for both flavours. The Dart side — when the swap is
+asked for, what happens when the platform refuses, which devices are offered it
+— is behind an interface and tested. Treat the icon and name swap as written
+and reviewed, not as demonstrated.
 
 ### Nothing on a screen that the screen cannot do
 
@@ -458,12 +490,12 @@ because the socket and the poll each delivered the same envelope once.
 | **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
-| **Video calls** | 🔧 | The protocol carries the media kind and the connection opens a camera; there is no picture on screen yet, so the app places voice calls only |
+| **Video calls** | ✅ | The camera button in a chat places one: the other side's picture full-bleed, your own in a small window, and a camera you can turn off mid-call |
 | **Group calls** | 📋 | A different piece of machinery, not the same one with more people in it |
 | **Channels** | ✅ | Public and private, both encrypted; discovery, feed, per-admin permissions, join links |
 | **Join links** | ✅ | Shareable links for channels and groups; the key follows device to device, never through the server |
-| **Disguise mode** | ✅ | A locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic |
-| **Calculator icon and name** | 🔧 | Android swaps both through launcher aliases, iOS swaps the icon (it has no API for the name). Written and unit-tested behind an interface; neither platform has been run on a device from here |
+| **Disguise mode** | ✅ | Android and the web build: a locked Privio opens to a working calculator, in an iPhone or a Samsung skin. Any sum that comes to the passcode opens it; any sum that comes to the duress code wipes; anything else is arithmetic. Not offered on iOS |
+| **Calculator icon and name** | 🔧 | Android only, through activity aliases: both the icon and the name on the launcher entry. Not offered on iOS at all — see below. Written and unit-tested behind an interface; the Kotlin has not been compiled from here, because the environment has no Android SDK |
 | **License activation** | ✅ | Asked once at first start, in the builds that use a key; skippable, and remembered per account |
 | **Editions** | ✅ | `libre`, `direct`, `play`, `appstore` from one source tree — a build-time fact, not a runtime setting |
 
@@ -839,7 +871,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 329 tests, incl. the crypto round trip
+│   └── test/                 335 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -875,11 +907,11 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code · Encrypted voice calls · Disguise mode
+Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
 
-**Next** — Video on screen (the connection already carries it) · A STUN server,
-so calls connect from behind a strict NAT · Ringing a closed app, which needs
-the push registration the server is already waiting for · Multi-device
+**Next** — A STUN server, so calls connect from behind a strict NAT · Ringing a
+closed app, which needs the push registration the server is already waiting
+for · Multi-device
 
 **Later** — Sealed sender · SQLCipher for the local history
 
