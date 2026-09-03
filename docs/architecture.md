@@ -172,6 +172,15 @@ the user sees points them at the operator; the log names the variable.
 The client picks a random key, scrubs the file's metadata, pads it into a size
 bucket, seals it, and uploads ciphertext. The key goes inside the E2EE message.
 
+`MetadataScrubber` handles JPEG, PNG, WebP, GIF and MP4/MOV, identifying the
+format by magic bytes rather than by the name, which is attacker-controlled.
+Container formats are rebuilt rather than patched: WebP's chunk table is walked
+and EXIF/XMP/ICCP dropped with their VP8X flags, GIF's block chain is walked and
+comments, plain-text and non-loop application extensions dropped. A file whose
+structure cannot be walked to the end is returned untouched and reported as
+*not* cleaned — a partial walk leaves metadata in the part never read, and a
+clean report over that is worse than no scrubber at all.
+
 Downloading is a **capability**. The upload mints an unguessable token, returns
 it once, and stores only its SHA-256 — `GET /v1/media/:id` needs the token in
 `x-privio-media-token` and compares in constant time. The token travels in the

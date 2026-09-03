@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:privio/media/metadata_scrubber.dart';
 
 Uint8List fixture(String name) =>
@@ -24,6 +25,156 @@ int boxSize(Uint8List bytes, int offset) =>
     (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
 
 void main() {
+  group('WebP', () {
+    final original = fixture('photo_with_exif.webp');
+
+    test('the fixture really does carry what we claim to remove', () {
+      final text = latin1.decode(original, allowInvalid: true);
+      expect(text, contains('EXIF'));
+      expect(text, contains('SECRET-XMP-MARKER'));
+      expect(MetadataScrubber.sniff(original), 'image/webp');
+    });
+
+    test('EXIF, XMP and the colour profile are gone', () {
+      final result = MetadataScrubber.scrub(original);
+      final text = latin1.decode(result.bytes, allowInvalid: true);
+
+      expect(result.report.recognised, isTrue);
+      expect(text, isNot(contains('SECRET-XMP-MARKER')));
+      expect(text, isNot(contains('Privio Camera')));
+      expect(text, isNot(contains('SERIAL-12345')));
+      expect(result.report.removed, contains('EXIF (camera, GPS, timestamps)'));
+      expect(result.report.removed, contains('XMP metadata'));
+      expect(result.report.removed, contains('ICC colour profile'));
+      expect(result.bytes.length, lessThan(original.length));
+    });
+
+    test('it is still a WebP, and still decodes to the same picture', () {
+      final result = MetadataScrubber.scrub(original);
+
+      expect(latin1.decode(result.bytes.sublist(0, 4)), 'RIFF');
+      expect(latin1.decode(result.bytes.sublist(8, 12)), 'WEBP');
+
+      // The RIFF length field has to match what is actually there, or every
+      // decoder reads past the end.
+      final declared = result.bytes[4] |
+          (result.bytes[5] << 8) |
+          (result.bytes[6] << 16) |
+          (result.bytes[7] << 24);
+      expect(declared, result.bytes.length - 8);
+
+      final decoded = img.decodeWebP(result.bytes);
+      expect(decoded, isNotNull, reason: 'a scrubber that breaks the picture is not a scrubber');
+      expect(decoded!.width, 64);
+      expect(decoded.height, 48);
+    });
+
+    test('the VP8X flags stop announcing chunks that are no longer there', () {
+      final result = MetadataScrubber.scrub(original);
+      var offset = 12;
+      int? flags;
+      while (offset + 8 <= result.bytes.length) {
+        final fourCc = latin1.decode(result.bytes.sublist(offset, offset + 4));
+        final size = result.bytes[offset + 4] |
+            (result.bytes[offset + 5] << 8) |
+            (result.bytes[offset + 6] << 16) |
+            (result.bytes[offset + 7] << 24);
+        if (fourCc == 'VP8X') flags = result.bytes[offset + 8];
+        offset += 8 + size + (size.isOdd ? 1 : 0);
+      }
+
+      expect(flags, isNotNull, reason: 'the fixture has an extended header');
+      // A decoder told there is an ICC profile and handed a file without one is
+      // a decoder looking at a malformed image.
+      expect(flags! & 0x20, 0, reason: 'ICC');
+      expect(flags & 0x08, 0, reason: 'EXIF');
+      expect(flags & 0x04, 0, reason: 'XMP');
+    });
+  });
+
+  group('GIF', () {
+    final original = fixture('animation_with_metadata.gif');
+
+    test('the fixture really does carry what we claim to remove', () {
+      final text = latin1.decode(original, allowInvalid: true);
+      expect(text, contains('SECRET-GIF-COMMENT'));
+      expect(text, contains('SECRET-XMP-MARKER'));
+      expect(text, contains('NETSCAPE2.0'));
+      expect(MetadataScrubber.sniff(original), 'image/gif');
+    });
+
+    test('the comment and the XMP block are gone', () {
+      final result = MetadataScrubber.scrub(original);
+      final text = latin1.decode(result.bytes, allowInvalid: true);
+
+      expect(result.report.recognised, isTrue);
+      expect(text, isNot(contains('SECRET-GIF-COMMENT')));
+      expect(text, isNot(contains('SECRET-XMP-MARKER')));
+      expect(result.report.removed, contains('Embedded comment'));
+      expect(result.report.removed, contains('Application metadata (XMP DataXMP)'));
+    });
+
+    test('the loop block survives, because dropping it changes the picture', () {
+      final result = MetadataScrubber.scrub(original);
+      final text = latin1.decode(result.bytes, allowInvalid: true);
+
+      // An animation that looped forever and now plays once has been altered,
+      // not cleaned.
+      expect(text, contains('NETSCAPE2.0'));
+    });
+
+    test('it still decodes, and still has every frame', () {
+      final before = img.decodeGif(original)!;
+      final result = MetadataScrubber.scrub(original);
+      final after = img.decodeGif(result.bytes);
+
+      expect(after, isNotNull);
+      expect(after!.frames.length, before.frames.length);
+      expect(after.width, 32);
+      expect(after.height, 24);
+    });
+  });
+
+  group('a file that cannot be walked', () {
+    test('is reported as not cleaned, not as having nothing to remove', () {
+      // Half a walk leaves the metadata in the half that was never read. The
+      // UI shows a warning for `recognised: false` and a tick for a clean
+      // pass, so getting this backwards tells someone their file is safe.
+      final gif = fixture('animation_with_metadata.gif');
+      final truncated = Uint8List.fromList(gif.sublist(0, gif.length - 40));
+
+      final result = MetadataScrubber.scrub(truncated);
+      expect(result.report.recognised, isFalse);
+      expect(result.report.removed, isEmpty);
+      expect(result.bytes, truncated, reason: 'and nothing is silently rewritten');
+    });
+
+    test('the same for a WebP whose chunk table runs off the end', () {
+      final webp = fixture('photo_with_exif.webp');
+      final truncated = Uint8List.fromList(webp.sublist(0, 40));
+
+      final result = MetadataScrubber.scrub(truncated);
+      expect(result.report.recognised, isFalse);
+      expect(result.bytes, truncated);
+    });
+  });
+
+  group('what is still not cleaned', () {
+    test('a PDF is passed through and says so', () {
+      final pdf = Uint8List.fromList([
+        ...'%PDF-1.7\n'.codeUnits,
+        ...'/Author (someone) /Producer (a tool)'.codeUnits,
+      ]);
+      final result = MetadataScrubber.scrub(pdf);
+
+      // Stripping a PDF safely needs a real parser. Passing it through with a
+      // warning is worse than cleaning it and better than pretending.
+      expect(result.report.recognised, isFalse);
+      expect(result.report.mediaType, 'application/pdf');
+      expect(result.bytes, pdf);
+    });
+  });
+
   group('JPEG', () {
     test('strips GPS, camera model and serial number from a real photo', () {
       final original = fixture('photo_with_exif.jpg');

@@ -46,6 +46,8 @@ abstract final class MetadataScrubber {
     return switch (type) {
       'image/jpeg' => _scrubJpeg(bytes),
       'image/png' => _scrubPng(bytes),
+      'image/webp' => _scrubWebp(bytes),
+      'image/gif' => _scrubGif(bytes),
       'video/mp4' || 'video/quicktime' => _scrubMp4(bytes, type),
       _ => ScrubResult(
           bytes,
@@ -86,6 +88,224 @@ abstract final class MetadataScrubber {
     if (startsWith(const [0x25, 0x50, 0x44, 0x46])) return 'application/pdf';
     return null;
   }
+
+  // --- WebP -----------------------------------------------------------------
+
+  /// RIFF chunks that carry provenance rather than picture.
+  ///
+  /// `ICCP` is a colour profile and goes for the same reason JPEG's APP2 does:
+  /// it is chosen by the device that wrote the file, which makes it a
+  /// fingerprint of that device. The picture decodes without it.
+  static const Map<String, String> _webpMetadataChunks = {
+    'EXIF': 'EXIF (camera, GPS, timestamps)',
+    'XMP ': 'XMP metadata',
+    'ICCP': 'ICC colour profile',
+  };
+
+  /// Bits in the VP8X flags byte that announce those chunks.
+  ///
+  /// Clearing them matters: a decoder told there is an ICC profile and handed
+  /// a file without one is a decoder looking at a malformed image. Removing
+  /// the chunk and leaving the flag is how a scrubber breaks a picture.
+  static const int _vp8xIccFlag = 0x20;
+  static const int _vp8xExifFlag = 0x08;
+  static const int _vp8xXmpFlag = 0x04;
+
+  static ScrubResult _scrubWebp(Uint8List bytes) {
+    final removed = <String>[];
+    final kept = BytesBuilder();
+    var offset = 12; // past 'RIFF' + size + 'WEBP'
+    var dropped = 0;
+    int? vp8xAt;
+
+    while (offset + 8 <= bytes.length) {
+      final fourCc = String.fromCharCodes(bytes.sublist(offset, offset + 4));
+      final size = bytes[offset + 4] |
+          (bytes[offset + 5] << 8) |
+          (bytes[offset + 6] << 16) |
+          (bytes[offset + 7] << 24);
+      // Chunks are padded to an even length; the pad byte is not counted.
+      final end = offset + 8 + size + (size.isOdd ? 1 : 0);
+      // A chunk running past the end means the rest was never read, so any
+      // metadata in it survives. Reporting "nothing to remove" for a file that
+      // could not be walked is the one answer worse than not cleaning it.
+      if (size < 0 || end > bytes.length) return _unrecognised(bytes, 'image/webp');
+
+      final label = _webpMetadataChunks[fourCc];
+      if (label != null) {
+        if (!removed.contains(label)) removed.add(label);
+        dropped |= switch (fourCc) {
+          'ICCP' => _vp8xIccFlag,
+          'EXIF' => _vp8xExifFlag,
+          _ => _vp8xXmpFlag,
+        };
+      } else {
+        final chunk = Uint8List.fromList(bytes.sublist(offset, end));
+        // VP8X announces what the file contains. It is written before the
+        // chunks it describes, so the flags are cleared after the walk.
+        if (fourCc == 'VP8X') vp8xAt = kept.length;
+        kept.add(chunk);
+      }
+      offset = end;
+    }
+    final body = kept.toBytes();
+    if (vp8xAt != null && dropped != 0) {
+      // The flags byte is the first of the VP8X payload.
+      body[vp8xAt + 8] &= ~dropped & 0xFF;
+    }
+
+    final out = BytesBuilder()
+      ..add(bytes.sublist(0, 4))
+      ..add(_le32(body.length + 4))
+      ..add(bytes.sublist(8, 12))
+      ..add(body);
+    final scrubbed = out.toBytes();
+
+    return ScrubResult(
+      scrubbed,
+      ScrubReport(
+        mediaType: 'image/webp',
+        originalBytes: bytes.length,
+        scrubbedBytes: scrubbed.length,
+        removed: removed,
+        recognised: true,
+      ),
+    );
+  }
+
+  static Uint8List _le32(int value) => Uint8List.fromList([
+        value & 0xFF,
+        (value >> 8) & 0xFF,
+        (value >> 16) & 0xFF,
+        (value >> 24) & 0xFF,
+      ]);
+
+  // --- GIF ------------------------------------------------------------------
+
+  /// Application extensions that are machinery, not provenance.
+  ///
+  /// NETSCAPE2.0 carries the loop count. Dropping it turns an animation that
+  /// loops forever into one that plays once, which is a visible change to the
+  /// picture rather than a removal of information about it.
+  static const List<String> _gifKeptApplications = ['NETSCAPE2.0', 'ANIMEXTS1.0'];
+
+  static ScrubResult _scrubGif(Uint8List bytes) {
+    final removed = <String>[];
+    final out = BytesBuilder();
+
+    // Header (6) + logical screen descriptor (7).
+    if (bytes.length < 13) return _unrecognised(bytes, 'image/gif');
+    out.add(bytes.sublist(0, 13));
+    var offset = 13;
+
+    // The global colour table, if the descriptor says there is one.
+    final packed = bytes[10];
+    if (packed & 0x80 != 0) {
+      final size = 3 * (1 << ((packed & 0x07) + 1));
+      if (offset + size > bytes.length) return _unrecognised(bytes, 'image/gif');
+      out.add(bytes.sublist(offset, offset + size));
+      offset += size;
+    }
+
+    while (offset < bytes.length) {
+      final block = bytes[offset];
+
+      if (block == 0x3B) {
+        // Trailer. Anything after it is not part of the file.
+        out.add(Uint8List.fromList(const [0x3B]));
+        offset = bytes.length;
+        break;
+      }
+
+      if (block == 0x21) {
+        if (offset + 2 > bytes.length) return _unrecognised(bytes, 'image/gif');
+        final label = bytes[offset + 1];
+        final start = offset;
+        var cursor = offset + 2;
+
+        // An application extension names itself in an 11-byte block first.
+        String? application;
+        if (label == 0xFF && cursor < bytes.length && bytes[cursor] == 11) {
+          if (cursor + 12 > bytes.length) return _unrecognised(bytes, 'image/gif');
+          application = String.fromCharCodes(bytes.sublist(cursor + 1, cursor + 12));
+        }
+
+        cursor = _skipSubBlocks(bytes, cursor);
+        if (cursor < 0) return _unrecognised(bytes, 'image/gif');
+
+        final drop = switch (label) {
+          0xFE => 'Embedded comment',
+          0x01 => 'Plain-text extension',
+          0xFF when application != null && !_gifKeptApplications.contains(application) =>
+            'Application metadata ($application)',
+          _ => null,
+        };
+        if (drop != null) {
+          if (!removed.contains(drop)) removed.add(drop);
+        } else {
+          out.add(bytes.sublist(start, cursor));
+        }
+        offset = cursor;
+        continue;
+      }
+
+      if (block == 0x2C) {
+        // Image descriptor: 10 bytes, an optional local colour table, then the
+        // LZW-coded data as sub-blocks. All picture; all kept.
+        if (offset + 10 > bytes.length) return _unrecognised(bytes, 'image/gif');
+        var cursor = offset + 10;
+        final local = bytes[offset + 9];
+        if (local & 0x80 != 0) cursor += 3 * (1 << ((local & 0x07) + 1));
+        if (cursor + 1 > bytes.length) return _unrecognised(bytes, 'image/gif');
+        cursor += 1; // LZW minimum code size
+        cursor = _skipSubBlocks(bytes, cursor);
+        if (cursor < 0) return _unrecognised(bytes, 'image/gif');
+        out.add(bytes.sublist(offset, cursor));
+        offset = cursor;
+        continue;
+      }
+
+      // Not a block we understand. Everything after this point is unread, so
+      // whatever metadata is in it is still there — say so rather than handing
+      // back a file that was only half looked at.
+      return _unrecognised(bytes, 'image/gif');
+    }
+
+    final scrubbed = out.toBytes();
+    return ScrubResult(
+      scrubbed,
+      ScrubReport(
+        mediaType: 'image/gif',
+        originalBytes: bytes.length,
+        scrubbedBytes: scrubbed.length,
+        removed: removed,
+        recognised: true,
+      ),
+    );
+  }
+
+  /// Walks a GIF sub-block chain and returns the offset just past its
+  /// terminator, or -1 if the file runs out first.
+  static int _skipSubBlocks(Uint8List bytes, int from) {
+    var offset = from;
+    while (offset < bytes.length) {
+      final size = bytes[offset];
+      if (size == 0) return offset + 1;
+      offset += 1 + size;
+    }
+    return -1;
+  }
+
+  static ScrubResult _unrecognised(Uint8List bytes, String type) => ScrubResult(
+        bytes,
+        ScrubReport(
+          mediaType: type,
+          originalBytes: bytes.length,
+          scrubbedBytes: bytes.length,
+          removed: const [],
+          recognised: false,
+        ),
+      );
 
   // --- JPEG -----------------------------------------------------------------
 

@@ -496,7 +496,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
-| **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting |
+| **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting. JPEG, PNG, WebP, GIF and MP4/MOV; a PDF is passed through and says so rather than being half-stripped |
 | **Attachments in the chat** | 🔧 | 1:1 and groups; send, receive and display work; the OS file dialog is untested (see below) |
 | **Attachment authorisation** | ✅ | Downloading needs a capability minted at upload and carried inside the sealed payload — the server hands the bytes over without ever learning who is entitled to them. Only the token's hash is stored |
 | **Profile pictures** | 🔧 | Encrypted end to end; same untested file dialog |
@@ -896,7 +896,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 346 tests, incl. the crypto round trip
+│   └── test/                 357 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions

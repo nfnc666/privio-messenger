@@ -95,9 +95,23 @@ idempotent — a second pass finds nothing.
 not cleaned.** Silently corrupting a file would be worse, and silently claiming
 it was cleaned would be worse still.
 
-The known gap: formats without a scrubber (WebP, GIF, PDF, Office documents)
-carry their metadata through. The report tells the user, but the right answer is
-to write scrubbers for them.
+**WebP** loses its EXIF, XMP and ICC chunks, and the VP8X flags that announced
+them are cleared with them — a decoder told there is a colour profile and handed
+a file without one is a decoder looking at a malformed image.
+
+**GIF** loses comment blocks, plain-text extensions and application extensions
+that are not the loop block. XMP in a GIF is an application extension, so that
+goes too. NETSCAPE2.0 stays: dropping it turns an animation that looped forever
+into one that plays once, which alters the picture rather than removing
+information about it.
+
+**A file that cannot be walked is reported as not cleaned**, never as having
+nothing to remove. A truncated or malformed container means the rest was never
+read, so any metadata in it survives; a tick over that file would be the app
+telling somebody their photograph is safe when nothing looked at it.
+
+The known gap now: PDF and Office documents. Both need a real parser to strip
+safely, and a half-done job on either is worse than an honest refusal.
 
 ### Message length is padded away
 
@@ -671,10 +685,11 @@ naming what is missing today.
 4. **No sealed sender.** Envelopes carry a sender account id, which the server
    uses for blocking and rate limiting. Removing it needs delivery tokens. Now
    that length is padded away, this is the largest remaining metadata leak.
-5. **Only three formats have metadata scrubbers.** JPEG, PNG and MP4/MOV are
-   cleaned on every send. WebP, GIF, PDF and Office documents are passed through
+5. **PDFs and Office documents have no metadata scrubber.** JPEG, PNG, WebP,
+   GIF and MP4/MOV are cleaned on every send. The other two are passed through
    as they are — the app reports that it could not clean them, but reporting is
-   not the same as fixing.
+   not the same as fixing. Both need a real document parser; a half-stripped
+   PDF is worse than an untouched one.
 6. **The file-picking step is unverified.** Everything after it — scrubbing,
    padding, sealing, upload, download, decryption and display — is covered by
    tests that run the real code paths. The OS file dialog itself is a platform
