@@ -144,7 +144,14 @@ class FakeServer {
         if (method == 'POST' && path == '/v1/media') {
           final id = 'media-${_nextMediaId++}';
           media[id] = request.bodyBytes;
-          return _json({'id': id, 'byteSize': request.bodyBytes.length}, status: 201);
+          // The real server mints a download capability here and keeps only
+          // its hash; an avatar gets none, because its id is published.
+          final avatar = request.url.queryParameters['kind'] == 'avatar';
+          return _json({
+            'id': id,
+            'byteSize': request.bodyBytes.length,
+            if (!avatar) 'token': 'token-$id',
+          }, status: 201,);
         }
 
         if (method == 'GET' && path.startsWith('/v1/media/')) {
@@ -175,10 +182,26 @@ class FakeServer {
         if (method == 'GET' && path.startsWith('/v1/keys/')) {
           final username = path.split('/').last;
           final account = accounts[username]!;
+          // Asking for your own account means "my other devices", as the real
+          // server answers it: a device never needs a session with itself, and
+          // the send route would refuse a copy addressed back to the sender.
+          final own = account.devices.any((device) => device.deviceId == deviceId);
+          final bundles = [
+            for (final device in account.devices)
+              if (!(own && device.deviceId == deviceId)) device.bundle(),
+          ];
+          // The real server answers 404 rather than an empty list, which is
+          // what tells a lone device it has nobody to copy to.
+          if (bundles.isEmpty) {
+            return _json(
+              {'error': 'no_devices', 'message': 'User has no active devices'},
+              status: 404,
+            );
+          }
           return _json({
             'accountId': account.id,
             'username': username,
-            'devices': [for (final device in account.devices) device.bundle()],
+            'devices': bundles,
           });
         }
 
@@ -201,7 +224,12 @@ class FakeServer {
             );
           }
 
-          final expected = account.devices.map((d) => d.deviceId).toSet();
+          // A self-addressed send is the multi-device copy, and the real server
+          // never echoes it back to the device that sent it.
+          final expected = account.devices
+              .map((d) => d.deviceId)
+              .where((id) => id != sender.deviceId || !account.devices.contains(sender))
+              .toSet();
           final provided = messages.map((m) => m['deviceId'] as String).toSet();
           if (expected.length != provided.length || !expected.containsAll(provided)) {
             return _json(
@@ -357,6 +385,9 @@ class Participant {
       baseUrl: Uri.parse('https://api.test'),
       client: server.clientFor(deviceId),
     )..useToken('token-$deviceId');
-    messaging = MessagingService(api: api, crypto: crypto);
+    messaging = MessagingService(api: api, crypto: crypto)
+      // What signing in does, so a send can address this account's own other
+      // devices exactly as it does on a real device.
+      ..identifyAs(username);
   }
 }

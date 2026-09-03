@@ -94,7 +94,12 @@ void main() {
 
     await alice.messaging.sendToUser('bob', 'trotzdem angekommen');
 
-    expect(server.sendAttempts, 2, reason: 'one rejection, one successful retry');
+    expect(
+      server.sendAttempts,
+      2,
+      reason: 'one rejection, one successful retry — alice has a single device '
+          'here, so no copy is sent to herself',
+    );
     final received = await bob.messaging.receive();
     expect(received.messages.single.body, 'trotzdem angekommen');
   });
@@ -122,6 +127,100 @@ void main() {
     expect(received.messages, isEmpty);
     expect(received.failures, hasLength(1));
     expect(server.envelopes, isEmpty, reason: 'a poison envelope must not block the queue');
+  });
+
+  group('a second device on the same account', () {
+    late Participant laptop;
+
+    setUp(() async {
+      // Same account, a different device index — what signing in twice does.
+      laptop = Participant('alice', 'account-alice', 2);
+      await laptop.join(server);
+    });
+
+    test('gets a copy of what the first device sent', () async {
+      await alice.messaging.sendToUser('bob', 'von meinem Telefon');
+
+      // Bob got the message itself.
+      final forBob = await bob.messaging.receive();
+      expect(forBob.messages.single.body, 'von meinem Telefon');
+
+      // The laptop got a copy, marked as a copy rather than as a message from
+      // somebody — filing it as incoming would show this account writing to
+      // itself.
+      final forLaptop = await laptop.messaging.receive();
+      final payload = forLaptop.messages.single.payload;
+      expect(payload.isSync, isTrue);
+      expect(payload.isControl, isTrue, reason: 'it is never a bubble on its own');
+      expect(payload.sync!.inner.body, 'von meinem Telefon');
+      expect(payload.sync!.conversationId, bob.accountId);
+      expect(payload.sync!.isGroup, isFalse);
+    });
+
+    test('the sending device does not get its own copy', () async {
+      await alice.messaging.sendToUser('bob', 'einmal reicht');
+
+      final backToSender = await alice.messaging.receive();
+      expect(
+        backToSender.messages,
+        isEmpty,
+        reason: 'a device that already has the message does not need it again',
+      );
+    });
+
+    test('an account with one device sends no copy at all', () async {
+      // Bob has a single device: there is nobody to sync to, and asking is a
+      // request that should not be made.
+      final before = server.envelopes.length;
+      await bob.messaging.sendToUser('alice', 'nur ein Geraet');
+      final envelopes = server.envelopes.length - before;
+
+      // Two devices of alice's, and nothing addressed back to bob.
+      expect(envelopes, 2);
+      final toBob = server.envelopes.where(
+        (e) => e['recipientDeviceId'] == bob.deviceId,
+      );
+      expect(toBob, isEmpty);
+    });
+
+    test('a group message needs no copy: the fan-out already reaches it', () async {
+      final group = await alice.messaging.createGroup('Team', [bob.accountId]);
+      final before = server.envelopes.length;
+      await alice.messaging.sendToGroup(group.groupId, 'an alle');
+
+      // Every member device except the sending one, which includes the laptop.
+      final sent = server.envelopes.skip(before).toList();
+      expect(
+        sent.any((e) => e['recipientDeviceId'] == laptop.deviceId),
+        isTrue,
+        reason: 'the group route already excludes only the device that sent',
+      );
+      expect(
+        sent.any((e) => e['recipientDeviceId'] == alice.deviceId),
+        isFalse,
+      );
+    });
+
+    test('the copy carries an attachment by reference, not by uploading twice', () async {
+      await alice.messaging.sendAttachment(
+        'bob',
+        file: Uint8List.fromList(List.filled(64, 7)),
+        fileName: 'note.bin',
+      );
+      final uploads = server.media.length;
+
+      final forLaptop = await laptop.messaging.receive();
+      final inner = forLaptop.messages.single.payload.sync!.inner;
+
+      expect(uploads, 1, reason: 'one upload, two messages pointing at it');
+      expect(inner.isMedia, isTrue);
+      expect(inner.mediaId, isNotNull);
+      expect(
+        inner.mediaToken,
+        isNotNull,
+        reason: 'without the capability the laptop could not open its own file',
+      );
+    });
   });
 
   test('a conversation continues in both directions', () async {

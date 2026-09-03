@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'calculator_screen.dart';
 import 'screen_lock_screen.dart';
@@ -21,7 +22,10 @@ class DisguiseScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Disguise mode')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Disguise mode'),
+      ),
       body: ListenableBuilder(
         listenable: state,
         builder: (context, _) => ListView(

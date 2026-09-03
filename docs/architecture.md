@@ -167,10 +167,38 @@ Setup refuses with 503 when no key is configured — a secret written unsealed
 never expires, so it would be a permanent hole nobody was told about. The error
 the user sees points them at the operator; the log names the variable.
 
+## More than one device
+
+An account may have several devices, and a message is sealed once per device.
+Incoming fan-out is the server's: `/v1/messages` addresses every active device
+of the recipient, and the group route addresses every member device except the
+one that sent.
+
+Outgoing needed a copy. `MessagePayload.sync` wraps what was sent together with
+the conversation it went to, addressed to the sender's *own* username; both
+`GET /v1/keys/:username` and `POST /v1/messages` exclude the calling device
+when the target account is its own, so "send to myself" means "my other
+devices" and a device never opens a session with itself. The receiving device
+files the inner payload as outgoing in the named conversation, deduplicated on
+the client id so a device that sent it does not file it twice.
+
+Control payloads are not copied — a receipt or typing notice filed on another
+device would become a message nobody wrote — and the copy is not retried, so a
+device offline for one send has a gap only a backup fills.
+
 ## Attachments
 
 The client picks a random key, scrubs the file's metadata, pads it into a size
 bucket, seals it, and uploads ciphertext. The key goes inside the E2EE message.
+
+`MetadataScrubber` handles JPEG, PNG, WebP, GIF and MP4/MOV, identifying the
+format by magic bytes rather than by the name, which is attacker-controlled.
+Container formats are rebuilt rather than patched: WebP's chunk table is walked
+and EXIF/XMP/ICCP dropped with their VP8X flags, GIF's block chain is walked and
+comments, plain-text and non-loop application extensions dropped. A file whose
+structure cannot be walked to the end is returned untouched and reported as
+*not* cleaned — a partial walk leaves metadata in the part never read, and a
+clean report over that is worse than no scrubber at all.
 
 Downloading is a **capability**. The upload mints an unguessable token, returns
 it once, and stores only its SHA-256 — `GET /v1/media/:id` needs the token in

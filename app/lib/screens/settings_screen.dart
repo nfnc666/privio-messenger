@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'about_screen.dart';
 import 'appearance_screen.dart';
@@ -25,7 +26,10 @@ class SettingsScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Settings'),
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [

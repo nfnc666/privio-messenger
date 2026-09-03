@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 
 /// Creating a channel.
 ///
@@ -78,6 +79,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const PrivioBackButton(),
         title: const Text('New channel'),
         actions: [
           TextButton(

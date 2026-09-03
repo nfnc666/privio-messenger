@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// Two-factor authentication: turning it on, and turning it off.
@@ -91,7 +92,10 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     final security = PrivioScope.of(context).security;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Two-Factor Authentication')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Two-Factor Authentication'),
+      ),
       body: ListenableBuilder(
         listenable: security,
         builder: (context, _) => ListView(

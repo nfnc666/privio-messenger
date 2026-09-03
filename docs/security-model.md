@@ -95,9 +95,23 @@ idempotent — a second pass finds nothing.
 not cleaned.** Silently corrupting a file would be worse, and silently claiming
 it was cleaned would be worse still.
 
-The known gap: formats without a scrubber (WebP, GIF, PDF, Office documents)
-carry their metadata through. The report tells the user, but the right answer is
-to write scrubbers for them.
+**WebP** loses its EXIF, XMP and ICC chunks, and the VP8X flags that announced
+them are cleared with them — a decoder told there is a colour profile and handed
+a file without one is a decoder looking at a malformed image.
+
+**GIF** loses comment blocks, plain-text extensions and application extensions
+that are not the loop block. XMP in a GIF is an application extension, so that
+goes too. NETSCAPE2.0 stays: dropping it turns an animation that looped forever
+into one that plays once, which alters the picture rather than removing
+information about it.
+
+**A file that cannot be walked is reported as not cleaned**, never as having
+nothing to remove. A truncated or malformed container means the rest was never
+read, so any metadata in it survives; a tick over that file would be the app
+telling somebody their photograph is safe when nothing looked at it.
+
+The known gap now: PDF and Office documents. Both need a real parser to strip
+safely, and a half-done job on either is worse than an honest refusal.
 
 ### Message length is padded away
 
@@ -278,10 +292,52 @@ which clients do well before the pool empties.
 Peer identity keys are trusted on first use and pinned thereafter. A key that
 changes afterwards is **refused on send** — a server that swaps in its own key
 cannot silently read the conversation, because the user has to accept the new
-safety number first. Incoming messages from a changed key are still accepted, so
-a peer who reinstalled can reach you, and the change is surfaced rather than
-hidden. This is tested: see `a swapped identity key is refused on send` in
-`app/test/crypto_test.dart`.
+safety number first. Incoming messages from a changed key are still accepted,
+so a peer who reinstalled can reach you; refusing them would hand anyone a way
+to silence a conversation by sending one message. What that costs is paid for
+by saying so: the replacement is recorded, survives a relaunch, and stands
+until the new number has been put in front of the user. Tested in
+`app/test/crypto_test.dart` (`a swapped identity key is refused on send`) and
+`app/test/safety_number_test.dart` (`a key that arrives with a message is
+reported, not swallowed`).
+
+## Safety numbers
+
+Everything above takes the server's word for whose key is whose. The safety
+number is where that stops: sixty digits computed from both sides' identity
+keys and account ids, which two people compare over something the server is not
+part of. A server that substituted a key of its own cannot make the two screens
+agree.
+
+The digits are Signal's construction, computed by `NumericFingerprintGenerator`
+from `libsignal_protocol_dart` — 5200 rounds of SHA-512, thirty digits a side,
+concatenated in a fixed order. Privio implements none of it, and the iteration
+count is part of the number rather than a setting.
+
+**One number per device, not one per person.** Signal shows a single number
+because an identity key there belongs to an account. In Privio a key belongs to
+a *device* and is trusted per device, so one number would summarise several
+independent trust decisions. The screen lists them.
+
+Marking a conversation verified records the exact keys that were on screen —
+not a flag. So the answer to "is this still what I checked?" is a comparison,
+and it comes apart on its own in the two cases that matter:
+
+* a key changed, and
+* a device *appeared*. This is the one a per-key check misses. Nothing already
+  pinned has changed; a device simply joined the account — which is also what a
+  server quietly adding a device of its own looks like from here.
+
+There is no QR code. Scanning needs a camera package Privio does not carry, and
+a QR nobody can scan is decoration on a security screen. Reading the digits is
+the method; a compare box takes a number sent in writing, because comparing
+sixty digits by eye is where the mistake this screen exists to prevent gets
+made.
+
+What is verified by test rather than by hand: the refusal-on-send path. It
+needs a server that hands out a different identity key for a device whose
+session already exists, which no honest deployment does — so it is exercised in
+`app/test/safety_number_test.dart`, not in a browser run.
 
 ## Data retention
 
@@ -671,10 +727,11 @@ naming what is missing today.
 4. **No sealed sender.** Envelopes carry a sender account id, which the server
    uses for blocking and rate limiting. Removing it needs delivery tokens. Now
    that length is padded away, this is the largest remaining metadata leak.
-5. **Only three formats have metadata scrubbers.** JPEG, PNG and MP4/MOV are
-   cleaned on every send. WebP, GIF, PDF and Office documents are passed through
+5. **PDFs and Office documents have no metadata scrubber.** JPEG, PNG, WebP,
+   GIF and MP4/MOV are cleaned on every send. The other two are passed through
    as they are — the app reports that it could not clean them, but reporting is
-   not the same as fixing.
+   not the same as fixing. Both need a real document parser; a half-stripped
+   PDF is worse than an untouched one.
 6. **The file-picking step is unverified.** Everything after it — scrubbing,
    padding, sealing, upload, download, decryption and display — is covered by
    tests that run the real code paths. The OS file dialog itself is a platform

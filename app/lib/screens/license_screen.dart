@@ -5,6 +5,7 @@ import '../core/edition.dart';
 import '../core/license_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/license_key_field.dart';
+import '../widgets/privio_back_button.dart';
 
 /// Activation: where a Privio License Key is turned into a licensed account.
 ///
@@ -53,7 +54,10 @@ class _LicenseScreenState extends State<LicenseScreen> {
     final license = PrivioScope.of(context).license;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Privio License')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Privio License'),
+      ),
       body: ListenableBuilder(
         listenable: license,
         builder: (context, _) => _Body(license: license, field: _key, onActivate: _activate),

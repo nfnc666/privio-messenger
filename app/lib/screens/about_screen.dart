@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../core/edition.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/privio_logo.dart';
 import '../widgets/settings_row.dart';
 
@@ -30,7 +31,10 @@ class AboutScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('About Privio')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('About Privio'),
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [

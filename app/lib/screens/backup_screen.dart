@@ -8,6 +8,7 @@ import '../core/app_state.dart';
 import '../data/recovery_key.dart';
 import '../services/backup_service.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// End-to-end encrypted backup.
@@ -161,7 +162,10 @@ class _BackupScreenState extends State<BackupScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Backup'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

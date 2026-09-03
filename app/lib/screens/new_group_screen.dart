@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
+import '../widgets/privio_back_button.dart';
 
 /// Creating a group: a name, and who is in it.
 ///
@@ -68,6 +69,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
 
         return Scaffold(
           appBar: AppBar(
+            leading: const PrivioBackButton(),
             title: const Text('New group'),
             actions: [
               TextButton(

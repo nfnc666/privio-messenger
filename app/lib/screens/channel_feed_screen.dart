@@ -5,6 +5,7 @@ import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
+import '../widgets/privio_back_button.dart';
 
 /// One channel's feed.
 ///
@@ -177,6 +178,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
 
         return Scaffold(
           appBar: AppBar(
+            leading: const PrivioBackButton(),
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

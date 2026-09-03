@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../core/edition.dart';
 import '../services/wake_up.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// Screen 17: how this device gets told that something arrived.
@@ -33,7 +34,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final wakeUp = PrivioScope.of(context).wakeUp;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Notifications'),
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [

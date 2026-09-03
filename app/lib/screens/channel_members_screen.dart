@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
+import '../widgets/privio_back_button.dart';
 
 /// Who is in a channel, and what each of them may do.
 ///
@@ -66,7 +67,10 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
         final members = controller.membersOf(widget.channel.id);
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Members')),
+          appBar: AppBar(
+            leading: const PrivioBackButton(),
+            title: const Text('Members'),
+          ),
           body: ListView.builder(
             itemCount: members.length,
             itemBuilder: (context, index) {

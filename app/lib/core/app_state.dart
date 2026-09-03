@@ -357,6 +357,12 @@ class AppState extends ChangeNotifier {
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
     unawaited(controller.maintainKeys());
+    // A "their key changed" notice raised in an earlier run is still owed to
+    // the user, so it is read back before anything else can bury it.
+    unawaited(controller.loadKeyChangeAlerts());
+    // So a send can address this account's own other devices. Without it the
+    // copy has nowhere to go and a second device's history quietly diverges.
+    services.messaging.identifyAs(_username);
     // Where a call would find a relay, fetched now rather than when someone
     // dials: asking at the moment of a call tells the server a call is about
     // to happen, and everything else about a call is sealed from it.
@@ -511,6 +517,7 @@ class AppState extends ChangeNotifier {
     final services = _services;
     if (services != null) {
       _conversations?.stop();
+      services.messaging.identifyAs(null);
       services.ice.clear();
       services.store.clear();
       try {
@@ -588,6 +595,7 @@ class AppState extends ChangeNotifier {
       // A dead session on the server is no reason to keep one on the device.
     }
     services.api.useToken(null);
+    services.messaging.identifyAs(null);
     _sessionToken = null;
     services.ice.clear();
     services.store.clear();

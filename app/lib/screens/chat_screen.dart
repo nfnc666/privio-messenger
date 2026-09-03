@@ -8,9 +8,12 @@ import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
+import '../crypto/safety_number.dart';
 import '../models/models.dart';
 import '../media/voice.dart';
 import 'license_screen.dart';
+import 'safety_number_screen.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -44,10 +47,57 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _composer = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
+  /// What the safety-number screen would say, kept here so the header can say
+  /// it too. Read once on open rather than on every rebuild: it changes only
+  /// when a key does, and asking the keystore per frame would be absurd.
+  VerificationState? _verification;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (!widget.isGroup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_readVerification()));
+    }
+  }
+
+  Future<void> _readVerification() async {
+    final state = PrivioScope.of(context);
+    final me = state.accountId;
+    if (me == null) return;
+    final numbers = await state.services.crypto.safetyNumbers(
+      localAccountId: me,
+      remoteAccountId: widget.accountId,
+    );
+    if (!mounted) return;
+    setState(() => _verification = numbers.isEmpty ? null : numbers.state);
+  }
+
+  Future<void> _openSafetyNumber() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SafetyNumberScreen(
+          accountId: widget.accountId,
+          title: widget.title,
+        ),
+      ),
+    );
+    if (mounted) await _readVerification();
+  }
+
+  /// The header line. It used to say "End-to-end encrypted" unconditionally,
+  /// which is true and answers the wrong question: encrypted *to whom* is the
+  /// part a user cannot check for themselves.
+  String _encryptionSubtitle(AppState state) {
+    if (state.conversations.hasIdentityChange(widget.accountId) ||
+        state.conversations.hasKeyChangeAlert(widget.accountId)) {
+      return 'Safety number changed';
+    }
+    return switch (_verification) {
+      VerificationState.verified => 'End-to-end encrypted · verified',
+      VerificationState.changed => 'End-to-end encrypted · number changed',
+      _ => 'End-to-end encrypted',
+    };
   }
 
   @override
@@ -427,6 +477,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
         return Scaffold(
           appBar: AppBar(
+            leading: const PrivioBackButton(),
             titleSpacing: 0,
             title: Row(
               children: [
@@ -454,9 +505,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             ? 'typing…'
                             : widget.isGroup
                                 ? _groupSubtitle(state)
-                                : 'End-to-end encrypted',
+                                : _encryptionSubtitle(state),
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: PrivioColors.accent,
+                          color: state.conversations.hasIdentityChange(widget.accountId) ||
+                                  state.conversations.hasKeyChangeAlert(widget.accountId) ||
+                                  _verification == VerificationState.changed
+                              ? PrivioColors.warning
+                              : PrivioColors.accent,
                         ),
                       ),
                     ],
@@ -502,6 +557,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 onSelected: (action) => switch (action) {
                   'timer' => _chooseTimer(state),
                   'block' => _confirmBlock(state),
+                  'safety' => _openSafetyNumber(),
                   _ => null,
                 },
                 itemBuilder: (context) => [
@@ -509,6 +565,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     value: 'timer',
                     child: Text('Disappearing messages'),
                   ),
+                  if (!widget.isGroup)
+                    const PopupMenuItem(
+                      value: 'safety',
+                      child: Text('Safety number'),
+                    ),
                   if (!widget.isGroup)
                     const PopupMenuItem(
                       value: 'block',
