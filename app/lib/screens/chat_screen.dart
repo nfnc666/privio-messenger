@@ -166,6 +166,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               title: const Text('Reply'),
               onTap: () => Navigator.of(sheetContext).pop('reply'),
             ),
+            if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy text'),
+                onTap: () => Navigator.of(sheetContext).pop('copy'),
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              iconColor: PrivioColors.danger,
+              textColor: PrivioColors.danger,
+              title: const Text('Delete'),
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
             const SizedBox(height: PrivioSpacing.sm),
           ],
         ),
@@ -177,11 +190,69 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() => _replyingTo = message);
       return;
     }
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: message.body));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Copied.')));
+      return;
+    }
+    if (action == 'delete') {
+      await _confirmDelete(state, message);
+      return;
+    }
     await state.conversations.react(
       widget.accountId,
       message,
       action.substring('react:'.length),
     );
+  }
+
+  /// Asks which kind of delete this is, and says plainly what each one can and
+  /// cannot do.
+  Future<void> _confirmDelete(AppState state, Message message) async {
+    // Taking it back everywhere is only offered for what this account wrote,
+    // and only while there is still somebody to ask.
+    final canRecall = message.isMine && message.kind != MessageKind.deleted;
+
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: PrivioSpacing.sm),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Delete for me'),
+              subtitle: const Text('Gone from this device. Other devices keep it.'),
+              onTap: () => Navigator.of(sheetContext).pop('me'),
+            ),
+            if (canRecall)
+              ListTile(
+                leading: const Icon(Icons.delete_forever_outlined),
+                iconColor: PrivioColors.danger,
+                textColor: PrivioColors.danger,
+                title: const Text('Delete for everyone'),
+                subtitle: const Text(
+                  'Asks their app to forget it. It cannot take back what was '
+                  'already read, screenshotted, or restored from a backup.',
+                ),
+                onTap: () => Navigator.of(sheetContext).pop('everyone'),
+              ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    if (choice == 'everyone') {
+      await state.conversations.deleteForEveryone(widget.accountId, message);
+    } else {
+      await state.conversations.deleteForMe(widget.accountId, message);
+    }
   }
 
   /// Picks a file and sends it. The bytes are read into memory rather than

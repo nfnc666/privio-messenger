@@ -420,6 +420,52 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### Taking a message back
+
+The long-press sheet offered six reactions and *Reply*. Nothing else. A
+message sent to the wrong chat — the everyday privacy accident, the one that
+happens to people who are careful — could not be removed at all. The only
+things that ever deleted anything were the disappearing-messages timer and the
+duress wipe, and neither is an answer to "that was meant for someone else".
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/delete-01-actions.png" width="200"><br><sub>Copy and Delete, where they should always have been.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/delete-02-choice.png" width="200"><br><sub>Two different acts, described as what they are.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/delete-03-their-side.png" width="200"><br><sub>Their phone, a second later.</sub></td>
+</tr>
+</table>
+
+A deletion is a control payload, sealed and sent exactly like a message — the
+server sees an envelope and cannot tell it from a sentence. It names one
+client id and carries nothing else.
+
+Four decisions worth stating, because each of them could have gone the easy
+way:
+
+* **A tombstone, not a gap.** The other person watched a line disappear. A
+  chat that silently closes over it invites them to misremember what was
+  there, so the marker stays where the message was.
+* **Only your own, checked at both ends.** *Delete for everyone* is refused
+  for anything somebody else wrote — and refusing to send one keeps this app
+  honest while doing nothing about a modified one, so an arriving deletion is
+  checked too: it may only remove a message its own sender wrote. Writing that
+  check is what turned up the hole. The first version enforced the rule on the
+  way out only, which left anyone you have a session with able to delete your
+  side of the argument. Messages now record who wrote them so the receiving
+  end can tell.
+* **No time limit.** Not because unlimited is obviously right, but because
+  every number that could go here would be invented. The request is honoured
+  or it is not; a deadline would only decide when Privio stops asking.
+* **It is a request, and the sheet says so.** Privio can ask the app on the
+  other phone to forget something. It cannot reach a screenshot, a memory, or
+  a copy already restored from a backup. The screen says that in the place
+  where someone is about to rely on it, rather than in a footnote.
+
+The copy also crosses to this account's own devices, which is the one piece of
+machinery that has to: deleting on the phone and leaving it on the laptop
+deletes it nowhere that matters.
+
 ### The number that makes the encryption checkable
 
 Every screen in Privio said "End-to-end encrypted", which is true and answers
@@ -1033,7 +1079,7 @@ The full system — typography, spacing, every screen and component — is in
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
-Disguise mode · Safety numbers
+Disguise mode · Safety numbers · Deleting messages
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

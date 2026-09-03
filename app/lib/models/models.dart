@@ -36,7 +36,17 @@ extension on String {
   String characters1() => isEmpty ? '' : substring(0, 1).toUpperCase();
 }
 
-enum MessageKind { text, voice, photo, video, file }
+enum MessageKind {
+  text,
+  voice,
+  photo,
+  video,
+  file,
+
+  /// What is left after someone took a message back. It keeps its place in the
+  /// conversation and carries nothing else.
+  deleted,
+}
 
 /// An attachment a message points at.
 ///
@@ -101,6 +111,7 @@ class Message {
     this.voiceDuration,
     this.waveform,
     this.senderName,
+    this.senderAccountId,
     this.attachment,
     this.expiresAt,
     this.clientId,
@@ -124,6 +135,13 @@ class Message {
 
   /// Only set in groups, where the sender has to be labelled.
   final String? senderName;
+
+  /// Who wrote it, for messages that arrived. Null on this account's own, and
+  /// on anything filed by a build that predates the field.
+  ///
+  /// Kept because "delete for everyone" has to be checked against something: a
+  /// request may only remove a message its own sender wrote.
+  final String? senderAccountId;
 
   /// Set when this message carries a file rather than only text.
   final Attachment? attachment;
@@ -172,6 +190,7 @@ class Message {
         voiceDuration: voiceDuration,
         waveform: waveform,
         senderName: senderName,
+        senderAccountId: senderAccountId,
         attachment: attachment ?? this.attachment,
         expiresAt: expiresAt ?? this.expiresAt,
         clientId: clientId,

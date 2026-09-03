@@ -115,8 +115,9 @@ class MessagingService {
 
     // Control payloads are machinery, not conversation: a receipt or a typing
     // notice on the other device would be filed as a message that was never
-    // written.
-    if (!payload.isControl) {
+    // written. A deletion is the exception — it has to reach this account's
+    // own devices or the message stays on half of them.
+    if (!payload.isControl || payload.isDeletion) {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,
