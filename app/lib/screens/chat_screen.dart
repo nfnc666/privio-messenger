@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../calls/call.dart';
 import '../calls/call_signal.dart';
@@ -28,11 +29,16 @@ class ChatScreen extends StatefulWidget {
     required this.title,
     super.key,
     this.isGroup = false,
+    this.jumpTo,
   });
 
   final String accountId;
   final String title;
   final bool isGroup;
+
+  /// The client id of a message to open at, from a search result. Null opens
+  /// where a chat always opens: at the end.
+  final String? jumpTo;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -45,7 +51,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Message? _replyingTo;
 
   final TextEditingController _composer = TextEditingController();
-  final ScrollController _scroll = ScrollController();
+
+  /// A positioned list rather than a plain one, because a search result has to
+  /// land on a message that may be hundreds of lines up. A ScrollController can
+  /// only be given an offset, and the offset of a message that has never been
+  /// laid out is not knowable.
+  final ItemScrollController _scroll = ItemScrollController();
+
+  /// Which message a search sent us to, drawn lit until it is read. Cleared on
+  /// the first touch, so it marks the message rather than staining it.
+  String? _highlighted;
+  bool _jumped = false;
 
   /// What the safety-number screen would say, kept here so the header can say
   /// it too. Read once on open rather than on every rebuild: it changes only
@@ -56,6 +72,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _highlighted = widget.jumpTo;
     if (!widget.isGroup) {
       WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_readVerification()));
     }
@@ -105,7 +122,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _voiceRebuild.dispose();
     _composer.dispose();
-    _scroll.dispose();
     super.dispose();
   }
 
@@ -302,14 +318,47 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// The index of [clientId] in the list as it is drawn, or null.
+  ///
+  /// One past the message's own position: the encryption notice is item zero.
+  int? _indexOf(List<Message> messages, String clientId) {
+    final at = messages.indexWhere((m) => m.clientId == clientId);
+    return at == -1 ? null : at + 1;
+  }
+
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
+      if (!_scroll.isAttached) return;
+      _scroll.scrollTo(
+        index: _messageCount,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
+    });
+  }
+
+  /// How many rows the list has, kept so a scroll-to-end has something to aim
+  /// at from outside the build.
+  int _messageCount = 0;
+
+  /// Where the list should be on its very first layout.
+  int _initialIndex(List<Message> messages) {
+    final target = widget.jumpTo;
+    if (target != null) return _indexOf(messages, target) ?? messages.length;
+    return messages.length;
+  }
+
+  /// Opens the chat on the message a search found, rather than at the end.
+  void _scrollToHit(List<Message> messages, String clientId) {
+    final index = _indexOf(messages, clientId);
+    if (index == null) {
+      // Deleted, expired, or never on this device. Nothing to jump to, and the
+      // chat still opens.
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.isAttached) return;
+      _scroll.jumpTo(index: index, alignment: 0.3);
     });
   }
 
@@ -545,6 +594,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       listenable: state.conversations,
       builder: (context, _) {
         final messages = state.conversations.messagesWith(widget.accountId);
+        _messageCount = messages.length;
+        // Once, on the way in: a search sent us to a particular line.
+        if (widget.jumpTo != null && !_jumped) {
+          _jumped = true;
+          _scrollToHit(messages, widget.jumpTo!);
+        }
 
         return Scaffold(
           appBar: AppBar(
@@ -653,18 +708,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           body: Column(
             children: [
               Expanded(
-                child: ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.only(bottom: PrivioSpacing.md),
-                  itemCount: messages.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) return const EncryptionNotice();
-                    final message = messages[index - 1];
-                    return MessageBubble(
-                      message: message,
-                      onLongPress: () => _openMessageActions(state, message),
-                    );
+                // The highlight is a pointer, not a state: the first touch in
+                // the transcript means it has been seen.
+                child: Listener(
+                  onPointerDown: (_) {
+                    if (_highlighted != null) setState(() => _highlighted = null);
                   },
+                  child: ScrollablePositionedList.builder(
+                    itemScrollController: _scroll,
+                    // The first paint lands where it belongs, rather than at
+                    // the top for one frame and then jumping.
+                    initialScrollIndex: _initialIndex(messages),
+                    padding: const EdgeInsets.only(bottom: PrivioSpacing.md),
+                    itemCount: messages.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) return const EncryptionNotice();
+                      final message = messages[index - 1];
+                      return MessageBubble(
+                        message: message,
+                        highlighted: message.clientId != null &&
+                            message.clientId == _highlighted,
+                        onLongPress: () => _openMessageActions(state, message),
+                      );
+                    },
+                  ),
                 ),
               ),
               if (_replyingTo != null)

@@ -420,6 +420,46 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### A search that can find a message
+
+The Chats screen had a search field. It filtered the list of chats by name and
+by the one line of preview under each — so typing a word somebody said last
+Tuesday found nothing at all, which is the only thing anyone opens a search box
+in a messenger to do.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/search-01-results.png" width="220"><br><sub>Chats it could already find, and now what was said in them.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/search-02-landed.png" width="220"><br><sub>Twenty-two messages up, and lit.</sub></td>
+</tr>
+</table>
+
+It runs here, over what this device has already decrypted, because there is
+nowhere else it could run: the server holds ciphertext it cannot read, so it
+could not answer a query even if one were sent — and sending one would tell it
+what somebody is looking for, which is close enough to telling it what they
+talked about. The empty state says so, rather than leaving "no results" to
+imply a search that reached further than it did.
+
+Nothing is indexed. A history that fits in a phone's memory is a history a loop
+can walk, and an index would be a second copy of every conversation to keep
+encrypted, in step, and out of the backup.
+
+Tapping a result opens the conversation *at that message*, outlined until the
+first touch. That needed a list that can be told an index rather than an
+offset — the offset of a line hundreds of messages up is not knowable until it
+has been laid out — so the transcript is now a
+[`ScrollablePositionedList`](https://pub.dev/packages/scrollable_positioned_list),
+pure Dart from the Flutter team's own widgets repository, which adds nothing
+native and nothing to the F-Droid build.
+
+Testing it with a history long enough to scroll turned up something that had
+been true all along and never been visible: **a chat opened at its oldest
+message.** Every conversation in every screenshot until now was short enough to
+fit on one screen, so nobody had seen a list that starts, as lists do, at the
+top. It opens at the newest line now, like every messenger there has ever
+been.
+
 ### Taking a message back
 
 The long-press sheet offered six reactions and *Reply*. Nothing else. A
@@ -1079,7 +1119,7 @@ The full system — typography, spacing, every screen and component — is in
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
-Disguise mode · Safety numbers · Deleting messages
+Disguise mode · Safety numbers · Deleting messages · Search
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,
