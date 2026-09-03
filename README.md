@@ -482,7 +482,7 @@ because the socket and the poll each delivered the same envelope once.
 | --- | :---: | --- |
 | **Registration & login** | ✅ | Username + password. No phone number, no email |
 | **End-to-end encryption** | ✅ | X3DH + Double Ratchet, one sealed copy per device |
-| **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login |
+| **Two-factor auth** | ✅ | TOTP (RFC 6238): set up in the app with a QR code, proved with a code before it takes effect, and enforced at login. The secret is sealed at rest under a key held outside the database, and a server without that key refuses to enrol rather than store one in the clear |
 | **Duress code** | ✅ | Set in the app. Typed at sign-in *or* at the lock screen it destroys the account, and is refused exactly as a wrong password or passcode is |
 | **Contacts** | ✅ | Exact-username lookup, no address-book upload |
 | **Blocking** | ✅ | From the chat's menu; invisible to the blocked sender, and liftable in Privacy & Security |
@@ -901,7 +901,7 @@ privio-messenger/
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 123 tests against real PostgreSQL
+│   └── test/                 130 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```

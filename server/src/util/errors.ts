@@ -24,6 +24,14 @@ export class ApiError extends Error {
   static conflict(code: string, message: string) {
     return new ApiError(409, code, message);
   }
+  /**
+   * The server is configured such that it cannot do this, and says so rather
+   * than doing a worse version of it.
+   */
+  static unavailable(code: string, message: string) {
+    return new ApiError(503, code, message);
+  }
+
   static payloadTooLarge(code: string, message: string) {
     return new ApiError(413, code, message);
   }

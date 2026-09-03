@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { authenticator } from 'otplib';
+import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as accounts from '../services/accounts.js';
@@ -113,7 +114,11 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
 
     if (account.totp_enabled_at && account.totp_secret) {
       if (!body.totpCode) throw ApiError.unauthorized('totp_required', 'Two-factor code required');
-      if (!authenticator.check(body.totpCode, account.totp_secret)) {
+      const secret = openSecret(account.totp_secret);
+      // A secret that will not open — a rotated or lost key — must refuse the
+      // login rather than wave it through. Getting past a second factor whose
+      // secret the server can no longer read is the same as not having one.
+      if (secret === null || !authenticator.check(body.totpCode, secret)) {
         throw ApiError.unauthorized('invalid_totp', 'Two-factor code is incorrect');
       }
     }
@@ -259,10 +264,27 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     if (account?.totp_enabled_at) {
       throw ApiError.conflict('totp_already_enabled', 'Two-factor auth is already enabled');
     }
+    if (!canStoreSecrets()) {
+      // Refused rather than stored in the clear. A TOTP secret does not expire,
+      // so one written unsealed is a permanent hole in this account's second
+      // factor, and nobody would ever be told.
+      //
+      // The person reading the error can do nothing about the configuration,
+      // so they get a sentence they can act on and the operator gets the
+      // variable name in the log.
+      request.log.error(
+        'Refusing TOTP setup: TOTP_SECRET_KEY is not configured, so the secret ' +
+          'could only be stored in the clear. Set it to base64 of 32 random bytes.',
+      );
+      throw ApiError.unavailable(
+        'totp_unavailable',
+        'This server has not been set up for two-factor authentication. Ask whoever runs it.',
+      );
+    }
     const secret = authenticator.generateSecret();
     await pool.query('UPDATE accounts SET totp_secret = $2, totp_enabled_at = NULL WHERE id = $1', [
       accountId,
-      secret,
+      sealSecret(secret),
     ]);
     return { secret, otpauthUrl: authenticator.keyuri(username, 'Privio', secret) };
   });
@@ -276,7 +298,8 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     const body = parse(z.object({ code: z.string().regex(/^\d{6}$/) }), request.body);
     const account = await accounts.findById(accountId);
     if (!account?.totp_secret) throw ApiError.badRequest('totp_not_set_up', 'Start with /totp/setup');
-    if (!authenticator.check(body.code, account.totp_secret)) {
+    const secret = openSecret(account.totp_secret);
+    if (secret === null || !authenticator.check(body.code, secret)) {
       throw ApiError.badRequest('invalid_totp', 'Code is incorrect');
     }
     await pool.query('UPDATE accounts SET totp_enabled_at = now() WHERE id = $1', [accountId]);

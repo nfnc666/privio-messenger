@@ -332,6 +332,37 @@ by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
 it, and Privio says so rather than implying otherwise.
 
+## Two-factor secrets
+
+**Sealed at rest.** A TOTP secret is a bearer credential that never expires:
+whoever reads it can produce valid codes for as long as the factor is on. In
+the clear it meant a database leak on its own — a stolen backup, a read-only
+replica, one injection — defeated the second factor for every account on the
+server without anybody touching the machine.
+
+They are sealed with AES-256-GCM under `TOTP_SECRET_KEY`, which lives in the
+environment. A fresh nonce each time, so the same secret sealed twice is not
+the same bytes: identical ciphertext would say which accounts share a secret,
+and for a re-enrolment that says which account this is. GCM's tag means a row
+edited in the database is refused rather than opened into a secret of the
+editor's choosing.
+
+**What this is not.** It is not protection against a compromised server, which
+holds the key by definition. It separates two things that used to be one: an
+attacker now needs the database *and* the process configuration. Keep the key
+out of the database and out of the backup that contains it, or this buys
+nothing.
+
+**No key, no enrolment.** A server without `TOTP_SECRET_KEY` refuses to set up
+two-factor rather than storing the next secret in the clear — a secret written
+unsealed is a permanent hole in that account's second factor and nobody would
+ever be told. Accounts already enrolled keep working: a stored value with no
+marker is read as-is.
+
+**A secret that will not open refuses the login.** A rotated or lost key means
+codes cannot be checked, and a factor whose secret the server can no longer
+read must not wave logins through.
+
 ## Attachment downloads
 
 **A capability, not a recipient list.** The server cannot know who a message
@@ -652,9 +683,8 @@ naming what is missing today.
    call is guarded by a timeout so a picker that never answers surfaces an error
    instead of a button that silently does nothing, but it needs checking on a
    real device before release.
-7. **TOTP secrets are stored in plaintext in the database.** They should be
-   encrypted with a server-held key so a database leak alone does not defeat the
-   second factor.
+7. **Nothing here — this one is closed.** It used to read: TOTP secrets are
+   stored in plaintext in the database. See "Two-factor secrets" above.
 8. **Nothing here — this one is closed.** It used to read: attachment ids are
    the download capability, so any authenticated user who learns an id can
    fetch the encrypted bytes. See "Attachment downloads" above for what
