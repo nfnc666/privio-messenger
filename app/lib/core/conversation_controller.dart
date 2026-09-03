@@ -9,6 +9,7 @@ import '../data/outbox.dart';
 import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
+import '../crypto/privio_crypto.dart';
 import '../media/voice.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
@@ -75,10 +76,79 @@ class ConversationController extends ChangeNotifier {
   List<Contact> _contacts = const [];
   String? _error;
 
+  /// Devices whose identity key stopped matching what was pinned, by account.
+  ///
+  /// A send to one of these is refused rather than re-pinned, so this is the
+  /// list of conversations waiting on a person to look at a safety number.
+  final Map<String, Set<int>> _identityChanges = {};
+
+  /// Accounts whose pinned key was replaced by something they sent, and whose
+  /// owner has not been shown the new number yet. Loaded from storage on
+  /// start, because a notice missed is a notice that did its job for nobody.
+  final Set<String> _keyChangeAlerts = {};
+
   List<Contact> get contacts => _contacts;
 
   /// The last failure worth showing, or null. Cleared when the next call works.
   String? get error => _error;
+
+  /// Whether this conversation is waiting on the user to review a changed key.
+  bool hasIdentityChange(String accountId) =>
+      (_identityChanges[accountId] ?? const <int>{}).isNotEmpty;
+
+  Set<int> identityChangesFor(String accountId) =>
+      _identityChanges[accountId] ?? const <int>{};
+
+  /// Whether this conversation's key changed under an incoming message.
+  ///
+  /// Separate from [hasIdentityChange]: that one means sends are refused and
+  /// the user has to decide. This one means the change has already been
+  /// accepted — receiving cannot be refused without handing anyone a way to
+  /// silence a conversation — so all that is left is to say so.
+  bool hasKeyChangeAlert(String accountId) => _keyChangeAlerts.contains(accountId);
+
+  /// Answers the notice. Called when the safety number has been put in front
+  /// of the user, which is the only thing that resolves it.
+  Future<void> acknowledgeKeyChange(String accountId) async {
+    if (!_keyChangeAlerts.remove(accountId)) return;
+    await _services.crypto.clearKeyChangeAlert(accountId);
+    notifyListeners();
+  }
+
+  Future<void> loadKeyChangeAlerts() async {
+    _keyChangeAlerts
+      ..clear()
+      ..addAll(await _services.crypto.keyChangeAlerts());
+    if (_keyChangeAlerts.isNotEmpty) notifyListeners();
+  }
+
+  /// Turns whatever the protocol re-pinned during decryption into something
+  /// the user will actually see.
+  Future<void> _raiseKeyChanges() async {
+    for (final change in _services.crypto.takeIdentityReplacements()) {
+      if (change.accountId == accountId) continue; // one of my own devices
+      _keyChangeAlerts.add(change.accountId);
+      await _services.crypto.raiseKeyChangeAlert(change.accountId);
+    }
+  }
+
+  /// Records a refused send so the chat can say why rather than showing a
+  /// message stuck at "failed" with no explanation.
+  void _noteIdentityChange(Object failure) {
+    if (failure is! IdentityChangedException) return;
+    (_identityChanges[failure.accountId] ??= <int>{}).add(failure.deviceIndex);
+  }
+
+  /// Re-pins whatever the server offers now, after the user has looked at the
+  /// new number. Only reachable from the safety-number screen.
+  Future<void> acceptIdentityChange(String accountId) async {
+    for (final index in identityChangesFor(accountId)) {
+      await _services.crypto.acceptIdentityChange(accountId, index);
+    }
+    _identityChanges.remove(accountId);
+    _error = null;
+    notifyListeners();
+  }
 
   /// This account's own id, told once at sign-in, so a reaction of mine can be
   /// told apart from somebody else's on the same message.
@@ -395,10 +465,15 @@ class ConversationController extends ChangeNotifier {
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
       _error = switch (failure) {
         // The one send failure the user can do something about, so it says
         // what rather than repeating the server's wording.
         ApiException(code: 'license_required') => 'Activate your license to send messages.',
+        // Refused on purpose: the key on the server is not the key that was
+        // pinned. Sending anyway would seal it to whoever holds the new one.
+        IdentityChangedException() =>
+          'The safety number changed. Nothing was sent — check it before you do.',
         ApiException(:final message) => message,
         _ => 'Could not send message',
       };
@@ -537,7 +612,13 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return report;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not send file';
+      _noteIdentityChange(failure);
+      _error = switch (failure) {
+        ApiException(:final message) => message,
+        IdentityChangedException() =>
+          'The safety number changed. Nothing was sent — check it before you do.',
+        _ => 'Could not send file',
+      };
       notifyListeners();
       return null;
     }
@@ -904,7 +985,13 @@ class ConversationController extends ChangeNotifier {
           _outbox[index] = _outbox[index].copyWith(attempts: _outbox[index].attempts + 1);
         }
         _setVoiceState(pending.conversationId, pending.clientId, DeliveryState.queued);
-        _error = failure is ApiException ? failure.message : null;
+        _noteIdentityChange(failure);
+        _error = switch (failure) {
+          ApiException(:final message) => message,
+          IdentityChangedException() =>
+            'The safety number changed. Nothing was sent — check it before you do.',
+          _ => null,
+        };
         break;
       }
     }
@@ -1043,6 +1130,7 @@ class ConversationController extends ChangeNotifier {
         arrived.putIfAbsent(incoming.senderAccountId, () => []).add(clientId);
       }
     }
+    await _raiseKeyChanges();
     if (arrived.isNotEmpty) unawaited(_sendDeliveryReceipts(arrived));
     if (result.messages.isNotEmpty) _persist();
     if (result.failures.isNotEmpty) {

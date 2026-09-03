@@ -420,6 +420,56 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### The number that makes the encryption checkable
+
+Every screen in Privio said "End-to-end encrypted", which is true and answers
+the wrong question. Encrypted *to whom* is the part a user cannot check for
+themselves — the server hands out the keys, so a server that wanted to read a
+conversation would hand each side a key of its own. Nothing in the protocol
+catches that.
+
+The docs already described the cure. `identityFingerprint()` carried the
+comment *"for the safety-number screen"*; `forgetIdentity()` said *"call this
+only after the user has accepted the change"*. Neither had a caller. A refused
+send set the error string to `null` and left the message stuck at *failed* with
+nothing on screen to explain it or undo it.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/safety-01-number.png" width="200"><br><sub>Sixty digits, read aloud.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/safety-02-compare.png" width="200"><br><sub>Or pasted, for the case where eyes skip a group.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/safety-03-changed.png" width="200"><br><sub>A device joined. Verified is gone, on its own.</sub></td>
+</tr>
+</table>
+
+The digits are Signal's, computed by `NumericFingerprintGenerator` from
+`libsignal_protocol_dart`. Privio implements none of it — the standing rule
+about not writing cryptography applies exactly as much to a fingerprint as to a
+cipher.
+
+Two things about it are Privio's own. **There is one number per device**,
+because an identity key here belongs to a device and is trusted per device, so
+a single number would be a summary of several separate decisions. And
+**marking a chat verified records the keys, not a flag** — which is what makes
+the third screenshot possible: nothing Ann had pinned changed, a second device
+simply joined Boris's account, and the verification came apart by itself. That
+is also what a server quietly adding a device of its own would look like from
+here, and a per-key check would have shown a green tick through it.
+
+Both properties were run in the browser rather than argued: two accounts, two
+contexts, the same sixty digits arrived at independently on each side, then a
+second device and the warning. What could not be run is the refusal on send —
+it needs a server that hands out the wrong key for an existing session, which
+no honest deployment does — so that path is a test.
+
+One thing the work turned up on the way. A key that changes is refused *on
+send*, and accepted on receive, deliberately: refusing an incoming message
+would let anyone silence a conversation by sending one. The comment on
+`saveIdentity` said the caller surfaces that — and no caller did, so a message
+that arrived under a replaced key was filed as if nothing had happened. It is
+recorded now, it survives a relaunch, and it stands until the new number has
+been in front of somebody.
+
 ### A calculator that calculates
 
 Disguise mode replaces the lock screen with a calculator, and replaces the
@@ -982,7 +1032,8 @@ The full system — typography, spacing, every screen and component — is in
 **Done** — Authentication · Accounts · Contacts · E2EE 1:1 messaging · Groups ·
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
-Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
+Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
+Disguise mode · Safety numbers
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

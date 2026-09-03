@@ -50,6 +50,8 @@ class PrivioSignalStore extends SignalProtocolStore {
   static const _preKeyPrefix = 'prekey/';
   static const _signedPreKeyPrefix = 'signed_prekey/';
   static const _trustedPrefix = 'trusted/';
+  static const _verifiedPrefix = 'verified/';
+  static const _keyChangePrefix = 'keychange/';
   static const _profileKeyKey = 'profile_key';
   static const _channelKeyPrefix = 'channel_key/';
 
@@ -97,8 +99,18 @@ class PrivioSignalStore extends SignalProtocolStore {
     if (identityKey == null) return false;
     final existing = await getIdentity(address);
     await _storage.writeBytes(_addressKey(_trustedPrefix, address), identityKey.serialize());
-    return existing != null && existing != identityKey;
+    final replaced = existing != null && existing != identityKey;
+    // The protocol calls this from inside decryption and discards the answer,
+    // so it is recorded here instead. A replacement on the *receiving* side is
+    // accepted — refusing it would let anyone lock a conversation by sending
+    // one message — which makes saying so afterwards the only defence there is.
+    if (replaced) replacedIdentities.add(address);
+    return replaced;
   }
+
+  /// Addresses whose pinned identity key was replaced by an incoming message,
+  /// since the last time anything drained this. See [saveIdentity].
+  final List<SignalProtocolAddress> replacedIdentities = [];
 
   /// Trust on first use, then pinned.
   ///
@@ -123,6 +135,61 @@ class PrivioSignalStore extends SignalProtocolStore {
   /// after the user has accepted the change.
   Future<void> forgetIdentity(SignalProtocolAddress address) =>
       _storage.delete(_addressKey(_trustedPrefix, address));
+
+  /// Every device of [accountId] whose identity key this device has pinned,
+  /// by device index.
+  ///
+  /// These are exactly the devices that can open what is sent to that account,
+  /// which is what makes them the right list to show on the safety-number
+  /// screen: a device missing from here cannot read, and a device here that
+  /// the user does not recognise is the thing worth catching.
+  Future<Map<int, IdentityKey>> pinnedIdentities(String accountId) async {
+    final entries = await _storage.readPrefixed('$_trustedPrefix$accountId.');
+    final found = <int, IdentityKey>{};
+    for (final entry in entries.entries) {
+      final index = int.tryParse(entry.key.split('.').last);
+      if (index == null) continue;
+      found[index] = IdentityKey.fromBytes(base64Decode(entry.value), 0);
+    }
+    return found;
+  }
+
+  /// What the user compared, the last time they compared anything: device
+  /// index to the identity key that was on screen at that moment.
+  ///
+  /// Stored as the keys themselves rather than a "verified" flag, so the
+  /// answer to "is this still the thing I checked?" is a comparison rather
+  /// than a promise. A key that changes, or a device that appears, breaks it
+  /// without anything having to remember to clear a flag.
+  Future<Map<String, String>?> readVerification(String accountId) async {
+    final stored = await _storage.read('$_verifiedPrefix$accountId');
+    if (stored == null) return null;
+    final decoded = jsonDecode(stored);
+    if (decoded is! Map<String, dynamic>) return null;
+    return {for (final e in decoded.entries) e.key: e.value as String};
+  }
+
+  Future<void> writeVerification(String accountId, Map<String, String> keys) =>
+      _storage.write('$_verifiedPrefix$accountId', jsonEncode(keys));
+
+  Future<void> clearVerification(String accountId) =>
+      _storage.delete('$_verifiedPrefix$accountId');
+
+  /// Accounts with an unread "their key changed" notice.
+  ///
+  /// Persisted rather than held in memory: a notice the user has not seen yet
+  /// must not be lost by closing the app, which is exactly when someone would
+  /// miss it.
+  Future<Set<String>> keyChangeAlerts() async {
+    final entries = await _storage.readPrefixed(_keyChangePrefix);
+    return {for (final key in entries.keys) key.substring(_keyChangePrefix.length)};
+  }
+
+  Future<void> raiseKeyChangeAlert(String accountId) =>
+      _storage.write('$_keyChangePrefix$accountId', DateTime.now().toIso8601String());
+
+  Future<void> clearKeyChangeAlert(String accountId) =>
+      _storage.delete('$_keyChangePrefix$accountId');
 
   // --- Sessions -------------------------------------------------------------
 

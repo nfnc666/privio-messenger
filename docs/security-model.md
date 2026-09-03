@@ -292,10 +292,52 @@ which clients do well before the pool empties.
 Peer identity keys are trusted on first use and pinned thereafter. A key that
 changes afterwards is **refused on send** — a server that swaps in its own key
 cannot silently read the conversation, because the user has to accept the new
-safety number first. Incoming messages from a changed key are still accepted, so
-a peer who reinstalled can reach you, and the change is surfaced rather than
-hidden. This is tested: see `a swapped identity key is refused on send` in
-`app/test/crypto_test.dart`.
+safety number first. Incoming messages from a changed key are still accepted,
+so a peer who reinstalled can reach you; refusing them would hand anyone a way
+to silence a conversation by sending one message. What that costs is paid for
+by saying so: the replacement is recorded, survives a relaunch, and stands
+until the new number has been put in front of the user. Tested in
+`app/test/crypto_test.dart` (`a swapped identity key is refused on send`) and
+`app/test/safety_number_test.dart` (`a key that arrives with a message is
+reported, not swallowed`).
+
+## Safety numbers
+
+Everything above takes the server's word for whose key is whose. The safety
+number is where that stops: sixty digits computed from both sides' identity
+keys and account ids, which two people compare over something the server is not
+part of. A server that substituted a key of its own cannot make the two screens
+agree.
+
+The digits are Signal's construction, computed by `NumericFingerprintGenerator`
+from `libsignal_protocol_dart` — 5200 rounds of SHA-512, thirty digits a side,
+concatenated in a fixed order. Privio implements none of it, and the iteration
+count is part of the number rather than a setting.
+
+**One number per device, not one per person.** Signal shows a single number
+because an identity key there belongs to an account. In Privio a key belongs to
+a *device* and is trusted per device, so one number would summarise several
+independent trust decisions. The screen lists them.
+
+Marking a conversation verified records the exact keys that were on screen —
+not a flag. So the answer to "is this still what I checked?" is a comparison,
+and it comes apart on its own in the two cases that matter:
+
+* a key changed, and
+* a device *appeared*. This is the one a per-key check misses. Nothing already
+  pinned has changed; a device simply joined the account — which is also what a
+  server quietly adding a device of its own looks like from here.
+
+There is no QR code. Scanning needs a camera package Privio does not carry, and
+a QR nobody can scan is decoration on a security screen. Reading the digits is
+the method; a compare box takes a number sent in writing, because comparing
+sixty digits by eye is where the mistake this screen exists to prevent gets
+made.
+
+What is verified by test rather than by hand: the refusal-on-send path. It
+needs a server that hands out a different identity key for a device whose
+session already exists, which no honest deployment does — so it is exercised in
+`app/test/safety_number_test.dart`, not in a browser run.
 
 ## Data retention
 

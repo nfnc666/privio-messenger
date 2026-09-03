@@ -1,11 +1,12 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
 
 import 'crypto_storage.dart';
 import 'padding.dart';
 import 'privio_signal_store.dart';
+import 'safety_number.dart';
 
 /// One sealed copy of a message, addressed to a single recipient device.
 class SealedCopy {
@@ -325,5 +326,93 @@ class PrivioCrypto {
   Future<String> identityFingerprint() async {
     final identity = await _store.getIdentityKeyPair();
     return base64Encode(identity.getPublicKey().serialize());
+  }
+
+  // --- Safety numbers -------------------------------------------------------
+
+  /// Accounts whose key changed under an incoming message, and the device it
+  /// was, drained so each change is reported once.
+  ///
+  /// A send to a changed key is refused; a *receipt* from one is not, so this
+  /// is what stands between "someone else's key is now pinned for your friend"
+  /// and the user never hearing about it.
+  List<({String accountId, int deviceIndex})> takeIdentityReplacements() {
+    final taken = [
+      for (final address in _store.replacedIdentities)
+        (accountId: address.getName(), deviceIndex: address.getDeviceId()),
+    ];
+    _store.replacedIdentities.clear();
+    return taken;
+  }
+
+  /// The numbers to compare with [remoteAccountId], one per device of theirs
+  /// this device has pinned, and what the user has already made of them.
+  ///
+  /// Ordered by device index so the list on two screens reads the same way.
+  Future<SafetyNumbers> safetyNumbers({
+    required String localAccountId,
+    required String remoteAccountId,
+  }) async {
+    final identity = await _store.getIdentityKeyPair();
+    final pinned = await _store.pinnedIdentities(remoteAccountId);
+    final indices = pinned.keys.toList()..sort();
+
+    final numbers = [
+      for (final index in indices)
+        SafetyNumber(
+          deviceIndex: index,
+          digits: SafetyNumberDigits.between(
+            localAccountId: localAccountId,
+            localIdentity: identity.getPublicKey(),
+            remoteAccountId: remoteAccountId,
+            remoteIdentity: pinned[index]!,
+          ),
+          identityKey: base64Encode(pinned[index]!.serialize()),
+        ),
+    ];
+
+    final checked = await _store.readVerification(remoteAccountId);
+    final state = switch (checked) {
+      null => VerificationState.unverified,
+      _ => mapEquals(checked, {
+          for (final number in numbers) '${number.deviceIndex}': number.identityKey,
+        })
+          ? VerificationState.verified
+          : VerificationState.changed,
+    };
+    return SafetyNumbers(numbers: numbers, state: state);
+  }
+
+  /// Accounts whose key changed and whose owner has not been shown the new
+  /// number yet.
+  Future<Set<String>> keyChangeAlerts() => _store.keyChangeAlerts();
+
+  Future<void> raiseKeyChangeAlert(String accountId) =>
+      _store.raiseKeyChangeAlert(accountId);
+
+  /// Called when the user has been shown the number for that account, which is
+  /// the only thing that answers the notice.
+  Future<void> clearKeyChangeAlert(String accountId) =>
+      _store.clearKeyChangeAlert(accountId);
+
+  /// Records that the user compared these numbers and they matched.
+  Future<void> markVerified(String remoteAccountId, SafetyNumbers numbers) =>
+      _store.writeVerification(remoteAccountId, numbers.snapshot);
+
+  /// Forgets that anything was ever compared. Not the same as a key changing:
+  /// this is the user saying they no longer stand behind the check.
+  Future<void> clearVerified(String remoteAccountId) =>
+      _store.clearVerification(remoteAccountId);
+
+  /// Accepts a changed identity key: unpins it so the next send re-pins
+  /// whatever is on the server now, and drops any verification, because what
+  /// was verified is by definition no longer what is there.
+  ///
+  /// Only ever called from a screen the user is looking at. Doing it
+  /// automatically would make [IdentityChangedException] a delay rather than a
+  /// question, and the question is the entire point of pinning.
+  Future<void> acceptIdentityChange(String accountId, int deviceIndex) async {
+    await _store.forgetIdentity(_address(accountId, deviceIndex));
+    await _store.clearVerification(accountId);
   }
 }
