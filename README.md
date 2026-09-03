@@ -393,12 +393,32 @@ message from somebody. An attachment is carried by reference — the same media
 id and the same download capability — so it is uploaded once and both devices
 open the same blob.
 
-Two honest limits. A device that was offline for a send has a gap nothing
-fills but a backup: the copy is not retried, because a send that failed only
-its own copy has still reached the person it was for, and turning that into a
-failure would have the sender retry and the recipient receive twice. And a
-second device starts with no history at all unless a backup is restored into
-it — linking that carries the past across is the next piece of this.
+One honest limit. A device that was offline for a send has a gap nothing fills
+but a backup: the copy is not retried, because a send that failed only its own
+copy has still reached the person it was for, and turning that into a failure
+would have the sender retry and the recipient receive twice.
+
+A second device does start empty, and the encrypted backup is what fills it —
+the route the welcome screen already offers under *Import from backup*: sign
+in, paste the recovery key, and the history is there. I had written that this
+was still to build, which was wrong, so I ran it end to end in the browser
+instead of trusting the sentence.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/multi-02-restored.png" width="220"><br><sub>A device that has never seen this chat, after restoring.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/multi-03-restored-live.png" width="220"><br><sub>The same device keeping up afterwards: the other side's reply, and the phone's own message.</sub></td>
+</tr>
+</table>
+
+The second screenshot is the combination that could have quietly failed and
+did not: a restore replaces the local archive wholesale, so a device that has
+just done one still has to receive both the other side's messages and its own
+account's synced copies. It does.
+
+What is missing is not the past — it is a way to carry it without the
+server-stored backup. Pairing device to device over a QR code is still to
+build.
 
 ### A calculator that calculates
 
@@ -965,8 +985,8 @@ typing · Replies and reactions · Disappearing messages · License activation �
 Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
 
 **Next** — Ringing a closed app, which needs the push registration the server
-is already waiting for · Linking a second device with its history, which today
-starts empty unless a backup is restored
+is already waiting for · Pairing a second device directly, over a QR code,
+rather than by restoring the encrypted backup
 
 **Later** — Sealed sender · SQLCipher for the local history
 
