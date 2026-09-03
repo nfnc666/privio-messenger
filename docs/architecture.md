@@ -156,6 +156,17 @@ the row. Client side that is `ChannelService.deliverPendingKeys` on one end and
 a `MessagePayload.key` intercepted in `ConversationController` on the other,
 which stores the key and shows nothing in the chat.
 
+## Two-factor secrets
+
+`services/totp.ts` seals TOTP secrets with AES-256-GCM under `TOTP_SECRET_KEY`,
+stored as `v1.<nonce>.<ciphertext+tag>`. The marker is what tells a sealed
+value from one written before sealing existed, which is returned as-is so
+already-enrolled accounts keep working.
+
+Setup refuses with 503 when no key is configured — a secret written unsealed
+never expires, so it would be a permanent hole nobody was told about. The error
+the user sees points them at the operator; the log names the variable.
+
 ## Attachments
 
 The client picks a random key, scrubs the file's metadata, pads it into a size

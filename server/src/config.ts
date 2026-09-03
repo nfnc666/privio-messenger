@@ -70,6 +70,26 @@ const schema = z.object({
   LICENSE_ISSUER_TOKEN: z.string().min(32).optional(),
 
   /**
+   * Base64 of 32 random bytes, used to seal TOTP secrets at rest.
+   *
+   * A TOTP secret is a bearer credential: whoever reads it can generate the
+   * codes forever. Stored in the clear it meant a database leak alone —
+   * a stolen backup, a read-only replica, one SQL injection — defeated the
+   * second factor for every account on the server, without anyone touching
+   * the machine.
+   *
+   * Sealing them with a key that lives in the environment separates the two:
+   * an attacker now needs the database *and* the process configuration. It is
+   * not protection against a fully compromised server, which holds the key by
+   * definition, and this is not claimed anywhere.
+   *
+   * Generate one with `openssl rand -base64 32`. Without it the server runs
+   * and refuses to enrol anyone in two-factor, rather than quietly storing
+   * the next secret in the clear.
+   */
+  TOTP_SECRET_KEY: z.string().optional(),
+
+  /**
    * Comma-separated hosts that may be registered as UnifiedPush endpoints.
    *
    * Empty means any publicly routable HTTPS host, which is the point of

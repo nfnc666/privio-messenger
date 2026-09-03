@@ -134,6 +134,16 @@ describe('accounts', () => {
       },
     });
     assert.equal(withCode.statusCode, 200);
+
+    // What a leaked database would hand somebody. A TOTP secret does not
+    // expire, so in the clear it is a permanent second factor for the taking.
+    const { rows } = await pool.query<{ totp_secret: string }>(
+      'SELECT totp_secret FROM accounts WHERE username = $1',
+      ['twofactor'],
+    );
+    assert.ok(rows[0]!.totp_secret, 'it is stored');
+    assert.ok(!rows[0]!.totp_secret.includes(secret), 'and not as itself');
+    assert.match(rows[0]!.totp_secret, /^v1\./, 'sealed, and marked as sealed');
   });
 
   it('wipes the account when the duress code is entered instead of the password', async () => {
