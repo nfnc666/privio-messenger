@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 
 /// Screen 10: how someone reaches you without ever learning your phone number.
 class InviteScreen extends StatefulWidget {
@@ -24,7 +25,10 @@ class _InviteScreenState extends State<InviteScreen> {
     final deepLink = 'privio://u/$username';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Invite')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Invite'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(PrivioSpacing.gutter),
         children: [

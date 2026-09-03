@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
 import 'screen_lock_screen.dart';
@@ -75,7 +76,10 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     final conversations = state.conversations;
     final security = state.security;
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacy & Security')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Privacy & Security'),
+      ),
       body: ListenableBuilder(
         listenable: Listenable.merge([conversations, security]),
         builder: (context, _) => ListView(

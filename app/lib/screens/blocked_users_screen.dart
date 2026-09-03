@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// Who this account has blocked, and how to stop.
@@ -53,7 +54,10 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     final security = PrivioScope.of(context).security;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Blocked Users')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Blocked Users'),
+      ),
       body: ListenableBuilder(
         listenable: security,
         builder: (context, _) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// Screen 20: the devices signed in to this account, with remote logout.
@@ -64,7 +65,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final security = PrivioScope.of(context).security;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Devices')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Devices'),
+      ),
       body: ListenableBuilder(
         listenable: security,
         builder: (context, _) {

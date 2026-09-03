@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
 /// Screen 21: appearance.
@@ -20,7 +21,10 @@ class AppearanceScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Appearance')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Appearance'),
+      ),
       body: ListenableBuilder(
         listenable: state,
         builder: (context, _) => ListView(

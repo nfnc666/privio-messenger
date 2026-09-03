@@ -13,6 +13,7 @@ import '../models/models.dart';
 import '../media/voice.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -476,6 +477,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
         return Scaffold(
           appBar: AppBar(
+            leading: const PrivioBackButton(),
             titleSpacing: 0,
             title: Row(
               children: [

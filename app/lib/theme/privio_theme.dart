@@ -45,6 +45,30 @@ abstract final class PrivioTheme {
           color: PrivioColors.textPrimary,
         ),
       ),
+      // The app's own tooltips — "More", "Voice call", "Attach a file" — in
+      // the app's own colours. The default is a pale grey slab that belongs to
+      // no part of this design. (The back arrow has none at all; see
+      // widgets/privio_back_button.dart.)
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: PrivioColors.surfaceHigh,
+          borderRadius: const BorderRadius.all(PrivioRadius.card),
+          border: Border.all(color: PrivioColors.border),
+        ),
+        textStyle: const TextStyle(
+          fontFamily: _fontFamily,
+          fontSize: 12,
+          height: 16 / 12,
+          color: PrivioColors.textSecondary,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: PrivioSpacing.md,
+          vertical: PrivioSpacing.sm,
+        ),
+        // Long enough that moving a pointer across an app bar does not leave a
+        // trail of labels behind it.
+        waitDuration: const Duration(milliseconds: 600),
+      ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: PrivioColors.background,
         selectedItemColor: PrivioColors.accent,

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/app_state.dart';
 import '../core/passcode.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 
 /// The app lock: a passcode on this device, in one of three shapes.
 ///
@@ -111,7 +112,10 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Screen Lock')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Screen Lock'),
+      ),
       body: ListenableBuilder(
         listenable: state,
         builder: (context, _) => ListView(

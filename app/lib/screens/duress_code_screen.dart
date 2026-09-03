@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 
 /// The duress code: a second password that destroys the account instead of
 /// opening it, and that looks from the outside exactly like a typo.
@@ -167,7 +168,10 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Duress Code')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Duress Code'),
+      ),
       body: ListenableBuilder(
         listenable: Listenable.merge([state, security]),
         builder: (context, _) => ListView(

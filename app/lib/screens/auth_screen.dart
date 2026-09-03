@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import 'backup_screen.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/privio_logo.dart';
 
 enum AuthMode { signUp, signIn }
@@ -88,7 +89,7 @@ class _AuthScreenState extends State<AuthScreen> {
     final state = PrivioScope.of(context);
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(leading: const PrivioBackButton()),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),

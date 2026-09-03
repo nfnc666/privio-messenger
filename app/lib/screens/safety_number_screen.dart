@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/app_state.dart';
 import '../crypto/safety_number.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/privio_back_button.dart';
 
 /// The screen that makes end-to-end encryption checkable.
 ///
@@ -127,7 +128,10 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     final pending = state.conversations.identityChangesFor(widget.accountId);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Safety number')),
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: const Text('Safety number'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
           : ListView(
