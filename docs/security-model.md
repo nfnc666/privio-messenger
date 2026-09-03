@@ -350,6 +350,34 @@ session already exists, which no honest deployment does — so it is exercised i
 | Sessions | 365 days, or until revoked |
 | Deleted accounts | Tombstoned; all content deleted immediately |
 
+### Deleting one message
+
+*Delete for everyone* is a sealed control payload naming one client id. The
+server routes it as it routes any envelope and cannot tell it from a sentence,
+which also means it cannot help: a recipient who is offline gets it when they
+next connect, and one who never connects again never gets it.
+
+What it reaches: the message in the recipient's local archive, the copy on this
+account's own other devices, and the decrypted bytes of any file it carried,
+which are dropped from the in-memory cache. What it cannot reach: a screenshot,
+a backup already restored elsewhere, anything already read, and the ciphertext
+of an attachment on the server, which expires on its own 30-day clock and is
+not deleted early — a deletion that also deleted the object would tell the
+server that this particular message was withdrawn, which is more than it needs
+to know.
+
+A message somebody else wrote can only be deleted locally, and that rule is
+enforced at both ends. Refusing to *send* such a request keeps this app honest
+and does nothing about a modified one, so an arriving deletion is also checked:
+it may only remove a message whose sender wrote it, and one that arrives from
+this account's own other devices may only remove this account's own. Without
+that, anyone you have a session with could delete your side of the argument.
+
+The check needs to know who wrote each message, so messages now record their
+sender's account id. Anything filed before that field existed has none; in a
+direct chat nothing is lost, because there is only one other person, and in a
+group it means an old message can still be taken back by any member of it.
+
 ## Voice messages
 
 A recording is the most personal thing this app carries: it is someone's voice,

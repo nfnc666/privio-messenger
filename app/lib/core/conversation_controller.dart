@@ -190,6 +190,9 @@ class ConversationController extends ChangeNotifier {
   /// A file with no caption still needs a line in the list.
   static String _previewOf(Message? message) {
     if (message == null) return '';
+    // A tombstone has no body, and an empty last line in the chat list would
+    // read as a conversation with nothing in it.
+    if (message.kind == MessageKind.deleted) return 'Message deleted';
     if (message.body.isNotEmpty) return message.body;
     final attachment = message.attachment;
     if (attachment == null) return '';
@@ -693,6 +696,125 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  // --- Taking a message back ------------------------------------------------
+
+  /// Removes a message from this device only.
+  ///
+  /// Available on anything, including what somebody else wrote, because this
+  /// is housekeeping on one screen and nobody else is affected by it.
+  Future<void> deleteForMe(String conversationId, Message target) async {
+    final clientId = target.clientId;
+    if (clientId == null) return;
+    if (!_services.store.deleteMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      tombstone: false,
+    )) {
+      return;
+    }
+    _forgetAttachment(target);
+    _persist();
+    notifyListeners();
+  }
+
+  /// Asks every device that has this message to forget it, and forgets it here.
+  ///
+  /// Only for messages this account sent: what someone else wrote is theirs,
+  /// and a protocol that let anyone delete anyone's messages would be a way to
+  /// erase a conversation you were losing.
+  ///
+  /// Removed here first, and the request sent after. A failed send leaves a
+  /// message gone on this device and present on theirs, which is the right way
+  /// round to fail: the alternative is a message the user was told is gone
+  /// still sitting on their own screen.
+  Future<void> deleteForEveryone(String conversationId, Message target) async {
+    final clientId = target.clientId;
+    if (!target.isMine || clientId == null) return;
+
+    _services.store.deleteMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      tombstone: true,
+    );
+    _forgetAttachment(target);
+    // Anything still queued for this message should not go out now.
+    _outbox.removeWhere((entry) => entry.clientId == clientId);
+    _persist();
+    notifyListeners();
+
+    final payload = MessagePayload.deletion(clientId);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object catch (failure) {
+      _noteIdentityChange(failure);
+      _error = 'Deleted here. The request to delete it there did not go out.';
+      notifyListeners();
+    }
+  }
+
+  /// Applies a deletion somebody asked for.
+  ///
+  /// Checked on the way in as well as on the way out. Refusing to *send* a
+  /// deletion for someone else's message keeps this app honest; it does
+  /// nothing about a modified one, and a client that could delete anything in
+  /// anyone's transcript is a client that can rewrite an argument it is
+  /// losing. So a request may only remove a message its own sender wrote —
+  /// except from this account's own other devices, which may only remove this
+  /// account's own.
+  void _applyDeletion(
+    String conversationId,
+    MessagePayload payload, {
+    required String byAccountId,
+    required bool fromOwnDevice,
+  }) {
+    final clientId = payload.deleteTo;
+    if (clientId == null || clientId.isEmpty) return;
+    // Read before deleting: what has to be dropped from the decrypted cache is
+    // the media id, and after the delete there is nothing left to ask.
+    final target = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.clientId == clientId)
+        .firstOrNull;
+    if (target == null) return;
+    if (fromOwnDevice) {
+      if (!target.isMine) return;
+    } else {
+      if (target.isMine) return;
+      // Null on anything filed before this field existed. In a direct chat
+      // there is only one other person, so nothing is lost; in a group it
+      // means an old message can be taken back by any member, which is why the
+      // field is written from now on.
+      if (target.senderAccountId != null && target.senderAccountId != byAccountId) return;
+    }
+    final changed = _services.store.deleteMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      tombstone: true,
+    );
+    if (!changed) return;
+    _forgetAttachment(target);
+    _persist();
+    notifyListeners();
+  }
+
+  /// Drops the decrypted bytes of a deleted message's file.
+  ///
+  /// The archive is sealed and the ciphertext on the server expires on its own,
+  /// but this cache holds the plaintext of anything opened this session. A
+  /// deletion that left it there would leave the file one tap from being shown
+  /// again.
+  void _forgetAttachment(Message message) {
+    final mediaId = message.attachment?.mediaId;
+    if (mediaId != null) _attachmentCache.remove(mediaId);
+  }
+
   void _applyReaction(String conversationId, String fromAccountId, MessagePayload payload) {
     final changed = _services.store.applyReaction(
       conversationId: conversationId,
@@ -719,6 +841,7 @@ class ConversationController extends ChangeNotifier {
       MessageKind.photo => 'Photo',
       MessageKind.video => 'Video',
       MessageKind.file => message.attachment?.fileName ?? 'File',
+      MessageKind.deleted => 'Deleted message',
       MessageKind.text => '',
     };
   }
@@ -1165,6 +1288,15 @@ class ConversationController extends ChangeNotifier {
       _applyReceipt(incoming.senderAccountId, incoming.payload);
       return;
     }
+    if (incoming.payload.isDeletion) {
+      _applyDeletion(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: incoming.senderAccountId == accountId,
+      );
+      return;
+    }
     if (incoming.payload.isReaction) {
       _applyReaction(
         incoming.groupId ?? incoming.senderAccountId,
@@ -1218,7 +1350,19 @@ class ConversationController extends ChangeNotifier {
   /// is known only to the device that sent it.
   Future<void> _fileOwnSentCopy(SyncEnvelope sync, IncomingMessage incoming) async {
     final payload = sync.inner;
-    // Machinery does not become a bubble, whichever device it came from.
+    // A deletion is the one piece of machinery that has to cross to this
+    // account's own devices: taking a message back on the phone and leaving it
+    // on the laptop deletes it nowhere that matters.
+    if (payload.isDeletion) {
+      _applyDeletion(
+        sync.conversationId,
+        payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: true,
+      );
+      return;
+    }
+    // The rest of it does not become a bubble, whichever device it came from.
     if (payload.isControl) return;
 
     final conversationId = sync.conversationId;
@@ -1300,6 +1444,7 @@ class ConversationController extends ChangeNotifier {
       sentAt: receivedAt,
       isMine: false,
       senderName: senderName,
+      senderAccountId: incoming.senderAccountId,
       kind: payload.isVoice
           ? MessageKind.voice
           : payload.isMedia

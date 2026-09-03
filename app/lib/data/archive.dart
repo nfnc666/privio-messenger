@@ -256,6 +256,8 @@ abstract final class ArchiveCodec {
                   'kind': message.kind.name,
                   'state': message.state.name,
                   if (message.senderName != null) 'senderName': message.senderName,
+                  if (message.senderAccountId != null)
+                    'senderAccountId': message.senderAccountId,
                   if (message.voiceDuration != null)
                     'voiceDurationMs': message.voiceDuration!.inMilliseconds,
                   if (message.waveform != null) 'waveform': message.waveform,
@@ -312,6 +314,7 @@ abstract final class ArchiveCodec {
             sentAt: DateTime.parse(message['sentAt'] as String),
             isMine: message['isMine'] as bool,
             kind: MessageKind.values.byName(message['kind'] as String? ?? 'text'),
+            senderAccountId: message['senderAccountId'] as String?,
             state: DeliveryState.values.byName(message['state'] as String? ?? 'read'),
             senderName: message['senderName'] as String?,
             voiceDuration: message['voiceDurationMs'] == null

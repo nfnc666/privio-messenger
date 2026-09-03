@@ -66,7 +66,29 @@ class MessageBubble extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(color: PrivioColors.accentBright),
                 ),
               ),
-            if (message.isVoice)
+            if (message.kind == MessageKind.deleted)
+              // Not blank, and not "message unavailable" either: somebody took
+              // it back, and saying so is the difference between a hole in a
+              // conversation and a chat that quietly rewrote itself.
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.block_rounded,
+                    size: 14,
+                    color: PrivioColors.textTertiary,
+                  ),
+                  const SizedBox(width: PrivioSpacing.xs + 2),
+                  Text(
+                    mine ? 'You deleted this message' : 'This message was deleted',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: PrivioColors.textTertiary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              )
+            else if (message.isVoice)
               // A voice message renders itself: the waveform and the duration
               // come out of the sealed payload, so it is complete before the
               // audio has been fetched.

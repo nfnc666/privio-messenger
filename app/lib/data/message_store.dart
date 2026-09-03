@@ -177,6 +177,21 @@ abstract interface class MessageStore {
     required String emoji,
   });
 
+  /// Takes a message back.
+  ///
+  /// With [tombstone] the message is replaced by a marker in the same place,
+  /// which is the honest thing to show: the other person watched a line
+  /// disappear, and a chat that silently closes over the gap invites them to
+  /// misremember what was there. Without it the message goes entirely — that
+  /// is the "delete for me" case, where nobody else has anything to reconcile.
+  ///
+  /// Returns whether anything was there to delete.
+  bool deleteMessage({
+    required String conversationId,
+    required String clientId,
+    required bool tombstone,
+  });
+
   /// Drops every message whose timer has run out. Returns how many went.
   int pruneExpired(DateTime now);
 
@@ -308,6 +323,38 @@ class InMemoryMessageStore implements MessageStore {
       changed++;
     }
     return changed;
+  }
+
+  @override
+  bool deleteMessage({
+    required String conversationId,
+    required String clientId,
+    required bool tombstone,
+  }) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return false;
+    final index = conversation.messages.indexWhere((m) => m.clientId == clientId);
+    if (index == -1) return false;
+
+    final message = conversation.messages[index];
+    if (message.kind == MessageKind.deleted) return false;
+    if (!tombstone) {
+      conversation.messages.removeAt(index);
+      return true;
+    }
+    // Everything the message carried goes: the body, the file it pointed at,
+    // the reactions, the quote. What is left is that there was one.
+    conversation.messages[index] = Message(
+      id: message.id,
+      body: '',
+      sentAt: message.sentAt,
+      isMine: message.isMine,
+      kind: MessageKind.deleted,
+      state: message.state,
+      senderName: message.senderName,
+      clientId: message.clientId,
+    );
+    return true;
   }
 
   @override

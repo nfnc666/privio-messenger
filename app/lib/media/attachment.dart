@@ -171,6 +171,7 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         mediaToken = null,
         sync = null,
@@ -202,6 +203,7 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -219,6 +221,7 @@ class MessagePayload {
     required String this.reactionTo,
     required String this.reactionEmoji,
   })  : body = '',
+        deleteTo = null,
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -240,6 +243,42 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
+        sync = null,
+        call = null;
+
+  /// A request to take a message back.
+  ///
+  /// Control, never conversation: it names a message the sender wants gone and
+  /// carries nothing else. Whether it is honoured is the receiving device's
+  /// business — which is the honest shape for this. Privio can ask the app on
+  /// the other phone to forget something; it cannot reach into a screenshot,
+  /// somebody's memory, or a copy already restored from a backup, and the
+  /// screen that offers this says so rather than implying an undo.
+  const MessagePayload.deletion(String this.deleteTo)
+      : body = '',
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
         sync = null,
         call = null;
 
@@ -268,6 +307,7 @@ class MessagePayload {
         clientId = null,
         typingAt = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -298,6 +338,7 @@ class MessagePayload {
         receiptIds = null,
         receiptKind = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -331,6 +372,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         reactionEmoji = null,
+        deleteTo = null,
         sync = null,
         call = null;
 
@@ -362,6 +404,7 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -393,6 +436,7 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -428,6 +472,9 @@ class MessagePayload {
       return MessagePayload.callSignal(
         CallSignal.fromJson((json['cl'] as Map<String, dynamic>?) ?? const {}),
       );
+    }
+    if (json['t'] == 'delete') {
+      return MessagePayload.deletion(json['dt'] as String? ?? '');
     }
     if (json['t'] == 'reaction') {
       return MessagePayload.reaction(
@@ -565,6 +612,9 @@ class MessagePayload {
   /// The emoji, or empty to take a reaction back.
   final String? reactionEmoji;
 
+  /// On a deletion: the client id of the message to take back.
+  final String? deleteTo;
+
   /// On a reply: the client id of the message being replied to.
   final String? replyToId;
 
@@ -629,6 +679,7 @@ class MessagePayload {
 
   bool get isCall => call != null;
   bool get isSync => sync != null;
+  bool get isDeletion => deleteTo != null;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
@@ -639,7 +690,13 @@ class MessagePayload {
   /// True for anything that is machinery rather than conversation, and so must
   /// never end up in a chat.
   bool get isControl =>
-      isReceipt || isTyping || isReaction || isKeyDelivery || isCall || isSync;
+      isReceipt ||
+      isTyping ||
+      isReaction ||
+      isKeyDelivery ||
+      isCall ||
+      isSync ||
+      isDeletion;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -657,6 +714,7 @@ class MessagePayload {
   String get _typeTag {
     if (isSync) return 'sync';
     if (isCall) return 'call';
+    if (isDeletion) return 'delete';
     if (isReaction) return 'reaction';
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
@@ -675,6 +733,7 @@ class MessagePayload {
         if (isCall) 'cl': call!.toJson(),
         if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
         if (isTyping) 'ta': typingAt,
+        if (isDeletion) 'dt': deleteTo,
         if (isReaction) ...{'rt': reactionTo, 're': reactionEmoji},
         if (replyToId != null) ...{
           'qi': replyToId,
