@@ -371,6 +371,35 @@ so it rendered *underneath* anything the user had pushed. The callee's phone
 rang; the caller sat looking at their own chat with no way to hang up. It lives
 above the navigator now, and a test pins it there.
 
+### A second device that sees the same conversation
+
+Signing in twice already worked, in the sense that both devices received. What
+arrives is fanned out to every device an account has, so Ben's reply reached
+Ann's phone and her laptop alike.
+
+What Ann sent from her phone reached only her phone. The laptop showed a
+conversation in which she never answered — not a shorter history, a wrong one.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/multi-01-second-device.png" width="220"><br><sub>The laptop, showing both sides.</sub></td>
+<td align="left" width="50%">Every outgoing direct message now also goes to this account's own other devices, sealed to each of them like any other message, and is filed there as outgoing. Group messages already reached them: the group fan-out excludes only the device that sent, so a second device was always included — worth checking rather than assuming, and it was.</td>
+</tr>
+</table>
+
+The copy is a wrapper, not a flag: the receiving device has to file it as
+*outgoing in a named conversation*, which is a different act from receiving a
+message from somebody. An attachment is carried by reference — the same media
+id and the same download capability — so it is uploaded once and both devices
+open the same blob.
+
+Two honest limits. A device that was offline for a send has a gap nothing
+fills but a backup: the copy is not retried, because a send that failed only
+its own copy has still reached the person it was for, and turning that into a
+failure would have the sender retry and the recipient receive twice. And a
+second device starts with no history at all unless a backup is restored into
+it — linking that carries the past across is the next piece of this.
+
 ### A calculator that calculates
 
 Disguise mode replaces the lock screen with a calculator, and replaces the
@@ -492,6 +521,7 @@ because the socket and the poll each delivered the same envelope once.
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the Notifications screen offers the UnifiedPush path on the free builds, and the platform connector that would register a real token is not written yet |
 | **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
+| **Second device** | ✅ | Sign in again and both devices receive, and both see what either one sends. History before the second sign-in comes from a backup, not from the first device |
 | **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
@@ -896,7 +926,7 @@ privio-messenger/
 │   ├── lib/theme/            Design tokens
 │   ├── assets/fonts/         The bundled typeface, so nothing is fetched to draw the app
 │   ├── web/                  Bootstrap that loads the renderer from the build, not a CDN
-│   └── test/                 357 tests, incl. the crypto round trip
+│   └── test/                 362 tests, incl. the crypto round trip
 ├── server/                 Node.js + TypeScript API
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
@@ -935,7 +965,8 @@ typing · Replies and reactions · Disappearing messages · License activation �
 Two-factor · Blocking · Duress code · Encrypted voice and video calls · Disguise mode
 
 **Next** — Ringing a closed app, which needs the push registration the server
-is already waiting for · Multi-device
+is already waiting for · Linking a second device with its history, which today
+starts empty unless a backup is restored
 
 **Later** — Sealed sender · SQLCipher for the local history
 

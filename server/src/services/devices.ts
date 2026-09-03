@@ -158,14 +158,28 @@ export interface PreKeyBundle {
  * a usable bundle from its signed prekey (weaker forward secrecy until the
  * client tops up — clients refill well before the pool empties).
  */
-export async function fetchPreKeyBundles(accountId: string): Promise<PreKeyBundle[]> {
+/**
+ * Bundles for every active device of an account, minus one.
+ *
+ * [exceptDeviceId] is how a device asks for its *own* account's other devices,
+ * which is what a multi-device sync copy is addressed to. Excluding it here
+ * keeps this in step with the send route, which already refuses to echo a
+ * self-addressed message back to the device that sent it: a client handed a
+ * bundle for itself would seal a copy the send would then reject as a device
+ * mismatch.
+ */
+export async function fetchPreKeyBundles(
+  accountId: string,
+  exceptDeviceId?: string,
+): Promise<PreKeyBundle[]> {
   const { rows: devices } = await pool.query(
     `SELECT d.id, d.device_index, d.registration_id, d.identity_key,
             s.key_id AS spk_id, s.public_key AS spk_pub, s.signature AS spk_sig
      FROM devices d
      JOIN signed_prekeys s ON s.device_id = d.id
-     WHERE d.account_id = $1 AND d.revoked_at IS NULL`,
-    [accountId],
+     WHERE d.account_id = $1 AND d.revoked_at IS NULL
+       AND ($2::uuid IS NULL OR d.id <> $2)`,
+    [accountId, exceptDeviceId ?? null],
   );
 
   const bundles: PreKeyBundle[] = [];

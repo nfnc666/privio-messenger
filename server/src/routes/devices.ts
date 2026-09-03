@@ -121,11 +121,17 @@ const deviceRoutes: FastifyPluginAsync = async (app) => {
    * Signal session per device. Consuming a one-time prekey is a side effect.
    */
   app.get('/v1/keys/:username', requireAuth, async (request) => {
-    auth(request);
+    const { accountId, deviceId } = auth(request);
     const params = parse(z.object({ username: usernameSchema }), request.params);
     const target = await findByUsername(params.username);
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
-    const bundles = await fetchPreKeyBundles(target.id);
+    // Asking for your own account means "my other devices" — the copy of a
+    // message that keeps a second device's view of a conversation from drifting
+    // away from the first. A device never needs a session with itself.
+    const bundles = await fetchPreKeyBundles(
+      target.id,
+      target.id === accountId ? deviceId : undefined,
+    );
     if (bundles.length === 0) throw ApiError.notFound('no_devices', 'User has no active devices');
     return { accountId: target.id, username: target.username, devices: bundles };
   });

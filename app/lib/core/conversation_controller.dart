@@ -1065,6 +1065,14 @@ class ConversationController extends ChangeNotifier {
       await _services.calls.handleSignal(incoming.senderAccountId, call);
       return;
     }
+    // A copy of something this account sent from another of its own devices.
+    // It is filed as outgoing, in the conversation it names — never as a
+    // message from whoever the envelope came from, which is this account.
+    final sync = incoming.payload.sync;
+    if (sync != null) {
+      await _fileOwnSentCopy(sync, incoming);
+      return;
+    }
     if (incoming.payload.isReceipt) {
       _applyReceipt(incoming.senderAccountId, incoming.payload);
       return;
@@ -1115,6 +1123,77 @@ class ConversationController extends ChangeNotifier {
 
   /// Builds the bubble for an arriving message.
   ///
+  /// Files what another of this account's devices sent.
+  ///
+  /// Without this a second device shows a conversation in which this account
+  /// never answered: what arrives is fanned out to every device, what is sent
+  /// is known only to the device that sent it.
+  Future<void> _fileOwnSentCopy(SyncEnvelope sync, IncomingMessage incoming) async {
+    final payload = sync.inner;
+    // Machinery does not become a bubble, whichever device it came from.
+    if (payload.isControl) return;
+
+    final conversationId = sync.conversationId;
+    if (!sync.isGroup && _services.store.conversationWith(conversationId) == null) {
+      // A conversation this device has never seen — the other device wrote to
+      // somebody new. Resolve the name before it can be shown as a UUID.
+      await _resolveSender(conversationId);
+    }
+    if (_services.store.conversationWith(conversationId) == null) return;
+
+    final clientId = payload.clientId;
+    if (clientId != null && _hasMessageWithClientId(conversationId, clientId)) {
+      // Already here: this device sent it, or the copy arrived twice.
+      return;
+    }
+
+    _adoptTimer(conversationId, payload);
+    final timer = _services.store.conversationWith(conversationId)?.disappearAfter;
+    final sentAt = incoming.receivedAt.toLocal();
+    _services.store.append(
+      conversationId,
+      Message(
+        id: 'sync-${incoming.envelopeId}',
+        clientId: clientId,
+        body: payload.body,
+        sentAt: sentAt,
+        // The point of the whole exercise: this account wrote it.
+        isMine: true,
+        // It reached the server, which is all this device can honestly claim
+        // about a message it did not send itself.
+        state: DeliveryState.sent,
+        kind: payload.isVoice
+            ? MessageKind.voice
+            : payload.isMedia
+                ? _kindFor(payload.mediaType!)
+                : MessageKind.text,
+        voiceDuration: payload.voiceDuration,
+        waveform: payload.waveform,
+        expiresAt: timer == null ? null : sentAt.add(timer),
+        replyToId: payload.replyToId,
+        replyPreview: payload.replyPreview,
+        replySender: payload.replySender,
+        attachment: payload.isMedia
+            ? Attachment(
+                mediaId: payload.mediaId!,
+                mediaKey: payload.mediaKey!,
+                mediaToken: payload.mediaToken,
+                mediaType: payload.mediaType!,
+                byteSize: payload.byteSize!,
+                fileName: payload.fileName,
+              )
+            : null,
+      ),
+    );
+  }
+
+  bool _hasMessageWithClientId(String conversationId, String clientId) =>
+      _services.store
+          .conversationWith(conversationId)
+          ?.messages
+          .any((message) => message.clientId == clientId) ??
+      false;
+
   /// One place for both the direct and the group path, because a voice message
   /// that came through a group is the same message with a name on it — and the
   /// last time these were written twice, one of them forgot the attachment.

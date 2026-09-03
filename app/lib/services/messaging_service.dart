@@ -105,12 +105,26 @@ class MessagingService {
     // The payload's own client id doubles as the send's idempotency key: a
     // retry of the same message is the same message, however it got retried.
     final key = payload.clientId;
+    ({int delivered, String accountId}) result;
     try {
-      return await _sealAndSend(username, encoded, idempotencyKey: key);
+      result = await _sealAndSend(username, encoded, idempotencyKey: key);
     } on ApiException catch (error) {
       if (error.code != 'device_mismatch') rethrow;
-      return _sealAndSend(username, encoded, idempotencyKey: key);
+      result = await _sealAndSend(username, encoded, idempotencyKey: key);
     }
+
+    // Control payloads are machinery, not conversation: a receipt or a typing
+    // notice on the other device would be filed as a message that was never
+    // written.
+    if (!payload.isControl) {
+      await _syncToOwnDevices(
+        conversationId: result.accountId,
+        isGroup: false,
+        encoded: encoded,
+        idempotencyKey: key,
+      );
+    }
+    return result.delivered;
   }
 
   /// Sends a file: strips its metadata, pads it, seals it under its own key,
@@ -280,7 +294,10 @@ class MessagingService {
     );
   }
 
-  Future<int> _sealAndSend(
+  /// Seals for every device of [username] and sends. Returns how many copies
+  /// were delivered and whose account they went to — the account id is what a
+  /// conversation is keyed by, and the caller needs it for the sync copy.
+  Future<({int delivered, String accountId})> _sealAndSend(
     String username,
     String plaintext, {
     String? idempotencyKey,
@@ -297,12 +314,73 @@ class MessagingService {
       devices: devices,
       plaintext: plaintext,
     );
+    // Nobody to seal for. The only way here is a self-addressed copy on an
+    // account with one device: sending an empty list would be a request that
+    // asks the server to deliver nothing.
+    if (sealed.isEmpty) return (delivered: 0, accountId: accountId);
+
     final result = await _api.sendMessage(
       username: username,
       idempotencyKey: idempotencyKey,
       messages: [for (final copy in sealed) copy.toJson()],
     );
-    return result['deliveredTo'] as int? ?? sealed.length;
+    return (
+      delivered: result['deliveredTo'] as int? ?? sealed.length,
+      accountId: accountId,
+    );
+  }
+
+  /// Who this device is, so it can address its own other devices.
+  ///
+  /// Set at sign-in rather than looked up per send: a request to find out one's
+  /// own name before every message is a request the server does not need.
+  String? _selfUsername;
+
+  // ignore: use_setters_to_change_properties
+  void identifyAs(String? username) => _selfUsername = username;
+
+  /// Sends a copy of what was just sent to this account's own other devices.
+  ///
+  /// Awaited rather than fired off, so a send is finished when the copy is —
+  /// it costs one more round trip and it means a message is never "sent" on
+  /// one device and unknown to the next.
+  ///
+  /// A failure here does not fail the send. The message reached the person it
+  /// was for; a second device that missed the copy shows an incomplete history,
+  /// which is bad and is not worth turning into a message that did not go.
+  Future<void> _syncToOwnDevices({
+    required String conversationId,
+    required bool isGroup,
+    required String encoded,
+    String? idempotencyKey,
+  }) async {
+    final me = _selfUsername;
+    if (me == null) return;
+    final envelope = SyncEnvelope(
+      conversationId: conversationId,
+      isGroup: isGroup,
+      payload: encoded,
+    );
+    try {
+      await _sealAndSend(
+        me,
+        MessagePayload.sync(envelope).encode(),
+        // A distinct key from the original send: it is a different message to
+        // a different set of devices, and sharing one would have the server
+        // treat the second as a retry of the first.
+        idempotencyKey: idempotencyKey == null ? null : 'sync:\$idempotencyKey',
+      );
+    } on ApiException {
+      // Swallowed on purpose, and this is the trade: the message reached the
+      // person it was for. A second device that missed its copy shows an
+      // incomplete history, which is bad; turning that into a send that failed
+      // — so the sender retries, and the recipient gets it twice — is worse.
+      //
+      // 'no_devices' is the ordinary case and not a failure at all: an account
+      // with one device has nobody to copy to. The rest are, and the copy is
+      // not retried, which is a real limit: a device that was offline for that
+      // one send has a gap in its history that nothing fills but a backup.
+    }
   }
 
   /// Hands a channel or group key to everyone's devices for one account.

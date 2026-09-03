@@ -1,7 +1,8 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../calls/call_signal.dart';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 
@@ -108,6 +109,44 @@ abstract final class AttachmentCipher {
 ///
 /// Serialised, padded and sealed as one unit, so the server cannot tell a photo
 /// from a sentence — only that something was sent.
+/// A copy of something this account sent, addressed to its own other devices.
+///
+/// Without it a second device only ever sees the other side of a conversation:
+/// what arrives is fanned out to every device, but what you send from your
+/// phone is known only to your phone. The two views drift apart from the first
+/// message, and the one on the laptop is not a shorter history — it is a wrong
+/// one, showing a conversation in which you never answered.
+///
+/// It is a wrapper rather than a flag on the message, because the receiving
+/// device has to file it as *outgoing* in a named conversation, which is a
+/// different act from receiving a message from somebody.
+@immutable
+class SyncEnvelope {
+  const SyncEnvelope({
+    required this.conversationId,
+    required this.isGroup,
+    required this.payload,
+  });
+
+  factory SyncEnvelope.fromJson(Map<String, dynamic> json) => SyncEnvelope(
+        conversationId: json['c'] as String? ?? '',
+        isGroup: json['g'] as bool? ?? false,
+        payload: json['p'] as String? ?? '',
+      );
+
+  /// Where it was sent: the recipient's account id, or the group's id.
+  final String conversationId;
+  final bool isGroup;
+
+  /// The original payload, exactly as the recipient received it.
+  final String payload;
+
+  /// What was sent, unwrapped.
+  MessagePayload get inner => MessagePayload.decode(payload);
+
+  Map<String, dynamic> toJson() => {'c': conversationId, 'g': isGroup, 'p': payload};
+}
+
 class MessagePayload {
   const MessagePayload.text(
     this.body, {
@@ -134,6 +173,7 @@ class MessagePayload {
         reactionTo = null,
         reactionEmoji = null,
         mediaToken = null,
+        sync = null,
         call = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
@@ -167,6 +207,7 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
+        sync = null,
         call = null;
 
   /// A reaction to one message.
@@ -199,6 +240,7 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
+        sync = null,
         call = null;
 
   /// A receipt for messages that arrived, or were read.
@@ -231,6 +273,7 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
+        sync = null,
         call = null;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
@@ -260,6 +303,7 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
+        sync = null,
         call = null;
 
   const MessagePayload.media({
@@ -287,6 +331,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         reactionEmoji = null,
+        sync = null,
         call = null;
 
   /// One step in setting up, or tearing down, a call.
@@ -298,6 +343,7 @@ class MessagePayload {
   /// could read it would learn where both people are.
   const MessagePayload.callSignal(CallSignal this.call)
       : body = '',
+        sync = null,
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -322,6 +368,37 @@ class MessagePayload {
         replySender = null,
         mediaToken = null;
 
+  /// A copy of something this account sent, for its own other devices.
+  ///
+  /// Control, never conversation: it is filed as an outgoing message in the
+  /// conversation it names, and must never appear as one somebody sent to you.
+  const MessagePayload.sync(SyncEnvelope this.sync)
+      : body = '',
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        call = null;
+
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
     Map<String, dynamic>? json;
@@ -342,6 +419,11 @@ class MessagePayload {
       preview: json['qp'] as String?,
       sender: json['qs'] as String?,
     );
+    if (json['t'] == 'sync') {
+      return MessagePayload.sync(
+        SyncEnvelope.fromJson((json['sy'] as Map<String, dynamic>?) ?? const {}),
+      );
+    }
     if (json['t'] == 'call') {
       return MessagePayload.callSignal(
         CallSignal.fromJson((json['cl'] as Map<String, dynamic>?) ?? const {}),
@@ -499,6 +581,9 @@ class MessagePayload {
   /// The call signal this payload carries, if it carries one.
   final CallSignal? call;
 
+  /// A copy of an outgoing message, for this account's own other devices.
+  final SyncEnvelope? sync;
+
   /// The same payload with a profile key attached.
   ///
   /// A method rather than a rebuild at each call site: this type has grown
@@ -543,6 +628,7 @@ class MessagePayload {
   bool get isMedia => mediaId != null;
 
   bool get isCall => call != null;
+  bool get isSync => sync != null;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
@@ -552,7 +638,8 @@ class MessagePayload {
 
   /// True for anything that is machinery rather than conversation, and so must
   /// never end up in a chat.
-  bool get isControl => isReceipt || isTyping || isReaction || isKeyDelivery || isCall;
+  bool get isControl =>
+      isReceipt || isTyping || isReaction || isKeyDelivery || isCall || isSync;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -568,6 +655,7 @@ class MessagePayload {
   /// conditional, and each new payload kind made it harder to see that exactly
   /// one branch can win.
   String get _typeTag {
+    if (isSync) return 'sync';
     if (isCall) return 'call';
     if (isReaction) return 'reaction';
     if (isReceipt) return 'receipt';
@@ -583,6 +671,7 @@ class MessagePayload {
         'b': body,
         if (expiresInSeconds != null) 'ex': expiresInSeconds,
         if (clientId != null) 'ci': clientId,
+        if (isSync) 'sy': sync!.toJson(),
         if (isCall) 'cl': call!.toJson(),
         if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
         if (isTyping) 'ta': typingAt,
