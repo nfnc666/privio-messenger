@@ -36,7 +36,9 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.sm),
           SettingsSection(
             children: [
-              SettingsRow(icon: Icons.person_outline_rounded, label: 'Account', onTap: () {}),
+              // An "Account" row used to open here and do nothing. Settings is
+              // reached *from* the Account tab, so a row leading back to it is
+              // a circle with a dead button at the top of it.
               SettingsRow(
                 icon: Icons.lock_outline_rounded,
                 label: 'Privacy & Security',
@@ -47,7 +49,10 @@ class SettingsScreen extends StatelessWidget {
                 label: 'Notifications',
                 onTap: () => open(const NotificationsScreen()),
               ),
-              SettingsRow(icon: Icons.data_usage_rounded, label: 'Data and Storage', onTap: () {}),
+              // "Data and Storage" opened nothing too. It will come back when
+              // there is something true to put on it — what this device keeps,
+              // how large it is, and what a person can delete — rather than a
+              // row that looks like a setting and is a dead end.
               SettingsRow(
                 icon: Icons.devices_outlined,
                 label: 'Devices',

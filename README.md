@@ -420,6 +420,107 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### Six buttons that did nothing
+
+A grep for `onPressed: () {}` found six of them, spread over three screens:
+
+| Screen | Control | What it did |
+| --- | --- | --- |
+| Invite | **Share Link** | nothing |
+| Invite | **Save to Photos** | nothing |
+| Settings | **Account** | nothing |
+| Settings | **Data and Storage** | nothing |
+| About | **Terms of Service** | nothing |
+| About | **Privacy Policy** | nothing |
+
+Each was decided on its own merits rather than swept away together.
+
+**Share Link** now copies the link, which is what this app can do — there is no
+share sheet here, that being a platform plugin Privio does not carry. The small
+copy icon beside the link already worked; the big button below it now does the
+same thing in the place a thumb reaches.
+
+**Save to Photos** is gone. Writing to the gallery needs a plugin that is not
+here, the code is on screen, and the other tab copies the same invite as text.
+
+**Account** in Settings is gone: Settings is opened *from* the Account tab, so
+that row was a circle with a dead button at the top of it. **Data and Storage**
+is gone until there is something true to put on it — what this device keeps, how
+large it is, what can be deleted — rather than a row that looks like a setting
+and is a dead end.
+
+**Terms of Service** and **Privacy Policy** are gone because neither document
+exists. That is now a caveat in this README rather than two rows implying
+otherwise, and it is a pre-store task: a messenger that asks for trust and
+ships without them is asking for it on credit.
+
+Three widget tests hold the line — one per screen, asserting both that the dead
+labels are absent and that the working rows are still there. The invite test
+taps the button and reads the clipboard.
+
+### A green dot that could never be green
+
+`PrivioAvatar` drew a presence dot behind `if (presence == Presence.online)`.
+Nothing in the app ever produced `Presence.online`; `Presence.recently` was
+never used at all, and every `ChatSummary` was built with the default,
+`hidden`. Three enum values, a parameter, and a rendering branch, for a state
+that could not occur.
+
+The comment on the enum said what the trouble was: *"the server only ever
+reports a last-seen"*. And it does — `/v1/users/:username` has returned
+`lastSeenAt` all along, filtered by that person's own `everyone` / `contacts` /
+`nobody` setting, and the client threw it away.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/seen-01-hidden.png" width="220"><br><sub>Added them; they have not added back. Nothing to see.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/seen-02-shown.png" width="220"><br><sub>Mutual, and the default setting allows it.</sub></td>
+</tr>
+</table>
+
+So the dot is gone and the timestamp is shown, because the timestamp is what
+there is. "Online" would have been this app inferring a state from a moment and
+presenting the guess as a fact about somebody else.
+
+Two things worth stating about the rule. `contacts` means **the people that
+person added**, not the people who added them — being in someone's address book
+must not entitle you to watch them, and the two directions are easy to confuse
+in SQL. And the rule now lives in one function that both the lookup route and
+the contacts list call: two implementations of a privacy check drift, and the
+one that drifts is the one nobody is looking at.
+
+The contacts list also refreshes when its tab comes back into view. The tabs
+are kept alive by an `IndexedStack`, so `initState` fires once and the list was
+whatever it had been on the first visit — tolerable while it held only names,
+not once it holds a time.
+
+### The pin that was drawn but never set
+
+`ChatListRow` had this, and has had it since the list was first built:
+
+```dart
+if (chat.pinned) ...[
+  const Icon(Icons.push_pin_rounded, size: 13, color: PrivioColors.textTertiary),
+```
+
+Nothing ever set `pinned`. The icon was unreachable, the field was a default
+that could not change, and the chat list was strictly newest-first with no way
+to keep anything at the top.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/pin-01-sheet.png" width="220"><br><sub>Long press a chat.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/pin-02-top.png" width="220"><br><sub>The oldest conversation, above two newer ones.</sub></td>
+</tr>
+</table>
+
+It is a **local preference and nothing is sent**, which the sheet says on the
+row itself rather than in a settings screen nobody opens. Which chats someone
+keeps at the top says something about them: who they talk to most, who matters
+in a hurry. That is not the other person's business and it is certainly not the
+server's, so it stays in the archive — where a backup already carries it, and
+where nothing else can.
+
 ### The name inside a Word document
 
 Privio strips EXIF from a photo before it leaves the phone. A `.docx` went out
@@ -963,7 +1064,8 @@ A privacy product that overstates itself is worse than one that says nothing.
 3. **No sealed sender.** Envelopes name the sender, which the server uses for
    blocking and rate limiting.
 4. **The link domains are not registered.** Links are generated against
-   `privio.channel` and `privio.group`, neither of which this project owns, so
+   `privio.channel`, `privio.group` and `privio.app` (the invite link), none of
+   which this project owns, so
    nothing on the open internet answers them. It costs nothing in security —
    the app reads the invite code out of the link's *path* and never fetches the
    URL, so a link works between Privio users either way, and the parser accepts
@@ -978,7 +1080,13 @@ A privacy product that overstates itself is worse than one that says nothing.
    group memberships, the backup. It cannot reach a *different* phone that is
    signed in elsewhere, whose local archive stays sealed but present. The
    screen says so instead of implying a remote kill switch.
-6. **No independent audit.** Before any public release the crypto integration
+6. **There are no Terms and no Privacy Policy.** The About screen used to name
+   both and open neither. The rows are gone rather than pointing at documents
+   that do not exist, and what is actually true about how Privio treats data is
+   in [the security model](docs/security-model.md). Writing the two documents is
+   a pre-store task, not a formality: a messenger asking for trust and shipping
+   without them is asking for it on credit.
+7. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
 The full list, with the reasoning, is in
@@ -1173,7 +1281,7 @@ The full system — typography, spacing, every screen and component — is in
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
-Disguise mode · Safety numbers · Deleting messages · Search
+Disguise mode · Safety numbers · Deleting messages · Search · Pinned chats
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

@@ -6,10 +6,14 @@ import 'avatar.dart';
 
 /// A row in the Chats list: avatar, name, preview, timestamp, unread pill.
 class ChatListRow extends StatelessWidget {
-  const ChatListRow({required this.chat, super.key, this.onTap});
+  const ChatListRow({required this.chat, super.key, this.onTap, this.onLongPress});
 
   final ChatSummary chat;
   final VoidCallback? onTap;
+
+  /// Opens what can be done to the conversation itself, as opposed to opening
+  /// it. Null where a row is only ever a way in — search results, for one.
+  final VoidCallback? onLongPress;
 
   static const Map<MessageKind, IconData> _previewIcons = {
     MessageKind.voice: Icons.mic_rounded,
@@ -26,6 +30,7 @@ class ChatListRow extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: PrivioSpacing.gutter,
@@ -37,7 +42,6 @@ class ChatListRow extends StatelessWidget {
             PrivioAvatar(
               label: chat.title,
               seed: chat.avatarSeed,
-              presence: chat.presence,
               isGroup: chat.isGroup,
               imageBytes: chat.avatarBytes,
             ),

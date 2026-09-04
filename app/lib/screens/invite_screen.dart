@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -16,6 +18,14 @@ class InviteScreen extends StatefulWidget {
 
 class _InviteScreenState extends State<InviteScreen> {
   int _tab = 0;
+
+  /// Puts [text] on the clipboard and says so. Used by both the icon and the
+  /// button below it, so there is one copy of what copying means.
+  static Future<void> _copy(BuildContext context, String text, String said) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(said)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +66,8 @@ class _InviteScreenState extends State<InviteScreen> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: inviteUrl));
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Invite link copied')),
-                        );
-                      }
-                    },
+                    onPressed: () =>
+                        unawaited(_copy(context, inviteUrl, 'Invite link copied')),
                     icon: const Icon(Icons.copy_rounded, size: 18),
                     tooltip: 'Copy link',
                   ),
@@ -77,7 +81,14 @@ class _InviteScreenState extends State<InviteScreen> {
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.xl),
-            FilledButton(onPressed: () {}, child: const Text('Share Link')),
+            // It said "Share Link" and did nothing. There is no share sheet
+            // here — that is a platform plugin Privio does not carry — so the
+            // button does what the app can actually do, which is what the
+            // small icon above already does, in the place a thumb reaches.
+            FilledButton(
+              onPressed: () => unawaited(_copy(context, inviteUrl, 'Invite link copied')),
+              child: const Text('Copy invite link'),
+            ),
           ] else ...[
             Center(
               child: Container(
@@ -108,8 +119,10 @@ class _InviteScreenState extends State<InviteScreen> {
             Center(
               child: Text('Scan to connect with @$username', style: theme.textTheme.bodySmall),
             ),
-            const SizedBox(height: PrivioSpacing.xl),
-            TextButton(onPressed: () {}, child: const Text('Save to Photos')),
+            // "Save to Photos" used to sit here and do nothing. Writing an
+            // image to the gallery needs a platform plugin this app does not
+            // have, and the code is on screen: a screenshot is the way, and
+            // the link tab copies the same invite as text.
           ],
         ],
       ),

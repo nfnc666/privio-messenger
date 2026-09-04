@@ -60,8 +60,12 @@ class AboutScreen extends StatelessWidget {
             children: [
               SettingsRow(label: 'Website', onTap: () => copy('Website', 'https://getprivio.com')),
               SettingsRow(label: 'Support', onTap: () => copy('Address', 'support@getprivio.com')),
-              SettingsRow(label: 'Terms of Service', onTap: () {}),
-              SettingsRow(label: 'Privacy Policy', onTap: () {}),
+              // "Terms of Service" and "Privacy Policy" sat here and opened
+              // nothing, because neither document exists. Both have to before
+              // this reaches a store; a row that names one and produces
+              // nothing is worse than a screen that does not claim to have it.
+              // What is real about how Privio treats data is in the repository
+              // linked below, in docs/security-model.md.
             ],
           ),
           SettingsSection(

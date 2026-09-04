@@ -223,6 +223,7 @@ abstract final class ArchiveCodec {
           {
             'id': conversation.id,
             'unreadCount': conversation.unreadCount,
+            if (conversation.pinned) 'pinned': true,
             if (conversation.disappearAfter != null)
               'disappearAfterSeconds': conversation.disappearAfter!.inSeconds,
             if (conversation.user != null)
@@ -350,6 +351,7 @@ abstract final class ArchiveCodec {
             messages: messages,
           )
             ..unreadCount = entry['unreadCount'] as int? ?? 0
+            ..pinned = entry['pinned'] as bool? ?? false
             ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
         );
         continue;
@@ -370,6 +372,7 @@ abstract final class ArchiveCodec {
           messages: messages,
         )
           ..unreadCount = entry['unreadCount'] as int? ?? 0
+          ..pinned = entry['pinned'] as bool? ?? false
           ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
       );
     }

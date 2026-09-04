@@ -2,10 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../models/models.dart';
 import '../theme/privio_colors.dart';
 
-/// A circular avatar with the contact's initials and an optional presence dot.
+/// A circular avatar with the contact's initials, or their picture.
 ///
 /// Profile photos are end-to-end encrypted like everything else, so until one
 /// has been fetched and decrypted this is what the list shows.
@@ -15,7 +14,6 @@ class PrivioAvatar extends StatelessWidget {
     super.key,
     this.size = 44,
     this.seed = 0,
-    this.presence = Presence.hidden,
     this.isGroup = false,
     this.imageBytes,
   });
@@ -23,7 +21,6 @@ class PrivioAvatar extends StatelessWidget {
   final String label;
   final double size;
   final int seed;
-  final Presence presence;
   final bool isGroup;
 
   /// The decrypted profile picture. Null until this device has both the pointer
@@ -79,20 +76,6 @@ class PrivioAvatar extends StatelessWidget {
               _ => _Initials(text: _initials, size: size),
             },
           ),
-          if (presence == Presence.online)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: size * 0.28,
-                height: size * 0.28,
-                decoration: BoxDecoration(
-                  color: PrivioColors.accent,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: PrivioColors.background, width: size * 0.05),
-                ),
-              ),
-            ),
         ],
       ),
     );

@@ -183,6 +183,7 @@ class ConversationController extends ChangeNotifier {
       typing: isTyping(conversation.id),
       timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
       unreadCount: conversation.unreadCount,
+      pinned: conversation.pinned,
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.id.hashCode.abs(),
     );
@@ -360,6 +361,9 @@ class ConversationController extends ChangeNotifier {
       id: id,
       username: json['username'] as String,
       displayName: (json['alias'] ?? json['displayName'] ?? json['username']) as String,
+      // Null whenever their setting does not include us, which is the normal
+      // answer and not a missing one.
+      lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? '')?.toLocal(),
       avatarSeed: id.hashCode.abs(),
       avatarBytes: _avatarCache[id],
     );
@@ -718,6 +722,26 @@ class ConversationController extends ChangeNotifier {
       // would be a second surprise on top of the first.
     }
   }
+
+  /// Keeps a conversation at the top of the list, or lets it go.
+  ///
+  /// Local to this device and never sent. The other side is not told, because
+  /// which chats someone keeps at the top says something about them and is
+  /// nobody else's business — not the person on the other end, and least of
+  /// all the server. It survives a reinstall only through a backup, which is
+  /// where the archive it lives in already goes.
+  Future<void> togglePin(String conversationId) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    if (!_services.store.setPinned(conversationId, pinned: !conversation.pinned)) {
+      return;
+    }
+    _persist();
+    notifyListeners();
+  }
+
+  bool isPinned(String conversationId) =>
+      _services.store.conversationWith(conversationId)?.pinned ?? false;
 
   /// Every message that matches [query], across every conversation.
   ///

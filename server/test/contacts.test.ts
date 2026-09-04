@@ -72,6 +72,71 @@ describe('contacts and privacy', () => {
     assert.equal(hidden.json().lastSeenAt, null);
   });
 
+  it('applies the same last-seen rule to the contacts list', async () => {
+    // Its own pair: the tests above leave Bob's setting and Alice's address
+    // book in a state this one would otherwise be reading by accident.
+    const carol = await registerUser(h.app, 'carol');
+    const dave = await registerUser(h.app, 'dave');
+
+    // Carol adds Dave. One direction: Dave has not added Carol, and the
+    // default setting tells only the people Dave added himself.
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/contacts',
+      headers: bearer(carol),
+      payload: { username: 'dave' },
+    });
+    const oneWay = await h.app.inject({
+      method: 'GET',
+      url: '/v1/contacts',
+      headers: bearer(carol),
+    });
+    assert.equal(
+      oneWay.json().contacts[0].lastSeenAt,
+      null,
+      'being in somebody\'s address book must not entitle you to watch them',
+    );
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/contacts',
+      headers: bearer(dave),
+      payload: { username: 'carol' },
+    });
+    const mutual = await h.app.inject({
+      method: 'GET',
+      url: '/v1/contacts',
+      headers: bearer(carol),
+    });
+    assert.ok(mutual.json().contacts[0].lastSeenAt, 'a contact of Dave sees his last-seen');
+
+    await h.app.inject({
+      method: 'PATCH',
+      url: '/v1/accounts/me',
+      headers: bearer(dave),
+      payload: { privacy: { lastSeen: 'nobody' } },
+    });
+    const hidden = await h.app.inject({
+      method: 'GET',
+      url: '/v1/contacts',
+      headers: bearer(carol),
+    });
+    assert.equal(hidden.json().contacts[0].lastSeenAt, null);
+
+    await h.app.inject({
+      method: 'PATCH',
+      url: '/v1/accounts/me',
+      headers: bearer(dave),
+      payload: { privacy: { lastSeen: 'everyone' } },
+    });
+    const open = await h.app.inject({
+      method: 'GET',
+      url: '/v1/contacts',
+      headers: bearer(carol),
+    });
+    assert.ok(open.json().contacts[0].lastSeenAt, 'everyone means everyone');
+  });
+
   it('issues an invite link and QR payload for the account', async () => {
     const invite = await h.app.inject({ method: 'GET', url: '/v1/contacts/invite', headers: bearer(alice) });
     assert.equal(invite.statusCode, 200);

@@ -6,6 +6,7 @@ import 'calls_screen.dart';
 import 'channels_screen.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
+import '../core/app_state.dart';
 
 /// One destination in the bottom bar.
 class NavDestination {
@@ -85,7 +86,12 @@ class _NavShellState extends State<NavShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
-          onTap: (index) => setState(() => _index = index),
+          onTap: (index) {
+            setState(() => _index = index);
+            // Told rather than inferred, so a screen the stack is keeping
+            // alive can refresh what it read on the way in.
+            PrivioScope.of(context).selectedTab = index;
+          },
           items: [
             for (final destination in destinations)
               BottomNavigationBarItem(

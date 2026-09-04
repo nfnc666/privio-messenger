@@ -1,8 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-/// Presence as the UI understands it. The server only ever reports a last-seen
-/// timestamp, and only when the other person's privacy setting allows it.
-enum Presence { online, recently, hidden }
 
 @immutable
 class Contact {
@@ -10,7 +7,7 @@ class Contact {
     required this.id,
     required this.username,
     required this.displayName,
-    this.presence = Presence.hidden,
+    this.lastSeenAt,
     this.avatarSeed = 0,
     this.avatarBytes,
   });
@@ -18,7 +15,14 @@ class Contact {
   final String id;
   final String username;
   final String displayName;
-  final Presence presence;
+
+  /// When the server last heard from them, or null.
+  ///
+  /// Null is the normal answer, not an error: it is what the server returns
+  /// when this person's own last-seen setting does not include the person
+  /// asking. Nothing here infers anything from it — a timestamp is what the
+  /// server has, and "online" is not.
+  final DateTime? lastSeenAt;
   final int avatarSeed;
 
   /// Set once the picture has been downloaded and decrypted on this device.
@@ -213,7 +217,6 @@ class ChatSummary {
     this.pinned = false,
     this.previewKind = MessageKind.text,
     this.typing = false,
-    this.presence = Presence.hidden,
     this.avatarSeed = 0,
     this.avatarBytes,
   });
@@ -234,7 +237,6 @@ class ChatSummary {
   /// colour instead of the last message.
   final bool typing;
 
-  final Presence presence;
   final int avatarSeed;
 
   /// The decrypted profile picture, when this device has it.
