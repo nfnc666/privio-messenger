@@ -420,6 +420,40 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### A group you could join and never leave
+
+Privio could create a group, invite to it, join one by a link, and talk in it.
+It could not show you who was in it, and it could not get you out. The chat
+header counted members — *"3 members · encrypted"* — and nothing listed them.
+`PrivioApiClient.leaveGroup` had been written and had no caller. The server's
+rename and delete had none either.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/screenshots/group-01-admin.png" width="200"><br><sub>What an admin sees.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/group-02-member.png" width="200"><br><sub>What a member sees: the same list, none of the controls.</sub></td>
+<td align="center" width="33%"><img src="docs/screenshots/group-03-leaving.png" width="200"><br><sub>What leaving says before it happens.</sub></td>
+</tr>
+</table>
+
+The member list is **fetched, not remembered**: membership changes when
+somebody joins by a link or is removed, and neither of those sends a message,
+so a cached list is a list that is wrong at exactly the moment it matters.
+
+Renaming seals the new name with the group's own key before it goes, exactly as
+creating it did, so the server stores a blob it cannot read and every other
+member opens it with the key they already have — nothing has to be sent to
+anybody. A device that joined by a link and has not been handed the key yet
+says so rather than failing at the server.
+
+The admin controls are hidden from a member *and* refused by the server, and
+the tests cover both: hiding a button is a courtesy, and the rule has to live
+where it is enforced.
+
+Every dialog says what it cannot do. Leaving does not unsend; removing somebody
+does not reach what they already received; deleting the group for everyone
+leaves every message anybody has already read exactly where it is.
+
 ### What this phone is actually keeping
 
 Removing the dead "Data and Storage" row left a note saying it would come back
@@ -1311,7 +1345,8 @@ The full system — typography, spacing, every screen and component — is in
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
-Disguise mode · Safety numbers · Deleting messages · Search · Pinned chats
+Disguise mode · Safety numbers · Deleting messages · Search · Pinned chats ·
+Group admin
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

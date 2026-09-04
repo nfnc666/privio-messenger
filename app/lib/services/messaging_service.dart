@@ -567,6 +567,29 @@ class MessagingService {
     );
   }
 
+  /// Everyone in a group, as the server lists them.
+  ///
+  /// Fetched rather than remembered: membership changes when somebody joins by
+  /// a link or is removed, and neither of those sends a message.
+  Future<List<GroupMember>> groupMembers(String groupId) async {
+    final detail = await _api.group(groupId);
+    return [
+      for (final raw in detail['members'] as List<dynamic>? ?? const [])
+        GroupMember.fromJson(raw as Map<String, dynamic>),
+    ];
+  }
+
+  /// Renames a group.
+  ///
+  /// The name is sealed with the group's own key before it goes, exactly as it
+  /// was when the group was created, so the server stores a new blob it cannot
+  /// read. Every other member opens it with the key they already have; nothing
+  /// has to be sent to them.
+  Future<void> renameGroup(String groupId, String name, String groupKey) async {
+    final sealed = await _sealGroupName(name, base64Decode(groupKey));
+    await _api.updateGroupMetadata(groupId, base64Encode(sealed));
+  }
+
   /// The groups this account belongs to, with names opened where the key for
   /// them is already known.
   Future<List<GroupInfo>> listGroups(MessageStore store) async {

@@ -246,8 +246,13 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> joinGroup(String groupId, String inviteCode) =>
       _send('POST', '/v1/groups/$groupId/join', body: {'inviteCode': inviteCode});
 
+  /// Removes one member. The same call whether it is somebody else being
+  /// removed by an admin or a member showing themselves out.
   Future<void> leaveGroup(String groupId, String accountId) async =>
       _send('DELETE', '/v1/groups/$groupId/members/$accountId');
+
+  Future<void> deleteGroup(String groupId) async =>
+      _send('DELETE', '/v1/groups/$groupId');
 
   // --- Key delivery ---------------------------------------------------------
   //
