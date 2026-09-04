@@ -4,8 +4,10 @@ publish_to: none
 version: 0.1.0+1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
-  flutter: ">=3.22.0"
+  # Raised by file_picker 12, which is the first version that works with
+  # Flutter's built-in Kotlin. Staying below this cannot build for Android.
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
 
 dependencies:
   flutter:
@@ -18,7 +20,10 @@ dependencies:
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2
   cryptography: ^2.9.0
-  file_picker: ^11.0.3
+  # 12 is the first release that does not apply its own Kotlin Gradle Plugin.
+  # Under current Flutter, 11 makes the Android build fail with a missing
+  # FilePickerPlugin — the plugin's classes are never produced.
+  file_picker: ^12.2.0
   web_socket_channel: ^3.0.3
   image: ^4.9.2
   record: ^7.1.1

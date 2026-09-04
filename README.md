@@ -596,7 +596,7 @@ curl http://localhost:8080/health
 
 ### App
 
-Requirements: Flutter 3.22+.
+Requirements: Flutter 3.38+.
 
 ```bash
 cd app
