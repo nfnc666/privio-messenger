@@ -420,6 +420,44 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### The name inside a Word document
+
+Privio strips EXIF from a photo before it leaves the phone. A `.docx` went out
+exactly as it came off the disk — and a Word file carries the name of whoever
+wrote it, the name of whoever last saved it, how long it was open, the revision
+count, and often the company it was written at. None of that is visible in the
+document, all of it travels with it, and encryption is no help at all: the
+recipient decrypts the file and gets the lot.
+
+Office and OpenDocument files are ZIP containers, so this is the same kind of
+work as the image scrubbers — container structure, not content. The body, the
+styles and the content types are copied through byte for byte; only the parts
+that name a person are replaced.
+
+**Replaced, not removed.** Deleting `docProps/core.xml` leaves the relationship
+that points at it and the content-type override that declares it pointing at
+nothing, and a word processor handed that is entitled to call the file corrupt.
+An empty part of the right type is valid everywhere the full one was.
+
+Two things would have corrupted the output quietly, and both are pinned by a
+test:
+
+* An OpenDocument reader wants `mimetype` first in the archive and **stored**
+  rather than deflated. Re-compressing it produces a file that opens as a ZIP
+  and not as a document.
+* Every entry in a ZIP carries the minute it was written — a record of when
+  somebody was working on the file, sitting right next to the metadata being
+  removed. They are flattened to one fixed instant, the same for every file
+  Privio sends.
+
+Checked from outside Dart as well as in: the scrubbed files were re-opened with
+Python's `zipfile`, every CRC verified, every XML part parsed, and the document
+text compared byte for byte with the original.
+
+Still not done: PDF. It needs a real parser, because a document whose
+cross-reference table no longer matches its body is worse than an untouched
+one, and the app says it could not clean it rather than implying it did.
+
 ### A search that can find a message
 
 The Chats screen had a search field. It filtered the list of chats by name and
@@ -682,7 +720,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
-| **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps — automatically, no setting. JPEG, PNG, WebP, GIF and MP4/MOV; a PDF is passed through and says so rather than being half-stripped |
+| **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps, document authors and companies — automatically, no setting. JPEG, PNG, WebP, GIF, MP4/MOV, Word, Excel, PowerPoint and OpenDocument; a PDF is passed through and says so rather than being half-stripped |
 | **Attachments in the chat** | 🔧 | 1:1 and groups; send, receive and display work; the OS file dialog is untested (see below) |
 | **Attachment authorisation** | ✅ | Downloading needs a capability minted at upload and carried inside the sealed payload — the server hands the bytes over without ever learning who is entitled to them. Only the token's hash is stored |
 | **Profile pictures** | 🔧 | Encrypted end to end; same untested file dialog |

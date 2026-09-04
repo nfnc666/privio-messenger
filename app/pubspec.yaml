@@ -21,6 +21,11 @@ dependencies:
   file_picker: ^11.0.3
   web_socket_channel: ^3.0.3
   image: ^4.9.2
+  # Office and OpenDocument files are ZIP containers, and their author name,
+  # company and editing history live in named parts inside them. Already here
+  # as a transitive dependency of `image`; named now because the scrubber
+  # depends on it directly.
+  archive: ^4.0.0
   record: ^7.1.1
   just_audio: ^0.10.6
   path_provider: ^2.1.6
