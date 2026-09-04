@@ -246,6 +246,59 @@ void main() {
     final ids = device.preKeys.map((k) => k['keyId'] as int).toList();
     expect(ids.toSet(), hasLength(ids.length), reason: 'no reused prekey ids');
   });
+
+  test('the signed prekey is left alone while it is still fresh', () async {
+    final device = server.accounts['alice']!.devices.single;
+    final published = device.signedPreKey['publicKey'];
+
+    expect(await alice.messaging.rotateSignedPreKeyIfDue(), isFalse);
+    expect(device.signedPreKey['publicKey'], published);
+  });
+
+  test('and replaced on the server once it has been on offer too long', () async {
+    final device = server.accounts['alice']!.devices.single;
+    final before = device.signedPreKey['publicKey'];
+
+    final due = DateTime.now().add(
+      PrivioCrypto.signedPreKeyLifetime + const Duration(minutes: 1),
+    );
+    expect(await alice.messaging.rotateSignedPreKeyIfDue(now: due), isTrue);
+
+    expect(
+      device.signedPreKey['publicKey'],
+      isNot(before),
+      reason: 'the key strangers seal to is the one that had to change',
+    );
+
+    // Still openable: the device kept the old one, because a bundle fetched
+    // before the rotation may only now be turning into a message.
+    expect(await alice.crypto.store.loadSignedPreKeys(), hasLength(2));
+  });
+
+  test('a message sealed to the previous signed prekey still opens', () async {
+    // Bob fetches Alice's bundle, and only then does she rotate.
+    final bundle = DeviceBundle.fromJson(
+      server.accounts['alice']!.devices.single.bundle(),
+    );
+    await alice.messaging.rotateSignedPreKeyIfDue(
+      now: DateTime.now().add(
+        PrivioCrypto.signedPreKeyLifetime + const Duration(minutes: 1),
+      ),
+    );
+
+    final sealed = await bob.crypto.sealForDevices(
+      accountId: alice.accountId,
+      devices: [bundle],
+      plaintext: 'Im Tunnel geschrieben',
+    );
+    final opened = await alice.crypto.openEnvelope(
+      senderAccountId: bob.accountId,
+      senderDeviceIndex: bob.deviceIndex,
+      type: sealed.single.type,
+      content: sealed.single.content,
+    );
+    expect(opened, 'Im Tunnel geschrieben');
+  });
   test('a photo arrives with its metadata stripped', () async {
     final photo = File('test/fixtures/photo_with_exif.jpg').readAsBytesSync();
     // The fixture really does carry a camera model, a serial number and GPS.

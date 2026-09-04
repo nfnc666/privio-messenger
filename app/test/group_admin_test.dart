@@ -28,6 +28,15 @@ class FakeGroupServer {
         final path = request.url.path;
         calls.add('${request.method} $path');
 
+        if (request.method == 'GET' && path == '/v1/messages') {
+          return _json({'envelopes': [], 'more': false});
+        }
+        if (request.method == 'POST' && path.endsWith('/key-requests')) {
+          return _json({'requested': true});
+        }
+        if (request.method == 'GET' && path.endsWith('/key-requests')) {
+          return _json({'requests': []});
+        }
         if (request.method == 'GET' && path == '/v1/groups/g1') {
           return _json({
             'id': 'g1',
@@ -195,6 +204,44 @@ void main() {
     expect(await controller.renameGroup('g2', 'Gipfeltour'), isFalse);
     expect(server.patches, isEmpty);
     expect(controller.error, contains('group key'));
+  });
+
+  group('the group key', () {
+    test('is asked for where this device is a member without one', () async {
+      // What a second phone looks like: the membership is there, the key is
+      // not, and nothing recorded a request because it never joined.
+      final (services, server, store) = await build();
+      store.upsertGroup(const GroupInfo(groupId: 'g2', role: 'member'));
+      final controller = ConversationController(services)..accountId = 'me';
+      store.append(
+        'g2',
+        Message(id: 'x', clientId: 'x', body: '', sentAt: DateTime(2026), isMine: false),
+      );
+
+      await controller.drain();
+      // The maintenance is fired off rather than awaited by drain, so that a
+      // slow key exchange never holds up delivering messages.
+      await pumpEventQueue();
+      expect(
+        server.calls,
+        contains('POST /v1/groups/g2/key-requests'),
+        reason: 'otherwise it waits at "waiting for the group key" forever',
+      );
+    });
+
+    test('is offered where this device has one', () async {
+      final (services, server, _) = await build();
+      final controller = ConversationController(services)..accountId = 'me';
+
+      await controller.drain();
+      await pumpEventQueue();
+      expect(server.calls, contains('GET /v1/groups/g1/key-requests'));
+      expect(
+        server.calls.where((c) => c == 'POST /v1/groups/g1/key-requests'),
+        isEmpty,
+        reason: 'a device that has the key has nothing to ask for',
+      );
+    });
   });
 
   test('deleting the group removes it here as well', () async {

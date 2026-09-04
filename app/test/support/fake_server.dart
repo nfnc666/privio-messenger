@@ -170,6 +170,14 @@ class FakeServer {
           return _json({'remaining': device.preKeys.length});
         }
 
+        // Rotation: the device replaces the key everyone seals to when the
+        // one-time pool is empty.
+        if (method == 'PUT' && path == '/v1/keys/signed-prekey') {
+          final device = _deviceById(deviceId);
+          device.signedPreKey = jsonDecode(request.body) as Map<String, dynamic>;
+          return _json({'updated': true});
+        }
+
         if (method == 'POST' && path == '/v1/keys/one-time') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final device = _deviceById(deviceId);
@@ -348,7 +356,7 @@ class FakeDevice {
   final int deviceIndex;
   final int registrationId;
   final String identityKey;
-  final Map<String, dynamic> signedPreKey;
+  Map<String, dynamic> signedPreKey;
   final List<Map<String, dynamic>> preKeys;
 
   Map<String, dynamic> bundle() => {
