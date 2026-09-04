@@ -59,6 +59,34 @@ is why an APK from F-Droid and one built here cannot update each other.
 The Libre build is meant to be reproducible from source: see
 [`../docs/privio-libre.md`](../docs/privio-libre.md).
 
+## The Android build is blocked
+
+No Android APK can be produced today, in any environment. Found by dispatching
+the release workflow by hand, which is the only Android compiler this project
+has; the iOS build passes, and so do the analyzer and the tests.
+
+The chain, in the order it has to be undone:
+
+1. Flutter has moved to built-in Kotlin. `file_picker` 11 still applies its own
+   Kotlin Gradle Plugin, so its Android classes are never produced, and the
+   registrant Flutter generates fails to compile against them:
+   `cannot find symbol: class FilePickerPlugin`.
+2. `file_picker` 12 fixes that, and raises the floor to Flutter >=3.38 and
+   Dart >=3.10 — which is honest, since nothing older can build anyway.
+3. But 12 will not resolve alongside `flutter_secure_storage` 9. Pub says to go
+   to `flutter_secure_storage` 11.
+
+Step 3 is why this is not a one-line change. That package is the keystore:
+the session token, the archive key, the recovery key and a held licence key all
+live in it. Its Android implementation changed substantially in version 10, so
+**data written by version 9 may not be readable afterwards** — on this app that
+means someone's history and their backup, not a preference.
+
+So it wants doing deliberately, on a real device, with the upgrade path tested
+against a keystore written by the current release, and a migration if there is
+none. It is not something to bump and hope, and it is not something CI can
+answer: green here would only prove it compiles.
+
 ## Tests
 
 ```bash
