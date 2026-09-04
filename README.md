@@ -458,6 +458,22 @@ Still not done: PDF. It needs a real parser, because a document whose
 cross-reference table no longer matches its body is worse than an untouched
 one, and the app says it could not clean it rather than implying it did.
 
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/scrub-01-document.png" width="220"><br><sub>What went, said in the place someone is about to rely on it.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/scrub-02-sent.png" width="220"><br><sub>And the bubble that used to be empty.</sub></td>
+</tr>
+</table>
+
+Sending the file through the real app turned up something else. The sender's
+own bubble was **blank** — no name, no size, no icon — for every file ever
+sent, of any kind. The outgoing message was drawn as a placeholder before the
+upload had an id, and nothing filled it in afterwards: a message of one's own
+never comes back from the server, so the placeholder was all there ever was.
+The recipient saw the file properly the whole time, which is why it had gone
+unnoticed. The send now returns where the file went, and the placeholder is
+replaced by the message the recipient will see.
+
 ### A search that can find a message
 
 The Chats screen had a search field. It filtered the list of chats by name and

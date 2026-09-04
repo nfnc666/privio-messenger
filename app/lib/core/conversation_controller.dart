@@ -610,11 +610,33 @@ class ConversationController extends ChangeNotifier {
               file: file,
               fileName: fileName,
             );
-      _services.store.updateState(conversationId, messageId, DeliveryState.sent);
+      // The placeholder was drawn before the file had a name on the server.
+      // Now it has one: replace it with the message the recipient will see, so
+      // the sender's own bubble shows the file rather than an empty box.
+      _services.store.replace(
+        conversationId,
+        messageId,
+        Message(
+          id: messageId,
+          body: caption,
+          sentAt: placeholder.sentAt,
+          isMine: true,
+          kind: _kindFor(report.mediaType),
+          state: DeliveryState.sent,
+          attachment: Attachment(
+            mediaId: report.mediaId,
+            mediaKey: report.mediaKey,
+            mediaToken: report.mediaToken,
+            mediaType: report.mediaType,
+            byteSize: report.byteSize,
+            fileName: report.fileName,
+          ),
+        ),
+      );
       _error = null;
       _persist();
       notifyListeners();
-      return report;
+      return report.report;
     } on Object catch (failure) {
       _noteIdentityChange(failure);
       _error = switch (failure) {
