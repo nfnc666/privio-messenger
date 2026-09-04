@@ -10,6 +10,7 @@ import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
 import '../crypto/privio_crypto.dart';
+import 'message_search.dart';
 import '../media/voice.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
@@ -695,6 +696,14 @@ class ConversationController extends ChangeNotifier {
       // would be a second surprise on top of the first.
     }
   }
+
+  /// Every message that matches [query], across every conversation.
+  ///
+  /// Runs on this device, over what it has already decrypted. There is nowhere
+  /// else it could run — the server holds ciphertext it cannot read — and
+  /// sending a query there would tell it what someone is looking for.
+  List<SearchHit> searchMessages(String query) =>
+      MessageSearch.run(_services.store.conversations(), query);
 
   // --- Taking a message back ------------------------------------------------
 

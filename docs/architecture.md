@@ -395,6 +395,14 @@ on its own.
 | Group membership | Anything inside a backup |
 | Attachment sizes and lifetimes | Search queries — search is on-device |
 
+That last row used to be true in the way an unimplemented thing is true: search
+filtered the chat list and could not reach a message, so no query was sent
+because no query existed. It reaches the whole decrypted history now
+(`app/lib/core/message_search.dart`), still without a request. There is no
+index — the loop walks what is in memory, which is what the archive holds
+anyway, and an index would be a second copy of every conversation to keep
+encrypted and in step.
+
 Sealed sender, which removes the sender identifier from the routing metadata, is
 tracked in `docs/security-model.md` under known limitations.
 

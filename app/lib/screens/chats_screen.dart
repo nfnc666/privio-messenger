@@ -1,14 +1,174 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/message_search.dart';
 import '../models/models.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/avatar.dart';
 import '../widgets/chat_list_row.dart';
 import '../widgets/search_field.dart';
 import 'chat_screen.dart';
 import 'contacts_screen.dart';
 import 'new_group_screen.dart';
+
+/// What a search turns the list into: the chats whose name or last line
+/// matched, and then everything that was ever said matching it.
+///
+/// The search field used to filter the list of chats and nothing else, which
+/// made it a search that could not find a message — the one thing anybody
+/// opens a search box in a messenger to do.
+class _Results extends StatelessWidget {
+  const _Results({
+    required this.chats,
+    required this.hits,
+    required this.rowBuilder,
+    required this.onOpenHit,
+  });
+
+  final List<ChatSummary> chats;
+  final List<SearchHit> hits;
+  final Widget Function(ChatSummary) rowBuilder;
+  final void Function(SearchHit) onOpenHit;
+
+  @override
+  Widget build(BuildContext context) {
+    if (chats.isEmpty && hits.isEmpty) return const _NoResults();
+
+    return ListView.builder(
+      itemCount: (chats.isEmpty ? 0 : chats.length + 1) +
+          (hits.isEmpty ? 0 : hits.length + 1),
+      itemBuilder: (context, index) {
+        var at = index;
+        if (chats.isNotEmpty) {
+          if (at == 0) return const _SectionHeader('Chats');
+          at -= 1;
+          if (at < chats.length) return rowBuilder(chats[at]);
+          at -= chats.length;
+        }
+        if (at == 0) return const _SectionHeader('Messages');
+        final hit = hits[at - 1];
+        return _HitRow(hit: hit, onTap: () => onOpenHit(hit));
+      },
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          PrivioSpacing.gutter,
+          PrivioSpacing.md,
+          PrivioSpacing.gutter,
+          PrivioSpacing.sm,
+        ),
+        child: Text(
+          label.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: PrivioColors.textTertiary,
+                letterSpacing: 1.1,
+              ),
+        ),
+      );
+}
+
+/// One matching message: who and when, and the part of it that matched.
+class _HitRow extends StatelessWidget {
+  const _HitRow({required this.hit, required this.onTap});
+
+  final SearchHit hit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final snippet = MessageSearch.snippet(hit);
+    final body = theme.textTheme.bodySmall ?? const TextStyle();
+
+    return ListTile(
+      onTap: onTap,
+      leading: PrivioAvatar(
+        label: hit.title,
+        seed: hit.conversationId.hashCode.abs(),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              hit.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall,
+            ),
+          ),
+          Text(
+            _when(hit.message.sentAt),
+            style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.textTertiary),
+          ),
+        ],
+      ),
+      subtitle: Text.rich(
+        TextSpan(
+          children: [
+            if (hit.message.isMine)
+              TextSpan(
+                text: 'You: ',
+                style: body.copyWith(color: PrivioColors.textTertiary),
+              ),
+            TextSpan(text: snippet.text.substring(0, snippet.start), style: body),
+            // The match itself, so the eye lands on the word that was typed
+            // rather than on the middle of a paragraph.
+            TextSpan(
+              text: snippet.text.substring(snippet.start, snippet.end),
+              style: body.copyWith(
+                color: PrivioColors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            TextSpan(text: snippet.text.substring(snippet.end), style: body),
+          ],
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  static String _when(DateTime at) {
+    final now = DateTime.now();
+    if (at.year == now.year && at.month == now.month && at.day == now.day) {
+      return '${at.hour.toString().padLeft(2, '0')}:'
+          '${at.minute.toString().padLeft(2, '0')}';
+    }
+    return '${at.day.toString().padLeft(2, '0')}.'
+        '${at.month.toString().padLeft(2, '0')}.${at.year}';
+  }
+}
+
+class _NoResults extends StatelessWidget {
+  const _NoResults();
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.xxl),
+          child: Text(
+            'Nothing here matches. Only this device was asked — the server '
+            'holds messages it cannot read, so it could not have answered.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: PrivioColors.textTertiary),
+          ),
+        ),
+      );
+}
 
 /// The home list, built from the conversations this device has decrypted.
 class ChatsScreen extends StatefulWidget {
@@ -39,6 +199,36 @@ class _ChatsScreenState extends State<ChatsScreen> {
           chat.preview.toLowerCase().contains(query);
       return matchesFilter && matchesQuery;
     }).toList();
+  }
+
+  Widget _row(BuildContext context, AppState state, ChatSummary chat) => ChatListRow(
+        chat: chat,
+        onTap: () {
+          state.conversations.markRead(chat.id);
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ChatScreen(
+                accountId: chat.id,
+                title: chat.title,
+                isGroup: chat.isGroup,
+              ),
+            ),
+          );
+        },
+      );
+
+  void _openHit(BuildContext context, AppState state, SearchHit hit) {
+    state.conversations.markRead(hit.conversationId);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(
+          accountId: hit.conversationId,
+          title: hit.title,
+          isGroup: hit.isGroup,
+          jumpTo: hit.message.clientId,
+        ),
+      ),
+    );
   }
 
   /// Creating a group drops straight into it, which is what someone who just
@@ -142,33 +332,24 @@ class _ChatsScreenState extends State<ChatsScreen> {
               ),
               const SizedBox(height: PrivioSpacing.sm),
               Expanded(
-                child: chats.isEmpty
-                    ? const _EmptyChats()
-                    : RefreshIndicator(
-                        color: PrivioColors.accent,
-                        backgroundColor: PrivioColors.surface,
-                        onRefresh: state.conversations.drain,
-                        child: ListView.builder(
-                          itemCount: chats.length,
-                          itemBuilder: (context, index) {
-                            final chat = chats[index];
-                            return ChatListRow(
-                              chat: chat,
-                              onTap: () {
-                                state.conversations.markRead(chat.id);
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => ChatScreen(
-                                      accountId: chat.id,
-                                      title: chat.title,
-                                      isGroup: chat.isGroup,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                child: _query.trim().isEmpty
+                    ? (chats.isEmpty
+                        ? const _EmptyChats()
+                        : RefreshIndicator(
+                            color: PrivioColors.accent,
+                            backgroundColor: PrivioColors.surface,
+                            onRefresh: state.conversations.drain,
+                            child: ListView.builder(
+                              itemCount: chats.length,
+                              itemBuilder: (context, index) =>
+                                  _row(context, state, chats[index]),
+                            ),
+                          ))
+                    : _Results(
+                        chats: chats,
+                        hits: state.conversations.searchMessages(_query),
+                        rowBuilder: (chat) => _row(context, state, chat),
+                        onOpenHit: (hit) => _openHit(context, state, hit),
                       ),
               ),
             ],

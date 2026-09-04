@@ -12,9 +12,18 @@ import 'voice_bubble.dart';
 /// Incoming bubbles sit on `surfaceRaised`, outgoing on `accentDim`, both with a
 /// squared corner on the tail side — the shape from the mockups.
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({required this.message, super.key, this.onLongPress});
+  const MessageBubble({
+    required this.message,
+    super.key,
+    this.onLongPress,
+    this.highlighted = false,
+  });
 
   final Message message;
+
+  /// Drawn lit when a search sent the reader here, so the message they were
+  /// looking for is the one they see rather than one of twenty on screen.
+  final bool highlighted;
 
   /// Opens the reply-and-react sheet. Null in places where neither applies.
   final VoidCallback? onLongPress;
@@ -46,6 +55,7 @@ class MessageBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: mine ? PrivioColors.bubbleOutgoing : PrivioColors.surfaceRaised,
+          border: highlighted ? Border.all(color: PrivioColors.accent) : null,
           borderRadius: BorderRadius.only(
             topLeft: PrivioRadius.bubble,
             topRight: PrivioRadius.bubble,

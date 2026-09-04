@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
+import '../widgets/privio_back_button.dart';
 import '../widgets/search_field.dart';
 import 'chat_screen.dart';
 
@@ -57,7 +58,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
         final contacts = _visible(state.conversations.contacts);
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Contacts')),
+          appBar: AppBar(
+            // Contacts is both a tab and a screen the chat list pushes. A
+            // leading widget is drawn whether or not there is anywhere to go
+            // back to, so it is only supplied when there is.
+            leading: Navigator.of(context).canPop()
+                ? const PrivioBackButton()
+                : null,
+            title: const Text('Contacts'),
+          ),
           floatingActionButton: FloatingActionButton(
             onPressed: () => _showAddContact(context),
             backgroundColor: PrivioColors.accent,
