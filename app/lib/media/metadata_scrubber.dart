@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
+
 /// What a file said about itself before Privio stripped it.
 class ScrubReport {
   const ScrubReport({
@@ -49,16 +51,9 @@ abstract final class MetadataScrubber {
       'image/webp' => _scrubWebp(bytes),
       'image/gif' => _scrubGif(bytes),
       'video/mp4' || 'video/quicktime' => _scrubMp4(bytes, type),
-      _ => ScrubResult(
-          bytes,
-          ScrubReport(
-            mediaType: type,
-            originalBytes: bytes.length,
-            scrubbedBytes: bytes.length,
-            removed: const [],
-            recognised: false,
-          ),
-        ),
+      // Everything else may still be a document: Office and OpenDocument files
+      // are ZIP containers, and nothing about the outside of one says which.
+      _ => _looksLikeZip(bytes) ? _scrubZipDocument(bytes, type) : _unrecognised(bytes, type),
     };
   }
 
@@ -306,6 +301,158 @@ abstract final class MetadataScrubber {
           recognised: false,
         ),
       );
+
+  // --- Documents ------------------------------------------------------------
+
+  /// The local file header every ZIP starts with.
+  static bool _looksLikeZip(Uint8List bytes) =>
+      bytes.length > 4 &&
+      bytes[0] == 0x50 &&
+      bytes[1] == 0x4B &&
+      bytes[2] == 0x03 &&
+      bytes[3] == 0x04;
+
+  /// The parts of an Office Open XML file that describe the person rather than
+  /// the document, and what goes in their place.
+  ///
+  /// Replaced rather than removed. Deleting a part leaves the relationship that
+  /// points at it and the content-type override that declares it dangling, and
+  /// a word processor handed those is entitled to call the file corrupt. An
+  /// empty part of the right type is valid everywhere the full one was.
+  static const Map<String, String> _ooxmlProperties = {
+    'docProps/core.xml':
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<cp:coreProperties '
+            'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+            'xmlns:dc="http://purl.org/dc/elements/1.1/" '
+            'xmlns:dcterms="http://purl.org/dc/terms/" '
+            'xmlns:dcmitype="http://purl.org/dc/dcmitype/" '
+            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>',
+    'docProps/app.xml':
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Properties '
+            'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
+            'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"/>',
+    'docProps/custom.xml':
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Properties '
+            'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" '
+            'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"/>',
+  };
+
+  /// The same for OpenDocument, which keeps all of it in one part.
+  static const Map<String, String> _odfProperties = {
+    'meta.xml': '<?xml version="1.0" encoding="UTF-8"?>'
+        '<office:document-meta '
+        'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'office:version="1.2"><office:meta/></office:document-meta>',
+  };
+
+  static const Map<String, String> _partNames = {
+    'docProps/core.xml': 'Author, last saved by, revision number, timestamps',
+    'docProps/app.xml': 'Company, application, total editing time',
+    'docProps/custom.xml': 'Custom document properties',
+    'meta.xml': 'Author, editing cycles, editing time, timestamps',
+  };
+
+  /// Empties the metadata parts of a document that is a ZIP underneath.
+  ///
+  /// Word, Excel, PowerPoint and their OpenDocument equivalents all carry the
+  /// name of whoever wrote the file, the name of whoever last saved it, how
+  /// long it was open, and often the company it was written at. None of that
+  /// is visible in the document, and all of it travels with it. Encryption
+  /// does not help: the recipient decrypts the file and gets the lot.
+  ///
+  /// Anything that is a ZIP but not one of these formats is left alone and
+  /// reported as unrecognised. Rewriting an archive of unknown files is not
+  /// this function's business.
+  static ScrubResult _scrubZipDocument(Uint8List bytes, String declaredType) {
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } on Object {
+      return _unrecognised(bytes, declaredType);
+    }
+
+    final names = {for (final file in archive.files) file.name};
+    final Map<String, String> replacements;
+    if (names.contains('[Content_Types].xml')) {
+      replacements = _ooxmlProperties;
+    } else if (names.contains('mimetype') && names.contains('meta.xml')) {
+      replacements = _odfProperties;
+    } else {
+      return _unrecognised(bytes, declaredType);
+    }
+
+    final removed = <String>[];
+    final rebuilt = Archive();
+    for (final file in archive.files) {
+      final replacement = replacements[file.name];
+      final ArchiveFile entry;
+      if (replacement != null && !file.isDirectory) {
+        // Only worth reporting when there was something in it. An empty
+        // core.xml replaced by an empty core.xml removed nothing.
+        if (_carriesAnything(file)) removed.add(_partNames[file.name] ?? file.name);
+        entry = ArchiveFile.string(file.name, replacement);
+      } else {
+        entry = ArchiveFile.bytes(file.name, file.readBytes() ?? const <int>[]);
+      }
+      // An OpenDocument reader looks for `mimetype` first and stored, not
+      // deflated. Re-compressing it produces a file that opens as a ZIP and
+      // not as a document.
+      if (file.name == 'mimetype') entry.compression = CompressionType.none;
+      // Every entry carries the minute it was written, which is a record of
+      // when somebody was working on it. Flattened to one fixed instant, the
+      // same for every file Privio sends.
+      entry.lastModTime = _zipEpoch;
+      rebuilt.addFile(entry);
+    }
+
+    final Uint8List encoded;
+    try {
+      encoded = ZipEncoder().encodeBytes(rebuilt);
+    } on Object {
+      return _unrecognised(bytes, declaredType);
+    }
+    removed.add('File timestamps inside the document');
+
+    return ScrubResult(
+      encoded,
+      ScrubReport(
+        mediaType: declaredType,
+        originalBytes: bytes.length,
+        scrubbedBytes: encoded.length,
+        removed: removed,
+        recognised: true,
+      ),
+    );
+  }
+
+  /// 1980-01-01 00:00 UTC, in seconds. The encoder wants Unix seconds and a
+  /// ZIP entry stores a DOS date, whose earliest expressible instant this is —
+  /// so it reads as "unset" rather than as a date somebody worked on this.
+  static const int _zipEpoch = 315532800;
+
+  /// The elements that name a person, a company, a machine or a moment.
+  ///
+  /// Listed rather than inferred: the empty part put in place of a full one is
+  /// still a `<cp:coreProperties>` element with its namespaces, so "does it
+  /// contain a tag" would call every scrubbed file dirty and report a removal
+  /// on a file where nothing was removed.
+  static final RegExp _identifyingElement = RegExp(
+    r'<(dc:creator|dc:title|dc:subject|dc:description|dc:date|dc:language'
+    r'|cp:lastModifiedBy|cp:revision|cp:keywords|cp:category|cp:contentStatus'
+    r'|cp:lastPrinted|dcterms:created|dcterms:modified'
+    r'|Company|Manager|Application|AppVersion|TotalTime|LastModifiedBy'
+    r'|meta:|property)',
+  );
+
+  /// Whether a metadata part holds anything worth taking out.
+  static bool _carriesAnything(ArchiveFile file) {
+    final content = file.readBytes();
+    if (content == null) return false;
+    return _identifyingElement.hasMatch(String.fromCharCodes(content));
+  }
 
   // --- JPEG -----------------------------------------------------------------
 

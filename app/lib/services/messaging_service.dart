@@ -33,6 +33,18 @@ class IncomingMessage {
   String get body => payload.body;
 }
 
+/// What a send of a file yields: the scrub report, and the pointer the sender
+/// needs to render its own bubble without asking anyone.
+typedef SentAttachment = ({
+  ScrubReport report,
+  String mediaId,
+  String mediaKey,
+  String? mediaToken,
+  String mediaType,
+  int byteSize,
+  String? fileName,
+});
+
 /// An envelope that could not be decrypted.
 ///
 /// Surfaced rather than swallowed: a message that will not open is a fact the
@@ -133,7 +145,14 @@ class MessagingService {
   ///
   /// Returns what was stripped, so the UI can tell the user rather than leaving
   /// them to assume.
-  Future<ScrubReport> sendAttachment(
+  /// Everything the sender needs to draw its own copy of a file it just sent:
+  /// what was stripped, and where the ciphertext ended up.
+  ///
+  /// Returned rather than kept, because a device that has just uploaded a file
+  /// knows more about it than the placeholder it drew a moment ago — and a
+  /// bubble that stays empty until the message comes back from somewhere is a
+  /// bubble that never fills in, since one's own messages do not come back.
+  Future<SentAttachment> sendAttachment(
     String username, {
     required Uint8List file,
     String? fileName,
@@ -155,7 +174,15 @@ class MessagingService {
         body: caption,
       ),
     );
-    return sealed.report;
+    return (
+      report: sealed.report,
+      mediaId: blob.id,
+      mediaKey: base64Encode(sealed.key),
+      mediaToken: blob.token,
+      mediaType: sealed.report.mediaType,
+      byteSize: sealed.plainLength,
+      fileName: fileName,
+    );
   }
 
   /// Sends a voice message.
@@ -635,7 +662,7 @@ class MessagingService {
   /// pointer and that key are fanned out per device. So a photo costs one
   /// upload however many members there are, and the server still holds bytes it
   /// cannot open.
-  Future<ScrubReport> sendGroupAttachment(
+  Future<SentAttachment> sendGroupAttachment(
     String groupId, {
     required Uint8List file,
     String? fileName,
@@ -659,7 +686,15 @@ class MessagingService {
         groupKey: groupKey,
       ),
     );
-    return sealed.report;
+    return (
+      report: sealed.report,
+      mediaId: blob.id,
+      mediaKey: base64Encode(sealed.key),
+      mediaToken: blob.token,
+      mediaType: sealed.report.mediaType,
+      byteSize: sealed.plainLength,
+      fileName: fileName,
+    );
   }
 
   /// Seals [payload] once per member device and posts it to the group.

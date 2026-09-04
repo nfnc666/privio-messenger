@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:privio/media/metadata_scrubber.dart';
@@ -25,6 +26,169 @@ int boxSize(Uint8List bytes, int offset) =>
     (bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
 
 void main() {
+  group('a Word document', () {
+    final original = fixture('document.docx');
+    const type =
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+    test('the fixture really does carry someone in it', () {
+      // Guards the test itself: a fixture that never had a name in it would
+      // let a scrubber that does nothing pass.
+      final text = asText(original);
+      // Deflated, so the words are not readable in the raw bytes — the parts
+      // are what prove it.
+      final parts = ZipDecoder().decodeBytes(original);
+      final core = asText(
+        Uint8List.fromList(parts.findFile('docProps/core.xml')!.readBytes()!),
+      );
+      expect(core, contains('Marlene Baumgartner'));
+      expect(core, contains('2026-02-11T09:14:00Z'));
+      final app = asText(
+        Uint8List.fromList(parts.findFile('docProps/app.xml')!.readBytes()!),
+      );
+      expect(app, contains('Kanzlei Baumgartner GmbH'));
+      expect(text, isNotEmpty);
+    });
+
+    test('the author, the company and the timestamps are gone', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      expect(result.report.recognised, isTrue);
+
+      final parts = ZipDecoder().decodeBytes(result.bytes);
+      final core = asText(
+        Uint8List.fromList(parts.findFile('docProps/core.xml')!.readBytes()!),
+      );
+      final app = asText(
+        Uint8List.fromList(parts.findFile('docProps/app.xml')!.readBytes()!),
+      );
+
+      expect(core, isNot(contains('Marlene')));
+      expect(core, isNot(contains('2026-02-11')));
+      expect(core, isNot(contains('<cp:revision>')));
+      expect(app, isNot(contains('Kanzlei')));
+      expect(app, isNot(contains('Dr. Vogt')));
+      expect(app, isNot(contains('TotalTime')));
+    });
+
+    test('the document itself is untouched', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      final before = ZipDecoder().decodeBytes(original);
+      final after = ZipDecoder().decodeBytes(result.bytes);
+
+      expect(
+        after.findFile('word/document.xml')!.readBytes(),
+        before.findFile('word/document.xml')!.readBytes(),
+        reason: 'a scrubber that edits the text is not a scrubber',
+      );
+      expect(
+        after.findFile('[Content_Types].xml')!.readBytes(),
+        before.findFile('[Content_Types].xml')!.readBytes(),
+      );
+    });
+
+    test('every part that was there is still there', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      final before = ZipDecoder().decodeBytes(original).files.map((f) => f.name);
+      final after = ZipDecoder().decodeBytes(result.bytes).files.map((f) => f.name);
+      expect(
+        after.toList(),
+        before.toList(),
+        reason: 'a removed part leaves a relationship pointing at nothing, and '
+            'a word processor is entitled to call that corrupt',
+      );
+    });
+
+    test('the minute it was last worked on is gone from every entry', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      final stamps = ZipDecoder()
+          .decodeBytes(result.bytes)
+          .files
+          .map((f) => f.lastModDateTime.year)
+          .toSet();
+      expect(stamps, {1980}, reason: 'one fixed instant, the same for everyone');
+    });
+
+    test('it says what it took out', () {
+      final report = MetadataScrubber.scrub(original, declaredType: type).report;
+      expect(report.removed, contains(startsWith('Author')));
+      expect(report.removed, contains(startsWith('Company')));
+      expect(report.changedAnything, isTrue);
+    });
+
+    test('scrubbing an already-clean document reports only the timestamps', () {
+      final once = MetadataScrubber.scrub(original, declaredType: type);
+      final twice = MetadataScrubber.scrub(once.bytes, declaredType: type);
+      expect(twice.report.removed, ['File timestamps inside the document']);
+    });
+  });
+
+  group('an OpenDocument file', () {
+    final original = fixture('document.odt');
+    const type = 'application/vnd.oasis.opendocument.text';
+
+    test('the author and the editing history are gone', () {
+      final before = asText(
+        Uint8List.fromList(
+          ZipDecoder().decodeBytes(original).findFile('meta.xml')!.readBytes()!,
+        ),
+      );
+      expect(before, contains('Marlene Baumgartner'));
+      expect(before, contains('PT8H34M'));
+
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      expect(result.report.recognised, isTrue);
+      final after = asText(
+        Uint8List.fromList(
+          ZipDecoder().decodeBytes(result.bytes).findFile('meta.xml')!.readBytes()!,
+        ),
+      );
+      expect(after, isNot(contains('Marlene')));
+      expect(after, isNot(contains('PT8H34M')));
+      expect(after, isNot(contains('LibreOffice')));
+    });
+
+    test('the mimetype entry stays first and stays stored', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      final files = ZipDecoder().decodeBytes(result.bytes).files;
+      expect(files.first.name, 'mimetype');
+      // Deflating it produces something that opens as a ZIP and not as a
+      // document, which is a corruption a test would otherwise never see.
+      expect(files.first.compression, CompressionType.none);
+      expect(
+        asText(Uint8List.fromList(files.first.readBytes()!)),
+        'application/vnd.oasis.opendocument.text',
+      );
+    });
+
+    test('the text is untouched', () {
+      final result = MetadataScrubber.scrub(original, declaredType: type);
+      expect(
+        ZipDecoder().decodeBytes(result.bytes).findFile('content.xml')!.readBytes(),
+        ZipDecoder().decodeBytes(original).findFile('content.xml')!.readBytes(),
+      );
+    });
+  });
+
+  group('a ZIP that is not a document', () {
+    test('is left exactly as it came', () {
+      final original = fixture('plain.zip');
+      final result = MetadataScrubber.scrub(original, declaredType: 'application/zip');
+      expect(
+        result.report.recognised,
+        isFalse,
+        reason: 'rewriting an archive of unknown files is not its business',
+      );
+      expect(result.bytes, original);
+    });
+
+    test('so is something that only starts like one', () {
+      final broken = Uint8List.fromList([0x50, 0x4B, 0x03, 0x04, 1, 2, 3, 4, 5]);
+      final result = MetadataScrubber.scrub(broken, declaredType: 'application/zip');
+      expect(result.report.recognised, isFalse);
+      expect(result.bytes, broken);
+    });
+  });
+
   group('WebP', () {
     final original = fixture('photo_with_exif.webp');
 

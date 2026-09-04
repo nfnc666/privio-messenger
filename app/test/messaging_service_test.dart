@@ -256,7 +256,16 @@ void main() {
       file: photo,
       fileName: 'urlaub.jpg',
     );
-    expect(report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
+    expect(report.report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
+
+    // The sender gets back where the file went, so its own bubble can show the
+    // file rather than an empty box. Nothing else fills that in: a message of
+    // one's own never comes back from the server.
+    expect(report.mediaId, isNotEmpty);
+    expect(report.mediaKey, isNotEmpty);
+    expect(report.fileName, 'urlaub.jpg');
+    expect(report.mediaType, 'image/jpeg');
+    expect(report.byteSize, greaterThan(0));
 
     // What the server now holds must give nothing away.
     final stored = server.media.values.single;
@@ -317,7 +326,7 @@ void main() {
       file: File('test/fixtures/image_with_text.png').readAsBytesSync(),
       fileName: 'bild.png',
     );
-    expect(payloadSource.recognised, isTrue);
+    expect(payloadSource.report.recognised, isTrue);
 
     final id = server.media.keys.single;
     final tampered = [...server.media[id]!];
@@ -463,7 +472,7 @@ void main() {
       fileName: 'gipfel.jpg',
       groupKey: group.groupKey,
     );
-    expect(report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
+    expect(report.report.removed, contains('EXIF / XMP (camera, GPS, timestamps)'));
 
     // One upload, however many members: only the pointer is fanned out.
     expect(server.media.length, 1);

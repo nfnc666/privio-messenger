@@ -86,6 +86,8 @@ off:
 | JPEG | EXIF and XMP (GPS, camera, serial number, timestamps), IPTC/Photoshop, ICC profile, comments |
 | PNG | `tEXt` / `zTXt` / `iTXt` chunks, embedded `eXIf`, `tIME`, `iCCP` |
 | MP4 / MOV | `udta` boxes (GPS, make, model), `meta` tags, `uuid` vendor boxes, creation and modification times in `mvhd` / `tkhd` / `mdhd` |
+| Word / Excel / PowerPoint | `docProps/core.xml` (author, last saved by, revision, created and modified dates), `docProps/app.xml` (company, manager, application, total editing time), `docProps/custom.xml`, and the modification time on every entry in the container |
+| OpenDocument (`.odt`, `.ods`, `.odp`) | `meta.xml` (author, creation date, editing cycles, editing duration, generator), and the same entry timestamps |
 
 Only container structure is rewritten. Pixel and audio data are copied through
 untouched, so nothing is re-encoded and no quality is lost. Scrubbing is
@@ -110,8 +112,24 @@ nothing to remove. A truncated or malformed container means the rest was never
 read, so any metadata in it survives; a tick over that file would be the app
 telling somebody their photograph is safe when nothing looked at it.
 
-The known gap now: PDF and Office documents. Both need a real parser to strip
-safely, and a half-done job on either is worse than an honest refusal.
+**Documents** are ZIP containers, and the parts that name a person are
+replaced rather than removed. Deleting a part leaves the relationship pointing
+at it and the content-type override declaring it dangling, and a word processor
+handed those is entitled to call the file corrupt; an empty part of the right
+type is valid everywhere the full one was. The document body, the styles and
+the content types are copied through byte for byte. Two details that would
+otherwise corrupt the output quietly: an OpenDocument reader wants `mimetype`
+first and stored rather than deflated, and every entry in a ZIP carries the
+minute it was written — a record of when somebody was working on the file —
+which is flattened to one fixed instant, the same for every file Privio sends.
+
+A ZIP that is not one of these formats is left exactly as it came and reported
+as not cleaned. Rewriting an archive of unknown files is not the scrubber's
+business.
+
+The known gap now: PDF. It needs a real parser to strip safely — a document
+whose cross-reference table no longer matches its body is worse than an
+untouched one — and a half-done job there is worse than an honest refusal.
 
 ### Message length is padded away
 
@@ -755,11 +773,12 @@ naming what is missing today.
 4. **No sealed sender.** Envelopes carry a sender account id, which the server
    uses for blocking and rate limiting. Removing it needs delivery tokens. Now
    that length is padded away, this is the largest remaining metadata leak.
-5. **PDFs and Office documents have no metadata scrubber.** JPEG, PNG, WebP,
-   GIF and MP4/MOV are cleaned on every send. The other two are passed through
-   as they are — the app reports that it could not clean them, but reporting is
-   not the same as fixing. Both need a real document parser; a half-stripped
-   PDF is worse than an untouched one.
+5. **PDFs have no metadata scrubber.** Everything else does: JPEG, PNG, WebP,
+   GIF, MP4/MOV, and now Word, Excel, PowerPoint and OpenDocument. A PDF is
+   passed through as it came, and the app says it could not clean it — but
+   reporting is not the same as fixing. It needs a real parser, because a
+   document whose cross-reference table no longer matches its body is worse
+   than an untouched one.
 6. **The file-picking step is unverified.** Everything after it — scrubbing,
    padding, sealing, upload, download, decryption and display — is covered by
    tests that run the real code paths. The OS file dialog itself is a platform
