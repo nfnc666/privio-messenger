@@ -420,6 +420,33 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### The pin that was drawn but never set
+
+`ChatListRow` had this, and has had it since the list was first built:
+
+```dart
+if (chat.pinned) ...[
+  const Icon(Icons.push_pin_rounded, size: 13, color: PrivioColors.textTertiary),
+```
+
+Nothing ever set `pinned`. The icon was unreachable, the field was a default
+that could not change, and the chat list was strictly newest-first with no way
+to keep anything at the top.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/pin-01-sheet.png" width="220"><br><sub>Long press a chat.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/pin-02-top.png" width="220"><br><sub>The oldest conversation, above two newer ones.</sub></td>
+</tr>
+</table>
+
+It is a **local preference and nothing is sent**, which the sheet says on the
+row itself rather than in a settings screen nobody opens. Which chats someone
+keeps at the top says something about them: who they talk to most, who matters
+in a hurry. That is not the other person's business and it is certainly not the
+server's, so it stays in the archive — where a backup already carries it, and
+where nothing else can.
+
 ### The name inside a Word document
 
 Privio strips EXIF from a photo before it leaves the phone. A `.docx` went out
@@ -1173,7 +1200,7 @@ The full system — typography, spacing, every screen and component — is in
 Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
-Disguise mode · Safety numbers · Deleting messages · Search
+Disguise mode · Safety numbers · Deleting messages · Search · Pinned chats
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

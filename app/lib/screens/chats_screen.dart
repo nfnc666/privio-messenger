@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
@@ -203,6 +205,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   Widget _row(BuildContext context, AppState state, ChatSummary chat) => ChatListRow(
         chat: chat,
+        onLongPress: () => unawaited(_chatActions(context, state, chat)),
         onTap: () {
           state.conversations.markRead(chat.id);
           Navigator.of(context).push(
@@ -216,6 +219,38 @@ class _ChatsScreenState extends State<ChatsScreen> {
           );
         },
       );
+
+  /// What can be done to a conversation rather than in it.
+  Future<void> _chatActions(
+    BuildContext context,
+    AppState state,
+    ChatSummary chat,
+  ) async {
+    final pinned = state.conversations.isPinned(chat.id);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: PrivioSpacing.sm),
+            ListTile(
+              leading: Icon(
+                pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+              ),
+              title: Text(pinned ? 'Unpin' : 'Pin to top'),
+              subtitle: const Text('Only on this device. Nothing is sent.'),
+              onTap: () => Navigator.of(sheetContext).pop('pin'),
+            ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (action != 'pin') return;
+    await state.conversations.togglePin(chat.id);
+  }
 
   void _openHit(BuildContext context, AppState state, SearchHit hit) {
     state.conversations.markRead(hit.conversationId);

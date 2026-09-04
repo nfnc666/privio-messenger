@@ -117,6 +117,14 @@ class Conversation {
   /// their own clocks. The server is never asked.
   Duration? disappearAfter;
 
+  /// Kept at the top of the chat list.
+  ///
+  /// A local preference, not a property of the conversation: nothing about it
+  /// is sent, and the other side has no idea. It rides along in a backup
+  /// because it lives in the archive, which is the only place it could be kept
+  /// without telling a server which chats matter most to somebody.
+  bool pinned = false;
+
   /// When the other side was last seen typing, or null.
   ///
   /// Deliberately not persisted: "was typing" is only interesting for a few
@@ -155,6 +163,10 @@ abstract interface class MessageStore {
   void replace(String id, String messageId, Message message);
 
   void setDisappearAfter(String id, Duration? timer);
+
+  /// Pins a conversation to the top of the list, or lets it go. Returns
+  /// whether anything changed.
+  bool setPinned(String id, {required bool pinned});
 
   /// Marks the other side as typing until [until].
   void setTyping(String id, DateTime? until);
@@ -215,8 +227,9 @@ class InMemoryMessageStore implements MessageStore {
     final all = _conversations.values
         .where((c) => c.messages.isNotEmpty || c.isGroup)
         .toList();
-    // Most recent first, which is the order the chat list shows.
+    // Pinned first, then most recent, which is the order the chat list shows.
     all.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
       final left = a.lastMessage?.sentAt ?? DateTime(0);
       final right = b.lastMessage?.sentAt ?? DateTime(0);
       return right.compareTo(left);
@@ -323,6 +336,14 @@ class InMemoryMessageStore implements MessageStore {
       changed++;
     }
     return changed;
+  }
+
+  @override
+  bool setPinned(String id, {required bool pinned}) {
+    final conversation = _conversations[id];
+    if (conversation == null || conversation.pinned == pinned) return false;
+    conversation.pinned = pinned;
+    return true;
   }
 
   @override
