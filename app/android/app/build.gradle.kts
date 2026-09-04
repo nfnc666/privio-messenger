@@ -19,6 +19,11 @@ android {
         // anything on the Android side can tell which build it is in without
         // guessing from the package name.
         buildConfig = true
+        // And through a resource, for the launcher label. AGP 8 turns both of
+        // these off by default, and a flavour that sets one without asking for
+        // the feature fails at configuration time — which is what the first
+        // real Android build of this app found.
+        resValues = true
     }
 
     defaultConfig {
