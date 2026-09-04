@@ -6,16 +6,37 @@ import { findByUsername, publicProfile, type AccountRow } from '../services/acco
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 
-/** Applies the target's last-seen privacy setting from the viewer's perspective. */
-async function visibleLastSeen(viewerId: string, target: AccountRow): Promise<string | null> {
+/**
+ * The one place the last-seen rule lives.
+ *
+ * `everyone` tells anyone who asks; `contacts` tells only people the target
+ * has added themselves — which is not the same as people who have added the
+ * target, and is the direction that matters: being in somebody's address book
+ * must not entitle you to watch them; and `nobody` tells no one.
+ *
+ * Split from the lookup so the contacts list can decide the same way without a
+ * query per row. Two implementations of a privacy rule drift, and the one that
+ * drifts is the one nobody is looking at.
+ */
+function lastSeenFor(
+  target: Pick<AccountRow, 'privacy' | 'last_seen_at'>,
+  viewerIsContactOfTarget: boolean,
+): string | null {
   const setting = target.privacy?.lastSeen ?? 'contacts';
   if (setting === 'nobody') return null;
   if (setting === 'everyone') return target.last_seen_at.toISOString();
+  return viewerIsContactOfTarget ? target.last_seen_at.toISOString() : null;
+}
+
+/** Applies the target's last-seen privacy setting from the viewer's perspective. */
+async function visibleLastSeen(viewerId: string, target: AccountRow): Promise<string | null> {
+  const setting = target.privacy?.lastSeen ?? 'contacts';
+  if (setting !== 'contacts') return lastSeenFor(target, false);
   const { rowCount } = await pool.query(
     'SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2',
     [target.id, viewerId],
   );
-  return rowCount ? target.last_seen_at.toISOString() : null;
+  return lastSeenFor(target, rowCount === 1);
 }
 
 const contactRoutes: FastifyPluginAsync = async (app) => {
@@ -66,9 +87,16 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/v1/contacts', requireAuth, async (request) => {
     const { accountId } = auth(request);
+    // `mutual` answers the last-seen rule for every row at once: does the
+    // contact have the viewer in *their* address book. Done here rather than
+    // per row, because a query per contact is a query per contact.
     const { rows } = await pool.query(
       `SELECT a.id, a.username, a.display_name, a.avatar_media_id, a.avatar_updated_at,
-              c.alias, c.created_at
+              a.privacy, a.last_seen_at, c.alias, c.created_at,
+              EXISTS (
+                SELECT 1 FROM contacts back
+                WHERE back.account_id = a.id AND back.contact_account_id = $1
+              ) AS mutual
        FROM contacts c JOIN accounts a ON a.id = c.contact_account_id
        WHERE c.account_id = $1 AND a.deleted_at IS NULL
        ORDER BY COALESCE(c.alias, a.display_name, a.username)`,
@@ -83,6 +111,10 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
         avatarMediaId: r.avatar_media_id,
         avatarUpdatedAt: (r.avatar_updated_at as Date | null)?.toISOString() ?? null,
         addedAt: (r.created_at as Date).toISOString(),
+        lastSeenAt: lastSeenFor(
+          { privacy: r.privacy, last_seen_at: r.last_seen_at as Date },
+          r.mutual as boolean,
+        ),
       })),
     };
   });

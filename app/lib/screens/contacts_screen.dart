@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
@@ -19,11 +21,29 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   String _query = '';
 
+  /// Which tab was showing when this screen last looked.
+  int _lastSeenTab = _contactsTab;
+  static const int _contactsTab = 3;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => PrivioScope.of(context).conversations.refreshContacts(),
+    );
+  }
+
+  /// Asks again when this tab comes back into view.
+  ///
+  /// Without it the list is whatever it was on the first visit — which was
+  /// tolerable while it held only names, and is not now that it holds a time.
+  void _refreshOnReturn(AppState state) {
+    final now = state.selectedTab;
+    final returned = now == _contactsTab && _lastSeenTab != _contactsTab;
+    _lastSeenTab = now;
+    if (!returned) return;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(state.conversations.refreshContacts()),
     );
   }
 
@@ -48,9 +68,38 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
+  /// The username, and — only when the server was willing to say — when this
+  /// person was last connected.
+  ///
+  /// The server reports a moment, so this reports a moment. It does not say
+  /// "online": that would be this app inferring a state from a timestamp and
+  /// presenting the guess as a fact about somebody else.
+  static String _subtitleFor(Contact contact) {
+    final seen = contact.lastSeenAt;
+    if (seen == null) return '@${contact.username}';
+    return '@${contact.username} · last seen ${_when(seen)}';
+  }
+
+  static String _when(DateTime at) {
+    final now = DateTime.now();
+    final difference = now.difference(at);
+    if (difference.inMinutes < 1) return 'just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    final sameDay = at.year == now.year && at.month == now.month && at.day == now.day;
+    final time = '${at.hour.toString().padLeft(2, '0')}:'
+        '${at.minute.toString().padLeft(2, '0')}';
+    if (sameDay) return 'at $time';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+    return '${at.day.toString().padLeft(2, '0')}.'
+        '${at.month.toString().padLeft(2, '0')}.${at.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    // PrivioScope is an InheritedNotifier, so this rebuilds when the shell
+    // records a tab change.
     final state = PrivioScope.of(context);
+    _refreshOnReturn(state);
 
     return ListenableBuilder(
       listenable: state.conversations,
@@ -101,7 +150,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             subtitle: Text(
-                              '@${contact.username}',
+                              _subtitleFor(contact),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             trailing: const Icon(

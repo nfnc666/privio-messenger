@@ -42,7 +42,6 @@ class ChatListRow extends StatelessWidget {
             PrivioAvatar(
               label: chat.title,
               seed: chat.avatarSeed,
-              presence: chat.presence,
               isGroup: chat.isGroup,
               imageBytes: chat.avatarBytes,
             ),

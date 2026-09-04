@@ -93,6 +93,20 @@ class AppState extends ChangeNotifier {
   bool _busy = false;
   String? _authError;
 
+  /// Which tab of the shell is showing.
+  ///
+  /// The tabs are kept alive by an `IndexedStack`, so `initState` fires once
+  /// and a screen that loaded something on the way in never loads it again.
+  /// This is how one finds out it is being looked at.
+  int get selectedTab => _selectedTab;
+  int _selectedTab = 0;
+
+  set selectedTab(int index) {
+    if (_selectedTab == index) return;
+    _selectedTab = index;
+    notifyListeners();
+  }
+
   AppStage get stage => _stage;
   String? get username => _username;
   String? get accountId => _accountId;

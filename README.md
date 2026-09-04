@@ -420,6 +420,42 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### A green dot that could never be green
+
+`PrivioAvatar` drew a presence dot behind `if (presence == Presence.online)`.
+Nothing in the app ever produced `Presence.online`; `Presence.recently` was
+never used at all, and every `ChatSummary` was built with the default,
+`hidden`. Three enum values, a parameter, and a rendering branch, for a state
+that could not occur.
+
+The comment on the enum said what the trouble was: *"the server only ever
+reports a last-seen"*. And it does — `/v1/users/:username` has returned
+`lastSeenAt` all along, filtered by that person's own `everyone` / `contacts` /
+`nobody` setting, and the client threw it away.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/seen-01-hidden.png" width="220"><br><sub>Added them; they have not added back. Nothing to see.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/seen-02-shown.png" width="220"><br><sub>Mutual, and the default setting allows it.</sub></td>
+</tr>
+</table>
+
+So the dot is gone and the timestamp is shown, because the timestamp is what
+there is. "Online" would have been this app inferring a state from a moment and
+presenting the guess as a fact about somebody else.
+
+Two things worth stating about the rule. `contacts` means **the people that
+person added**, not the people who added them — being in someone's address book
+must not entitle you to watch them, and the two directions are easy to confuse
+in SQL. And the rule now lives in one function that both the lookup route and
+the contacts list call: two implementations of a privacy check drift, and the
+one that drifts is the one nobody is looking at.
+
+The contacts list also refreshes when its tab comes back into view. The tabs
+are kept alive by an `IndexedStack`, so `initState` fires once and the list was
+whatever it had been on the first visit — tolerable while it held only names,
+not once it holds a time.
+
 ### The pin that was drawn but never set
 
 `ChatListRow` had this, and has had it since the list was first built:
