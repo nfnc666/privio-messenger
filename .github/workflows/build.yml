@@ -17,16 +17,29 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          # No version pin: app/pubspec.yaml requires Flutter >=3.22.0.
           channel: 'stable'
 
       - name: Get dependencies
         working-directory: ./app
         run: flutter pub get
 
-      - name: Build APK
+      # The app ships as flavours, so a bare `flutter build apk` no longer has
+      # enough to go on. Both are built here because both are shipped: `libre`
+      # is what F-Droid and the direct APK come from, `play` is the store build.
+      - name: Build Libre APK
         working-directory: ./app
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release --flavor libre \
+            --dart-define=PRIVIO_EDITION=libre \
+            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
+
+      - name: Build Play APK
+        working-directory: ./app
+        run: |
+          flutter build apk --release --flavor play \
+            --dart-define=PRIVIO_EDITION=play \
+            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 
   build-ios:
     runs-on: macos-latest
@@ -38,7 +51,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          # No version pin: app/pubspec.yaml requires Flutter >=3.22.0.
           channel: 'stable'
 
       - name: Get dependencies
@@ -47,4 +60,7 @@ jobs:
 
       - name: Build iOS
         working-directory: ./app
-        run: flutter build ios --release --no-codesign
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=PRIVIO_EDITION=appstore \
+            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
