@@ -420,6 +420,33 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### An account you could not end
+
+The server has been able to delete an account since the first migration:
+`DELETE /v1/accounts/me`, password required, removing the devices and with
+them the sessions, prekeys and queued envelopes, plus the contacts in both
+directions, the group memberships, the backup and every media object the
+account uploaded — then tombstoning the row and freeing the username. Nothing
+in the app could ask for it.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/account-01-delete.png" width="220"><br><sub>What it does, and what it cannot do.</sub></td>
+<td align="left" width="50%">The password is asked for because the server asks for it: a session somebody picked up must not be able to end an account. Nothing local is touched until the server has actually done it — a failed delete that had already wiped the phone would be the worst of both. Verified in the browser with the wrong password first (nothing happened, still signed in) and then the right one, and confirmed in the database: the row tombstoned, the display name cleared, the username free again.</td>
+</tr>
+</table>
+
+**And the delete found a real bug in the wipe.** `PrivioCrypto.wipe()` cleared
+the crypto storage and left the identity key loaded in memory, where the
+comment above it said the device "can register a new identity". It could not:
+an account registered before the next restart would publish the *old* public
+key, whose private half was no longer stored anywhere — an account that works
+until the app is closed and can never open a message again after that. The
+duress wipe runs the same code, which is the worst place for it. A wipe now
+creates the fresh identity immediately, and the duress test asserts the
+identity *changed* rather than that the slot is empty, which was always the
+property that mattered.
+
 ### A group you could join and never leave
 
 Privio could create a group, invite to it, join one by a link, and talk in it.
@@ -1346,7 +1373,7 @@ Media · Voice messages · Backup · Channels · Join links · Read receipts and
 typing · Replies and reactions · Disappearing messages · License activation ·
 Two-factor · Blocking · Duress code · Encrypted voice and video calls ·
 Disguise mode · Safety numbers · Deleting messages · Search · Pinned chats ·
-Group admin
+Group admin · Account deletion
 
 **Next** — Ringing a closed app, which needs the push registration the server
 is already waiting for · Pairing a second device directly, over a QR code,

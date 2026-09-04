@@ -327,6 +327,23 @@ void main() {
     );
   });
 
+  test('a wipe leaves the device a stranger, with a new identity in place', () async {
+    final before = await alice.crypto.identityFingerprint();
+    await alice.crypto.wipe();
+
+    // Not merely cleared: an old identity left loaded in memory would be
+    // published by the next registration, with its private half stored
+    // nowhere — an account that works until the app closes and never opens a
+    // message again after that.
+    final after = await alice.crypto.identityFingerprint();
+    expect(after, isNot(before));
+
+    // And it is the one on disk, so a restart finds the same device rather
+    // than making a third identity.
+    final reopened = await PrivioCrypto.open(alice.storage);
+    expect(await reopened.identityFingerprint(), after);
+  });
+
   test('the identity survives a restart of the app', () async {
     final fingerprint = await alice.crypto.identityFingerprint();
 

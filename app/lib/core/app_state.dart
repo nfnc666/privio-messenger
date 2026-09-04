@@ -601,6 +601,62 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Deletes the account on the server, then destroys everything here.
+  ///
+  /// The server asks for the password, which is what stops a session somebody
+  /// picked up from ending an account. Nothing local is touched until the
+  /// server has actually done it: a failed delete that had already wiped the
+  /// phone would be the worst of both.
+  ///
+  /// Returns null on success, or what to tell the user.
+  Future<String?> deleteAccount(String currentPassword) async {
+    try {
+      await services.api.deleteAccount(currentPassword);
+    } on ApiException catch (failure) {
+      return failure.message;
+    } on Object {
+      return 'Could not reach the server.';
+    }
+
+    _conversations?.stop();
+    services.api.useToken(null);
+    services.messaging.identifyAs(null);
+    services.ice.clear();
+    services.store.clear();
+    try {
+      await services.archive.clear();
+    } on Object {
+      // The account is gone; nothing here may stop the rest.
+    }
+    try {
+      // Unlike signing out, the identity goes too. There is no account left
+      // for these keys to belong to, and keeping them is only a liability.
+      await services.crypto.wipe();
+    } on Object {
+      // Same.
+    }
+    _conversations?.dispose();
+    _conversations = null;
+    _channels?.dispose();
+    _channels = null;
+    _license?.dispose();
+    _license = null;
+    _security?.dispose();
+    _security = null;
+    _wakeUp?.dispose();
+    _wakeUp = null;
+    await _store.wipe();
+    _screenLockSet = false;
+    _passcodeKind = null;
+    _disguise = null;
+    _sessionToken = null;
+    _username = null;
+    _accountId = null;
+    _stage = AppStage.welcome;
+    notifyListeners();
+    return null;
+  }
+
   Future<void> signOut() async {
     _conversations?.stop();
     try {

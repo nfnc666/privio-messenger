@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -186,12 +188,73 @@ class _AccountScreenState extends State<AccountScreen> {
                 destructive: true,
                 onTap: () => _confirmSignOut(context),
               ),
+              // The server has been able to do this since the first migration
+              // and nothing in the app could ask for it. An account you cannot
+              // end is not an account you own.
+              SettingsRow(
+                label: 'Delete account',
+                destructive: true,
+                onTap: () => unawaited(_confirmDelete(context)),
+              ),
             ],
           ),
           const SizedBox(height: PrivioSpacing.xxxl),
         ],
       ),
     );
+  }
+
+  /// Asks for the password, because the server does, and says what goes.
+  Future<void> _confirmDelete(BuildContext context) async {
+    final state = PrivioScope.of(context);
+    final password = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: const Text('Delete this account?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your devices, your keys, the messages still waiting to be '
+              'delivered, your contacts, your group memberships and your '
+              'backup are all deleted on the server. Everything on this phone '
+              'goes with them.\n\n'
+              'It cannot reach what other people have already received, and '
+              'your username becomes free for somebody else to take.\n\n'
+              'There is no undo and no recovery — not with the recovery key, '
+              'not by writing to anybody.',
+            ),
+            const SizedBox(height: PrivioSpacing.lg),
+            TextField(
+              controller: password,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Your password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete it'),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false) || !context.mounted) return;
+
+    final failure = await state.deleteAccount(password.text);
+    if (failure == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure)));
   }
 
   void _confirmSignOut(BuildContext context) {

@@ -366,7 +366,25 @@ session already exists, which no honest deployment does — so it is exercised i
 | Attachments | 30 days from upload, unconditionally |
 | Backups | One per account, replaced on each upload |
 | Sessions | 365 days, or until revoked |
-| Deleted accounts | Tombstoned; all content deleted immediately |
+| Deleted accounts | Tombstoned; all content deleted immediately, username freed |
+
+### Deleting the account
+
+`DELETE /v1/accounts/me` takes the password, not just the session: a phone
+somebody picked up while it was unlocked must not be able to end the account on
+it. It removes the devices — and with them the sessions, the prekeys and every
+queued envelope — the envelopes this account sent that have not been collected,
+the contacts in both directions, the group memberships, the backup and every
+media object the account uploaded. The row is then tombstoned and the username
+rewritten to `deleted.<id>`, which frees the old one for somebody else.
+
+What it cannot reach is what other people have already received and decrypted.
+The dialog says so, along with the username becoming available again, because
+both are surprises otherwise.
+
+The client destroys everything locally only after the server has confirmed, and
+unlike signing out it wipes the identity too: there is no account left for those
+keys to belong to.
 
 ### Deleting one message
 

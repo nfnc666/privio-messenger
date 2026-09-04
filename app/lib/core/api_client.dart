@@ -143,6 +143,11 @@ class PrivioApiClient {
   Future<void> wipeAccount(String duressCode) async =>
       _send('POST', '/v1/accounts/me/wipe', body: {'duressCode': duressCode});
 
+  /// Deletes the account for good. The password is required by the server, so
+  /// a stolen session cannot end somebody's account.
+  Future<void> deleteAccount(String currentPassword) async =>
+      _send('DELETE', '/v1/accounts/me', body: {'currentPassword': currentPassword});
+
   // --- Two-factor -----------------------------------------------------------
 
   /// Starts setup and returns the shared secret, which is the only time it is
