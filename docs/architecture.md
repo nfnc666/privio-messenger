@@ -403,6 +403,23 @@ index — the loop walks what is in memory, which is what the archive holds
 anyway, and an index would be a second copy of every conversation to keep
 encrypted and in step.
 
+### Group and channel keys reach a device that never joined
+
+A group's name and a channel's posts are sealed with a key the server never
+sees, so a device that has the membership and not the key can read neither.
+Joining records a key request on the server, and any member that holds the key
+answers it on its next drain — sealed to the asking account like any other
+message.
+
+Signing in on a *second* device joins nothing, so nothing recorded a request
+for it. It asks for itself now: the same walk that answers other people's
+requests also asks for the groups and channels this device is in without a key.
+
+The latency is the answering device's drain, not the asking. A second device
+sees the name as soon as any key-holder next polls or is woken, and the
+fallback poll is two minutes. Carrying the request on the socket would make it
+immediate — the bus already exists — and is not done.
+
 Sealed sender, which removes the sender identifier from the routing metadata, is
 tracked in `docs/security-model.md` under known limitations.
 

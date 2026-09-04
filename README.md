@@ -452,6 +452,26 @@ written for exactly this and called by nothing.
 Both loops now do both halves in one walk: hand the key to whoever is waiting,
 and ask where this device is a member without one.
 
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/gkey-01-waiting.png" width="220"><br><sub>A second device, just signed in: a group it cannot name.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/gkey-02-named.png" width="220"><br><sub>After somebody holding the key ran a drain.</sub></td>
+</tr>
+</table>
+
+Running that end to end rather than trusting the unit tests was worth it twice
+over. The first attempt failed — twenty seconds after the second device signed
+in, the chat still read *"Group"*. The database said the asking half had
+worked: two rows in `key_requests`, one per drain cycle. What had not happened
+was the answer, because **nobody holding the key had drained yet**. Nudging the
+owner's *Check for messages* resolved the name immediately.
+
+So the honest characterisation is not "instant": a second device gets the group
+name as soon as any device that holds the key next polls or is woken, and the
+fallback poll is two minutes. The socket could carry a key request and make it
+immediate — the bus is already there — and that is the improvement not made,
+rather than a claim of speed the code does not support.
+
 ### An account you could not end
 
 The server has been able to delete an account since the first migration:
