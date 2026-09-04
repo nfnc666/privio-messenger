@@ -12,7 +12,11 @@ import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/models/models.dart';
+import 'package:flutter/services.dart';
+import 'package:privio/screens/about_screen.dart';
 import 'package:privio/screens/chats_screen.dart';
+import 'package:privio/screens/invite_screen.dart';
+import 'package:privio/screens/settings_screen.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
@@ -57,6 +61,71 @@ Widget wrap(Widget child, AppState state) => MaterialApp(
     );
 
 void main() {
+  testWidgets('every button on the invite screen does what it says', (tester) async {
+    final services = await quietServices();
+    final state = AppState(services: services, store: InMemorySecureStore());
+    await state.initialise();
+
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map<Object?, Object?>)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await tester.pumpWidget(wrap(const InviteScreen(), state));
+    await tester.pumpAndSettle();
+
+    // It used to read "Share Link" and do nothing at all.
+    await tester.tap(find.text('Copy invite link'));
+    await tester.pumpAndSettle();
+    expect(copied, hasLength(1));
+    expect(copied.single, contains('/u/'));
+
+    // And the QR tab used to offer "Save to Photos", which also did nothing.
+    expect(find.text('Save to Photos'), findsNothing);
+  });
+
+  testWidgets('settings has no row that opens nothing', (tester) async {
+    final services = await quietServices();
+    final state = AppState(services: services, store: InMemorySecureStore());
+    await state.initialise();
+
+    await tester.pumpWidget(wrap(const SettingsScreen(), state));
+    await tester.pumpAndSettle();
+
+    // Settings is opened from the Account tab, so a row back to it was a
+    // circle; "Data and Storage" opened nothing at all.
+    expect(find.text('Account'), findsNothing);
+    expect(find.text('Data and Storage'), findsNothing);
+    expect(
+      find.text('Privacy & Security'),
+      findsOneWidget,
+      reason: 'the rows that do open something are still there',
+    );
+  });
+
+  testWidgets('about names no document that does not exist', (tester) async {
+    final services = await quietServices();
+    final state = AppState(services: services, store: InMemorySecureStore());
+    await state.initialise();
+
+    await tester.pumpWidget(wrap(const AboutScreen(), state));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Terms of Service'), findsNothing);
+    expect(find.text('Privacy Policy'), findsNothing);
+    expect(find.text('Source code'), findsOneWidget);
+  });
+
   testWidgets('the chat list shows decrypted conversations', (tester) async {
     final services = await quietServices();
     final state = AppState(

@@ -420,6 +420,44 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### Six buttons that did nothing
+
+A grep for `onPressed: () {}` found six of them, spread over three screens:
+
+| Screen | Control | What it did |
+| --- | --- | --- |
+| Invite | **Share Link** | nothing |
+| Invite | **Save to Photos** | nothing |
+| Settings | **Account** | nothing |
+| Settings | **Data and Storage** | nothing |
+| About | **Terms of Service** | nothing |
+| About | **Privacy Policy** | nothing |
+
+Each was decided on its own merits rather than swept away together.
+
+**Share Link** now copies the link, which is what this app can do — there is no
+share sheet here, that being a platform plugin Privio does not carry. The small
+copy icon beside the link already worked; the big button below it now does the
+same thing in the place a thumb reaches.
+
+**Save to Photos** is gone. Writing to the gallery needs a plugin that is not
+here, the code is on screen, and the other tab copies the same invite as text.
+
+**Account** in Settings is gone: Settings is opened *from* the Account tab, so
+that row was a circle with a dead button at the top of it. **Data and Storage**
+is gone until there is something true to put on it — what this device keeps, how
+large it is, what can be deleted — rather than a row that looks like a setting
+and is a dead end.
+
+**Terms of Service** and **Privacy Policy** are gone because neither document
+exists. That is now a caveat in this README rather than two rows implying
+otherwise, and it is a pre-store task: a messenger that asks for trust and
+ships without them is asking for it on credit.
+
+Three widget tests hold the line — one per screen, asserting both that the dead
+labels are absent and that the working rows are still there. The invite test
+taps the button and reads the clipboard.
+
 ### A green dot that could never be green
 
 `PrivioAvatar` drew a presence dot behind `if (presence == Presence.online)`.
@@ -1026,7 +1064,8 @@ A privacy product that overstates itself is worse than one that says nothing.
 3. **No sealed sender.** Envelopes name the sender, which the server uses for
    blocking and rate limiting.
 4. **The link domains are not registered.** Links are generated against
-   `privio.channel` and `privio.group`, neither of which this project owns, so
+   `privio.channel`, `privio.group` and `privio.app` (the invite link), none of
+   which this project owns, so
    nothing on the open internet answers them. It costs nothing in security —
    the app reads the invite code out of the link's *path* and never fetches the
    URL, so a link works between Privio users either way, and the parser accepts
@@ -1041,7 +1080,13 @@ A privacy product that overstates itself is worse than one that says nothing.
    group memberships, the backup. It cannot reach a *different* phone that is
    signed in elsewhere, whose local archive stays sealed but present. The
    screen says so instead of implying a remote kill switch.
-6. **No independent audit.** Before any public release the crypto integration
+6. **There are no Terms and no Privacy Policy.** The About screen used to name
+   both and open neither. The rows are gone rather than pointing at documents
+   that do not exist, and what is actually true about how Privio treats data is
+   in [the security model](docs/security-model.md). Writing the two documents is
+   a pre-store task, not a formality: a messenger asking for trust and shipping
+   without them is asking for it on credit.
+7. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
 The full list, with the reasoning, is in
