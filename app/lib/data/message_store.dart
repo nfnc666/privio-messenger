@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 
 /// A person this device knows about, by account id.
@@ -40,6 +41,39 @@ class KnownUser {
         avatarMediaId: avatarMediaId ?? this.avatarMediaId,
         profileKey: profileKey ?? this.profileKey,
       );
+}
+
+/// One person in a group, as the server lists them.
+///
+/// Not the same as [KnownUser]: this is membership — who is in and what they
+/// are allowed to do — which is the server's to answer, because the server is
+/// what enforces it.
+@immutable
+class GroupMember {
+  const GroupMember({
+    required this.accountId,
+    required this.username,
+    required this.role,
+    this.displayName,
+  });
+
+  factory GroupMember.fromJson(Map<String, dynamic> json) => GroupMember(
+        accountId: json['id'] as String,
+        username: json['username'] as String? ?? 'unknown',
+        displayName: json['displayName'] as String?,
+        role: json['role'] as String? ?? 'member',
+      );
+
+  final String accountId;
+  final String username;
+  final String? displayName;
+
+  /// 'admin' or 'member'.
+  final String role;
+
+  bool get isAdmin => role == 'admin';
+
+  String get label => displayName ?? username;
 }
 
 /// A group, as this device understands it.

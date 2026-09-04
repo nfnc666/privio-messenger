@@ -143,6 +143,11 @@ class PrivioApiClient {
   Future<void> wipeAccount(String duressCode) async =>
       _send('POST', '/v1/accounts/me/wipe', body: {'duressCode': duressCode});
 
+  /// Deletes the account for good. The password is required by the server, so
+  /// a stolen session cannot end somebody's account.
+  Future<void> deleteAccount(String currentPassword) async =>
+      _send('DELETE', '/v1/accounts/me', body: {'currentPassword': currentPassword});
+
   // --- Two-factor -----------------------------------------------------------
 
   /// Starts setup and returns the shared secret, which is the only time it is
@@ -246,8 +251,13 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> joinGroup(String groupId, String inviteCode) =>
       _send('POST', '/v1/groups/$groupId/join', body: {'inviteCode': inviteCode});
 
+  /// Removes one member. The same call whether it is somebody else being
+  /// removed by an admin or a member showing themselves out.
   Future<void> leaveGroup(String groupId, String accountId) async =>
       _send('DELETE', '/v1/groups/$groupId/members/$accountId');
+
+  Future<void> deleteGroup(String groupId) async =>
+      _send('DELETE', '/v1/groups/$groupId');
 
   // --- Key delivery ---------------------------------------------------------
   //

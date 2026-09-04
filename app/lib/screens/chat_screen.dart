@@ -12,6 +12,7 @@ import '../core/conversation_controller.dart';
 import '../crypto/safety_number.dart';
 import '../models/models.dart';
 import '../media/voice.dart';
+import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
 import '../widgets/privio_back_button.dart';
@@ -89,6 +90,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _verification = numbers.isEmpty ? null : numbers.state);
   }
+
+  Future<void> _openGroupInfo() => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => GroupInfoScreen(groupId: widget.accountId),
+        ),
+      );
 
   Future<void> _openSafetyNumber() async {
     await Navigator.of(context).push(
@@ -684,9 +691,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   'timer' => _chooseTimer(state),
                   'block' => _confirmBlock(state),
                   'safety' => _openSafetyNumber(),
+                  'group' => _openGroupInfo(),
                   _ => null,
                 },
                 itemBuilder: (context) => [
+                  if (widget.isGroup)
+                    const PopupMenuItem(
+                      value: 'group',
+                      child: Text('Group info'),
+                    ),
                   const PopupMenuItem(
                     value: 'timer',
                     child: Text('Disappearing messages'),

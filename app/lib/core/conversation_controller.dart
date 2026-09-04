@@ -575,6 +575,95 @@ class ConversationController extends ChangeNotifier {
 
   GroupInfo? groupInfo(String groupId) => _services.store.conversationWith(groupId)?.group;
 
+  /// Everyone in a group, from the server.
+  Future<List<GroupMember>> groupMembers(String groupId) =>
+      _services.messaging.groupMembers(groupId);
+
+  /// Shows this account out of a group.
+  ///
+  /// The conversation goes with it. A group chat nobody in it can write to any
+  /// more is not a chat, and keeping it would leave a room on the list that
+  /// cannot be entered — while the messages already in it stay readable
+  /// nowhere, because they went with the archive entry.
+  Future<bool> leaveGroup(String groupId) async {
+    final me = accountId;
+    if (me == null) return false;
+    try {
+      await _services.api.leaveGroup(groupId, me);
+    } on ApiException catch (failure) {
+      _error = failure.message;
+      notifyListeners();
+      return false;
+    }
+    _services.store.removeConversation(groupId);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Removes somebody else. The server refuses unless this account is an admin
+  /// of that group, so the check is not only in the screen.
+  Future<bool> removeFromGroup(String groupId, String memberAccountId) async {
+    try {
+      await _services.api.leaveGroup(groupId, memberAccountId);
+      return true;
+    } on ApiException catch (failure) {
+      _error = failure.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Renames a group, for everybody.
+  ///
+  /// The name is sealed with the group's key, so this changes a blob the server
+  /// cannot read. It needs the key: a device that joined by a link and has not
+  /// been sent the key yet cannot rename what it cannot name.
+  Future<bool> renameGroup(String groupId, String name) async {
+    final group = groupInfo(groupId);
+    final key = group?.groupKey;
+    if (group == null || key == null) {
+      _error = 'This device does not have the group key yet.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _services.messaging.renameGroup(groupId, name, key);
+    } on ApiException catch (failure) {
+      _error = failure.message;
+      notifyListeners();
+      return false;
+    }
+    _services.store.upsertGroup(
+      GroupInfo(
+        groupId: group.groupId,
+        role: group.role,
+        name: name,
+        groupKey: group.groupKey,
+        inviteCode: group.inviteCode,
+        memberIds: group.memberIds,
+      ),
+    );
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Deletes a group for everyone in it. Admins only, enforced by the server.
+  Future<bool> deleteGroup(String groupId) async {
+    try {
+      await _services.api.deleteGroup(groupId);
+    } on ApiException catch (failure) {
+      _error = failure.message;
+      notifyListeners();
+      return false;
+    }
+    _services.store.removeConversation(groupId);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
   /// Sends a file. Its metadata is stripped and it is sealed under its own key
   /// before it leaves the device; the returned report says what was removed so
   /// the UI can show it rather than leaving the user to assume.

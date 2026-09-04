@@ -116,7 +116,9 @@ class IdentityChangedException implements Exception {
 class PrivioCrypto {
   PrivioCrypto(this._store);
 
-  final PrivioSignalStore _store;
+  /// Not final: a wipe replaces it, because the identity it holds is loaded
+  /// once and would otherwise outlive the storage it came from.
+  PrivioSignalStore _store;
 
   /// How many one-time prekeys a device publishes, and when it tops up. Signal
   /// uses the same shape: a pool large enough that it never empties between
@@ -208,10 +210,20 @@ class PrivioCrypto {
 
   /// Destroys this device's identity and every session with it.
   ///
-  /// After this the device is a stranger to everyone it had spoken to: it can
-  /// register a new identity, and nothing that was sealed to the old one will
-  /// ever open again. Used by the duress wipe.
-  Future<void> wipe() => _store.storage.wipe();
+  /// After this the device is a stranger to everyone it had spoken to, and
+  /// nothing that was sealed to the old identity will ever open again. Used by
+  /// the duress wipe and by deleting an account.
+  ///
+  /// A fresh identity is created immediately rather than on the next start.
+  /// Clearing the storage alone leaves the old identity loaded in memory, and
+  /// an account registered before the next restart would publish a key whose
+  /// private half is no longer stored anywhere — an account that works until
+  /// the app is closed and can never open a message again after that.
+  Future<void> wipe() async {
+    final storage = _store.storage;
+    await storage.wipe();
+    _store = await PrivioSignalStore.create(storage);
+  }
 
   SignalProtocolAddress _address(String accountId, int deviceIndex) =>
       SignalProtocolAddress(accountId, deviceIndex);

@@ -165,18 +165,24 @@ void main() {
 
   test('the duress code destroys what this device holds', () async {
     final device = await armedDevice();
+    final identityBefore = await device.cryptoStorage.readBytes('identity');
+    expect(identityBefore, isNotNull, reason: 'there was one to destroy');
     await device.state.unlockWithPasscode('9119');
     await pumpEventQueue();
 
     expect(device.archive.conversations(), isEmpty, reason: 'the history is gone');
     expect(await device.store.readToken(), isNull, reason: 'the session is gone');
     expect(await device.store.hasPasscode(), isFalse);
+    // Not empty: replaced. What matters is that the identity everything was
+    // sealed to is unrecoverable, and a device that keeps the old one loaded
+    // in memory would publish it again on the next registration — with its
+    // private half stored nowhere. A wiped device looks like a fresh one.
     expect(
       await device.cryptoStorage.readBytes('identity'),
-      isNull,
+      isNot(identityBefore),
       reason: 'the identity is gone, so nothing sealed to it can ever be opened',
     );
-    expect(await device.cryptoStorage.read('registration_id'), isNull);
+    expect(await device.cryptoStorage.read('registration_id'), isNotNull);
   });
 
   test('and asks the server to destroy what it holds', () async {
