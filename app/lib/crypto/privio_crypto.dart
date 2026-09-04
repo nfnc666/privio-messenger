@@ -193,6 +193,60 @@ class PrivioCrypto {
     return preKeys;
   }
 
+  /// How long a signed prekey is the one on offer before a new one replaces it.
+  ///
+  /// The signed prekey is what a stranger seals their first message to when the
+  /// one-time pool is empty, and it is the same key for everyone until it is
+  /// replaced. Two days is the window a stolen one buys an attacker.
+  static const Duration signedPreKeyLifetime = Duration(hours: 48);
+
+  /// How long a replaced one is kept.
+  ///
+  /// Deleting it the moment it is replaced would drop every message already
+  /// sealed against it and not yet collected — someone who fetched a bundle,
+  /// went into a tunnel, and sent it an hour later.
+  static const Duration signedPreKeyGrace = Duration(days: 30);
+
+  /// When the newest signed prekey was generated, or null if there is none.
+  Future<DateTime?> newestSignedPreKeyAt() async {
+    final records = await _store.loadSignedPreKeys();
+    if (records.isEmpty) return null;
+    final newest = records
+        .map((record) => record.timestamp.toInt())
+        .reduce((a, b) => a > b ? a : b);
+    return DateTime.fromMillisecondsSinceEpoch(newest);
+  }
+
+  /// Whether the signed prekey has been on offer for longer than it should be.
+  Future<bool> signedPreKeyIsDue(DateTime now) async {
+    final newest = await newestSignedPreKeyAt();
+    // No signed prekey at all is overdue by definition, not up to date.
+    if (newest == null) return true;
+    return now.difference(newest) >= signedPreKeyLifetime;
+  }
+
+  /// Deletes signed prekeys past the grace period, never the newest one.
+  ///
+  /// Returns how many went, so a caller can say nothing happened rather than
+  /// claiming it did.
+  Future<int> pruneSignedPreKeys(DateTime now) async {
+    final records = await _store.loadSignedPreKeys();
+    if (records.length < 2) return 0;
+    final newestId = records
+        .reduce((a, b) => a.timestamp.toInt() >= b.timestamp.toInt() ? a : b)
+        .id;
+
+    var removed = 0;
+    for (final record in records) {
+      if (record.id == newestId) continue;
+      final at = DateTime.fromMillisecondsSinceEpoch(record.timestamp.toInt());
+      if (now.difference(at) < signedPreKeyGrace) continue;
+      await _store.removeSignedPreKey(record.id);
+      removed++;
+    }
+    return removed;
+  }
+
   /// Rotates the signed prekey. Clients do this on a schedule so a compromised
   /// signed prekey only exposes a bounded window.
   Future<Map<String, dynamic>> rotateSignedPreKey() async {

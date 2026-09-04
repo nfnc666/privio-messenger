@@ -519,25 +519,33 @@ class ConversationController extends ChangeNotifier {
       }
       _error = null;
       notifyListeners();
-      unawaited(_deliverGroupKeys());
+      unawaited(_maintainGroupKeys());
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
     }
   }
 
-  /// Hands the group name key to anyone who joined by a link.
+  /// Both halves of group-key housekeeping, in one walk of the list.
   ///
-  /// A group message would carry the key too, but only once somebody speaks;
-  /// this way a new member sees the group's name straight away.
-  Future<void> _deliverGroupKeys() async {
+  /// Hands the key to anyone waiting for it, and asks for it where this device
+  /// is a member and does not have it. A group message carries the key too,
+  /// but only once somebody speaks — and the device that needs asking most is
+  /// the one that never joined: a second phone signing in to an account that
+  /// is already in the group. Joining records a request; signing in does not.
+  Future<void> _maintainGroupKeys() async {
     for (final conversation in _services.store.conversations()) {
       final group = conversation.group;
-      final key = group?.groupKey;
-      if (group == null || key == null) continue;
+      if (group == null) continue;
+      final key = group.groupKey;
       try {
-        await _services.messaging.deliverGroupKeys(group.groupId, key);
+        if (key == null) {
+          await _services.messaging.requestGroupKey(group.groupId);
+        } else {
+          await _services.messaging.deliverGroupKeys(group.groupId, key);
+        }
       } on Object {
+        // One group that cannot be served is no reason to skip the rest.
         continue;
       }
     }
@@ -1403,7 +1411,7 @@ class ConversationController extends ChangeNotifier {
       // someone waiting on a group key gets answered, where anything queued
       // gets another try, and where expired messages go.
       pruneExpired();
-      unawaited(_deliverGroupKeys());
+      unawaited(_maintainGroupKeys());
       unawaited(flushOutbox());
     } on ApiException catch (failure) {
       _error = failure.message;
@@ -1829,6 +1837,11 @@ class ConversationController extends ChangeNotifier {
   Future<void> maintainKeys() async {
     try {
       await _services.messaging.maintainPreKeys();
+      // The signed prekey is what a stranger seals to when the one-time pool
+      // is empty, and it is the same key for everyone until it is replaced.
+      // `rotateSignedPreKey` had been written, documented as something clients
+      // do on a schedule, and called by nothing.
+      await _services.messaging.rotateSignedPreKeyIfDue();
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();

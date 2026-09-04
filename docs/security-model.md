@@ -299,7 +299,13 @@ password. It never leaves the device.
 ## Key management
 
 Each device has a stable per-account index, a long-term identity key, a
-rotating signed prekey, and a pool of one-time prekeys. The index is what the
+rotating signed prekey, and a pool of one-time prekeys. The signed prekey is
+replaced every 48 hours, checked at start beside the one-time top-up: it is the
+key a stranger seals to when the pool is empty, the same one for everybody, so
+its lifetime is the window a stolen one buys. The replacement is published
+before anything is deleted, and the one it replaces is kept for 30 days —
+someone who fetched a bundle and sent an hour later sealed to the old key, and
+deleting it on rotation would lose that message. The index is what the
 protocol addresses a session by; it is never reused, even after a device is
 revoked, so an old session can never be pointed at a new device. The server stores public halves only and hands out one
 bundle per device on request, deleting the one-time prekey atomically so it is

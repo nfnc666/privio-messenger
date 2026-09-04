@@ -420,6 +420,38 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### Two keys that were never maintained
+
+The same sweep that found the group screen — every method in the API client,
+matched against everything that calls it — turned up two more with no caller,
+and they were both about keys rather than screens.
+
+**The signed prekey was never rotated.** `PrivioCrypto.rotateSignedPreKey`
+exists, the server route exists, the API client method exists, and its own
+comment said *"clients do this on a schedule so a compromised signed prekey
+only exposes a bounded window"*. Nothing called it, so the window was the
+lifetime of the device. It is the key a stranger seals their first message to
+when the one-time pool is empty, and it is the same key for everyone until it
+is replaced.
+
+It rotates now, on the schedule the comment promised: forty-eight hours, checked
+at start alongside the one-time top-up. Two details that would otherwise cost
+messages — the new key goes to the server *before* anything is deleted, and the
+old one is kept for thirty days, because somebody who fetched a bundle, went
+into a tunnel and sent an hour later has sealed to the key that just went. A
+test seals with a bundle fetched before a rotation and opens it after.
+
+**A second device never asked for a group's key.** Joining a group or a channel
+records a key request on the server, and members who hold the key answer it —
+that half worked. Signing in on a *second* device does not join anything: it
+has the membership and no key, and would sit at *"Waiting for the group key"*
+until somebody happened to speak, because a group message carries the key and
+nothing else does. `requestGroupKey` and `ChannelService.requestKey` were
+written for exactly this and called by nothing.
+
+Both loops now do both halves in one walk: hand the key to whoever is waiting,
+and ask where this device is a member without one.
+
 ### An account you could not end
 
 The server has been able to delete an account since the first migration:

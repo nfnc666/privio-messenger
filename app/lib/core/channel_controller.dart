@@ -224,14 +224,26 @@ class ChannelController extends ChangeNotifier {
   String? inviteLink(ChannelInfo channel) =>
       channel.inviteCode == null ? null : ChannelService.linkForChannel(channel.inviteCode!);
 
-  /// Answers everyone waiting for the key to a channel this device can read.
+  /// Both halves of channel-key housekeeping, in one walk of the list.
   ///
-  /// Called on every channel refresh, because a new member's padlocks only
-  /// clear when someone who holds the key next opens the app.
+  /// Answers everyone waiting for the key to a channel this device can read —
+  /// a new member's padlocks only clear when somebody who holds the key next
+  /// opens the app — and asks where this device is a member without one.
+  ///
+  /// Joining records a request on the server already. Signing in does not, so
+  /// a second device of an existing member is the one that has to ask.
   Future<void> deliverPendingKeys() async {
     for (final channel in _mine) {
-      if (!channel.hasKey) continue;
-      await _deliverFor(channel.id);
+      try {
+        if (channel.hasKey) {
+          await _deliverFor(channel.id);
+        } else {
+          await _channels.requestKey(channel.id);
+        }
+      } on Object {
+        // One channel that cannot be served is no reason to skip the rest.
+        continue;
+      }
     }
   }
 

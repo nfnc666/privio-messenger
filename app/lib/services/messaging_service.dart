@@ -632,6 +632,15 @@ class MessagingService {
 
   /// Answers everyone waiting for a group's name key. Returns how many accounts
   /// were served.
+  /// Asks the other members for a group's key.
+  ///
+  /// Joining records a request on the server already. This is for the device
+  /// that never joined: a second phone signing in to an account that is
+  /// already in the group, which has the membership and no key and would
+  /// otherwise sit at "waiting for the group key" until somebody happened to
+  /// speak.
+  Future<void> requestGroupKey(String groupId) => _api.requestGroupKey(groupId);
+
   Future<int> deliverGroupKeys(String groupId, String base64Key) async {
     final response = await _api.groupKeyRequests(groupId);
     final requests = [
@@ -797,6 +806,19 @@ class MessagingService {
       // A name we cannot open is not a reason to hide the group.
       return null;
     }
+  }
+
+  /// Replaces the signed prekey when it has been on offer too long.
+  ///
+  /// Published before anything is deleted, and the newest is never deleted, so
+  /// there is no moment where the server offers a key this device cannot open.
+  /// Returns whether a new one went up.
+  Future<bool> rotateSignedPreKeyIfDue({DateTime? now}) async {
+    final at = now ?? DateTime.now();
+    if (!await _crypto.signedPreKeyIsDue(at)) return false;
+    await _api.rotateSignedPreKey(await _crypto.rotateSignedPreKey());
+    await _crypto.pruneSignedPreKeys(at);
+    return true;
   }
 
   /// Republishes one-time prekeys when the server's pool runs low.
