@@ -18,6 +18,10 @@ dependencies:
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2
   cryptography: ^2.9.0
+  # Pinned at 11 deliberately, and it is why no Android APK can be built today.
+  # See "The Android build is blocked" in README.md — moving to 12 drags
+  # flutter_secure_storage across two major versions, and that one holds the
+  # session token, the archive key and the recovery key.
   file_picker: ^11.0.3
   web_socket_channel: ^3.0.3
   image: ^4.9.2
