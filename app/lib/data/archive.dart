@@ -17,6 +17,13 @@ abstract interface class ArchiveStorage {
   Future<Uint8List?> read();
   Future<void> write(Uint8List bytes);
   Future<void> delete();
+
+  /// How many bytes are being kept, or zero for nothing.
+  ///
+  /// The sealed size, not the size of what is inside it: what is inside is a
+  /// question only this device can answer, and the number a person wants is
+  /// how much of their phone this is using.
+  Future<int> sizeInBytes();
 }
 
 class InMemoryArchiveStorage implements ArchiveStorage {
@@ -33,6 +40,9 @@ class InMemoryArchiveStorage implements ArchiveStorage {
 
   @override
   Future<void> delete() async => _bytes = null;
+
+  @override
+  Future<int> sizeInBytes() async => _bytes?.length ?? 0;
 }
 
 /// Keeps the archive in the platform keystore.
@@ -76,6 +86,9 @@ class KeystoreArchiveStorage implements ArchiveStorage {
         iOptions: _iosOptions,
         aOptions: _androidOptions,
       );
+
+  @override
+  Future<int> sizeInBytes() async => (await read())?.length ?? 0;
 }
 
 /// Everything the archive holds: the history, and what has not gone out yet.
@@ -92,6 +105,9 @@ abstract interface class MessageArchive {
   Future<ArchiveContents> load();
   Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox});
   Future<void> clear();
+
+  /// The size of the sealed history on this device.
+  Future<int> sizeInBytes();
 }
 
 /// Does nothing. Used where persistence is not wanted.
@@ -106,6 +122,9 @@ class NoArchive implements MessageArchive {
 
   @override
   Future<void> clear() async {}
+
+  @override
+  Future<int> sizeInBytes() async => 0;
 }
 
 /// The conversation history sealed with AES-256-GCM under a key that lives in
@@ -209,6 +228,9 @@ class EncryptedMessageArchive implements MessageArchive {
     _cachedKey = null;
     await _storage.delete();
   }
+
+  @override
+  Future<int> sizeInBytes() => _storage.sizeInBytes();
 
 }
 

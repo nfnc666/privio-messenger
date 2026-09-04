@@ -723,6 +723,36 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  // --- What this device is keeping ------------------------------------------
+
+  /// What the history costs this device: the sealed blob, and what is in it.
+  Future<({int sealedBytes, int messages, int conversations})> historySize() async {
+    final all = _services.store.conversations();
+    return (
+      sealedBytes: await _services.archive.sizeInBytes(),
+      messages: all.fold<int>(0, (sum, c) => sum + c.messages.length),
+      conversations: all.length,
+    );
+  }
+
+  /// Erases the conversation history on this device, and nothing else.
+  ///
+  /// Not the duress wipe, which destroys the identity too and asks the server
+  /// to forget the account. This keeps the account, the keys and the sessions:
+  /// messages already sent still arrive, the people already talked to can
+  /// still write, and what was said before is gone from this phone.
+  ///
+  /// It cannot reach the other side's copy, and it cannot reach a backup
+  /// already on the server. The screen offering it says both.
+  Future<void> clearHistory() async {
+    _outbox.clear();
+    _attachmentCache.clear();
+    _services.store.clear();
+    await _services.archive.clear();
+    _error = null;
+    notifyListeners();
+  }
+
   /// Keeps a conversation at the top of the list, or lets it go.
   ///
   /// Local to this device and never sent. The other side is not told, because

@@ -17,6 +17,7 @@ import 'package:privio/screens/about_screen.dart';
 import 'package:privio/screens/chats_screen.dart';
 import 'package:privio/screens/invite_screen.dart';
 import 'package:privio/screens/settings_screen.dart';
+import 'package:privio/screens/storage_screen.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
@@ -55,9 +56,14 @@ Future<PrivioServices> quietServices() async {
   );
 }
 
-Widget wrap(Widget child, AppState state) => MaterialApp(
-      theme: PrivioTheme.dark(),
-      home: PrivioScope(notifier: state, child: child),
+/// The scope goes *outside* the MaterialApp, as it does in `app.dart`.
+///
+/// Inside `home` it is a sibling of every pushed route rather than an ancestor,
+/// so a screen that opens another one and reads the scope there finds nothing —
+/// which is a property of this helper and not of the app.
+Widget wrap(Widget child, AppState state) => PrivioScope(
+      notifier: state,
+      child: MaterialApp(theme: PrivioTheme.dark(), home: child),
     );
 
 void main() {
@@ -103,14 +109,32 @@ void main() {
     await tester.pumpAndSettle();
 
     // Settings is opened from the Account tab, so a row back to it was a
-    // circle; "Data and Storage" opened nothing at all.
+    // circle with a dead button at the top of it.
     expect(find.text('Account'), findsNothing);
-    expect(find.text('Data and Storage'), findsNothing);
     expect(
       find.text('Privacy & Security'),
       findsOneWidget,
       reason: 'the rows that do open something are still there',
     );
+
+    // "Data and Storage" opened nothing until there was something true to put
+    // on it. The rule was never that the row must not exist.
+    expect(find.text('Data and Storage'), findsOneWidget);
+    await tester.tap(find.text('Data and Storage'));
+    // Not pumpAndSettle: the screen shows a spinner while it measures, and a
+    // spinner never settles.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(StorageScreen), findsOneWidget);
+    expect(find.text('Conversation history'), findsOneWidget);
+    // Down the page, so it has to be scrolled to rather than merely found.
+    await tester.dragUntilVisible(
+      find.text('Delete history on this device'),
+      find.byType(ListView),
+      const Offset(0, -120),
+    );
+    expect(find.text('Delete history on this device'), findsOneWidget);
   });
 
   testWidgets('about names no document that does not exist', (tester) async {

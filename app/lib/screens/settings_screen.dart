@@ -12,6 +12,7 @@ import 'disguise_screen.dart';
 import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
+import 'storage_screen.dart';
 
 /// Screen 11: the settings index.
 class SettingsScreen extends StatelessWidget {
@@ -49,10 +50,11 @@ class SettingsScreen extends StatelessWidget {
                 label: 'Notifications',
                 onTap: () => open(const NotificationsScreen()),
               ),
-              // "Data and Storage" opened nothing too. It will come back when
-              // there is something true to put on it — what this device keeps,
-              // how large it is, and what a person can delete — rather than a
-              // row that looks like a setting and is a dead end.
+              SettingsRow(
+                icon: Icons.data_usage_rounded,
+                label: 'Data and Storage',
+                onTap: () => open(const StorageScreen()),
+              ),
               SettingsRow(
                 icon: Icons.devices_outlined,
                 label: 'Devices',
