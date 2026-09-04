@@ -19,6 +19,23 @@ abstract interface class CryptoStorage {
   Future<void> wipe();
 }
 
+/// How much this device is keeping under a port that only speaks in strings.
+extension CryptoStorageSize on CryptoStorage {
+  /// The stored bytes: every key and value this device holds.
+  ///
+  /// The values are base64, so this is the size of what is *kept* rather than
+  /// of the key material inside it. That is the honest number to show: it is
+  /// what occupies the phone.
+  Future<int> sizeInBytes() async {
+    final all = await readPrefixed('');
+    var total = 0;
+    for (final entry in all.entries) {
+      total += entry.key.length + entry.value.length;
+    }
+    return total;
+  }
+}
+
 /// In-memory storage. Correct for tests; loses everything on restart.
 class InMemoryCryptoStorage implements CryptoStorage {
   final Map<String, String> _entries = {};

@@ -420,6 +420,38 @@ What is missing is not the past — it is a way to carry it without the
 server-stored backup. Pairing device to device over a QR code is still to
 build.
 
+### What this phone is actually keeping
+
+Removing the dead "Data and Storage" row left a note saying it would come back
+when there was something true to put on it. This is that.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/screenshots/storage-01-screen.png" width="220"><br><sub>Read from the things that hold it, not estimated.</sub></td>
+<td align="center" width="50%"><img src="docs/screenshots/storage-02-cleared.png" width="220"><br><sub>After deleting: nothing left, keys untouched.</sub></td>
+</tr>
+</table>
+
+Every number comes from the object that holds the bytes: the sealed archive
+reports its own length, the counts come from the decrypted store, and the key
+material is the sum of what the crypto storage actually keeps. Nothing is
+estimated and nothing is a placeholder.
+
+The **Not kept** section is the part worth having. A photo or file you open is
+decrypted into memory and goes when the app closes. A voice message is recorded
+to a temporary file — the microphone has to write somewhere — and that file is
+overwritten with random bytes before it is unlinked, because a deleted file on
+flash storage is not a gone file. Both of those were already true; the screen is
+where somebody can find out.
+
+**Delete history on this device** is the one deletion this screen performs, and
+it is not the duress wipe: the account, the keys and the sessions stay, so
+people can still write to you and what you send afterwards still arrives. The
+dialog says what it cannot reach — their copy, and a backup already on the
+server — rather than letting "delete" imply more than it does. In the browser,
+753 B across 1 chat and 3 messages became 0 B and 0 chats, with the 11 KB of
+keys and sessions untouched.
+
 ### Six buttons that did nothing
 
 A grep for `onPressed: () {}` found six of them, spread over three screens:
@@ -445,9 +477,7 @@ here, the code is on screen, and the other tab copies the same invite as text.
 
 **Account** in Settings is gone: Settings is opened *from* the Account tab, so
 that row was a circle with a dead button at the top of it. **Data and Storage**
-is gone until there is something true to put on it — what this device keeps, how
-large it is, what can be deleted — rather than a row that looks like a setting
-and is a dead end.
+came back with something true on it, in the next commit — see below.
 
 **Terms of Service** and **Privacy Policy** are gone because neither document
 exists. That is now a caveat in this README rather than two rows implying

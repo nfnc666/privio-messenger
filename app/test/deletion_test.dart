@@ -324,6 +324,46 @@ void main() {
     });
   });
 
+  group('clearing the history on this device', () {
+    test('empties the store and the archive, and keeps the keys', () async {
+      final store = storeWith([text('c1', isMine: true), text('c2')]);
+      final (services, messaging) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      await services.archive.save(store.conversations());
+      expect(await services.archive.sizeInBytes(), greaterThan(0));
+      final identity = await services.crypto.identityFingerprint();
+
+      await controller.clearHistory();
+
+      expect(store.conversations(), isEmpty);
+      expect(await services.archive.sizeInBytes(), 0);
+      expect((await services.archive.load()).conversations, isEmpty);
+      expect(messaging.sent, isEmpty, reason: 'nobody else is told');
+      expect(
+        await services.crypto.identityFingerprint(),
+        identity,
+        reason: 'this is not the wipe: the account and its keys stay',
+      );
+    });
+
+    test('what it costs is measured from the things that hold it', () async {
+      final store = storeWith([text('c1'), text('c2')]);
+      final (services, _) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      await services.archive.save(store.conversations());
+      final size = await controller.historySize();
+      expect(size.conversations, 1);
+      expect(size.messages, 2);
+      expect(size.sealedBytes, greaterThan(0));
+
+      await controller.clearHistory();
+      final after = await controller.historySize();
+      expect(after, (sealedBytes: 0, messages: 0, conversations: 0));
+    });
+  });
+
   test('who wrote a message survives the archive, so a deletion can be checked',
       () async {
     final store = storeWith([text('c1', author: 'account-carol')]);
