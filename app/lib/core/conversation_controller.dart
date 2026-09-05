@@ -444,7 +444,10 @@ class ConversationController extends ChangeNotifier {
         sentAt: DateTime.now(),
         isMine: true,
         state: DeliveryState.sending,
-        expiresAt: timer == null ? null : DateTime.now().add(timer),
+        // No expiry until the server has it. A send that fails leaves the
+        // message on screen with a retry; a clock started here would delete
+        // that retry out from under the person who was about to press it, and
+        // take what they wrote with it.
         replyToId: replyTo?.clientId,
         replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
         replySender: replyTo == null
@@ -480,7 +483,7 @@ class ConversationController extends ChangeNotifier {
       } else {
         await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
-      _services.store.updateState(conversationId, clientId, DeliveryState.sent);
+      _markSent(conversationId, clientId, timer);
       _error = null;
       _persist();
     } on Object catch (failure) {
@@ -1209,7 +1212,12 @@ class ConversationController extends ChangeNotifier {
         state: DeliveryState.sending,
         voiceDuration: recording.duration,
         waveform: recording.waveform,
-        expiresAt: timer == null ? null : DateTime.now().add(timer),
+        // No expiry yet, even where the chat has a timer. A recording made with
+        // no signal waits in the outbox, and a clock started here would run
+        // while it waited: the bubble would vanish from the sender's own chat
+        // before the message had been anywhere, and then send regardless. The
+        // clock starts when it reaches the server — which is also when the
+        // recipient's starts, from their own side of the same moment.
       ),
     );
     notifyListeners();
@@ -1368,11 +1376,15 @@ class ConversationController extends ChangeNotifier {
     final conversation = _services.store.conversationWith(pending.conversationId);
     final message = conversation?.messages.where((m) => m.id == pending.clientId).firstOrNull;
     if (conversation == null || message == null) return;
+    // The timer starts here, not where the message was recorded: this is the
+    // moment it exists anywhere but on this phone.
+    final seconds = pending.expiresInSeconds;
     _services.store.replace(
       pending.conversationId,
       pending.clientId,
       message.copyWith(
         state: DeliveryState.sent,
+        expiresAt: seconds == null ? null : DateTime.now().add(Duration(seconds: seconds)),
         attachment: Attachment(
           mediaId: mediaId,
           mediaKey: pending.mediaKey,
@@ -1380,6 +1392,26 @@ class ConversationController extends ChangeNotifier {
           mediaType: pending.mediaType,
           byteSize: pending.plainLength,
         ),
+      ),
+    );
+  }
+
+  /// Marks a message as taken by the server, and starts its timer from that
+  /// moment — which is the same moment the recipient's starts, seen from the
+  /// other side. Anything still waiting to be sent has no expiry at all.
+  void _markSent(String conversationId, String clientId, Duration? timer) {
+    final message = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.id == clientId)
+        .firstOrNull;
+    if (message == null) return;
+    _services.store.replace(
+      conversationId,
+      clientId,
+      message.copyWith(
+        state: DeliveryState.sent,
+        expiresAt: timer == null ? null : DateTime.now().add(timer),
       ),
     );
   }

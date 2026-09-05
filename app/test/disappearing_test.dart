@@ -181,4 +181,41 @@ void main() {
       );
     });
   });
+
+  group('when the clock starts', () {
+    test('a message that failed to send has no timer running on it', () async {
+      // Otherwise the retry deletes itself out from under the person who was
+      // about to press it, and takes what they wrote with it.
+      final store = withBob();
+      final (services, messaging) = await buildServices(store);
+      final controller = ConversationController(services)
+        ..setDisappearAfter('account-bob', const Duration(seconds: 30));
+      messaging.failSends = true;
+
+      await controller.send('account-bob', 'ging nicht raus');
+
+      final failed = store.conversationWith('account-bob')!.messages.last;
+      expect(failed.state, DeliveryState.failed);
+      expect(failed.expiresAt, isNull);
+      expect(
+        store.pruneExpired(DateTime.now().add(const Duration(hours: 1))),
+        isEmpty,
+        reason: 'it is still the sender\'s to retry',
+      );
+    });
+
+    test('and starts it when the server takes it', () async {
+      final store = withBob();
+      final (services, _) = await buildServices(store);
+      final controller = ConversationController(services)
+        ..setDisappearAfter('account-bob', const Duration(seconds: 30));
+
+      await controller.send('account-bob', 'ging raus');
+
+      final sent = store.conversationWith('account-bob')!.messages.last;
+      expect(sent.state, DeliveryState.sent);
+      expect(sent.expiresAt, isNotNull);
+      expect(sent.expiresAt!.difference(DateTime.now()).inSeconds, closeTo(30, 2));
+    });
+  });
 }

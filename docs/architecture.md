@@ -268,7 +268,10 @@ repeated key rather than queueing a second copy (`sent_message_keys`, migration
 007).
 
 **Disappearing messages.** The timer is a number inside the sealed payload.
-The recipient adopts it, both sides compute an `expiresAt` from their own clock,
+The recipient adopts it, both sides compute an `expiresAt` from their own clock
+— the sender's from the moment the server takes the message (`_markSent`, and
+`_attachDelivered` for anything that went through the outbox), never from the
+moment it was written, so a queued or failed message has no expiry at all —
 and `MessageStore.pruneExpired` removes what has run out — on a five-second
 sweep, after every drain, and on restore. It returns the messages it removed
 rather than a count, so the controller can drop their decrypted attachments from
