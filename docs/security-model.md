@@ -956,15 +956,18 @@ naming what is missing today.
    Registering the domains, confirming both TLDs are available, and shipping a
    `privio://` deep link beside them is a launch task; each host is one
    constant, `ChannelService.channelLinkHost` and `groupLinkHost`.
-10. **The web build still fetches emoji glyphs from Google.** The renderer and
-    the typeface now ship inside the build, so a page load announces itself to
-    nobody — but emoji are not in the bundled font, and CanvasKit asks Google's
-    font CDN for the glyphs it lacks. That is a request naming the viewer's
-    address at the moment they open a chat containing an emoji. The fix is a
-    bundled emoji font, which costs ~10 MB; the iOS and Android builds are
-    unaffected because the system supplies emoji, and that is the target
-    platform. Worth re-checking on a real device, where the reaction chips are
-    the first place a missing emoji font would show.
+10. **Nothing here — this one is closed, and was worse than it said.** It used
+    to read: the web build still fetches emoji glyphs from Google, but a page
+    load announces itself to nobody. The second half was false. CanvasKit keeps
+    a default font of its own and downloads it from `fonts.gstatic.com` unless
+    the app's manifest declares a family literally called `Roboto`; ours was
+    called `Privio`, so every page load fetched Roboto from Google 760 ms in,
+    with no interaction and no emoji involved. Declaring the same bundled files
+    under both names stops it. The glyph-fallback base URL is now pinned to the
+    app's own origin as well, so the emoji path cannot reach Google either — it
+    finds nothing there and gives up, which is why emoji still render as empty
+    boxes on the web build. Measured in a browser by watching every request the
+    page makes, before and after.
 11. **No independent audit.** Before any public release, the crypto integration
     needs review by someone who was not involved in writing it.
 
