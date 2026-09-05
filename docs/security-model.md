@@ -510,6 +510,17 @@ other side on the next message, and inventing a packet for it would tell the
 server that something about this conversation changed at this moment, for
 nothing.
 
+**The clock starts when the message reaches the server, not when it was
+written.** On the receiving side it starts on arrival, which is the same moment
+seen from the other end. This is invisible in the ordinary case, where the two
+are a second apart, and it is the whole difference in two cases that are not: a
+recording made with no signal waits in the outbox, and a send that failed sits
+on screen with a retry. A clock started at the keyboard would empty both — the
+queued message vanishing from the sender's own chat before it had been
+anywhere, and then sending regardless; the failed one deleting the retry out
+from under the person about to press it, and taking what they wrote with it.
+Nothing that has not left the device has a timer on it.
+
 Because the timer travels with the message, whoever sends sets it — so **every
 change is announced in the conversation itself**, on both sides: "You set
 disappearing messages to 1 hour", "bob set disappearing messages to 5 minutes".

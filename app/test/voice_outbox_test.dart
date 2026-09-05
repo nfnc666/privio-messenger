@@ -269,6 +269,41 @@ void main() {
     final left = services.store.conversationWith('account-bob')!.messages;
     expect(left.single.isNotice, isTrue);
   });
+
+  test('a queued recording does not start its timer until it is sent', () async {
+    // A recording made with no signal waits in the outbox. A clock started when
+    // it was recorded would run while it waited: the bubble would vanish from
+    // the sender's own chat before the message had been anywhere, and then send
+    // anyway — leaving the recipient with something its sender cannot see.
+    final (services, messaging, _, _) = await buildServices();
+    final controller = ConversationController(services);
+    controller.setDisappearAfter('account-bob', const Duration(seconds: 30));
+
+    messaging.failSends = true;
+    await controller.sendVoice('account-bob', await record());
+    expect(controller.queuedCount, 1);
+
+    final queued = services.store.conversationWith('account-bob')!.messages.last;
+    expect(queued.isVoice, isTrue);
+    expect(queued.expiresAt, isNull, reason: 'it has not been anywhere yet');
+
+    // An hour on a park bench with no signal must not lose it.
+    expect(
+      services.store.pruneExpired(DateTime.now().add(const Duration(hours: 1))),
+      isEmpty,
+    );
+    expect(controller.queuedCount, 1, reason: 'and it is still queued');
+
+    messaging.failSends = false;
+    await controller.flushOutbox();
+
+    final sent = services.store.conversationWith('account-bob')!.messages.last;
+    expect(sent.expiresAt, isNotNull, reason: 'the clock starts on delivery');
+    expect(
+      sent.expiresAt!.difference(DateTime.now()).inSeconds,
+      closeTo(30, 2),
+    );
+  });
 }
 
 bool _contains(Uint8List haystack, Uint8List needle) {
