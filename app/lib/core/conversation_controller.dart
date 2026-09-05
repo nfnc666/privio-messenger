@@ -1140,16 +1140,24 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// Tells the sender their messages arrived. Called after a batch is filed.
-  Future<void> _sendDeliveryReceipts(Map<String, List<String>> byConversation) async {
+  ///
+  /// Always to the author, never to the group: in a group, who has read what is
+  /// between the reader and whoever wrote it, and telling everybody would also
+  /// cost a sealed copy per member device to say so.
+  Future<void> _sendDeliveryReceipts(
+    Map<(String, String?), List<String>> byAuthor,
+  ) async {
     if (!_readReceipts) return;
-    for (final entry in byConversation.entries) {
-      final username = _services.store.conversationWith(entry.key)?.user?.username;
+    for (final entry in byAuthor.entries) {
+      final (senderAccountId, groupId) = entry.key;
+      final username = _services.store.conversationWith(senderAccountId)?.user?.username;
       if (username == null) continue;
       try {
         await _services.messaging.sendReceipt(
           username: username,
           clientIds: entry.value,
           kind: 'delivered',
+          groupId: groupId,
         );
       } on Object {
         // A receipt that did not go out is not worth telling anyone about; the
@@ -1160,14 +1168,33 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// Files a receipt that arrived: moves my own messages forward a state.
-  void _applyReceipt(String conversationId, MessagePayload payload) {
+  ///
+  /// [conversationId] is who it came from; a receipt about group messages names
+  /// the group itself, because the envelope only says who sent it.
+  void _applyReceipt(String senderAccountId, MessagePayload payload) {
     final state = payload.receiptKind == 'read' ? DeliveryState.read : DeliveryState.delivered;
-    final changed = _services.store.markStateByClientIds(
-      conversationId,
-      (payload.receiptIds ?? const []).toSet(),
-      state,
-    );
+    final ids = (payload.receiptIds ?? const []).toSet();
+    final groupId = payload.receiptGroupId;
+
+    final changed = groupId == null
+        ? _services.store.markStateByClientIds(senderAccountId, ids, state)
+        : _services.store.recordGroupReceipt(
+            conversationId: groupId,
+            clientIds: ids,
+            accountId: senderAccountId,
+            state: state,
+            otherMemberCount: _otherMemberCount(groupId),
+          );
     if (changed > 0) _persist();
+  }
+
+  /// Everyone in the group except this account.
+  ///
+  /// Zero when the count is not known yet, which the store reads as "do not
+  /// claim everyone has seen it" rather than as an empty group.
+  int _otherMemberCount(String groupId) {
+    final count = _services.store.conversationWith(groupId)?.group?.memberCount ?? 0;
+    return count > 0 ? count - 1 : 0;
   }
 
   void _applyTyping(String conversationId, MessagePayload payload) {
@@ -1541,12 +1568,16 @@ class ConversationController extends ChangeNotifier {
 
     // What arrived from whom, so one receipt covers a batch rather than one
     // envelope each.
-    final arrived = <String, List<String>>{};
+    // Keyed by who wrote it and, for a group message, which group it was in —
+    // the receipt goes back to the author, and has to say which conversation.
+    final arrived = <(String, String?), List<String>>{};
     for (final incoming in result.messages) {
       await _fileIncoming(incoming);
       final clientId = incoming.payload.clientId;
-      if (clientId != null && !incoming.payload.isControl && incoming.groupId == null) {
-        arrived.putIfAbsent(incoming.senderAccountId, () => []).add(clientId);
+      if (clientId != null && !incoming.payload.isControl) {
+        arrived
+            .putIfAbsent((incoming.senderAccountId, incoming.groupId), () => [])
+            .add(clientId);
       }
     }
     await _raiseKeyChanges();
@@ -2044,20 +2075,37 @@ class ConversationController extends ChangeNotifier {
   /// The receipt names the messages by the sender's own ids, so it means "these
   /// ones", not "everything up to now": the second is a claim this device
   /// cannot honestly make about messages it has not seen.
-  void markRead(String accountId) {
-    final unread = _services.store.unreadClientIds(accountId);
-    _services.store.markRead(accountId);
+  void markRead(String conversationId) {
+    final conversation = _services.store.conversationWith(conversationId);
+    // In a group the unread messages have several authors, and each of them
+    // gets told about their own — one receipt to the group would tell everybody
+    // what one person read.
+    final unread = conversation != null && conversation.isGroup
+        ? _services.store.unreadBySender(conversationId)
+        : {
+            if (conversation?.user?.accountId != null)
+              conversation!.user!.accountId: _services.store.unreadClientIds(conversationId),
+          };
+    _services.store.markRead(conversationId);
     _persist();
     notifyListeners();
 
-    if (!_readReceipts || unread.isEmpty) return;
-    final username = _services.store.conversationWith(accountId)?.user?.username;
-    if (username == null) return;
-    unawaited(
-      _services.messaging
-          .sendReceipt(username: username, clientIds: unread, kind: 'read')
-          .catchError((_) {}),
-    );
+    if (!_readReceipts) return;
+    for (final entry in unread.entries) {
+      if (entry.value.isEmpty) continue;
+      final username = _services.store.conversationWith(entry.key)?.user?.username;
+      if (username == null) continue;
+      unawaited(
+        _services.messaging
+            .sendReceipt(
+              username: username,
+              clientIds: entry.value,
+              kind: 'read',
+              groupId: conversation!.isGroup ? conversationId : null,
+            )
+            .catchError((_) {}),
+      );
+    }
   }
 
   /// Publishes fresh prekeys if the server's pool has run down.

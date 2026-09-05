@@ -724,11 +724,30 @@ sending them and stops it showing other people's. This is the behaviour people
 expect from the setting, and the alternative — seeing without being seen — is a
 different feature that should not hide behind this one's label.
 
+**A group receipt goes to the author, not to the group.** Who has read what is
+between the reader and whoever wrote it; telling everybody would also cost a
+sealed copy per member device to say so. That is why the receipt names the group
+inside the payload — the envelope it rides in says only who sent it, and without
+the name the other side could not tell which conversation the ids belong to.
+
+**In a group the ticks mean everyone.** Two ticks that light up because one of
+seven people opened the app say something that is not true, so each member's
+answer is kept separately and the ticks move only once all of them have got that
+far. Until then the count is on the bubble: "delivered to everybody, read by
+three" is on screen rather than implied. Where the member count is not known
+yet, nothing claims everyone has seen it.
+
 **What they still leak.** A typing notice is traffic: someone watching the
 network learns that a device sent something small to another account at that
 moment, which is a finer-grained timing signal than messages alone. Turning
 typing indicators off removes it. This is worth stating because "it's
-encrypted" does not answer it.
+encrypted" does not answer it. A read receipt is the same signal, and in a
+group there is one per author rather than one per group — a watcher counting
+envelopes learns a little about how many people wrote in it.
+
+**Typing notices are still 1:1.** A notice would have to be fanned out to every
+member device, several times a minute, to say something a group of forty does
+not benefit from knowing; and one that says "somebody" is worse than none.
 
 ## Replies and reactions
 

@@ -139,6 +139,7 @@ class Message {
     this.replyPreview,
     this.replySender,
     this.reactions = const {},
+    this.receipts = const {},
   });
 
   final String id;
@@ -188,6 +189,23 @@ class Message {
   /// somebody changing theirs should replace it, not add to it.
   final Map<String, String> reactions;
 
+  /// In a group, how far each member has got with this message: their account
+  /// id to the furthest state they have reported.
+  ///
+  /// A group has no single answer to "did it arrive", and [state] cannot hold
+  /// one honestly — two ticks that light up because one of seven people opened
+  /// the app say something that is not true. So the per-member answers are kept
+  /// and [state] moves only when everybody has. Empty on a direct message,
+  /// where the two are the same thing.
+  final Map<String, DeliveryState> receipts;
+
+  /// How many members have at least received it.
+  int get deliveredCount => receipts.length;
+
+  /// How many have read it.
+  int get readCount =>
+      receipts.values.where((state) => state == DeliveryState.read).length;
+
   bool get isReply => replyToId != null;
 
   bool get isVoice => kind == MessageKind.voice;
@@ -203,6 +221,7 @@ class Message {
     Attachment? attachment,
     DateTime? expiresAt,
     Map<String, String>? reactions,
+    Map<String, DeliveryState>? receipts,
   }) =>
       Message(
         id: id,
@@ -222,6 +241,7 @@ class Message {
         replyPreview: replyPreview,
         replySender: replySender,
         reactions: reactions ?? this.reactions,
+        receipts: receipts ?? this.receipts,
       );
 }
 

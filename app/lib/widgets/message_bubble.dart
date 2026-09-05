@@ -145,6 +145,20 @@ class MessageBubble extends StatelessWidget {
                 ],
                 if (mine) ...[
                   const SizedBox(width: 4),
+                  // In a group the ticks alone cannot say what happened, so the
+                  // count goes beside them until everyone has caught up.
+                  if (message.receipts.isNotEmpty &&
+                      message.state != DeliveryState.read) ...[
+                    Text(
+                      '${message.readCount > 0 ? message.readCount : message.deliveredCount}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: message.readCount > 0
+                            ? PrivioColors.accentBright
+                            : PrivioColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                  ],
                   _DeliveryTicks(state: message.state),
                 ],
               ],
@@ -280,6 +294,12 @@ class _FileRow extends StatelessWidget {
 }
 
 /// Sent is a single grey tick, delivered two, read two in accent green.
+/// The tick marks beside an outgoing message.
+///
+/// In a group they move only once *everyone* has got that far: two ticks that
+/// light up because one of seven people opened the app say something that is
+/// not true. Until then the bubble carries a count instead, so "three of them
+/// have seen it" is on screen rather than implied.
 class _DeliveryTicks extends StatelessWidget {
   const _DeliveryTicks({required this.state});
 

@@ -176,7 +176,8 @@ class MessagePayload {
         mediaToken = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -212,7 +213,8 @@ class MessagePayload {
         mediaToken = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// A reaction to one message.
   ///
@@ -247,7 +249,8 @@ class MessagePayload {
         mediaToken = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// A request to take a message back.
   ///
@@ -284,7 +287,8 @@ class MessagePayload {
         replySender = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// "Start again — I cannot read what you are sending."
   ///
@@ -296,6 +300,7 @@ class MessagePayload {
   /// working ratchet. Nothing about it is shown to either person.
   const MessagePayload.sessionReset()
       : sessionReset = true,
+        receiptGroupId = null,
         body = '',
         mediaId = null,
         mediaKey = null,
@@ -332,6 +337,7 @@ class MessagePayload {
   const MessagePayload.receipt({
     required List<String> this.receiptIds,
     required String this.receiptKind,
+    this.receiptGroupId,
   })  : body = '',
         mediaId = null,
         mediaKey = null,
@@ -389,7 +395,8 @@ class MessagePayload {
         mediaToken = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -419,7 +426,8 @@ class MessagePayload {
         deleteTo = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// One step in setting up, or tearing down, a call.
   ///
@@ -455,7 +463,8 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         mediaToken = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   /// A copy of something this account sent, for its own other devices.
   ///
@@ -488,7 +497,8 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        receiptGroupId = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -536,6 +546,7 @@ class MessagePayload {
       return MessagePayload.receipt(
         receiptIds: (json['ri'] as List<dynamic>? ?? const []).cast<String>(),
         receiptKind: json['rk'] as String? ?? 'delivered',
+        receiptGroupId: json['rg'] as String?,
       );
     }
     if (json['t'] == 'typing') {
@@ -684,6 +695,14 @@ class MessagePayload {
   /// True on the payload that asks the other side to start a new session.
   final bool sessionReset;
 
+  /// On a receipt for group messages: which group they were in.
+  ///
+  /// The receipt itself is addressed to the author, not to the group — who read
+  /// what is nobody else's business, and fanning it out would cost a copy per
+  /// device to say so. Which means it has to name the conversation, because the
+  /// envelope it rides in says only who sent it.
+  final String? receiptGroupId;
+
   /// A copy of an outgoing message, for this account's own other devices.
   final SyncEnvelope? sync;
 
@@ -787,7 +806,11 @@ class MessagePayload {
         if (clientId != null) 'ci': clientId,
         if (isSync) 'sy': sync!.toJson(),
         if (isCall) 'cl': call!.toJson(),
-        if (isReceipt) ...{'ri': receiptIds, 'rk': receiptKind},
+        if (isReceipt) ...{
+          'ri': receiptIds,
+          'rk': receiptKind,
+          if (receiptGroupId != null) 'rg': receiptGroupId,
+        },
         if (isTyping) 'ta': typingAt,
         if (isDeletion) 'dt': deleteTo,
         if (isReaction) ...{'rt': reactionTo, 're': reactionEmoji},
