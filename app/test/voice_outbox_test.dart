@@ -249,7 +249,10 @@ void main() {
 
     await controller.sendVoice('account-bob', await record());
 
-    final message = services.store.conversationWith('account-bob')!.messages.single;
+    // Setting the timer writes its own line into the chat, so the voice message
+    // is the last thing here rather than the only thing.
+    final message = services.store.conversationWith('account-bob')!.messages.last;
+    expect(message.isVoice, isTrue);
     expect(message.expiresAt, isNotNull);
     expect(
       message.expiresAt!.difference(DateTime.now()).inSeconds,
@@ -257,8 +260,14 @@ void main() {
     );
 
     // And it goes when its time is up.
-    expect(services.store.pruneExpired(DateTime.now().add(const Duration(minutes: 1))), 1);
-    expect(services.store.conversationWith('account-bob')!.messages, isEmpty);
+    expect(
+      services.store.pruneExpired(DateTime.now().add(const Duration(minutes: 1))),
+      hasLength(1),
+    );
+    // The notice stays: it is the record that the rule changed, and a record
+    // that deletes itself under the rule it describes explains nothing.
+    final left = services.store.conversationWith('account-bob')!.messages;
+    expect(left.single.isNotice, isTrue);
   });
 }
 

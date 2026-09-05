@@ -995,7 +995,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Voice messages** | ✅ | Hold to record, slide to cancel, pause, preview, 1x/1.5x/2x; sealed before upload |
 | **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches, 1:1 |
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
-| **Disappearing messages** | ✅ | Per chat, agreed end to end; the server is never asked |
+| **Disappearing messages** | ✅ | Per chat and per group, agreed end to end; every change announced in the chat; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
 | **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
 | **STUN / TURN** | ✅ | Configured on the server and handed to clients, with time-limited TURN credentials that name no account. Privio runs no relay of its own — a deployment points at its own, or at none |
@@ -1159,7 +1159,10 @@ disk.
 
 **Disappearing messages are an agreement, not a request to the server.** The
 timer travels inside each sealed payload; both devices adopt it and delete on
-their own clocks. Asking a server to forget something is trusting it to.
+their own clocks. Asking a server to forget something is trusting it to. Every
+change to the timer is announced in the chat on both sides — a conversation that
+quietly starts deleting itself is the one way this can hurt the person using
+it — and an expired message takes its decrypted attachment with it.
 
 **File names never leave the encrypted envelope.** `passport_scan.pdf` travels
 inside the sealed message next to the key, never beside the upload.

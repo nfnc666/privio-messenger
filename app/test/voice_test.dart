@@ -240,7 +240,10 @@ void main() {
       expect(store.conversationWith('account-bob')!.messages, hasLength(2));
 
       final removed = store.pruneExpired(DateTime(2026, 1, 1, 13));
-      expect(removed, 1);
+      // The messages themselves come back, not a count: the caller has to be
+      // able to forget the file that went with each one.
+      expect(removed, hasLength(1));
+      expect(removed.single.isVoice, isTrue);
       final left = store.conversationWith('account-bob')!.messages;
       expect(left, hasLength(1));
       expect(left.single.body, 'bleibt');

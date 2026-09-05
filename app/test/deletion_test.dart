@@ -66,16 +66,22 @@ class ScriptedMessaging extends MessagingService {
   }
 }
 
-Future<(PrivioServices, ScriptedMessaging)> buildServices(InMemoryMessageStore store) async {
+/// [client] lets a test that needs the server to answer something supply it;
+/// the default refuses everything, which is what most of these want.
+Future<(PrivioServices, ScriptedMessaging)> buildServices(
+  InMemoryMessageStore store, {
+  http.Client? client,
+}) async {
   final api = PrivioApiClient(
     baseUrl: Uri.parse('https://api.test'),
-    client: MockClient(
-      (request) async => http.Response(
-        jsonEncode({'error': 'not_found', 'message': request.url.path}),
-        404,
-        headers: {'content-type': 'application/json'},
-      ),
-    ),
+    client: client ??
+        MockClient(
+          (request) async => http.Response(
+            jsonEncode({'error': 'not_found', 'message': request.url.path}),
+            404,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
   )..useToken('token');
   final crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
   final messaging = ScriptedMessaging(api: api, crypto: crypto);

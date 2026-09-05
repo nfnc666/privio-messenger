@@ -50,6 +50,14 @@ enum MessageKind {
   /// What is left after someone took a message back. It keeps its place in the
   /// conversation and carries nothing else.
   deleted,
+
+  /// A line the app writes itself, to record something that changed about the
+  /// conversation rather than something somebody said — today, only the
+  /// disappearing-message timer.
+  ///
+  /// It is never sent anywhere: both sides write their own from the same fact,
+  /// which is also why it carries no sender and no client id.
+  notice,
 }
 
 /// An attachment a message points at.
@@ -175,6 +183,10 @@ class Message {
   bool get isReply => replyToId != null;
 
   bool get isVoice => kind == MessageKind.voice;
+
+  /// A line about the conversation rather than in it. Not a bubble, not unread,
+  /// not something to reply to, react to, search or take back.
+  bool get isNotice => kind == MessageKind.notice;
 
   bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
 

@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/conversation_controller.dart';
 import '../data/message_store.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
+import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
@@ -61,6 +63,23 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     final mine = _members?.where((m) => m.accountId == me);
     if (mine != null && mine.isNotEmpty) return mine.first.isAdmin;
     return state.conversations.groupInfo(widget.groupId)?.role == 'admin';
+  }
+
+  /// Sets the group's disappearing-message timer.
+  ///
+  /// Any member, not only an admin: the machinery is the sender's number riding
+  /// inside each sealed payload, so a member who wants their own messages to go
+  /// can already make that happen — and a permission the protocol cannot
+  /// enforce is a lock drawn on the screen with nothing behind it. Everyone is
+  /// told when it changes, which is the honest version of the same protection.
+  Future<void> _chooseTimer(AppState state) async {
+    final chosen = await DisappearingTimerSheet.choose(
+      context,
+      current: state.conversations.disappearAfter(widget.groupId),
+      isGroup: true,
+    );
+    if (chosen == null || !mounted) return;
+    state.conversations.setDisappearAfter(widget.groupId, chosen.value);
   }
 
   Future<void> _rename(AppState state) async {
@@ -257,6 +276,20 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                               )
                             : null,
                       ),
+                  ],
+                ),
+                const SizedBox(height: PrivioSpacing.xl),
+                SettingsSection(
+                  children: [
+                    SettingsRow(
+                      icon: Icons.timer_outlined,
+                      label: 'Disappearing messages',
+                      value: switch (state.conversations.disappearAfter(widget.groupId)) {
+                        final timer? => ConversationController.describeTimer(timer),
+                        null => 'Off',
+                      },
+                      onTap: () => unawaited(_chooseTimer(state)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: PrivioSpacing.xl),

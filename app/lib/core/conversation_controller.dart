@@ -1037,6 +1037,8 @@ class ConversationController extends ChangeNotifier {
       MessageKind.video => 'Video',
       MessageKind.file => message.attachment?.fileName ?? 'File',
       MessageKind.deleted => 'Deleted message',
+      // Never reached: a notice always has a body, and nothing replies to one.
+      MessageKind.notice => '',
       MessageKind.text => '',
     };
   }
@@ -1400,16 +1402,83 @@ class ConversationController extends ChangeNotifier {
   /// Sets the timer for a chat. It takes effect on messages sent from now on:
   /// the number rides inside each sealed payload, so the other side adopts it
   /// without the server being told anything.
+  ///
+  /// The other side learns of it from the next message, not from this call —
+  /// there is no separate "timer changed" packet to send, and inventing one
+  /// would tell the server that something about this conversation changed at
+  /// this moment for no gain.
   void setDisappearAfter(String conversationId, Duration? timer) {
+    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return;
     _services.store.setDisappearAfter(conversationId, timer);
+    _noteTimerChange(conversationId, timer, by: null);
     _persist();
     notifyListeners();
+  }
+
+  /// Writes the line that records a timer change.
+  ///
+  /// A chat that quietly starts deleting itself is the one way this feature can
+  /// hurt someone: they keep writing, and what they wrote is gone. So every
+  /// change says so, in the conversation, where they are already looking —
+  /// including the changes that arrive from the other side.
+  ///
+  /// [by] is who made the change, or null for this account.
+  void _noteTimerChange(String conversationId, Duration? timer, {required String? by}) {
+    final who = by ?? 'You';
+    final what = timer == null
+        ? 'turned disappearing messages off'
+        : 'set disappearing messages to ${describeTimer(timer)}';
+    _services.store.append(
+      conversationId,
+      Message(
+        // Not a client id: a notice is written independently on each device
+        // from the same fact, never sent, and so never deduplicated against
+        // another device's copy.
+        id: 'notice-${DateTime.now().microsecondsSinceEpoch}',
+        body: '$who $what.',
+        sentAt: DateTime.now(),
+        isMine: by == null,
+        kind: MessageKind.notice,
+        // Deliberately no expiry of its own. The notice is the record that the
+        // rule changed; a record that deletes itself under the rule it
+        // describes leaves a history nobody can account for.
+      ),
+    );
+  }
+
+  /// How a timer reads in a sentence. One place, because it appears in the
+  /// chooser, in the notice it writes, and in the chat's own header.
+  static String describeTimer(Duration timer) {
+    if (timer.inDays >= 7 && timer.inDays % 7 == 0) {
+      final weeks = timer.inDays ~/ 7;
+      return weeks == 1 ? '1 week' : '$weeks weeks';
+    }
+    if (timer.inHours >= 24 && timer.inHours % 24 == 0) {
+      final days = timer.inDays;
+      return days == 1 ? '1 day' : '$days days';
+    }
+    if (timer.inMinutes >= 60 && timer.inMinutes % 60 == 0) {
+      final hours = timer.inHours;
+      return hours == 1 ? '1 hour' : '$hours hours';
+    }
+    if (timer.inSeconds >= 60 && timer.inSeconds % 60 == 0) {
+      final minutes = timer.inMinutes;
+      return minutes == 1 ? '1 minute' : '$minutes minutes';
+    }
+    return '${timer.inSeconds} seconds';
   }
 
   /// Deletes whatever has run out. Runs on a timer and after every drain,
   /// because a message that expired while the app was closed must not reappear.
   void pruneExpired() {
-    if (_services.store.pruneExpired(DateTime.now()) == 0) return;
+    final gone = _services.store.pruneExpired(DateTime.now());
+    if (gone.isEmpty) return;
+    // A message whose time ran out has to take its file with it. Without this
+    // the bubble disappears while the photo it carried stays decrypted in
+    // memory, one tap away in the gallery for the rest of the session.
+    for (final message in gone) {
+      _forgetAttachment(message);
+    }
     _persist();
     notifyListeners();
   }
@@ -1529,7 +1598,11 @@ class ConversationController extends ChangeNotifier {
         ),
       );
     }
-    _adoptTimer(incoming.senderAccountId, payload);
+    _adoptTimer(
+      incoming.senderAccountId,
+      payload,
+      by: _services.store.conversationWith(incoming.senderAccountId)?.user?.label ?? 'They',
+    );
     _services.store.append(
       incoming.senderAccountId,
       _incomingMessage(incoming.senderAccountId, incoming),
@@ -1670,12 +1743,15 @@ class ConversationController extends ChangeNotifier {
   ///
   /// A timer only works if both sides keep it, and the sender is the one who
   /// chose it — so it travels with the message rather than being negotiated.
-  void _adoptTimer(String conversationId, MessagePayload payload) {
+  /// [by] names who changed it, for the notice. Null means this account's own
+  /// other device, which reads the same as changing it here.
+  void _adoptTimer(String conversationId, MessagePayload payload, {String? by}) {
     final seconds = payload.expiresInSeconds;
     final current = _services.store.conversationWith(conversationId)?.disappearAfter;
     final incoming = seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
     if (incoming == current) return;
     _services.store.setDisappearAfter(conversationId, incoming);
+    _noteTimerChange(conversationId, incoming, by: by);
   }
 
   /// Files a key that someone sealed to this device after it joined by a link.
@@ -1724,7 +1800,7 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
-    _adoptTimer(groupId, incoming.payload);
+    _adoptTimer(groupId, incoming.payload, by: senderName ?? 'Someone');
     _services.store.append(
       groupId,
       _incomingMessage(groupId, incoming, senderName: senderName ?? 'Someone'),

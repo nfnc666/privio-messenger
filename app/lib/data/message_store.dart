@@ -238,8 +238,12 @@ abstract interface class MessageStore {
     required bool tombstone,
   });
 
-  /// Drops every message whose timer has run out. Returns how many went.
-  int pruneExpired(DateTime now);
+  /// Drops every message whose timer has run out.
+  ///
+  /// Returns the messages that went, rather than a count: the caller has to be
+  /// able to forget what was decrypted from them, and a number cannot say which
+  /// files those were.
+  List<Message> pruneExpired(DateTime now);
 
   /// Forgets one conversation entirely — used when the other side is blocked,
   /// where a chat that can never grow again would only be clutter.
@@ -334,7 +338,10 @@ class InMemoryMessageStore implements MessageStore {
     }
 
     conversation.messages.add(message);
-    if (!message.isMine) conversation.unreadCount += 1;
+    // A notice is not something anyone sent, so it is not something anyone has
+    // to read: a chat badge for "the timer changed" would be a badge for a
+    // message that is not there.
+    if (!message.isMine && !message.isNotice) conversation.unreadCount += 1;
   }
 
   @override
@@ -447,12 +454,14 @@ class InMemoryMessageStore implements MessageStore {
       ];
 
   @override
-  int pruneExpired(DateTime now) {
-    var removed = 0;
+  List<Message> pruneExpired(DateTime now) {
+    final removed = <Message>[];
     for (final conversation in _conversations.values) {
-      final before = conversation.messages.length;
-      conversation.messages.removeWhere((message) => message.hasExpiredAt(now));
-      removed += before - conversation.messages.length;
+      conversation.messages.removeWhere((message) {
+        if (!message.hasExpiredAt(now)) return false;
+        removed.add(message);
+        return true;
+      });
     }
     return removed;
   }
