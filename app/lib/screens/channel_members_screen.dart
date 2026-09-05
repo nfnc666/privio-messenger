@@ -65,15 +65,19 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
       listenable: controller,
       builder: (context, _) {
         final members = controller.membersOf(widget.channel.id);
+        final complete = controller.membersAreComplete(widget.channel.id);
 
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: const Text('Members'),
+            title: Text(complete ? 'Members' : 'Who runs this channel'),
           ),
           body: ListView.builder(
-            itemCount: members.length,
+            // The note is a row of its own so it scrolls with the list rather
+            // than sitting above it as a banner nobody reads twice.
+            itemCount: members.length + (complete ? 0 : 1),
             itemBuilder: (context, index) {
+              if (!complete && index == members.length) return const _AudienceNote();
               final member = members[index];
               final editable = canManage && !member.isOwner && member.id != state.accountId;
 
@@ -306,4 +310,40 @@ class _Toggle extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Why a subscriber is not shown everybody.
+///
+/// Saying nothing would be the worse choice: a short list of admins looks like
+/// a small channel, and a reader deciding whether to post something personal
+/// deserves to know the roster is not on offer to the person beside them either.
+class _AudienceNote extends StatelessWidget {
+  const _AudienceNote();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          PrivioSpacing.gutter,
+          PrivioSpacing.lg,
+          PrivioSpacing.gutter,
+          PrivioSpacing.xl,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.shield_outlined, size: 18, color: PrivioColors.textSecondary),
+            const SizedBox(width: PrivioSpacing.sm),
+            Expanded(
+              child: Text(
+                'Only the people who run this channel are listed. Who reads it '
+                'is not shown to other readers — including you.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: PrivioColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
 }

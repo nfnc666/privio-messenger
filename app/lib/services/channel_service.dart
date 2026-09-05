@@ -199,12 +199,21 @@ class ChannelService {
     await forgetKey(channelId);
   }
 
-  Future<List<ChannelMember>> members(String channelId) async {
+  /// Who is in a channel — and whether that is all of them.
+  ///
+  /// A subscriber is answered with the people who run the channel and their own
+  /// row, not the audience; only a member who may manage members gets the whole
+  /// list. `complete` is the server saying which of the two this is, so the
+  /// screen can say so too rather than passing a staff list off as everybody.
+  Future<({List<ChannelMember> members, bool complete})> members(String channelId) async {
     final response = await _api.channelMembers(channelId);
-    return [
-      for (final raw in response['members'] as List<dynamic>? ?? const [])
-        ChannelMember.fromJson(raw as Map<String, dynamic>),
-    ];
+    return (
+      members: [
+        for (final raw in response['members'] as List<dynamic>? ?? const [])
+          ChannelMember.fromJson(raw as Map<String, dynamic>),
+      ],
+      complete: response['complete'] as bool? ?? false,
+    );
   }
 
   /// Appoints or demotes. The server rejects granting anything the caller does
