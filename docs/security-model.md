@@ -341,6 +341,29 @@ until the new number has been put in front of the user. Tested in
 `app/test/safety_number_test.dart` (`a key that arrives with a message is
 reported, not swallowed`).
 
+**A session that has gone out of step repairs itself, and says so first.** An
+envelope that will not decrypt cannot be retried — the same bytes fail the same
+way — and the failure is not symmetric: the sender's screen says delivered while
+the recipient sees nothing at all. So the conversation is given a line saying a
+message could not be read, for the same reason a deletion leaves a tombstone: a
+silent gap in a transcript reads as an answer nobody gave.
+
+The session is then rebuilt. The side that could not read deletes its session
+with that device and sends a payload that carries nothing — with no session left
+it goes out as a prekey message from a fresh bundle, and the other side archives
+its old state on receiving it, so one message puts both directions back on a
+working ratchet. Nothing already lost is recovered by this; what it buys is that
+the conversation does not stay dead. It is rate-limited to one per device per
+hour: a reset consumes one of the other side's one-time prekeys, and a batch of
+failed envelopes must not become a batch of handshakes.
+
+This is a repair, not a downgrade. The new session is a full X3DH handshake
+against the server's published bundle, subject to the same identity pinning as
+any other — a server that answered with its own key would still be caught by the
+safety number. And it is not a licence for the server to break sessions on
+purpose: doing so destroys messages and shows the user that it happened, which
+is the opposite of a quiet attack.
+
 ## Safety numbers
 
 Everything above takes the server's word for whose key is whose. The safety

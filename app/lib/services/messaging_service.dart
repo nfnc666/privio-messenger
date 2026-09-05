@@ -49,11 +49,26 @@ typedef SentAttachment = ({
 ///
 /// Surfaced rather than swallowed: a message that will not open is a fact the
 /// user needs, whether it means a lost session or a tampered envelope.
+/// An envelope that arrived and could not be opened.
+///
+/// Carries where it came from as well as why: a message that cannot be read is
+/// still a message somebody sent, and the conversation it belongs to is the one
+/// place a hole in the transcript can honestly be shown. The device index is
+/// what a session reset needs — the session that broke is with one device, not
+/// with an account.
 class UndecryptableMessage {
-  const UndecryptableMessage(this.envelopeId, this.senderAccountId, this.reason);
+  const UndecryptableMessage(
+    this.envelopeId,
+    this.senderAccountId,
+    this.reason, {
+    this.senderDeviceIndex,
+    this.groupId,
+  });
 
   final int envelopeId;
   final String? senderAccountId;
+  final int? senderDeviceIndex;
+  final String? groupId;
   final Object reason;
 }
 
@@ -504,6 +519,7 @@ class MessagingService {
             envelopeId,
             senderAccountId,
             StateError('Envelope has no identifiable sender device'),
+            groupId: envelope['groupId'] as String?,
           ),
         );
         highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
@@ -529,7 +545,15 @@ class MessagingService {
       } on Object catch (error) {
         // Retrying will not help — the same bytes will fail the same way — so
         // acknowledge it and report it rather than blocking the queue forever.
-        failures.add(UndecryptableMessage(envelopeId, senderAccountId, error));
+        failures.add(
+          UndecryptableMessage(
+            envelopeId,
+            senderAccountId,
+            error,
+            senderDeviceIndex: senderDeviceIndex,
+            groupId: envelope['groupId'] as String?,
+          ),
+        );
       }
       highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
     }

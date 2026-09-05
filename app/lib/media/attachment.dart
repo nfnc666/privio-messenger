@@ -175,7 +175,8 @@ class MessagePayload {
         reactionEmoji = null,
         mediaToken = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -210,7 +211,8 @@ class MessagePayload {
         replySender = null,
         mediaToken = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   /// A reaction to one message.
   ///
@@ -244,7 +246,8 @@ class MessagePayload {
         replySender = null,
         mediaToken = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   /// A request to take a message back.
   ///
@@ -275,6 +278,45 @@ class MessagePayload {
         receiptKind = null,
         typingAt = null,
         reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false;
+
+  /// "Start again — I cannot read what you are sending."
+  ///
+  /// Sent by the side whose session broke, after it has deleted that session
+  /// locally. It carries nothing: the repair is the *act* of sending it. With
+  /// no session left, this goes out as a prekey message built from a fresh
+  /// bundle, and the Signal library archives the old state on the other side
+  /// the moment it arrives — so one payload puts both directions back on a
+  /// working ratchet. Nothing about it is shown to either person.
+  const MessagePayload.sessionReset()
+      : sessionReset = true,
+        body = '',
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        deleteTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -314,7 +356,8 @@ class MessagePayload {
         replySender = null,
         mediaToken = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
   /// — delivered late, or after the app was closed — can be recognised as stale
@@ -345,7 +388,8 @@ class MessagePayload {
         replySender = null,
         mediaToken = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -374,7 +418,8 @@ class MessagePayload {
         reactionEmoji = null,
         deleteTo = null,
         sync = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   /// One step in setting up, or tearing down, a call.
   ///
@@ -409,7 +454,8 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
-        mediaToken = null;
+        mediaToken = null,
+        sessionReset = false;
 
   /// A copy of something this account sent, for its own other devices.
   ///
@@ -441,7 +487,8 @@ class MessagePayload {
         replyToId = null,
         replyPreview = null,
         replySender = null,
-        call = null;
+        call = null,
+        sessionReset = false;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -472,6 +519,9 @@ class MessagePayload {
       return MessagePayload.callSignal(
         CallSignal.fromJson((json['cl'] as Map<String, dynamic>?) ?? const {}),
       );
+    }
+    if (json['t'] == 'reset') {
+      return const MessagePayload.sessionReset();
     }
     if (json['t'] == 'delete') {
       return MessagePayload.deletion(json['dt'] as String? ?? '');
@@ -631,6 +681,9 @@ class MessagePayload {
   /// The call signal this payload carries, if it carries one.
   final CallSignal? call;
 
+  /// True on the payload that asks the other side to start a new session.
+  final bool sessionReset;
+
   /// A copy of an outgoing message, for this account's own other devices.
   final SyncEnvelope? sync;
 
@@ -683,6 +736,7 @@ class MessagePayload {
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
+  bool get isSessionReset => sessionReset;
 
   /// True when the reaction takes one back rather than adding one.
   bool get clearsReaction => isReaction && (reactionEmoji ?? '').isEmpty;
@@ -696,6 +750,7 @@ class MessagePayload {
       isKeyDelivery ||
       isCall ||
       isSync ||
+      isSessionReset ||
       isDeletion;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
@@ -712,6 +767,7 @@ class MessagePayload {
   /// conditional, and each new payload kind made it harder to see that exactly
   /// one branch can win.
   String get _typeTag {
+    if (isSessionReset) return 'reset';
     if (isSync) return 'sync';
     if (isCall) return 'call';
     if (isDeletion) return 'delete';
