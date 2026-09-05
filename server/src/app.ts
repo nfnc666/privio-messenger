@@ -132,8 +132,8 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));
-  await app.register(groupRoutes);
-  await app.register(channelRoutes);
+  await app.register(groupRoutes(deps.bus));
+  await app.register(channelRoutes(deps.bus));
   await app.register(licenseRoutes);
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));

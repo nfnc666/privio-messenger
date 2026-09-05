@@ -71,6 +71,11 @@ class ConversationController extends ChangeNotifier {
   Future<void>? _flushing;
   bool _flushAgain = false;
   StreamSubscription<List<dynamic>>? _realtimeEnvelopes;
+  StreamSubscription<void>? _realtimeKeyRequests;
+
+  /// Run when somebody is waiting for a key this device might hold. Set by the
+  /// app so channels can answer too, since their keys live elsewhere.
+  Future<void> Function()? onKeyRequest;
   Timer? _saveDebounce;
   bool _draining = false;
 
@@ -290,6 +295,12 @@ class ConversationController extends ChangeNotifier {
     );
     _realtime = realtime;
     _realtimeEnvelopes = realtime.envelopes.listen(_onPushedEnvelopes);
+    // Nothing to read: somebody is waiting for a key. Answering on the poll
+    // instead would leave them looking at a group they cannot name for it.
+    _realtimeKeyRequests = realtime.keyRequests.listen((_) {
+      unawaited(_maintainGroupKeys());
+      unawaited(onKeyRequest?.call() ?? Future<void>.value());
+    });
     realtime.start();
   }
 
@@ -315,6 +326,8 @@ class ConversationController extends ChangeNotifier {
     _typingSweep = null;
     unawaited(_realtimeEnvelopes?.cancel());
     _realtimeEnvelopes = null;
+    unawaited(_realtimeKeyRequests?.cancel());
+    _realtimeKeyRequests = null;
     unawaited(_realtime?.close());
     _realtime = null;
   }

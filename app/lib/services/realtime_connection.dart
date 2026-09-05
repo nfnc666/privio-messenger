@@ -34,10 +34,18 @@ class RealtimeConnection {
   static const Duration heartbeatInterval = Duration(seconds: 45);
 
   final _envelopes = StreamController<List<dynamic>>.broadcast();
+  final _keyRequests = StreamController<void>.broadcast();
   final _connected = ValueNotifier<bool>(false);
 
   /// Batches of envelopes as the server pushes them, still encrypted.
   Stream<List<dynamic>> get envelopes => _envelopes.stream;
+
+  /// "Somebody in a group or channel you are in is waiting for its key."
+  ///
+  /// Carries nothing: what to do about it is entirely this device's business,
+  /// and the server could not say more if it wanted to — it has never had a
+  /// key to talk about.
+  Stream<void> get keyRequests => _keyRequests.stream;
 
   /// Whether the socket is currently up, for a connection indicator.
   ValueListenable<bool> get connected => _connected;
@@ -104,6 +112,8 @@ class RealtimeConnection {
       case 'envelopes':
         final batch = frame['envelopes'] as List<dynamic>? ?? const [];
         if (batch.isNotEmpty) _envelopes.add(batch);
+      case 'key-request':
+        _keyRequests.add(null);
       case 'error':
         // The server refuses the token: reconnecting with it will not help.
         if (frame['code'] == 'unauthorized') close();
@@ -148,5 +158,6 @@ class RealtimeConnection {
     _teardown();
     _connected.value = false;
     await _envelopes.close();
+    await _keyRequests.close();
   }
 }

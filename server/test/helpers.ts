@@ -14,6 +14,7 @@ export interface TestHarness {
   app: FastifyInstance;
   push: LoggingPushSender;
   storage: LocalFileStorage;
+  bus: InProcessBus;
   close: () => Promise<void>;
 }
 
@@ -35,6 +36,7 @@ export async function createHarness(
     app,
     push,
     storage,
+    bus,
     close: async () => {
       await app.close();
       await bus.close();

@@ -3,13 +3,29 @@ import type { Redis } from 'ioredis';
 import { config } from '../config.js';
 
 /**
- * Notifies a device's live WebSocket connection that new envelopes are queued.
- * The payload is a device id only — envelope bodies are read from Postgres by
- * the connection that owns the socket, so ciphertext never rides the bus.
+ * What a wake-up is about.
+ *
+ * `envelopes` is the usual one: something is queued, read it. `key-request`
+ * carries nothing to read — it means somebody in a group or channel this
+ * device belongs to is waiting for its key, and the device should run the
+ * housekeeping it would otherwise have run on its next poll.
+ */
+export type WakeKind = 'envelopes' | 'key-request';
+
+export interface Wake {
+  deviceId: string;
+  kind: WakeKind;
+}
+
+/**
+ * Notifies a device's live WebSocket connection that there is something to do.
+ * The payload is a device id and a reason — envelope bodies are read from
+ * Postgres by the connection that owns the socket, so ciphertext never rides
+ * the bus, and neither does a key.
  */
 export interface DeliveryBus {
-  publish(deviceId: string): Promise<void>;
-  subscribe(listener: (deviceId: string) => void): () => void;
+  publish(wake: Wake): Promise<void>;
+  subscribe(listener: (wake: Wake) => void): () => void;
   close(): Promise<void>;
 }
 
@@ -19,11 +35,11 @@ const CHANNEL = 'privio:wake';
 export class InProcessBus implements DeliveryBus {
   private readonly emitter = new EventEmitter().setMaxListeners(0);
 
-  async publish(deviceId: string): Promise<void> {
-    this.emitter.emit(CHANNEL, deviceId);
+  async publish(wake: Wake): Promise<void> {
+    this.emitter.emit(CHANNEL, wake);
   }
 
-  subscribe(listener: (deviceId: string) => void): () => void {
+  subscribe(listener: (wake: Wake) => void): () => void {
     this.emitter.on(CHANNEL, listener);
     return () => this.emitter.off(CHANNEL, listener);
   }
@@ -43,15 +59,22 @@ export class RedisBus implements DeliveryBus {
   ) {
     void this.subscriber.subscribe(CHANNEL);
     this.subscriber.on('message', (channel: string, message: string) => {
-      if (channel === CHANNEL) void this.local.publish(message);
+      if (channel !== CHANNEL) return;
+      try {
+        void this.local.publish(JSON.parse(message) as Wake);
+      } catch {
+        // A frame this node cannot parse is a frame from a version it does not
+        // know. Dropping it loses a wake-up, not a message: the queue is still
+        // there for the next poll.
+      }
     });
   }
 
-  async publish(deviceId: string): Promise<void> {
-    await this.publisher.publish(CHANNEL, deviceId);
+  async publish(wake: Wake): Promise<void> {
+    await this.publisher.publish(CHANNEL, JSON.stringify(wake));
   }
 
-  subscribe(listener: (deviceId: string) => void): () => void {
+  subscribe(listener: (wake: Wake) => void): () => void {
     return this.local.subscribe(listener);
   }
 

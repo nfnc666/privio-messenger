@@ -238,4 +238,53 @@ describe('groups', () => {
     });
     assert.equal(pending.json().requests.length, 0);
   });
+
+  it('wakes the members who could answer a key request', async () => {
+    const group = (await createGroup(alice, [bob.accountId])).json();
+
+    const woken: string[] = [];
+    const kinds: string[] = [];
+    const unsubscribe = h.bus.subscribe((wake) => {
+      if (wake.kind !== 'key-request') return;
+      woken.push(wake.deviceId);
+      kinds.push(wake.kind);
+    });
+
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/groups/${group.id}/key-requests`,
+      headers: bearer(bob),
+    });
+    unsubscribe();
+
+    // Alice holds the key and is told at once. Without this the request waits
+    // for her client's own poll, which is two minutes.
+    assert.ok(woken.includes(alice.deviceId), 'the key holder is woken');
+    assert.ok(
+      !woken.includes(bob.deviceId),
+      'the device that asked cannot answer itself',
+    );
+    assert.deepEqual([...new Set(kinds)], ['key-request']);
+  });
+
+  it('wakes nobody outside the group', async () => {
+    const group = (await createGroup(alice, [])).json();
+
+    const woken: string[] = [];
+    const unsubscribe = h.bus.subscribe((wake) => {
+      if (wake.kind === 'key-request') woken.push(wake.deviceId);
+    });
+    await h.app.inject({
+      method: 'POST',
+      url: `/v1/groups/${group.id}/key-requests`,
+      headers: bearer(alice),
+    });
+    unsubscribe();
+
+    assert.deepEqual(
+      woken.filter((id) => id === carol.deviceId),
+      [],
+      'somebody who is not in the group learns nothing about it',
+    );
+  });
 });

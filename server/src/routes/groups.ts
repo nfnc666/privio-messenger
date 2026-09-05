@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction } from '../db/pool.js';
+import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
@@ -11,6 +12,7 @@ import {
   clearKeyRequestsFor,
   pendingKeyRequests,
   recordKeyRequest,
+  wakeKeyHolders,
 } from '../services/key_requests.js';
 
 const MAX_MEMBERS = 512;
@@ -49,7 +51,8 @@ async function membersOf(groupId: string) {
  * group's name, avatar and history live only in `encrypted_metadata` and in the
  * ciphertext the members exchange.
  */
-const groupRoutes: FastifyPluginAsync = async (app) => {
+/// Takes the bus so a key request can wake the devices that could answer it.
+const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
   // Creating something new is gated on a license where the deployment sells
   // access; reading and joining are not.
@@ -342,6 +345,7 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
       [params.id, accountId],
     );
     await recordKeyRequest('group', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'group', params.id, deviceId);
     return { joined: (rowCount ?? 0) > 0, members: await membersOf(params.id) };
   });
 
@@ -352,6 +356,7 @@ const groupRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMembership(params.id, accountId);
     await recordKeyRequest('group', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'group', params.id, deviceId);
     return { requested: true };
   });
 

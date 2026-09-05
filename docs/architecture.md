@@ -415,10 +415,16 @@ Signing in on a *second* device joins nothing, so nothing recorded a request
 for it. It asks for itself now: the same walk that answers other people's
 requests also asks for the groups and channels this device is in without a key.
 
-The latency is the answering device's drain, not the asking. A second device
-sees the name as soon as any key-holder next polls or is woken, and the
-fallback poll is two minutes. Carrying the request on the socket would make it
-immediate — the bus already exists — and is not done.
+Recording a request wakes every device of every other member over the same bus
+that carries envelope wake-ups. The payload is a device id and a reason —
+`envelopes` or `key-request` — and nothing else: the server has never held a
+key and does not learn one here. A device with a live socket receives
+`{"type":"key-request"}` and runs its key housekeeping at once.
+
+The poll is the fallback for a device that is not connected, not the mechanism.
+Measured in the browser, a second device signing in has the group's name within
+about three seconds; before the wake existed it waited for the answering
+device's next poll, which is two minutes.
 
 Sealed sender, which removes the sender identifier from the routing metadata, is
 tracked in `docs/security-model.md` under known limitations.

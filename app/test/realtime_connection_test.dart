@@ -108,6 +108,38 @@ void main() {
     expect(batches.single.single, containsPair('id', 7));
   });
 
+  test('a key request arrives as a signal with nothing in it', () async {
+    var asked = 0;
+    connect()
+      ..keyRequests.listen((_) => asked++)
+      ..start();
+    await waitUntil(() => server.connections == 1);
+
+    server.push({'type': 'key-request'});
+
+    await waitUntil(() => asked > 0, reason: 'the signal never arrived');
+    expect(asked, 1);
+  });
+
+  test('a key request is not mistaken for a message', () async {
+    final batches = <List<dynamic>>[];
+    connect()
+      ..envelopes.listen(batches.add)
+      ..start();
+    await waitUntil(() => server.connections == 1);
+
+    server.push({'type': 'key-request'});
+    server.push({
+      'type': 'envelopes',
+      'envelopes': [
+        {'id': 1, 'type': 'ciphertext', 'content': 'AAAA'},
+      ],
+    });
+
+    await waitUntil(() => batches.isNotEmpty);
+    expect(batches, hasLength(1), reason: 'the signal carries no envelopes');
+  });
+
   test('acknowledges on the same socket the envelopes arrived on', () async {
     connect().start();
     await waitUntil(() => server.connections == 1);

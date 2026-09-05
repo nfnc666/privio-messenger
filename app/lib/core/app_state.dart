@@ -370,6 +370,10 @@ class AppState extends ChangeNotifier {
     final controller = conversations..accountId = _accountId;
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
     unawaited(controller.refreshContacts());
+    // A key request arrives on the socket, and the channels' keys live in a
+    // different controller: the conversation one answers for groups and calls
+    // this for the rest.
+    controller.onKeyRequest = () => channels.deliverPendingKeys();
     unawaited(controller.maintainKeys());
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction } from '../db/pool.js';
+import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
@@ -11,6 +12,7 @@ import {
   clearKeyRequestsFor,
   pendingKeyRequests,
   recordKeyRequest,
+  wakeKeyHolders,
 } from '../services/key_requests.js';
 import {
   DEFAULT_ADMIN_PERMISSIONS,
@@ -107,7 +109,8 @@ function resolvePermissions(
   return { ...base, ...requested };
 }
 
-const channelRoutes: FastifyPluginAsync = async (app) => {
+/// Takes the bus so a key request can wake the devices that could answer it.
+const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
   // Creating something new is gated on a license where the deployment sells
   // access; reading and joining are not.
@@ -322,6 +325,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     // Ask for the key straight away rather than waiting for the client to think
     // of it: a member who cannot read the channel is the common case here.
     await recordKeyRequest('channel', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'channel', params.id, deviceId);
     return { joined, role: member?.role ?? null, permissions: member?.permissions ?? null };
   });
 
@@ -525,6 +529,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMember(params.id, accountId);
     await recordKeyRequest('channel', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'channel', params.id, deviceId);
     return { requested: true };
   });
 

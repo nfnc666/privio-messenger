@@ -13,6 +13,7 @@ import { resolveSession } from '../services/sessions.js';
  *   { "type": "ping" }
  * Server -> client frames:
  *   { "type": "envelopes", "envelopes": [...] }
+ *   { "type": "key-request" }   somebody is waiting for a key you hold
  *   { "type": "pong" }
  */
 export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): FastifyPluginAsync {
@@ -59,8 +60,18 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
         }
       };
 
-      const unsubscribe = bus.subscribe((deviceId) => {
-        if (deviceId === auth.deviceId) void drain();
+      const unsubscribe = bus.subscribe((wake) => {
+        if (wake.deviceId !== auth.deviceId) return;
+        if (wake.kind === 'key-request') {
+          // Nothing to read: somebody in a group or channel this device is in
+          // is waiting for its key, and the answer is the client's to send.
+          // Without this the request waits for the client's two-minute poll.
+          if (socket.readyState === socket.OPEN) {
+            socket.send(JSON.stringify({ type: 'key-request' }));
+          }
+          return;
+        }
+        void drain();
       });
 
       socket.on('message', async (raw: Buffer) => {
