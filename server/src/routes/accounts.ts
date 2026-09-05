@@ -5,6 +5,7 @@ import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as accounts from '../services/accounts.js';
+import type { BlobStorage } from '../services/storage.js';
 import { deviceRegistrationSchema, registerDevice } from '../services/devices.js';
 import { createSession, revokeAllSessions, revokeSession } from '../services/sessions.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
@@ -56,7 +57,7 @@ const loginSchema = z.object({
   device: deviceRegistrationSchema,
 });
 
-const accountRoutes: FastifyPluginAsync = async (app) => {
+const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) => {
   /** Create an account and its first device. No phone number, no email. */
   app.post('/v1/accounts', guessable, async (request, reply) => {
     const body = parse(registerSchema, request.body);
@@ -107,7 +108,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     if (!passwordOk) {
       // A duress code looks exactly like a wrong password from outside.
       if (await accounts.matchesDuressCode(account, body.password)) {
-        await accounts.wipeAccount(account.id);
+        await accounts.wipeAccount(account.id, storage);
       }
       throw ApiError.unauthorized('invalid_credentials', 'Username or password is incorrect');
     }
@@ -252,7 +253,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
         // able to use this to find out whether a duress code exists.
         throw ApiError.unauthorized('invalid_credentials', 'That code is not right');
       }
-      await accounts.wipeAccount(accountId);
+      await accounts.wipeAccount(accountId, storage);
       return { wiped: true };
     },
   );
@@ -412,7 +413,7 @@ const accountRoutes: FastifyPluginAsync = async (app) => {
     if (!account || !(await verifySecret(account.password_hash, body.currentPassword))) {
       throw ApiError.unauthorized('invalid_credentials', 'Current password is incorrect');
     }
-    await accounts.deleteAccount(accountId);
+    await accounts.deleteAccount(accountId, storage);
     return { deleted: true };
   });
 };
