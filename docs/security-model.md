@@ -238,6 +238,22 @@ a group's. A private channel is also never listed, never searchable, and answers
 a stranger asking about it exactly as it answers about a channel that does not
 exist.
 
+**Who the audience is.** Not the audience's business. Anyone may join a public
+channel, so answering every subscriber with the roster would make joining the
+user-enumeration endpoint this API otherwise refuses to have — one request and a
+stranger holds the username of everyone who reads the channel. A private channel
+is no better placed: its invite link is meant to be passed around, and the list
+of readers should not travel with it. So `GET /v1/channels/:id/members` answers
+a member who may *manage* members with everybody, and everybody else with the
+people who run the channel — whose names are already on every post they
+publish — plus their own row. The response says which of the two it is, and the
+app labels the screen accordingly rather than passing a staff list off as the
+whole membership.
+
+A group is different on purpose: it is a mutual construct, capped and
+invite-only, where every member is already known to every other. There the list
+is shared in full.
+
 **Who may do what.** A single "admin" bit is too blunt for a channel: someone
 who should be able to publish is not necessarily someone who should be able to
 hand out permissions or delete the whole thing. Each capability is its own flag —

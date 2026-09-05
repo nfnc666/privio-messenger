@@ -77,7 +77,9 @@ export class DeliveryService {
     }
 
     const deviceIds = [...new Set(envelopes.map((e) => e.recipientDeviceId))];
-    await Promise.all(deviceIds.map((id) => this.bus.publish(id)));
+    await Promise.all(
+      deviceIds.map((id) => this.bus.publish({ deviceId: id, kind: 'envelopes' })),
+    );
     await this.wake(deviceIds.filter((id) => durable.some((e) => e.recipientDeviceId === id)));
   }
 

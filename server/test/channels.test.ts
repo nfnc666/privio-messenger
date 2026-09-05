@@ -645,4 +645,80 @@ describe('channels', () => {
     assert.equal(asReader.permissions.canPost, false);
     assert.equal(asReader.permissions.canManageMembers, false);
   });
+  describe('the member list', () => {
+    it('does not hand a subscriber the audience of a channel', async () => {
+      // Anyone may join a public channel, so if joining came with the roster,
+      // "join" would be the user-enumeration endpoint this API refuses to have.
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'publikum',
+        title: 'Publikum',
+      })).json();
+      const alice = await registerUser(h.app, 'roster_alice');
+      const bob = await registerUser(h.app, 'roster_bob');
+      await join(alice, channel.id);
+      await join(bob, channel.id);
+
+      const seen = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/members`,
+        headers: bearer(alice),
+      });
+      assert.equal(seen.statusCode, 200);
+      assert.equal(seen.json().complete, false, 'a subscriber is told this is not everyone');
+
+      const usernames = seen.json().members.map((m: { username: string }) => m.username);
+      assert.deepEqual(
+        usernames.sort(),
+        ['owner', 'roster_alice'].sort(),
+        'the people who run the channel, plus your own row — and nobody else',
+      );
+    });
+
+    it('gives the whole list to a member who can act on it', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'verwalten',
+        title: 'Verwalten',
+      })).json();
+      const carol = await registerUser(h.app, 'roster_carol');
+      await join(carol, channel.id);
+
+      const seen = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/members`,
+        headers: bearer(owner),
+      });
+      assert.equal(seen.json().complete, true);
+      assert.deepEqual(
+        seen.json().members.map((m: { username: string }) => m.username).sort(),
+        ['owner', 'roster_carol'].sort(),
+      );
+    });
+
+    it('an admin who cannot manage members still does not see the audience', async () => {
+      // The permission that opens the list is the one that acts on it. Being
+      // allowed to publish is not being allowed to read the subscriber base.
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'schreiben',
+        title: 'Schreiben',
+      })).json();
+      const dave = await registerUser(h.app, 'roster_dave');
+      const erin = await registerUser(h.app, 'roster_erin');
+      await join(dave, channel.id);
+      await join(erin, channel.id);
+      await setRole(owner, channel.id, dave, { role: 'admin', permissions: { canPost: true } });
+
+      const seen = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/members`,
+        headers: bearer(dave),
+      });
+      assert.equal(seen.json().complete, false);
+      const usernames = seen.json().members.map((m: { username: string }) => m.username);
+      assert.ok(!usernames.includes('roster_erin'), 'a plain subscriber stays out of it');
+      assert.ok(usernames.includes('roster_dave'), 'but they can see their own standing');
+    });
+  });
 });

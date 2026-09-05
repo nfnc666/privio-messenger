@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction } from '../db/pool.js';
+import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
@@ -11,6 +12,7 @@ import {
   clearKeyRequestsFor,
   pendingKeyRequests,
   recordKeyRequest,
+  wakeKeyHolders,
 } from '../services/key_requests.js';
 import {
   DEFAULT_ADMIN_PERMISSIONS,
@@ -107,7 +109,8 @@ function resolvePermissions(
   return { ...base, ...requested };
 }
 
-const channelRoutes: FastifyPluginAsync = async (app) => {
+/// Takes the bus so a key request can wake the devices that could answer it.
+const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
   // Creating something new is gated on a license where the deployment sells
   // access; reading and joining are not.
@@ -322,6 +325,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     // Ask for the key straight away rather than waiting for the client to think
     // of it: a member who cannot read the channel is the common case here.
     await recordKeyRequest('channel', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'channel', params.id, deviceId);
     return { joined, role: member?.role ?? null, permissions: member?.permissions ?? null };
   });
 
@@ -349,10 +353,28 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     return { left: true };
   });
 
+  /**
+   * Who is in the channel.
+   *
+   * The audience is not the audience's business. Anyone may join a public
+   * channel, so answering every subscriber with the whole list would make
+   * "join" the enumeration route this API deliberately does not have — one
+   * request and you hold the username of everyone who reads it. A private
+   * channel is no better off: its link is meant to be passed around, and the
+   * roster should not travel with it.
+   *
+   * So the full list goes only to a member who can act on it. Everyone else
+   * sees the people who run the channel — whose names are already on every
+   * post they publish — and their own row, which is what the screen needs to
+   * say "you are a subscriber here". `complete` tells the client which of the
+   * two it got, so it can label the list honestly instead of presenting a
+   * staff list as if it were everybody.
+   */
   app.get('/v1/channels/:id/members', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
-    await requireMember(params.id, accountId);
+    const viewer = await requireMember(params.id, accountId);
+    const complete = viewer.permissions.canManageMembers;
 
     const { rows } = await pool.query(
       `SELECT a.id, a.username, a.display_name, m.role, m.joined_at,
@@ -360,10 +382,12 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
               m.can_manage_members, m.can_delete_channel
        FROM channel_members m JOIN accounts a ON a.id = m.account_id
        WHERE m.channel_id = $1 AND a.deleted_at IS NULL
+         AND ($2::boolean OR m.role <> 'subscriber' OR a.id = $3)
        ORDER BY m.joined_at ASC LIMIT 500`,
-      [params.id],
+      [params.id, complete, accountId],
     );
     return {
+      complete,
       members: rows.map((r) => ({
         id: r.id,
         username: r.username,
@@ -525,6 +549,7 @@ const channelRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMember(params.id, accountId);
     await recordKeyRequest('channel', params.id, accountId, deviceId);
+    await wakeKeyHolders(bus, 'channel', params.id, deviceId);
     return { requested: true };
   });
 

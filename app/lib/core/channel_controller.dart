@@ -40,6 +40,7 @@ class ChannelController extends ChangeNotifier {
   List<ChannelInfo> _discovered = const [];
   final Map<String, List<ChannelPost>> _posts = {};
   final Map<String, List<ChannelMember>> _members = {};
+  final Map<String, bool> _membersComplete = {};
 
   bool _loading = false;
   String? _error;
@@ -54,6 +55,10 @@ class ChannelController extends ChangeNotifier {
   List<ChannelPost> postsIn(String channelId) => _posts[channelId] ?? const [];
 
   List<ChannelMember> membersOf(String channelId) => _members[channelId] ?? const [];
+
+  /// Whether [membersOf] is everybody. False for a subscriber, who is shown
+  /// the channel's staff instead of its audience.
+  bool membersAreComplete(String channelId) => _membersComplete[channelId] ?? false;
 
   ChannelInfo? channelById(String id) {
     for (final channel in _mine) {
@@ -102,7 +107,11 @@ class ChannelController extends ChangeNotifier {
   }
 
   Future<void> loadMembers(String channelId) async {
-    await _run(() async => _members[channelId] = await _channels.members(channelId));
+    await _run(() async {
+      final roster = await _channels.members(channelId);
+      _members[channelId] = roster.members;
+      _membersComplete[channelId] = roster.complete;
+    });
   }
 
   // --- Acting ---------------------------------------------------------------
@@ -173,6 +182,7 @@ class ChannelController extends ChangeNotifier {
         _mine = [for (final c in _mine) if (c.id != channelId) c];
         _posts.remove(channelId);
         _members.remove(channelId);
+        _membersComplete.remove(channelId);
       });
 
   Future<bool> delete(String channelId) => _run(() async {
@@ -180,6 +190,7 @@ class ChannelController extends ChangeNotifier {
         _mine = [for (final c in _mine) if (c.id != channelId) c];
         _posts.remove(channelId);
         _members.remove(channelId);
+        _membersComplete.remove(channelId);
       });
 
   Future<bool> setRole({

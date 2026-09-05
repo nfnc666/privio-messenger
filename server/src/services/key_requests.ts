@@ -1,4 +1,5 @@
 import { pool } from '../db/pool.js';
+import type { DeliveryBus } from './bus.js';
 
 /**
  * "This device of mine still needs the key."
@@ -25,6 +26,43 @@ export async function recordKeyRequest(
      VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
     [scope, scopeId, accountId, deviceId],
   );
+}
+
+/**
+ * Tells the devices that could answer a request that there is one.
+ *
+ * Without it a request sits until whoever holds the key next polls, which is
+ * two minutes on the client's own timer — long enough that a second device
+ * signing in looks at a group it cannot name for the whole of it.
+ *
+ * The wake carries a device id and a reason and nothing else. The key never
+ * touches the server, and this does not change that: it only says that
+ * somebody is waiting.
+ *
+ * Every member's device except the asking one. A key is sealed per device, and
+ * the account's own other devices are both allowed to answer and the likeliest
+ * to be online holding it.
+ */
+export async function wakeKeyHolders(
+  bus: DeliveryBus,
+  scope: KeyScope,
+  scopeId: string,
+  exceptDeviceId: string,
+): Promise<number> {
+  const membership = scope === 'group' ? 'group_members' : 'channel_members';
+  const column = scope === 'group' ? 'group_id' : 'channel_id';
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT d.id
+     FROM ${membership} m
+     JOIN devices d ON d.account_id = m.account_id AND d.revoked_at IS NULL
+     WHERE m.${column} = $1 AND d.id <> $2
+     LIMIT 500`,
+    [scopeId, exceptDeviceId],
+  );
+  await Promise.all(
+    rows.map((row) => bus.publish({ deviceId: row.id, kind: 'key-request' })),
+  );
+  return rows.length;
 }
 
 export interface PendingKeyRequest {

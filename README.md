@@ -466,11 +466,17 @@ worked: two rows in `key_requests`, one per drain cycle. What had not happened
 was the answer, because **nobody holding the key had drained yet**. Nudging the
 owner's *Check for messages* resolved the name immediately.
 
-So the honest characterisation is not "instant": a second device gets the group
-name as soon as any device that holds the key next polls or is woken, and the
-fallback poll is two minutes. The socket could carry a key request and make it
-immediate — the bus is already there — and that is the improvement not made,
-rather than a claim of speed the code does not support.
+That made the latency the answering device's poll — two minutes — which was
+written down as a limit and then fixed rather than left. **The socket carries
+the request now.** Recording one wakes every device of every other member, the
+bus payload grew from a device id to a device id and a reason, and the client
+answers the moment the frame lands instead of on its next poll. The same flow,
+with the nudge taken out, resolves the name in about three seconds.
+
+The wake says only *somebody is waiting*. It names no key and no group content:
+the server has never held a key and this did not give it one. Two server tests
+pin that — the holder is woken, the asking device is not (it cannot answer
+itself), and nobody outside the group learns anything.
 
 ### An account you could not end
 
