@@ -298,6 +298,15 @@ ones" rather than "everything up to now" — the second is a claim a device
 cannot honestly make about messages it has not seen. Delivery state only ever
 moves forward, because receipts from a second device can arrive out of order.
 
+In a group the receipt still goes to the author alone, and carries
+`receiptGroupId` so the receiving side knows which conversation the ids belong
+to — the envelope says only who sent it. Each member's answer is kept
+separately in `Message.receipts`, and `Message.state` moves only once all of
+them have got that far (`InMemoryMessageStore._groupState`), with the count
+drawn on the bubble until then. The member count comes from
+`GroupInfo.memberCount`, carried from the group listing; zero means "not known
+yet" and holds the ticks where they are rather than reading as "everyone".
+
 A typing notice carries the moment it was sent rather than a duration. One that
 was queued while a phone was off says nothing about now, so it is dropped; a
 live one is believed for six seconds and re-sent at most every three while

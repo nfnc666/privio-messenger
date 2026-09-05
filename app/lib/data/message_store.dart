@@ -85,6 +85,7 @@ class GroupInfo {
     this.groupKey,
     this.inviteCode,
     this.memberIds = const [],
+    this.memberCount = 0,
   });
 
   final String groupId;
@@ -105,6 +106,14 @@ class GroupInfo {
 
   final List<String> memberIds;
 
+  /// How many people are in it, as the server last said.
+  ///
+  /// The ids are only known where this device built the group; the count comes
+  /// back with every listing. It is what says whether *everyone* has read a
+  /// message, which is the only reading of a group tick that is not a guess.
+  /// Zero means "not known yet", not "empty".
+  final int memberCount;
+
   bool get isAdmin => role == 'admin';
 
   GroupInfo merge({
@@ -113,6 +122,7 @@ class GroupInfo {
     List<String>? memberIds,
     String? role,
     String? inviteCode,
+    int? memberCount,
   }) =>
       GroupInfo(
         groupId: groupId,
@@ -121,6 +131,9 @@ class GroupInfo {
         groupKey: groupKey ?? this.groupKey,
         inviteCode: inviteCode ?? this.inviteCode,
         memberIds: memberIds ?? this.memberIds,
+        // Zero is "not known", so a listing that did not carry one must not
+        // overwrite a count this device already had.
+        memberCount: (memberCount ?? 0) > 0 ? memberCount! : this.memberCount,
       );
 }
 
@@ -213,6 +226,23 @@ abstract interface class MessageStore {
   /// read here — what a read receipt has to name.
   List<String> unreadClientIds(String id);
 
+  /// The same, split by who wrote each one.
+  ///
+  /// A group receipt goes to the author of the message, not to the group: it is
+  /// nobody else's business who read what, and fanning it out would cost a copy
+  /// per device to say so.
+  Map<String, List<String>> unreadBySender(String id);
+
+  /// Records how far one member has got with some of this account's messages in
+  /// a group. Returns how many changed.
+  int recordGroupReceipt({
+    required String conversationId,
+    required Set<String> clientIds,
+    required String accountId,
+    required DeliveryState state,
+    required int otherMemberCount,
+  });
+
   /// Records [emoji] from [accountId] on the message with [targetClientId], or
   /// removes their reaction when [emoji] is empty. Returns whether anything
   /// changed.
@@ -297,6 +327,10 @@ class InMemoryMessageStore implements MessageStore {
     final replacement = Conversation.direct(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
       ..disappearAfter = existing.disappearAfter
+      // Carried over like the rest of it: an upsert happens on a contact
+      // refresh and on every message from someone new, and a pin that a
+      // refresh quietly undid was a pin that did not work.
+      ..pinned = existing.pinned
       ..typingUntil = existing.typingUntil;
     return _conversations[user.accountId] = replacement;
   }
@@ -314,11 +348,13 @@ class InMemoryMessageStore implements MessageStore {
       name: group.name,
       groupKey: group.groupKey,
       memberIds: group.memberIds.isEmpty ? null : group.memberIds,
+      memberCount: group.memberCount,
       role: group.role,
     );
     final replacement = Conversation.group(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
       ..disappearAfter = existing.disappearAfter
+      ..pinned = existing.pinned
       ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
   }
@@ -452,6 +488,60 @@ class InMemoryMessageStore implements MessageStore {
         for (final message in _conversations[id]?.messages ?? const <Message>[])
           if (!message.isMine && message.clientId != null) message.clientId!,
       ];
+
+  @override
+  Map<String, List<String>> unreadBySender(String id) {
+    final bySender = <String, List<String>>{};
+    for (final message in _conversations[id]?.messages ?? const <Message>[]) {
+      final sender = message.senderAccountId;
+      if (message.isMine || message.clientId == null || sender == null) continue;
+      bySender.putIfAbsent(sender, () => []).add(message.clientId!);
+    }
+    return bySender;
+  }
+
+  @override
+  int recordGroupReceipt({
+    required String conversationId,
+    required Set<String> clientIds,
+    required String accountId,
+    required DeliveryState state,
+    required int otherMemberCount,
+  }) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null || clientIds.isEmpty) return 0;
+
+    var changed = 0;
+    for (var i = 0; i < conversation.messages.length; i++) {
+      final message = conversation.messages[i];
+      if (!message.isMine || message.clientId == null) continue;
+      if (!clientIds.contains(message.clientId)) continue;
+
+      final reached = message.receipts[accountId];
+      // Out of order happens: a read receipt from a phone and a delivered one
+      // from the same person's laptop. Never walk anybody backwards.
+      if (reached != null && reached.index >= state.index) continue;
+
+      final receipts = {...message.receipts, accountId: state};
+      conversation.messages[i] = message.copyWith(
+        receipts: receipts,
+        // The single state moves only when everyone has got that far, which is
+        // the only reading of two ticks in a group that is not a guess. Until
+        // the member count is known it stays where it is; a count of zero must
+        // not read as "everyone".
+        state: _groupState(receipts, otherMemberCount) ?? message.state,
+      );
+      changed++;
+    }
+    return changed;
+  }
+
+  /// The state a group message has reached, or null when it has not moved.
+  static DeliveryState? _groupState(Map<String, DeliveryState> receipts, int others) {
+    if (others <= 0 || receipts.length < others) return null;
+    final everyoneRead = receipts.values.every((s) => s == DeliveryState.read);
+    return everyoneRead ? DeliveryState.read : DeliveryState.delivered;
+  }
 
   @override
   List<Message> pruneExpired(DateTime now) {

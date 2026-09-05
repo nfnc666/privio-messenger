@@ -274,15 +274,24 @@ class MessagingService {
   /// concerned: sealed per device, opaque to the server. What the server can
   /// see is that *something* was sent — which is why a receipt is not sent at
   /// all when the setting is off, rather than sent and ignored.
+  /// [groupId] names the conversation the messages were in, for a receipt about
+  /// group messages. It still goes to the author alone — the group does not
+  /// need telling who read what — so without it the receiving side would have
+  /// no way to know which chat the ids belong to.
   Future<void> sendReceipt({
     required String username,
     required List<String> clientIds,
     required String kind,
+    String? groupId,
   }) async {
     if (clientIds.isEmpty) return;
     await sendPayload(
       username,
-      MessagePayload.receipt(receiptIds: clientIds, receiptKind: kind),
+      MessagePayload.receipt(
+        receiptIds: clientIds,
+        receiptKind: kind,
+        receiptGroupId: groupId,
+      ),
     );
   }
 
@@ -584,6 +593,7 @@ class MessagingService {
       name: name,
       groupKey: base64Encode(keyBytes),
       inviteCode: created['inviteCode'] as String?,
+      memberCount: (created['members'] as List<dynamic>?)?.length ?? 0,
       memberIds: [
         for (final member in created['members'] as List<dynamic>)
           (member as Map<String, dynamic>)['id'] as String,
@@ -634,6 +644,9 @@ class MessagingService {
           role: entry['role'] as String,
           groupKey: knownKey,
           inviteCode: entry['inviteCode'] as String?,
+          // Carried rather than dropped: it is what says whether *everyone* has
+          // read a message, which is the only honest reading of a group tick.
+          memberCount: (entry['memberCount'] as num?)?.toInt() ?? 0,
           name: knownKey == null || sealed == null
               ? null
               : await _openGroupName(sealed, knownKey),

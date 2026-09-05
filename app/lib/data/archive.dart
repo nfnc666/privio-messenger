@@ -268,6 +268,8 @@ abstract final class ArchiveCodec {
                 if (conversation.group!.groupKey != null)
                   'groupKey': conversation.group!.groupKey,
                 'memberIds': conversation.group!.memberIds,
+                if (conversation.group!.memberCount > 0)
+                  'memberCount': conversation.group!.memberCount,
               },
             'messages': [
               for (final message in conversation.messages)
@@ -295,6 +297,11 @@ abstract final class ArchiveCodec {
                       'replySender': message.replySender,
                   },
                   if (message.reactions.isNotEmpty) 'reactions': message.reactions,
+                  if (message.receipts.isNotEmpty)
+                    'receipts': {
+                      for (final entry in message.receipts.entries)
+                        entry.key: entry.value.name,
+                    },
                   if (message.attachment != null)
                     'attachment': {
                       'mediaId': message.attachment!.mediaId,
@@ -355,6 +362,12 @@ abstract final class ArchiveCodec {
             replySender: message['replySender'] as String?,
             reactions: (message['reactions'] as Map<String, dynamic>? ?? const {})
                 .map((key, value) => MapEntry(key, value as String)),
+            receipts: (message['receipts'] as Map<String, dynamic>? ?? const {}).map(
+              (key, value) => MapEntry(
+                key,
+                DeliveryState.values.asNameMap()[value as String] ?? DeliveryState.delivered,
+              ),
+            ),
             attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
           ),
       ];
@@ -369,6 +382,7 @@ abstract final class ArchiveCodec {
               name: group['name'] as String?,
               groupKey: group['groupKey'] as String?,
               memberIds: (group['memberIds'] as List<dynamic>? ?? const []).cast<String>(),
+              memberCount: group['memberCount'] as int? ?? 0,
             ),
             messages: messages,
           )

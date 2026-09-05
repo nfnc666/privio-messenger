@@ -994,7 +994,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice messages** | ✅ | Hold to record, slide to cancel, pause, preview, 1x/1.5x/2x; sealed before upload |
-| **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches, 1:1 |
+| **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches. Receipts work in groups too, where the ticks move only once *everyone* has and the count is shown until then; typing notices stay 1:1 |
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat and per group, agreed end to end; every change announced in the chat; the server is never asked |
 | **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
