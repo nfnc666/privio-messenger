@@ -8,6 +8,7 @@ import 'package:privio/app.dart';
 import 'package:privio/calls/call.dart';
 import 'package:privio/calls/call_signal.dart';
 import 'package:privio/core/api_client.dart';
+import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/core/passcode.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
@@ -26,7 +27,11 @@ import 'support/fake_call_peer.dart';
 import 'support/fake_voice.dart';
 
 /// A signed-in app whose calls are driven by a fake connection.
-Future<(AppState, CallService)> signedInApp() async {
+///
+/// [launcher] is for the tests that switch a disguise on: the real one talks to
+/// a platform channel nothing answers under `flutter test`, and awaiting it
+/// hangs the run rather than failing it.
+Future<(AppState, CallService)> signedInApp({LauncherDisguise? launcher}) async {
   // Enough of a server for the screens under test: nothing to fetch, and a
   // recipient with no devices, so a signal seals to nobody and the send is a
   // no-op rather than a crash.
@@ -68,7 +73,12 @@ Future<(AppState, CallService)> signedInApp() async {
     store: InMemoryMessageStore(),
     secureStore: store,
   );
-  final state = AppState(services: services, store: store);
+  final state = AppState(
+    services: services,
+    store: store,
+    launcher: launcher,
+    supportsDisguise: launcher == null ? null : true,
+  );
   await state.initialise();
   return (state, calls);
 }

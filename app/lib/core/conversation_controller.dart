@@ -1038,7 +1038,7 @@ class ConversationController extends ChangeNotifier {
       MessageKind.file => message.attachment?.fileName ?? 'File',
       MessageKind.deleted => 'Deleted message',
       // Never reached: a notice always has a body, and nothing replies to one.
-      MessageKind.notice => '',
+      MessageKind.notice || MessageKind.undelivered => '',
       MessageKind.text => '',
     };
   }
@@ -1520,13 +1520,119 @@ class ConversationController extends ChangeNotifier {
     await _raiseKeyChanges();
     if (arrived.isNotEmpty) unawaited(_sendDeliveryReceipts(arrived));
     if (result.messages.isNotEmpty) _persist();
-    if (result.failures.isNotEmpty) {
-      _error = '${result.failures.length} message(s) could not be decrypted';
-    }
+    if (result.failures.isNotEmpty) await _handleFailures(result.failures);
     notifyListeners();
   }
 
+  // --- Broken sessions ------------------------------------------------------
+
+  /// How long before the same device is worth another reset.
+  ///
+  /// A reset consumes one of the other side's one-time prekeys and asks their
+  /// app to do work, so a batch of twenty failed envelopes from one device must
+  /// not become twenty of them — and a session that is still broken an hour
+  /// later is worth one more try, not a loop.
+  static const Duration sessionResetInterval = Duration(hours: 1);
+
+  final Map<String, DateTime> _lastSessionReset = {};
+
+  /// What to do with envelopes that would not open.
+  ///
+  /// Two things, and the first matters more. **Say so in the conversation**:
+  /// somebody sent a message, it is gone, and the sender's screen says
+  /// delivered. Dropping it silently leaves a hole that reads as an answer
+  /// nobody gave — the same reason a deletion leaves a tombstone rather than
+  /// closing over the gap.
+  ///
+  /// Then **repair the session**, because the alternative is that it stays
+  /// broken: a ratchet that has gone out of step fails every message after it
+  /// too, forever, and the pair of people go on writing to each other into a
+  /// conversation that stopped working. Nothing recovers what was already lost;
+  /// what this buys is that the next message arrives.
+  Future<void> _handleFailures(List<UndecryptableMessage> failures) async {
+    final counts = <(String, String?), int>{};
+    for (final failure in failures) {
+      final sender = failure.senderAccountId;
+      if (sender == null) continue;
+      final where = (sender, failure.groupId);
+      counts[where] = (counts[where] ?? 0) + 1;
+    }
+
+    for (final entry in counts.entries) {
+      final (sender, groupId) = entry.key;
+      _noteUnreadable(
+        conversationId: groupId ?? sender,
+        senderAccountId: sender,
+        count: entry.value,
+      );
+    }
+    _error = failures.length == 1
+        ? 'A message could not be read'
+        : '${failures.length} messages could not be read';
+    _persist();
+
+    for (final failure in failures) {
+      await _repairSession(failure);
+    }
+  }
+
+  /// Writes the hole into the conversation it belongs to.
+  void _noteUnreadable({
+    required String conversationId,
+    required String senderAccountId,
+    required int count,
+  }) {
+    if (_services.store.conversationWith(conversationId) == null) return;
+    final who = _services.store.conversationWith(senderAccountId)?.user?.label;
+    final subject = count == 1 ? 'A message' : '$count messages';
+    final from = who == null ? '' : ' from $who';
+    _services.store.append(
+      conversationId,
+      Message(
+        id: 'unreadable-${DateTime.now().microsecondsSinceEpoch}',
+        body: '$subject$from could not be read. '
+            'It was sealed to a key this device no longer has.',
+        sentAt: DateTime.now(),
+        isMine: false,
+        kind: MessageKind.undelivered,
+      ),
+    );
+  }
+
+  /// Throws away the broken session and asks the sender to start a new one.
+  ///
+  /// The reset payload carries nothing; sending it *is* the repair. With no
+  /// session left here it goes out as a prekey message from a fresh bundle,
+  /// and the other side archives its old state the moment that arrives — so
+  /// one message puts both directions back on a working ratchet.
+  Future<void> _repairSession(UndecryptableMessage failure) async {
+    final sender = failure.senderAccountId;
+    final deviceIndex = failure.senderDeviceIndex;
+    if (sender == null || deviceIndex == null) return;
+
+    final key = '$sender/$deviceIndex';
+    final last = _lastSessionReset[key];
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < sessionResetInterval) return;
+    _lastSessionReset[key] = now;
+
+    final username = _services.store.conversationWith(sender)?.user?.username;
+    if (username == null || username == 'unknown') return;
+
+    try {
+      await _services.crypto.resetSession(sender, deviceIndex);
+      await _services.messaging.sendPayload(username, const MessagePayload.sessionReset());
+    } on Object {
+      // The session is gone either way, which is the half that matters: the
+      // next message this device sends rebuilds it. A reset that could not go
+      // out is retried after the interval, on the next failure.
+    }
+  }
+
   Future<void> _fileIncoming(IncomingMessage incoming) async {
+    // A session reset has already done its work by arriving: opening it was
+    // what rebuilt the ratchet. There is nothing to file and nothing to show.
+    if (incoming.payload.isSessionReset) return;
     // A key delivery is machinery, not conversation: it unlocks a channel or a
     // group name and leaves no trace in the chat.
     if (incoming.payload.isKeyDelivery) {

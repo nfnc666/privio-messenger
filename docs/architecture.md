@@ -132,6 +132,27 @@ counted as handled without being decrypted again. Without that, a message the
 user could plainly read was reported as one that would not decrypt. Both halves
 are covered by tests in `app/test/messaging_service_test.dart`.
 
+**When an envelope genuinely will not open.** Retrying cannot help — the same
+bytes fail the same way — so it is acknowledged rather than left to block the
+queue, and two things follow. The conversation gets a
+`MessageKind.undelivered` line saying a message could not be read: the sender's
+screen says delivered, and a silent gap in a transcript reads as an answer
+nobody gave. Then `_repairSession` deletes the session with that device and
+sends `MessagePayload.sessionReset()`. The reset carries nothing; sending it
+*is* the repair. With no session left it goes out as a prekey message from a
+fresh bundle, and `SessionBuilder` archives the old state on the other side the
+moment it arrives — so one payload puts both directions back on a working
+ratchet. Rate-limited to one per device per hour, because a reset consumes one
+of the other side's one-time prekeys and a batch of twenty failed envelopes must
+not become twenty handshakes.
+
+Note what this is *not* for: the Double Ratchet already tolerates reordering,
+skipped messages and a rolled-back store — a device restored from an older copy
+of its own storage goes on decrypting. What it cannot survive is key material
+that is gone: a peer whose identity was replaced behind the same device row.
+That case is staged and repaired in `app/test/session_repair_test.dart` against
+the real library.
+
 Groups work the same way, with the fan-out list coming from
 `GET /v1/groups/:id/devices`.
 

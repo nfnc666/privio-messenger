@@ -9,7 +9,9 @@ import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'theme/privio_colors.dart';
 import 'theme/privio_theme.dart';
+import 'widgets/privio_logo.dart';
 
 /// The root widget: owns [AppState] and picks the screen for the current stage.
 class PrivioApp extends StatefulWidget {
@@ -39,9 +41,25 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// What the OS last said the app was doing. Held so the cover can go up the
+  /// moment it stops being `resumed`.
+  AppLifecycleState _lifecycle = AppLifecycleState.resumed;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    // Leaving the app re-arms the lock, so returning to it asks for the PIN.
+    setState(() => _lifecycle = lifecycleState);
+
+    // Covering and locking are two different moments, and running them together
+    // gets one of them wrong.
+    //
+    // `inactive` is where the screenshot happens: it is the frame the app
+    // switcher photographs, and on iOS it is also a pulled-down notification
+    // shade, an incoming call, a permission dialog. Content has to be off
+    // screen by then — but locking there would ask for the passcode every time
+    // somebody glanced at their notifications.
+    //
+    // `paused` is where the app has actually been left, and that is where the
+    // lock is armed.
     if (lifecycleState == AppLifecycleState.paused ||
         lifecycleState == AppLifecycleState.detached) {
       _state.lock();
@@ -67,7 +85,12 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
           return MediaQuery.withClampedTextScaling(
             minScaleFactor: scale,
             maxScaleFactor: scale,
-            child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+            // The cover goes outermost: a call screen is content too, and the
+            // app switcher must not photograph who is on it.
+            child: PrivacyCover(
+              hidden: _lifecycle != AppLifecycleState.resumed,
+              child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+            ),
           );
         },
         home: const _StageRouter(),
@@ -152,4 +175,57 @@ class _CallOverlay extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// What the app switcher gets to photograph.
+///
+/// A locked app is not a private one if the thumbnail beside it still shows the
+/// conversation that was open: the OS takes that picture on the way out, before
+/// any lock is armed, and it survives in the switcher for anyone who picks the
+/// phone up. So the content is covered the moment the app stops being the thing
+/// on screen, whatever it was showing and however deep in the navigator it was.
+///
+/// It wears the disguise when there is one. A device set to open as a
+/// calculator, showing a Privio splash in the app switcher, has told the person
+/// holding it exactly what the disguise was hiding.
+class PrivacyCover extends StatelessWidget {
+  const PrivacyCover({required this.hidden, required this.child, super.key});
+
+  /// Names the covering surface itself, which is the thing worth finding: this
+  /// widget is always in the tree, and only sometimes covering anything.
+  static const Key coverKey = ValueKey('privacy-cover');
+
+  final bool hidden;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hidden) return child;
+    final state = PrivioScope.of(context);
+    final skin = state.disguise;
+    return Stack(
+      children: [
+        // Kept in the tree, not thrown away: this is a screenshot being taken,
+        // not a screen being left, and rebuilding the whole app on the way back
+        // would lose the scroll position and every open composer.
+        child,
+        Positioned.fill(
+          key: coverKey,
+          child: skin == null ? const _NeutralCover() : CalculatorScreen(skin: skin),
+        ),
+      ],
+    );
+  }
+}
+
+/// The cover for a device with no disguise: the app's own mark on its own
+/// background, and nothing that was on screen a moment ago.
+class _NeutralCover extends StatelessWidget {
+  const _NeutralCover();
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(
+        color: PrivioColors.background,
+        child: Center(child: PrivioMark(size: 72)),
+      );
 }

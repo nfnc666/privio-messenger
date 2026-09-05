@@ -58,6 +58,14 @@ enum MessageKind {
   /// It is never sent anywhere: both sides write their own from the same fact,
   /// which is also why it carries no sender and no client id.
   notice,
+
+  /// Something arrived and could not be read.
+  ///
+  /// Its own kind rather than a [notice], because it is not housekeeping: a
+  /// message was sent to this person and they will never see it. The one thing
+  /// worse than saying so is not saying so — a conversation with a silent hole
+  /// in it reads as a conversation where nobody answered.
+  undelivered,
 }
 
 /// An attachment a message points at.
@@ -186,7 +194,7 @@ class Message {
 
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
-  bool get isNotice => kind == MessageKind.notice;
+  bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
 
   bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
 

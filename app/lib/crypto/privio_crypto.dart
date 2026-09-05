@@ -289,6 +289,17 @@ class PrivioCrypto {
   Future<bool> hasSessionWith(String accountId, int deviceIndex) =>
       _store.containsSession(_address(accountId, deviceIndex));
 
+  /// Throws away the session with one device, so the next message sent to it
+  /// starts a new one from a fresh prekey bundle.
+  ///
+  /// The repair for a ratchet that has gone out of step — a peer restored from
+  /// a backup, reinstalled, or two devices that once shared a session. Nothing
+  /// already sent under the old session can be recovered by this; what it buys
+  /// is that the *next* message works, instead of every message from that
+  /// device failing forever.
+  Future<void> resetSession(String accountId, int deviceIndex) =>
+      _store.deleteSession(_address(accountId, deviceIndex));
+
   /// Opens a session from a server-issued prekey bundle. Safe to call when a
   /// session already exists — it is a no-op then.
   Future<void> ensureSession(String accountId, DeviceBundle bundle) async {

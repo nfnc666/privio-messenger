@@ -35,7 +35,18 @@ class MessageBubble extends StatelessWidget {
 
     // Not a bubble: a notice is about the conversation, not part of it, and
     // giving it a side would make it look like somebody said it.
-    if (message.isNotice) return _Notice(text: message.body);
+    if (message.isNotice) {
+      return _Notice(
+        text: message.body,
+        // A lost message is not housekeeping, and must not read as if it were.
+        icon: message.kind == MessageKind.undelivered
+            ? Icons.report_gmailerrorred_rounded
+            : Icons.timer_outlined,
+        tint: message.kind == MessageKind.undelivered
+            ? PrivioColors.warning
+            : PrivioColors.textTertiary,
+      );
+    }
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -336,9 +347,11 @@ class EncryptionNotice extends StatelessWidget {
 /// because it belongs to both sides equally — and it has no long-press menu:
 /// there is nothing here to reply to, react to or take back.
 class _Notice extends StatelessWidget {
-  const _Notice({required this.text});
+  const _Notice({required this.text, required this.icon, required this.tint});
 
   final String text;
+  final IconData icon;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -350,9 +363,9 @@ class _Notice extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 1),
-              child: Icon(Icons.timer_outlined, size: 13, color: PrivioColors.textTertiary),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(icon, size: 13, color: tint),
             ),
             const SizedBox(width: PrivioSpacing.xs),
             Flexible(
@@ -362,7 +375,7 @@ class _Notice extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .labelSmall
-                    ?.copyWith(color: PrivioColors.textTertiary, height: 1.4),
+                    ?.copyWith(color: tint, height: 1.4),
               ),
             ),
           ],

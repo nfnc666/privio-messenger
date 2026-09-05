@@ -49,6 +49,10 @@ class ScriptedMessaging extends MessagingService {
 
   final List<MessagePayload> sent = [];
   final List<IncomingMessage> inbox = [];
+
+  /// Envelopes that arrive and will not open, handed back the way the real
+  /// service hands back what the ratchet refused.
+  final List<UndecryptableMessage> undecryptable = [];
   bool failSends = false;
 
   @override
@@ -61,8 +65,10 @@ class ScriptedMessaging extends MessagingService {
   @override
   Future<ReceiveResult> receive({int limit = 100}) async {
     final batch = [...inbox];
+    final broken = [...undecryptable];
     inbox.clear();
-    return ReceiveResult(batch, const [], false);
+    undecryptable.clear();
+    return ReceiveResult(batch, broken, false);
   }
 }
 

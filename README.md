@@ -979,10 +979,11 @@ because the socket and the poll each delivered the same envelope once.
 | **Media** | ✅ | Client-encrypted attachments with enforced expiry |
 | **Backup** | ✅ | Manual and automatic, sealed under a recovery key the server never sees; restore on a new device by key or QR |
 | **At-least-once delivery** | ✅ | Envelopes are acknowledged only after they decrypt |
+| **Broken sessions repair themselves** | ✅ | A message that will not open leaves a line in the chat saying so, and the session is rebuilt so the next one arrives |
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the Notifications screen offers the UnifiedPush path on the free builds, and the platform connector that would register a real token is not written yet |
 | **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
 | **Second device** | ✅ | Sign in again and both devices receive, and both see what either one sends. History before the second sign-in comes from a backup, not from the first device |
-| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding. No biometrics, on purpose |
+| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding, with the content covered before the app switcher can photograph it. No biometrics, on purpose |
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
