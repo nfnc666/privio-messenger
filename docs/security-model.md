@@ -423,6 +423,19 @@ the contacts in both directions, the group memberships, the backup and every
 media object the account uploaded. The row is then tombstoned and the username
 rewritten to `deleted.<id>`, which frees the old one for somebody else.
 
+"Deleted" means the bytes, not the row that named them. Attachments and the
+backup live as files in blob storage, and the retention sweeper finds expired
+attachments through `media_objects.expires_at` — so a row deleted without its
+file leaves something nothing will ever reach again, sitting on disk until the
+disk is thrown away. The wipe therefore collects the storage keys as it deletes
+the rows and removes the files afterwards: after the transaction commits, never
+inside it, because a rollback that had already deleted the files would leave
+rows pointing at nothing. This matters most where the promise is strongest — a
+duress code is entered with somebody standing over the phone, and there the
+whole point is that the content is gone. Covered by
+`server/test/erasure.test.ts`, which reads the keys before the wipe and checks
+the files afterwards.
+
 What it cannot reach is what other people have already received and decrypted.
 The dialog says so, along with the username becoming available again, because
 both are surprises otherwise.
