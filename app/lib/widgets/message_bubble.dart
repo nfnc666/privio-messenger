@@ -33,6 +33,10 @@ class MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final mine = message.isMine;
 
+    // Not a bubble: a notice is about the conversation, not part of it, and
+    // giving it a side would make it look like somebody said it.
+    if (message.isNotice) return _Notice(text: message.body);
+
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
@@ -324,6 +328,46 @@ class EncryptionNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A line the app wrote about the conversation itself.
+///
+/// Centred and quiet, in the middle of the transcript rather than at one edge,
+/// because it belongs to both sides equally — and it has no long-press menu:
+/// there is nothing here to reply to, react to or take back.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: PrivioSpacing.xxxl,
+          vertical: PrivioSpacing.sm,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(Icons.timer_outlined, size: 13, color: PrivioColors.textTertiary),
+            ),
+            const SizedBox(width: PrivioSpacing.xs),
+            Flexible(
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: PrivioColors.textTertiary, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 /// The quote above a reply.

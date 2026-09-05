@@ -61,6 +61,10 @@ abstract final class MessageSearch {
         // sender's own — both are already covered by what is or is not in
         // `body`, so there is one thing to match against.
         if (message.kind == MessageKind.deleted) continue;
+        // A notice is the app talking about the chat, not something anyone
+        // wrote in it. Matching it would put "disappearing messages" in the
+        // results for every chat that ever had a timer.
+        if (message.isNotice) continue;
         final at = message.body.toLowerCase().indexOf(needle);
         if (at == -1) continue;
         hits.add(

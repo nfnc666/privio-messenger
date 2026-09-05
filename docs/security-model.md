@@ -469,10 +469,34 @@ be between losing recordings and delivering them twice.
 **Disappearing messages.** The timer is carried inside the sealed payload and
 applied by both devices from their own clocks. The server is not asked to delete
 anything on a schedule, because a server asked to forget is a server trusted to.
-What that does *not* buy: a recipient who wants to keep a message can keep it —
+There is no separate "the timer changed" packet, either: a change reaches the
+other side on the next message, and inventing a packet for it would tell the
+server that something about this conversation changed at this moment, for
+nothing.
+
+Because the timer travels with the message, whoever sends sets it — so **every
+change is announced in the conversation itself**, on both sides: "You set
+disappearing messages to 1 hour", "bob set disappearing messages to 5 minutes".
+A chat that quietly starts deleting itself is the one way this feature can hurt
+the person using it, who keeps writing and finds it gone. Those notices are
+written locally on each device from the same fact, are never sent anywhere, do
+not count as unread, and do not expire — a record that deletes itself under the
+rule it describes explains nothing afterwards.
+
+An expired message takes its decrypted attachment with it. The bubble
+disappearing while the photo stays in the session's plaintext cache is the
+version of this that does not work.
+
+In a group, any member can set it, not only an admin: the mechanism is the
+sender's own number riding inside their own payloads, so a member who wants
+their messages to go can already make that happen. A permission the protocol
+cannot enforce would be a lock drawn on the screen with nothing behind it; the
+announcement is the honest version of the same protection.
+
+What none of this buys: a recipient who wants to keep a message can keep it —
 by recording the screen, by holding a second phone up to the speaker, by
 patching their own client. A timer is a courtesy between people who both want
-it, and Privio says so rather than implying otherwise.
+it, and Privio says so — in the chooser itself, not only here.
 
 ## Two-factor secrets
 

@@ -15,6 +15,7 @@ import '../media/voice.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
+import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/privio_colors.dart';
@@ -378,55 +379,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// delete on their own clocks — which is the only way this can work, because
   /// a server asked to forget something is a server being trusted.
   Future<void> _chooseTimer(AppState state) async {
-    const options = <String, Duration?>{
-      'Off': null,
-      '30 seconds': Duration(seconds: 30),
-      '5 minutes': Duration(minutes: 5),
-      '1 hour': Duration(hours: 1),
-      '1 day': Duration(days: 1),
-      '1 week': Duration(days: 7),
-    };
-    final current = state.conversations.disappearAfter(widget.accountId);
-
-    final chosen = await showModalBottomSheet<MapEntry<String, Duration?>>(
-      context: context,
-      backgroundColor: PrivioColors.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(PrivioSpacing.gutter),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Disappearing messages',
-                    style: Theme.of(sheetContext).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: PrivioSpacing.xs),
-                  Text(
-                    'New messages, voice messages included, delete themselves on '
-                    'both devices after this long. Privio\'s servers are not '
-                    'asked and are not trusted with it.',
-                    style: Theme.of(sheetContext).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            for (final option in options.entries)
-              ListTile(
-                title: Text(option.key),
-                trailing: option.value == current
-                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
-                    : null,
-                onTap: () => Navigator.of(sheetContext).pop(option),
-              ),
-            const SizedBox(height: PrivioSpacing.sm),
-          ],
-        ),
-      ),
+    final chosen = await DisappearingTimerSheet.choose(
+      context,
+      current: state.conversations.disappearAfter(widget.accountId),
+      isGroup: false,
     );
     if (chosen == null || !mounted) return;
     state.conversations.setDisappearAfter(widget.accountId, chosen.value);

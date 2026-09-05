@@ -249,8 +249,17 @@ repeated key rather than queueing a second copy (`sent_message_keys`, migration
 **Disappearing messages.** The timer is a number inside the sealed payload.
 The recipient adopts it, both sides compute an `expiresAt` from their own clock,
 and `MessageStore.pruneExpired` removes what has run out — on a five-second
-sweep, after every drain, and on restore. The server is not told and is not
-trusted with it.
+sweep, after every drain, and on restore. It returns the messages it removed
+rather than a count, so the controller can drop their decrypted attachments from
+the session cache along with them. The server is not told and is not trusted
+with it.
+
+Adopting a timer, or setting one, appends a `MessageKind.notice` to the
+conversation — a line the app writes itself, rendered centred rather than as a
+bubble, never sent, never unread, never searched, and with no expiry of its own.
+`DisappearingTimerSheet` is the one chooser, used by both the 1:1 chat's menu
+and the group info screen, so the wording that tells a user what this actually
+promises exists once.
 
 ## Receipts and typing
 
