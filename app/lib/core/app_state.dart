@@ -592,6 +592,12 @@ class AppState extends ChangeNotifier {
   /// flushed, the app is not being used, and it is the point at which "I lost
   /// my phone" starts being a possibility.
   void lock() {
+    // A device with no passcode has nothing to unlock with. Arming the lock
+    // there is not a stricter lock, it is a device its own owner cannot get
+    // back into: the lock screen has exactly one way past it, and on a device
+    // that never set one, no input is the right one. Backgrounding the app
+    // used to do this.
+    if (!_screenLockSet) return;
     // Activation counts as being inside the app: the account is signed in, and
     // what is on screen is a key someone is typing. Unlocking runs the license
     // question again, so the step comes back rather than being skipped.

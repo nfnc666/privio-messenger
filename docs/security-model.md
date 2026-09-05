@@ -737,6 +737,26 @@ someone holding an unlocked phone from reading it. It is compared, not
 stretched — the keystore is the security boundary — and V2 moves it into the
 native crypto layer where it derives a key-encryption key with Argon2id.
 
+**Covering and locking are two different moments.** A locked app is not a
+private one if the app switcher beside it still shows the conversation that was
+open: the OS takes that thumbnail on the way out, before any lock is armed, and
+it stays there for whoever picks the phone up next. So the content is covered
+the moment the app stops being what is on screen (`inactive`) — above the
+navigator, so a pushed chat or a live call is covered too — and the lock is
+armed only when the app has actually been left (`paused`). Locking at
+`inactive` instead would ask for the passcode every time a notification shade
+was pulled down or a call came in, and a lock that fires that often is a lock
+people turn off.
+
+The cover wears the disguise when there is one. A phone set to open as a
+calculator, whose switcher thumbnail is a Privio splash, has announced exactly
+what the disguise was hiding.
+
+**A device with no passcode is never locked.** The lock screen has one way past
+it, so arming it where nothing was ever set is not a stricter lock — it is a
+device its own owner cannot get back into, with a reinstall as the only way out
+and the local identity going with it. Backgrounding the app used to do this.
+
 ## The duress code
 
 **It is a second password that destroys instead of opening.** Typed at sign-in,
