@@ -1393,12 +1393,20 @@ Three workflows, and each one says what it proves:
 
 | Workflow | Runs on | Proves |
 | --- | --- | --- |
-| `ci.yml` | every push, every PR | server typecheck and tests against a real Postgres 17; `flutter analyze` and `flutter test` |
-| `build-mobile.yml` | PRs and `main` | the Android and iOS projects **compile** from a clean checkout |
+| `ci.yml` | every PR, and `main` | server typecheck and tests against a real Postgres 17; `flutter analyze` and `flutter test` |
+| `build-mobile.yml` | Android: every PR, and `main`. iOS: every PR | the Android and iOS projects **compile** from a clean checkout |
 | `build.yml` | version tags | the same two compilations, kept as release artifacts |
 
 Flutter is pinned (`FLUTTER_VERSION: 3.47.1`) rather than tracking `stable`, so
 a run that passed yesterday means the same thing today.
+
+A private repository meters Actions minutes, and a macOS runner bills at ten
+times the Linux rate — which is how a month's allowance disappears into an iOS
+build that ran on every push. So: a pull request is checked as the merge commit
+it would create, a new push to that branch cancels the run it superseded, and
+the iOS build does not run a second time for the merge of a tree it just
+compiled. `main` is never cancelled — every commit that lands there is checked
+on its own — and nothing is checked less than once.
 
 Compiling is not working. `build-mobile.yml` produces an unsigned APK and an
 unsigned `Runner.app`; whether either behaves on a phone is a separate question

@@ -14,6 +14,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   FLUTTER_VERSION: "3.47.1"
   FLUTTER_SUPPRESS_ANALYTICS: "true"
@@ -66,6 +70,15 @@ jobs:
   ios:
     name: iOS — unsigned build
     runs-on: macos-latest
+
+    # Not on the push to `main`. A merge into main is checked as its merge
+    # commit while it is still a pull request — the same tree, on the same
+    # runner image, minutes earlier — and this is the job that bills at ten
+    # times the rate, so running it again for the merge buys a second opinion
+    # about a tree that has not changed. `workflow_dispatch` is still here for
+    # when somebody wants one on demand, and `build.yml` runs it for a tag.
+    if: github.event_name != 'push'
+
     defaults:
       run:
         working-directory: app

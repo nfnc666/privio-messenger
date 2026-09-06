@@ -13,6 +13,12 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
+# Never cancelled: a release build that was halfway through when the next tag
+# landed is a release with no artifact.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FLUTTER_VERSION: "3.47.1"
   FLUTTER_SUPPRESS_ANALYTICS: "true"
