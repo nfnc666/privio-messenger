@@ -36,21 +36,35 @@ address on a desktop and the wrong one inside an Android emulator — use
 ## Building
 
 ```bash
-# F-Droid / direct APK
+# F-Droid — "Privio Libre", nothing proprietary
 flutter build apk --release --flavor libre \
   --dart-define=PRIVIO_EDITION=libre \
   --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 
-# Google Play
+# The APK from getprivio.com — "Privio", the same free-software build under
+# its own name, signed by us and updated from the site
+flutter build apk --release --flavor direct \
+  --dart-define=PRIVIO_EDITION=direct \
+  --dart-define=PRIVIO_API_URL=https://api.getprivio.com
+
+# Google Play — the only build allowed to contain Firebase
 flutter build appbundle --release --flavor play \
   --dart-define=PRIVIO_EDITION=play \
   --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 
-# iOS
+# App Store
 flutter build ipa --release \
   --dart-define=PRIVIO_EDITION=appstore \
   --dart-define=PRIVIO_API_URL=https://api.getprivio.com
 ```
+
+The flavour and the edition have to match: Gradle refuses a build where they
+disagree, and a release build refuses an edition it does not recognise rather
+than falling back to Libre. Add `$(../tools/build-info.sh)` to any of these to
+stamp the version and the commit into the binary.
+
+The four distributions, what separates them and where the licence review stands
+are in [`../docs/distribution.md`](../docs/distribution.md).
 
 Release builds are currently signed with the debug key — see the TODO in
 `android/app/build.gradle.kts`. F-Droid signs its own builds regardless, which
@@ -98,7 +112,7 @@ in fact*, and treat anything about how it behaves on a phone as untested.
 
 ```bash
 flutter analyze   # No issues found!
-flutter test      # All tests passed!  (551 tests, ~45 s)
+flutter test      # All tests passed!  (572 tests, ~45 s)
 ```
 
 The suite runs without a device, an emulator or a server. Hardware sits behind

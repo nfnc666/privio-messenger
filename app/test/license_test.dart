@@ -381,8 +381,8 @@ void main() {
     });
 
     test('only the free builds claim to be free', () {
-      expect(PrivioEdition.parse('libre').isLibre, isTrue);
-      expect(PrivioEdition.parse('direct').isLibre, isTrue);
+      expect(PrivioEdition.parse('libre').containsOnlyFreeSoftware, isTrue);
+      expect(PrivioEdition.parse('direct').containsOnlyFreeSoftware, isTrue);
       expect(PrivioEdition.parse('play').usesProprietaryServices, isTrue);
     });
 
@@ -399,7 +399,7 @@ void main() {
     });
 
     test('no free build links a proprietary push SDK', () {
-      for (final edition in PrivioEdition.all.where((e) => e.isLibre)) {
+      for (final edition in PrivioEdition.all.where((e) => e.containsOnlyFreeSoftware)) {
         expect(edition.usesProprietaryServices, isFalse);
         expect(edition.pushProvider, isNot(anyOf('fcm', 'apns')));
       }
