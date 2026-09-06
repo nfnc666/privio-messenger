@@ -62,9 +62,6 @@ const READABLE: Record<string, string> = {
   'licenses.payment_provider': 'the order this license was issued for',
   'licenses.payment_reference': 'the same',
 
-  // A private nickname somebody typed for a contact. Readable here, and named
-  // in "What the server still learns" for that reason.
-  'contacts.alias': 'not sealed — see the note in docs/security-model.md',
 };
 
 describe('what the server can read', () => {

@@ -294,13 +294,19 @@ sender, which is listed under known gaps.
 It also holds a few things somebody typed, and they are worth naming rather than
 leaving to be discovered: the **username and display name**, which are how people
 are found; a **public channel's** handle, title, description and category, because
-search cannot run over ciphertext; a **device's** name and platform, which the
-connected-devices screen shows; and the **alias** somebody gave a contact. The
-last one is the odd one out — a private nickname, useful to nobody but its
-author, sitting readable in `contacts.alias`. Sealing it needs a per-account
-symmetric key that survives a reinstall and reaches a second device, which the
-app does not have today outside the backup recovery key; until then it is listed
-here rather than implied to be encrypted.
+search cannot run over ciphertext; and a **device's** name and platform, which the
+connected-devices screen shows.
+
+There used to be one more. `contacts.alias` held a private nickname for a
+contact — "Anwalt", "Mama" — in the clear, and was listed here as something the
+server learns, with sealing it blocked on a per-account key the app does not
+have. Looking again found that nothing ever wrote it: the API accepted one, the
+client read it back as a display name, and no screen offered a field for it.
+Forty contacts in the development database, none with an alias. So the column is
+gone (migration 013) rather than sealed. A nickname is a good feature and
+belongs on the device, where the archive already keeps everything else about a
+contact and a backup carries it to the next phone; what it does not need is a
+copy the server can read.
 
 `server/test/schema.test.ts` holds that list as an allowlist: every free-text
 column in the schema with the reason it is not sealed. A migration that adds a

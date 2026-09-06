@@ -373,7 +373,7 @@ class ConversationController extends ChangeNotifier {
     return Contact(
       id: id,
       username: json['username'] as String,
-      displayName: (json['alias'] ?? json['displayName'] ?? json['username']) as String,
+      displayName: (json['displayName'] ?? json['username']) as String,
       // Null whenever their setting does not include us, which is the normal
       // answer and not a missing one.
       lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? '')?.toLocal(),

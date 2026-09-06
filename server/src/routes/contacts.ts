@@ -92,14 +92,14 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     // per row, because a query per contact is a query per contact.
     const { rows } = await pool.query(
       `SELECT a.id, a.username, a.display_name, a.avatar_media_id, a.avatar_updated_at,
-              a.privacy, a.last_seen_at, c.alias, c.created_at,
+              a.privacy, a.last_seen_at, c.created_at,
               EXISTS (
                 SELECT 1 FROM contacts back
                 WHERE back.account_id = a.id AND back.contact_account_id = $1
               ) AS mutual
        FROM contacts c JOIN accounts a ON a.id = c.contact_account_id
        WHERE c.account_id = $1 AND a.deleted_at IS NULL
-       ORDER BY COALESCE(c.alias, a.display_name, a.username)`,
+       ORDER BY COALESCE(a.display_name, a.username)`,
       [accountId],
     );
     return {
@@ -107,7 +107,6 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
         id: r.id,
         username: r.username,
         displayName: r.display_name,
-        alias: r.alias,
         avatarMediaId: r.avatar_media_id,
         avatarUpdatedAt: (r.avatar_updated_at as Date | null)?.toISOString() ?? null,
         addedAt: (r.created_at as Date).toISOString(),
@@ -122,7 +121,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
   app.post('/v1/contacts', requireAuth, async (request, reply) => {
     const { accountId } = auth(request);
     const body = parse(
-      z.object({ username: usernameSchema, alias: z.string().trim().min(1).max(64).optional() }),
+      z.object({ username: usernameSchema }),
       request.body,
     );
     const target = await findByUsername(body.username);
@@ -130,12 +129,15 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     if (target.id === accountId) throw ApiError.badRequest('self_contact', 'You cannot add yourself');
 
     await pool.query(
-      `INSERT INTO contacts (account_id, contact_account_id, alias) VALUES ($1, $2, $3)
-       ON CONFLICT (account_id, contact_account_id) DO UPDATE SET alias = EXCLUDED.alias`,
-      [accountId, target.id, body.alias ?? null],
+      // A nickname for a contact is the user's own business and stays on their
+      // device; the server holds the fact of the contact and nothing about how
+      // they think of them. See migration 013.
+      `INSERT INTO contacts (account_id, contact_account_id) VALUES ($1, $2)
+       ON CONFLICT (account_id, contact_account_id) DO NOTHING`,
+      [accountId, target.id],
     );
     reply.code(201);
-    return { ...publicProfile(target), alias: body.alias ?? null };
+    return publicProfile(target);
   });
 
   app.delete('/v1/contacts/:id', requireAuth, async (request) => {

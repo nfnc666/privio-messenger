@@ -32,12 +32,16 @@ describe('contacts and privacy', () => {
       method: 'POST',
       url: '/v1/contacts',
       headers: bearer(alice),
-      payload: { username: 'bob', alias: 'Bobby' },
+      payload: { username: 'bob' },
     });
     assert.equal(added.statusCode, 201);
 
     const listed = await h.app.inject({ method: 'GET', url: '/v1/contacts', headers: bearer(alice) });
-    assert.equal(listed.json().contacts[0].alias, 'Bobby');
+    assert.equal(listed.json().contacts[0].username, 'bob');
+    // A nickname is not part of what the server holds. It used to accept one,
+    // store it in the clear, and hand it back — for a field no screen ever
+    // offered. See migration 013.
+    assert.equal('alias' in listed.json().contacts[0], false);
 
     const removed = await h.app.inject({
       method: 'DELETE',
