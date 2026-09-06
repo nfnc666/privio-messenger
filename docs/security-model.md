@@ -845,6 +845,14 @@ not a defence against a determined offline attacker. The passcode screen says as
 much beside each choice, and says that a passphrase is the only one of the three
 that stands up to someone with the phone and time.
 
+**"Locked" and "not there" are different answers.** The store raises
+`ArchiveLockedException` when the key exists but is sealed, rather than
+answering null. A caller that reads the two as the same thing generates a fresh
+key and writes it over a history that was only waiting for a passcode — silent
+and total. That is not hypothetical: it is what the first wiring of this did,
+found by driving a real relaunch in a browser rather than by reading the code,
+and `tools/web-unlock-check.cjs` is the run that found it.
+
 **Forgetting it now costs the history.** Before, a forgotten passcode locked the
 app while the archive stayed readable; now the archive is what the passcode
 opens. The screen said so already — "what was already delivered here is gone

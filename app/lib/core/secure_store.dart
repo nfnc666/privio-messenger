@@ -109,6 +109,21 @@ abstract interface class SecureStore {
   Future<void> wipe();
 }
 
+/// Thrown when the archive key exists but is sealed under a passcode nobody has
+/// typed yet.
+///
+/// Distinct from "there is no key", and the distinction is the whole point: a
+/// caller that reads the two as the same thing generates a fresh key, writes it
+/// over the old one, and the history is gone. That is not a hypothetical — it
+/// is what happened the first time this was wired up, and the exception is what
+/// stops it happening again.
+class ArchiveLockedException implements Exception {
+  const ArchiveLockedException();
+
+  @override
+  String toString() => 'The archive key is sealed under the passcode';
+}
+
 /// The platform keystore: Keychain on iOS, Keystore-backed encrypted
 /// preferences on Android. Never shared preferences, never a plain file.
 class KeystoreSecureStore implements SecureStore {
@@ -298,15 +313,23 @@ class KeystoreSecureStore implements SecureStore {
     final wrapped = await _read(_wrappedArchiveKeyKey);
     if (wrapped == null) return _read(_archiveKeyKey);
     final passcode = _sessionPasscode;
-    if (passcode == null) return null;
+    if (passcode == null) throw const ArchiveLockedException();
     final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
-    return key == null ? null : (_sessionArchiveKey = base64Encode(key));
+    if (key == null) throw const ArchiveLockedException();
+    return _sessionArchiveKey = base64Encode(key);
   }
 
   @override
   Future<void> writeArchiveKey(String base64Key) async {
     final passcode = _sessionPasscode;
-    if (passcode == null) return _write(_archiveKeyKey, base64Key);
+    if (passcode == null) {
+      // Refusing rather than writing: a caller here with a wrapped key already
+      // stored is a caller about to replace a history it could not read.
+      if (await _read(_wrappedArchiveKeyKey) != null) {
+        throw const ArchiveLockedException();
+      }
+      return _write(_archiveKeyKey, base64Key);
+    }
     // A key generated after the lock was set — a first archive on a device that
     // had a passcode before it had any history — is wrapped straight away
     // rather than written in the clear and wrapped later.
@@ -496,15 +519,19 @@ class InMemorySecureStore implements SecureStore {
     final wrapped = _entries['archiveKeyWrapped'];
     if (wrapped == null) return _entries['archiveKey'];
     final passcode = _sessionPasscode;
-    if (passcode == null) return null;
+    if (passcode == null) throw const ArchiveLockedException();
     final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
-    return key == null ? null : (_sessionArchiveKey = base64Encode(key));
+    if (key == null) throw const ArchiveLockedException();
+    return _sessionArchiveKey = base64Encode(key);
   }
 
   @override
   Future<void> writeArchiveKey(String base64Key) async {
     final passcode = _sessionPasscode;
     if (passcode == null) {
+      if (_entries.containsKey('archiveKeyWrapped')) {
+        throw const ArchiveLockedException();
+      }
       _entries['archiveKey'] = base64Key;
       return;
     }

@@ -19,19 +19,37 @@ void main() {
     expect(await store.hasPasscode(), isTrue);
   });
 
-  test('a fresh process has nothing until the passcode is typed', () async {
+  test('a fresh process says locked until the passcode is typed', () async {
     final store = InMemorySecureStore();
     await store.writeArchiveKey(key);
     await store.setPasscode('1234', PasscodeKind.digits4);
     // What survives a relaunch is what was written down, not what was in RAM.
     final relaunched = InMemorySecureStore()..restoreForTest(store.entriesForTest);
 
-    expect(await relaunched.readArchiveKey(), isNull, reason: 'locked');
+    expect(relaunched.readArchiveKey(), throwsA(isA<ArchiveLockedException>()));
     expect(await relaunched.verifyPasscode('9999'), isFalse);
-    expect(await relaunched.readArchiveKey(), isNull, reason: 'still locked');
+    expect(relaunched.readArchiveKey(), throwsA(isA<ArchiveLockedException>()));
 
     expect(await relaunched.verifyPasscode('1234'), isTrue);
     expect(await relaunched.readArchiveKey(), key, reason: 'and now it opens');
+  });
+
+  test('a locked archive is never given a fresh key', () async {
+    // The bug this exists for: read the key while locked, get null, decide
+    // there is no key, generate one, write it over a history that was only
+    // waiting for a passcode. Silent and total.
+    final store = InMemorySecureStore();
+    await store.writeArchiveKey(key);
+    await store.setPasscode('1234', PasscodeKind.digits4);
+    final relaunched = InMemorySecureStore()..restoreForTest(store.entriesForTest);
+
+    expect(
+      relaunched.writeArchiveKey(base64Encode(List.filled(32, 9))),
+      throwsA(isA<ArchiveLockedException>()),
+    );
+    // And the original is still there for whoever knows the passcode.
+    expect(await relaunched.verifyPasscode('1234'), isTrue);
+    expect(await relaunched.readArchiveKey(), key);
   });
 
   test('turning the lock off puts the key back, or the history is gone', () async {
@@ -53,7 +71,7 @@ void main() {
     await store.writeArchiveKey(key);
 
     final relaunched = InMemorySecureStore()..restoreForTest(store.entriesForTest);
-    expect(await relaunched.readArchiveKey(), isNull);
+    expect(relaunched.readArchiveKey(), throwsA(isA<ArchiveLockedException>()));
     expect(await relaunched.verifyPasscode('1234'), isTrue);
     expect(await relaunched.readArchiveKey(), key);
   });
