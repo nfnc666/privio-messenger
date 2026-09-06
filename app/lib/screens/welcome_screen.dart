@@ -12,11 +12,13 @@ import '../widgets/privio_logo.dart';
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({
     required this.onGetStarted,
+    required this.onSignIn,
     required this.onImportBackup,
     super.key,
   });
 
   final VoidCallback onGetStarted;
+  final VoidCallback onSignIn;
   final VoidCallback onImportBackup;
 
   static const List<(IconData, String)> _promises = [
@@ -68,6 +70,12 @@ class WelcomeScreen extends StatelessWidget {
               ],
               FilledButton(onPressed: onGetStarted, child: const Text('Get Started')),
               const SizedBox(height: PrivioSpacing.sm),
+              // Somebody who already has an account is not a new user, and had
+              // to work that out for themselves: the only ways in were a button
+              // that says it creates an account, and one that says it imports a
+              // backup. Reinstalling, or adding a second device, is not an
+              // unusual thing to be doing on this screen.
+              TextButton(onPressed: onSignIn, child: const Text('I already have an account')),
               TextButton(
                 onPressed: onImportBackup,
                 child: const Text('Import from backup'),
