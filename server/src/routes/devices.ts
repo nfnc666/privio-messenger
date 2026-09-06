@@ -12,6 +12,8 @@ import {
 import { findByUsername } from '../services/accounts.js';
 import { ApiError } from '../util/errors.js';
 import { parsePushEndpoint } from '../util/outbound.js';
+import { announceDeviceRevocation } from '../services/revocation.js';
+import type { DeliveryBus } from '../services/bus.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 import { config } from '../config.js';
 
@@ -22,7 +24,7 @@ function allowedPushHosts(): string[] {
     .filter((host) => host.length > 0);
 }
 
-const deviceRoutes: FastifyPluginAsync = async (app) => {
+const deviceRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
 
   /** Connected-device management: what is logged in, and from where. */
@@ -66,6 +68,10 @@ const deviceRoutes: FastifyPluginAsync = async (app) => {
       params.id,
     ]);
     await pool.query('DELETE FROM envelopes WHERE recipient_device_id = $1', [params.id]);
+    // Every socket on that device, whichever session it belongs to. Revoking a
+    // phone from another phone is the case where "it will notice eventually"
+    // is exactly the wrong behaviour: the point is that it stops now.
+    await announceDeviceRevocation(bus, [params.id]);
     return { revoked: true };
   });
 

@@ -9,12 +9,30 @@ import { config } from '../config.js';
  * carries nothing to read — it means somebody in a group or channel this
  * device belongs to is waiting for its key, and the device should run the
  * housekeeping it would otherwise have run on its next poll.
+ *
+ * `revoked` is the opposite of a wake-up: stop. It is published when a session
+ * ends — a logout, a device revoked from another phone, a password change, an
+ * account deleted — and it exists because a WebSocket used to check its session
+ * once, at the moment it was opened, and never again. A signed-out device kept
+ * receiving envelopes, and its acknowledgements kept deleting them from the
+ * queue, for as long as it stayed connected.
+ *
+ * It rides the same bus as everything else so that it crosses instances: the
+ * socket to close is very often not on the process that handled the logout.
  */
-export type WakeKind = 'envelopes' | 'key-request';
+export type WakeKind = 'envelopes' | 'key-request' | 'revoked';
 
 export interface Wake {
   deviceId: string;
   kind: WakeKind;
+
+  /**
+   * For `revoked`: which session ended, or undefined for "every session on this
+   * device". Naming the session matters for a logout — one phone signing out
+   * must not close the sockets of that account's other devices, and a device
+   * with two sessions open should lose only the one that ended.
+   */
+  sessionId?: string;
 }
 
 /**

@@ -126,9 +126,9 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // `routes/accounts.ts`. It used to wrap the whole account plugin, which put
   // `GET /v1/accounts/me` on a login-grade allowance: opening a settings screen
   // a few times could lock someone out of their own account for five minutes.
-  await app.register(accountRoutes(storage));
+  await app.register(accountRoutes(storage, deps.bus));
 
-  await app.register(deviceRoutes);
+  await app.register(deviceRoutes(deps.bus));
   await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));
