@@ -3,9 +3,13 @@ description: Privio — privacy-first secure messenger.
 publish_to: none
 version: 0.1.0+1
 
+# Raised from 3.4.0/3.22.0 with `file_picker` 12, which needs these. It is not
+# a loss: the older floor described a version range that could not produce an
+# Android APK, so nothing was building against it anyway. CI pins 3.47.1, which
+# is the version every result in the README was measured on.
 environment:
-  sdk: ">=3.4.0 <4.0.0"
-  flutter: ">=3.22.0"
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
 
 dependencies:
   flutter:
@@ -18,11 +22,13 @@ dependencies:
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2
   cryptography: ^2.9.0
-  # Pinned at 11 deliberately, and it is why no Android APK can be built today.
-  # See "The Android build is blocked" in README.md — moving to 12 drags
-  # flutter_secure_storage across two major versions, and that one holds the
-  # session token, the archive key and the recovery key.
-  file_picker: ^11.0.3
+  # 12, not 11. Eleven applies its own Kotlin Gradle Plugin, which stopped
+  # producing its Android classes once Flutter moved to built-in Kotlin, and the
+  # registrant Flutter generates then fails to compile: `cannot find symbol:
+  # class FilePickerPlugin`. That is the whole reason no Android APK could be
+  # built. Twelve fixes it; what blocked twelve was a Windows package, and the
+  # override below is why that no longer decides anything here.
+  file_picker: ^12.2.0
   web_socket_channel: ^3.0.3
   image: ^4.9.2
   # Office and OpenDocument files are ZIP containers, and their author name,
@@ -39,6 +45,24 @@ dependencies:
   # until it has been laid out. Pure Dart, from the Flutter team's own widgets
   # repository — it adds nothing native and nothing to the F-Droid build.
   scrollable_positioned_list: ^0.3.8
+
+# The one override, and it exists to keep `flutter_secure_storage` at 9.
+#
+# `file_picker` 12 pulls `windows_file_picker`, which wants `win32` ^6;
+# `flutter_secure_storage_windows` 3.1.2 pins `win32` ^5. Pub resolves every
+# platform's plugin whether or not it is ever compiled, so a Windows conflict
+# was refusing an Android fix. Pub's own suggestion is to move
+# `flutter_secure_storage` to 11 — and that package holds the session token, the
+# archive key and the recovery key, its Android implementation changed in 10,
+# and data written by 9 may not be readable afterwards. Somebody's history and
+# their backup are not a thing to bump and hope.
+#
+# This app builds for Android, iOS and web: there is no `windows/` directory,
+# so neither Windows plugin is ever compiled and the version this pins is never
+# loaded. Delete the override the day a Windows target is added — and expect to
+# do the keystore migration then.
+dependency_overrides:
+  win32: ^6.3.0
 
 dev_dependencies:
   flutter_test:

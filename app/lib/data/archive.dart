@@ -185,10 +185,18 @@ class EncryptedMessageArchive implements MessageArchive {
     final mac = sealed.sublist(sealed.length - _macLength);
     final cipherText = sealed.sublist(1 + _nonceLength, sealed.length - _macLength);
 
+    // Outside the catch below, deliberately. "Nobody has typed the passcode
+    // yet" is not "this blob will not open": swallowing it would answer a
+    // locked device with an empty history, which reads as a device that has
+    // none — and whatever saves next writes that emptiness over a history
+    // still sitting here. Today only the unlocked path calls this, so the
+    // ordering hides it; the guarantee should not depend on the ordering.
+    final key = await _key();
+
     try {
       final plain = await _cipher.decrypt(
         SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
-        secretKey: await _key(),
+        secretKey: key,
       );
       final decoded = jsonDecode(utf8.decode(plain));
       // Archives written before the outbox existed are a bare list.

@@ -1,0 +1,95 @@
+name: Mobile builds
+
+# Compiling is not the same as working on a phone, and this workflow only claims
+# the first: it proves the Android and iOS projects still build from a clean
+# checkout, which is what has to be true before anybody can install one and try
+# it. Nothing here is signed and nothing is published.
+#
+# Kept apart from `ci.yml` because these are the expensive jobs — a macOS runner
+# bills at ten times the Linux rate — so they run for pull requests and for main,
+# not for every push to every branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.47.1"
+  FLUTTER_SUPPRESS_ANALYTICS: "true"
+
+jobs:
+  android:
+    name: Android — libre APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Gradle config sets source and target compatibility to 17, so the
+      # runner's default JDK is not something to leave to chance.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # A flavour is not optional: `android/app/build.gradle.kts` declares the
+      # `distribution` dimension with `libre` and `play`, and a build without
+      # one is refused. The edition has to be passed alongside it, because the
+      # Gradle flavour sets the Android resources and the dart-define sets what
+      # the Dart code reads — they are two halves of the same choice.
+      - name: Build APK (libre)
+        run: >-
+          flutter build apk --release
+          --flavor libre
+          --dart-define=PRIVIO_EDITION=libre
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: privio-libre-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS — unsigned build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # No `--flavor`: the Xcode project has one scheme, `Runner`. The Android
+      # flavours have no counterpart here, and asking for one fails.
+      - name: Build iOS (no signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: privio-ios-unsigned
+          path: app/build/ios/iphoneos/Runner.app
+          if-no-files-found: error
+          retention-days: 14

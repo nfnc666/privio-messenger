@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -27,23 +28,32 @@ class _AccountScreenState extends State<AccountScreen> {
   /// The server ends up holding an image it cannot open — which is the whole
   /// point of doing this rather than posting a JPEG.
   Future<void> _pickAvatar() async {
-    FilePickerResult? picked;
+    PlatformFile? picked;
     try {
-      picked = await FilePicker.pickFiles(
-        withData: true,
+      picked = await FilePicker.pickFile(
         type: FileType.image,
       ).timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
       if (mounted) _showMessage('Could not open the picker: $failure');
       return;
     }
+    if (picked == null || !mounted) return;
 
-    final file = picked?.files.singleOrNull;
-    if (file?.bytes == null || !mounted) return;
+    // The bytes are read here rather than by the picker, which is the shape the
+    // package moved to. Reading can fail on its own — a file the picker listed
+    // and the app then cannot open — so it gets its own message.
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object catch (failure) {
+      if (mounted) _showMessage('Could not read ${picked.name}: $failure');
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _uploading = true);
     final controller = PrivioScope.of(context).conversations;
-    final ok = await controller.setOwnAvatar(file!.bytes!);
+    final ok = await controller.setOwnAvatar(bytes);
     if (!mounted) return;
     setState(() => _uploading = false);
     if (!ok) _showMessage(controller.error ?? 'Could not set the picture');
