@@ -445,10 +445,18 @@ class MessagingService {
     required String scope,
     required String scopeId,
     required String base64Key,
+    int? keyEpoch,
   }) =>
       sendPayload(
         username,
-        MessagePayload.key(keyScope: scope, keyScopeId: scopeId, deliveredKey: base64Key),
+        MessagePayload.key(
+          keyScope: scope,
+          keyScopeId: scopeId,
+          deliveredKey: base64Key,
+          // Channels only. Without it the receiver cannot tell which version
+          // this is, and would file a superseded key over the current one.
+          keyEpoch: keyEpoch,
+        ),
       );
 
   /// Drains the queue, decrypts, and acknowledges only what was handled.

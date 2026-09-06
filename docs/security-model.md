@@ -269,13 +269,80 @@ The owner holds everything, cannot be demoted or removed, and cannot walk out of
 their own channel. Deleting the channel is off by default even for admins,
 because it is the one action nothing undoes; an owner can grant it deliberately.
 
+**Rotating the key when somebody goes.** A channel key has a version — an
+*epoch* — and every post records which one sealed it. Removing a member, or a
+member leaving, advances the epoch in the same database transaction as the
+membership delete, so there is no instant in which somebody is gone and the
+channel is still on the key they hold.
+
+The server counts epochs and holds a key for none of them. The replacement is
+generated on a remaining member's device and sealed to each of the others over
+the sessions those accounts already have, exactly as the first key reaches a new
+joiner. Three rules make it hold together:
+
+1. **Nothing new under the old key.** The server refuses a post whose epoch is
+   below the channel's current one. That is what catches the author who was
+   offline while somebody was removed and is now publishing something they
+   composed beforehand — they are sent back to seal it again. The server still
+   cannot read the post and cannot check which key was really used; it can only
+   refuse one that admits to a superseded version.
+2. **Two rotations at once cannot disagree.** Claiming an epoch is an insert
+   whose primary key is (channel, epoch), so the database picks a winner. The
+   loser is told, drops the key it generated without ever writing it down, and
+   asks for the winner's. Without this, two admins removing two people in the
+   same minute would leave half the channel holding each of two keys, with posts
+   nobody could read and no error anywhere.
+3. **Epochs only go up.** A trigger refuses a decrease, and a device ignores a
+   key for a version it already holds. A replayed or late key event lands in the
+   slot it belongs to and cannot displace the current one.
+
+**What this does and does not take away.** A removed member keeps every post
+they could already read — those were sealed under an epoch they still hold, and
+no rotation reaches into somebody else's storage. What they lose is everything
+published afterwards. That is the honest shape of it: not "they can no longer
+read the channel", but "they can no longer read the channel's future".
+
+**What history a new member gets.** A private channel hands over the current
+epoch only, so somebody joining today does not receive what was said before they
+arrived — otherwise a person removed on Monday could rejoin under a new account
+on Tuesday and have all of it back. A public channel hands over every epoch,
+deliberately: anyone may join a public channel, so anyone may hold its keys, and
+withholding history there would not keep a determined reader out for five
+minutes while making the channel worse for everyone who joins honestly. On a
+public channel the rotation governs the membership list — who is sent the feed,
+who may post — and is not a way of putting past posts beyond somebody's reach.
+It is not a ban, and the app does not present it as one.
+
+**The trust boundary, and what it actually buys.** This is where the guarantee
+has to be stated carefully, because it is easy to claim more than it delivers.
+
+Membership lives on the server. The device that generates a new key seals it to
+the accounts the server names as members. So:
+
+- Against a server that **stores and forwards** — the threat this whole design
+  is about — rotation works. The relay never sees a key, before or after, and a
+  removed member's copies of the ciphertext stay shut.
+- Against a server that **actively lies about who is a member**, it does not.
+  A server that adds an account to the roster will have the next rotation's key
+  sealed to it by an honest member's device, which believed the roster. No check
+  in this codebase catches that, and calling this "forward secrecy against the
+  operator" would be false.
+
+Closing that needs something this architecture does not have: a membership list
+authenticated end to end — signed by an admin key that members verify — so a
+device seals the new key to a roster it can check rather than one it is handed.
+That is a real design change, not a patch, and it is listed as a known gap
+rather than quietly assumed.
+
 **The limits, stated plainly:**
 
-- A member who leaves — or is removed — keeps the key, and so keeps every post
-  they could already read. Rotating the key on removal and re-sharing it to the
-  remaining members is not implemented, which means removal stops future posts
-  from reaching them but does not take back the past.
-- Membership is visible to the server, as it must be for delivery.
+- A rotation is only as complete as the devices that carry it out. Between a
+  removal and the moment a member who may manage members next opens Privio, the
+  channel has advanced its epoch and nobody has generated the key. Nothing can
+  be published in that window and the app says why; it does not fall back to
+  the old key.
+- Membership is visible to the server, as it must be for delivery, and the
+  server is trusted for the roster — see the trust boundary above.
 - "Restrict saving" is a hint the client honours. Anyone who can read a post can
   copy it; it raises effort and is not a security control.
 

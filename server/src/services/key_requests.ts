@@ -77,18 +77,29 @@ export interface PendingKeyRequest {
 /**
  * Who is waiting, excluding [exceptDeviceId] — the caller's own device, which
  * cannot answer its own request.
+ *
+ * Joined against membership, which is belt and braces on purpose. Removal
+ * already deletes the leaver's requests, but that is a delete racing an insert:
+ * a device that recorded a request in the same second as its account was
+ * removed would otherwise leave a row behind, and every member's app would
+ * dutifully seal the new key to somebody who was just thrown out. The join
+ * makes the answer depend on membership *now* rather than on which write
+ * landed first.
  */
 export async function pendingKeyRequests(
   scope: KeyScope,
   scopeId: string,
   exceptDeviceId: string,
 ): Promise<PendingKeyRequest[]> {
+  const membership = scope === 'group' ? 'group_members' : 'channel_members';
+  const column = scope === 'group' ? 'group_id' : 'channel_id';
   const { rows } = await pool.query(
     `SELECT r.account_id, a.username, r.device_id, d.device_index, d.registration_id,
             r.requested_at
      FROM key_requests r
      JOIN devices d ON d.id = r.device_id AND d.revoked_at IS NULL
      JOIN accounts a ON a.id = r.account_id AND a.deleted_at IS NULL
+     JOIN ${membership} m ON m.${column} = r.scope_id AND m.account_id = r.account_id
      WHERE r.scope = $1 AND r.scope_id = $2 AND r.device_id <> $3
      ORDER BY r.requested_at ASC
      LIMIT 200`,

@@ -268,6 +268,26 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> channelKeyRequests(String channelId) =>
       _send('GET', '/v1/channels/$channelId/key-requests');
 
+  /// Which key version this channel is on, and whether anybody has generated it.
+  ///
+  /// A null `keyId` is not an error: it means a member was removed and no
+  /// device has come online to make the replacement yet.
+  Future<Map<String, dynamic>> channelKeyEpoch(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/key-epochs/current');
+
+  /// Claims the current epoch for a key this device generated.
+  ///
+  /// `claimed: false` in the answer means somebody else got there first — two
+  /// admins removing two people in the same minute — and the `keyId` returned
+  /// is theirs. The label says nothing about the key; the server never has one.
+  Future<Map<String, dynamic>> claimChannelKeyEpoch({
+    required String channelId,
+    required int epoch,
+    required String keyId,
+  }) =>
+      _send('POST', '/v1/channels/$channelId/key-epochs',
+          body: {'epoch': epoch, 'keyId': keyId});
+
   Future<void> clearChannelKeyRequest(String channelId, String deviceId) async =>
       _send('DELETE', '/v1/channels/$channelId/key-requests/$deviceId');
 
@@ -300,8 +320,10 @@ class PrivioApiClient {
     String? category,
     String? encryptedMetadata,
     bool restrictSaving = false,
+    String? keyId,
   }) =>
       _send('POST', '/v1/channels', body: {
+        if (keyId != null) 'keyId': keyId,
         'visibility': visibility,
         if (handle != null) 'handle': handle,
         if (title != null) 'title': title,
@@ -378,10 +400,15 @@ class PrivioApiClient {
     required String channelId,
     required String content,
     String? mediaId,
+    int? keyEpoch,
   }) =>
       _send('POST', '/v1/channels/$channelId/posts', body: {
         'content': content,
         if (mediaId != null) 'mediaId': mediaId,
+        // Which key sealed it. The server refuses anything older than the
+        // channel's current epoch, which is what stops a post prepared before a
+        // removal from reaching the person who was removed.
+        if (keyEpoch != null) 'keyEpoch': keyEpoch,
       },);
 
   Future<Map<String, dynamic>> channelPosts(String channelId, {int? before, int limit = 50}) =>

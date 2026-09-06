@@ -213,7 +213,16 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
           ),
           body: Column(
             children: [
-              if (!channel.hasKey && channel.isMember) const _MissingKeyBanner(),
+              if (channel.isMember && !channel.hasCurrentKey)
+                _MissingKeyBanner(
+                  // Two different situations behind one padlock, and the
+                  // difference decides whether waiting is any use: a device
+                  // that has never had a key is waiting for a first delivery,
+                  // while one that holds older versions is waiting for a
+                  // rotation somebody set off by leaving or being removed.
+                  rotating: channel.hasKey,
+                  epoch: channel.keyEpoch,
+                ),
               Expanded(
                 child: !channel.isMember
                     ? _JoinPrompt(channel: channel, onJoin: _join)
@@ -244,7 +253,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                 _Composer(
                   controller: _composer,
                   sending: _sending,
-                  enabled: channel.hasKey,
+                  // Never the old key. Posting under a superseded version is
+                  // exactly what a rotation exists to prevent, and the server
+                  // would refuse it anyway — so the composer says why instead
+                  // of failing on send.
+                  enabled: channel.hasCurrentKey,
                   onSend: _publish,
                 ),
             ],
@@ -446,7 +459,13 @@ class _InviteDialog extends StatelessWidget {
 }
 
 class _MissingKeyBanner extends StatelessWidget {
-  const _MissingKeyBanner();
+  const _MissingKeyBanner({this.rotating = false, this.epoch = 1});
+
+  /// True when this device already reads some of the channel and is waiting for
+  /// a new version, rather than waiting for its first key ever.
+  final bool rotating;
+
+  final int epoch;
 
   @override
   Widget build(BuildContext context) {
@@ -460,12 +479,21 @@ class _MissingKeyBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.key_off_rounded, size: 18, color: PrivioColors.warning),
+          Icon(
+            rotating ? Icons.autorenew_rounded : Icons.key_off_rounded,
+            size: 18,
+            color: PrivioColors.warning,
+          ),
           const SizedBox(width: PrivioSpacing.md),
           Expanded(
             child: Text(
-              'Waiting for the key. It is sent to this device, encrypted, by '
-              'someone already in the channel — the server never holds it.',
+              rotating
+                  ? 'Someone left this channel, so it is changing its key '
+                      '(version $epoch). Posts from before are still readable. '
+                      'New ones open once the new key reaches this device.'
+                  : 'Waiting for the key. It is sent to this device, encrypted, '
+                      'by someone already in the channel — the server never '
+                      'holds it.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
 
@@ -62,18 +62,63 @@ class PrivioSignalStore extends SignalProtocolStore {
 
   Future<void> writeProfileKey(Uint8List key) => _storage.writeBytes(_profileKeyKey, key);
 
-  /// A channel's key, kept per channel. Losing it means the posts stay sealed;
-  /// there is no copy on the server to fall back on.
-  Future<Uint8List?> readChannelKey(String channelId) async {
-    final stored = await _storage.readBytes('$_channelKeyPrefix$channelId');
-    return stored == null ? null : Uint8List.fromList(stored);
+  /// A channel's key for one version of it. Losing it means those posts stay
+  /// sealed; there is no copy on the server to fall back on.
+  ///
+  /// Kept per epoch rather than per channel, because a member who was here
+  /// before a removal holds several: the old ones open the posts they could
+  /// always read, and the current one opens what is published now. Dropping the
+  /// old ones on rotation would take away history from the people the rotation
+  /// was meant to protect.
+  Future<Uint8List?> readChannelKey(String channelId, int epoch) async {
+    final stored = await _storage.readBytes(_epochKey(channelId, epoch));
+    if (stored != null) return Uint8List.fromList(stored);
+    // Written before keys were versioned: one key, no epoch in the name. It is
+    // epoch 1 by definition — every post that existed then was sealed with it —
+    // so it is moved into place rather than lost.
+    if (epoch != 1) return null;
+    final legacy = await _storage.readBytes('$_channelKeyPrefix$channelId');
+    if (legacy == null) return null;
+    final key = Uint8List.fromList(legacy);
+    await writeChannelKey(channelId, 1, key);
+    await _storage.delete('$_channelKeyPrefix$channelId');
+    return key;
   }
 
-  Future<void> writeChannelKey(String channelId, Uint8List key) =>
-      _storage.writeBytes('$_channelKeyPrefix$channelId', key);
+  Future<void> writeChannelKey(String channelId, int epoch, Uint8List key) =>
+      _storage.writeBytes(_epochKey(channelId, epoch), key);
 
-  Future<void> deleteChannelKey(String channelId) =>
-      _storage.delete('$_channelKeyPrefix$channelId');
+  /// Which versions of this channel's key are on this device, oldest first.
+  Future<List<int>> channelKeyEpochs(String channelId, {int upTo = 512}) async {
+    final held = <int>[];
+    for (var epoch = 1; epoch <= upTo; epoch++) {
+      if (await _storage.readBytes(_epochKey(channelId, epoch)) != null) held.add(epoch);
+    }
+    // The legacy key counts as epoch 1 whether or not it has been moved yet.
+    if (!held.contains(1) && await _storage.readBytes('$_channelKeyPrefix$channelId') != null) {
+      held.insert(0, 1);
+    }
+    return held;
+  }
+
+  /// Forgets every version. Leaving a channel is not a way to keep reading it.
+  Future<void> deleteChannelKey(String channelId, {int upTo = 512}) async {
+    await _storage.delete('$_channelKeyPrefix$channelId');
+    for (var epoch = 1; epoch <= upTo; epoch++) {
+      await _storage.delete(_epochKey(channelId, epoch));
+    }
+  }
+
+  String _epochKey(String channelId, int epoch) => '$_channelKeyPrefix$channelId/$epoch';
+
+  /// Writes a key the way versions of this app before epochs did.
+  ///
+  /// Only a test has a reason to create that state deliberately; every real
+  /// device that has it got there by being installed before rotation existed,
+  /// and the migration in [readChannelKey] is what it meets. The annotation
+  /// sits on `ChannelService.writeLegacyKey`, which is the way in.
+  Future<void> writeLegacyChannelKey(String channelId, Uint8List key) =>
+      _storage.writeBytes('$_channelKeyPrefix$channelId', key);
 
   String _addressKey(String prefix, SignalProtocolAddress address) =>
       '$prefix${address.getName()}.${address.getDeviceId()}';

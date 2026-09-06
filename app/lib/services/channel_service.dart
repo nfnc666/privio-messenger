@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,40 @@ import '../crypto/padding.dart';
 import '../crypto/privio_crypto.dart';
 import '../models/channel.dart';
 import 'messaging_service.dart';
+
+/// A channel whose current key this device does not have.
+///
+/// Thrown rather than returned, and never swallowed into a silent fallback:
+/// publishing under the previous key is exactly what a rotation exists to
+/// prevent, so "I cannot post yet" has to reach the screen as a sentence
+/// somebody can act on.
+class ChannelKeyPending implements Exception {
+  const ChannelKeyPending({
+    required this.channelId,
+    required this.epoch,
+    required this.awaitingGeneration,
+  });
+
+  final String channelId;
+
+  /// The version this channel is on now.
+  final int epoch;
+
+  /// True when nobody has generated the new key yet — somebody was removed and
+  /// no device that could make the replacement has been online since. False
+  /// when it exists and simply has not reached this device.
+  final bool awaitingGeneration;
+
+  /// What to put in front of the person trying to post.
+  String get message => awaitingGeneration
+      ? 'This channel is changing its key after a member left. You can post '
+          'again once someone who manages the channel opens Privio.'
+      : 'Waiting for the new channel key to reach this device. Your post is '
+          'not lost — try again in a moment.';
+
+  @override
+  String toString() => message;
+}
 
 /// Channels, sealed end to end.
 ///
@@ -44,17 +79,195 @@ class ChannelService {
   /// screenful of padlocks can unlock itself instead of waiting to be reopened.
   final ValueNotifier<String?> keyArrived = ValueNotifier<String?>(null);
 
+  final Random _random = Random.secure();
+
+  /// The current epoch of each channel, as the server last reported it.
+  final Map<String, int> _epochs = {};
+
   // --- Keys -----------------------------------------------------------------
 
-  Future<Uint8List?> keyFor(String channelId) => _crypto.store.readChannelKey(channelId);
+  /// The key for one version of a channel.
+  Future<Uint8List?> keyFor(String channelId, int epoch) =>
+      _crypto.store.readChannelKey(channelId, epoch);
 
-  /// Remembers the key for a channel — from creating it, or from a delivery.
-  Future<void> rememberKey(String channelId, Uint8List key) async {
-    await _crypto.store.writeChannelKey(channelId, key);
+  /// Remembers a key for one version — from creating the channel, from
+  /// generating a replacement, or from a delivery.
+  ///
+  /// Old versions are kept. A member who was here before a removal holds
+  /// several, and each one opens the posts that were sealed with it: dropping
+  /// them would take history away from exactly the people the rotation exists
+  /// to protect.
+  Future<void> rememberKey(String channelId, int epoch, Uint8List key) async {
+    final existing = await _crypto.store.readChannelKey(channelId, epoch);
+    if (existing != null) {
+      // A key for an epoch this device already holds is a redelivery or a
+      // replay. Overwriting would be the one way a stale event could take a
+      // channel backwards, so it does not happen.
+      return;
+    }
+    await _crypto.store.writeChannelKey(channelId, epoch, key);
     keyArrived.value = channelId;
   }
 
   Future<void> forgetKey(String channelId) => _crypto.store.deleteChannelKey(channelId);
+
+  /// Which versions this device can open.
+  Future<List<int>> heldEpochs(String channelId) =>
+      _crypto.store.channelKeyEpochs(channelId);
+
+  /// Which versions a new member is given, and therefore what history they get.
+  ///
+  /// Decided in one place and deliberately, because it is the question a
+  /// rotation raises and the one it is easiest to answer by accident:
+  ///
+  /// **A private channel: the current version only.** Somebody joining today
+  /// was not in the room yesterday. Handing over every earlier key would mean a
+  /// person removed on Monday could rejoin under a new account on Tuesday and
+  /// have the lot back — which would make the rotation decorative. Older posts
+  /// stay padlocked for them, and the feed says so rather than hiding them.
+  ///
+  /// **A public channel: every version this device holds.** Anyone may join a
+  /// public channel, so anyone may hold its keys; that is what "public" means
+  /// and the security model already says so. Withholding history there would
+  /// not keep a determined reader out for five minutes — they can join under
+  /// any account, or ask somebody — while making the channel worse for everyone
+  /// who joins honestly. On a public channel a rotation is about the membership
+  /// list, who is sent the feed and who may post. It is not, and must not be
+  /// presented as, a way of putting past posts beyond somebody's reach.
+  Future<List<int>> epochsToShareWith(String channelId) async {
+    final state = await currentEpoch(channelId);
+    final channel = await byId(channelId);
+    if (!channel.isPublic) return [state.epoch];
+    final held = await heldEpochs(channelId);
+    return held.isEmpty ? [state.epoch] : held;
+  }
+
+  /// Puts a key where a version of this app from before epochs would have left
+  /// it, so the migration path can be driven in a test.
+  @visibleForTesting
+  Future<void> writeLegacyKey(String channelId, Uint8List key) =>
+      _crypto.store.writeLegacyChannelKey(channelId, key);
+
+  // --- Key versions ---------------------------------------------------------
+
+  /// What the server says this channel's current key version is.
+  Future<({int epoch, String? keyId})> currentEpoch(String channelId) async {
+    final response = await _api.channelKeyEpoch(channelId);
+    final epoch = (response['epoch'] as num?)?.toInt() ?? 1;
+    _epochs[channelId] = epoch;
+    return (epoch: epoch, keyId: response['keyId'] as String?);
+  }
+
+  /// Whether this device can publish to, and fully read, this channel right now.
+  Future<bool> hasCurrentKey(String channelId) async {
+    final state = await currentEpoch(channelId);
+    return await keyFor(channelId, state.epoch) != null;
+  }
+
+  /// Completes a rotation: generates the next key, claims it, and hands it out.
+  ///
+  /// Called after a removal, and whenever a device notices the channel is on an
+  /// epoch it has no key for. Only somebody who may manage members gets here —
+  /// a subscriber generating keys would be a subscriber deciding who reads the
+  /// channel next, which is the very permission being rotated.
+  ///
+  /// The race is the interesting part. Two admins removing two people in the
+  /// same minute both see the epoch go up, and both generate a key. If both were
+  /// distributed, half the members would hold one and half the other, with posts
+  /// nobody could read and no error anywhere. So the epoch is claimed first, the
+  /// database settles who won, and the loser throws its key away and asks for the
+  /// winner's rather than distributing a second one.
+  ///
+  /// Returns true when this device now holds the current key — whether it made
+  /// it or lost the race and already had it.
+  Future<bool> completeRotation(String channelId) async {
+    final state = await currentEpoch(channelId);
+
+    // Already have it: either nothing rotated, or somebody's delivery arrived
+    // first. Nothing to do, and nothing to overwrite.
+    if (await keyFor(channelId, state.epoch) != null) return true;
+
+    // Somebody else has already generated this epoch's key. There is nothing to
+    // claim; what is needed is the key itself, which only a member can send.
+    if (state.keyId != null) {
+      await requestKey(channelId);
+      return false;
+    }
+
+    final candidate = Uint8List.fromList(
+      await (await _cipher.newSecretKey()).extractBytes(),
+    );
+    final keyId = _newKeyId();
+
+    final Map<String, dynamic> claim;
+    try {
+      claim = await _api.claimChannelKeyEpoch(
+        channelId: channelId,
+        epoch: state.epoch,
+        keyId: keyId,
+      );
+    } on Object {
+      // Refused — not permitted, or the epoch moved again while this ran. Both
+      // mean this device must not distribute the key it just made.
+      return false;
+    }
+
+    if (claim['claimed'] != true) {
+      // Lost. The candidate key is dropped without ever being written down: a
+      // key that is not the agreed one is worse than no key, because it looks
+      // like progress.
+      await requestKey(channelId);
+      return false;
+    }
+
+    await rememberKey(channelId, state.epoch, candidate);
+    await deliverPendingKeys(channelId);
+    // Everyone who is still here needs it, not only those who happen to have a
+    // request outstanding: the rotation is what created the need.
+    await distributeKey(channelId, state.epoch);
+    return true;
+  }
+
+  /// Seals the current key to every remaining member.
+  ///
+  /// One message per account, over the Signal session the two already have. The
+  /// server routes it and cannot read it, which is what keeps a rotation from
+  /// being a moment where the key passes through the relay.
+  Future<int> distributeKey(String channelId, int epoch) async {
+    final key = await keyFor(channelId, epoch);
+    if (key == null) return 0;
+
+    final roster = await members(channelId);
+    var sent = 0;
+    for (final member in roster.members) {
+      if (member.username.isEmpty) continue;
+      try {
+        await _messaging.deliverKey(
+          username: member.username,
+          scope: 'channel',
+          scopeId: channelId,
+          base64Key: base64Encode(key),
+          keyEpoch: epoch,
+        );
+        sent++;
+      } on Object {
+        // One unreachable member does not hold up the rest. They will ask, and
+        // the request path answers them.
+        continue;
+      }
+    }
+    return sent;
+  }
+
+  /// A random label for a key, so devices can agree which key an epoch means.
+  ///
+  /// Random rather than a hash of the key: a label derived from key material is
+  /// a question about how much it leaks, and there is no reason to have to
+  /// answer it. This one is 128 bits of nothing.
+  String _newKeyId() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    return base64Url.encode(bytes).replaceAll('=', '');
+  }
 
   // --- Channels -------------------------------------------------------------
 
@@ -75,6 +288,7 @@ class ChannelService {
     final key = Uint8List.fromList(
       await (await _cipher.newSecretKey()).extractBytes(),
     );
+    final keyId = _newKeyId();
     final isPublic = visibility == ChannelVisibility.public;
 
     final created = await _api.createChannel(
@@ -85,11 +299,14 @@ class ChannelService {
       category: isPublic ? category : null,
       encryptedMetadata: isPublic ? null : base64Encode(await _seal(title, key)),
       restrictSaving: restrictSaving,
+      keyId: keyId,
     );
 
     final id = created['id'] as String;
-    await rememberKey(id, key);
-    return _toInfo(created, title: title, hasKey: true);
+    // Epoch 1, claimed at birth by the same rule every later epoch follows, so
+    // there is no special case for "the first key" anywhere.
+    await rememberKey(id, 1, key);
+    return _toInfo(created, title: title, hasKey: true, hasCurrentKey: true);
   }
 
   /// The channels this account is in, with private titles opened where the key
@@ -131,7 +348,7 @@ class ChannelService {
       permissions: ChannelPermissions.fromJson(
         result['permissions'] as Map<String, dynamic>?,
       ),
-      hasKey: await keyFor(channel.id) != null,
+      hasKey: (await heldEpochs(channel.id)).isNotEmpty,
       // The list this came from was fetched before the join, so it is one short.
       memberCount: added ? channel.memberCount + 1 : channel.memberCount,
     );
@@ -146,8 +363,11 @@ class ChannelService {
   /// wait for an admin to open the app would leave new members looking at
   /// padlocks for days. Returns how many accounts were served.
   Future<int> deliverPendingKeys(String channelId) async {
-    final key = await keyFor(channelId);
+    final state = await currentEpoch(channelId);
+    final key = await keyFor(channelId, state.epoch);
     if (key == null) return 0;
+
+    final epochsToSend = await epochsToShareWith(channelId);
 
     final response = await _api.channelKeyRequests(channelId);
     final requests = [
@@ -168,12 +388,17 @@ class ChannelService {
     var served = 0;
     for (final entry in byUsername.entries) {
       try {
-        await _messaging.deliverKey(
-          username: entry.key,
-          scope: 'channel',
-          scopeId: channelId,
-          base64Key: base64Encode(key),
-        );
+        for (final epoch in epochsToSend) {
+          final forEpoch = epoch == state.epoch ? key : await keyFor(channelId, epoch);
+          if (forEpoch == null) continue;
+          await _messaging.deliverKey(
+            username: entry.key,
+            scope: 'channel',
+            scopeId: channelId,
+            base64Key: base64Encode(forEpoch),
+            keyEpoch: epoch,
+          );
+        }
         for (final deviceId in entry.value) {
           await _api.clearChannelKeyRequest(channelId, deviceId);
         }
@@ -284,33 +509,76 @@ class ChannelService {
   /// visible to the server for every subscriber at once, and a run of exact
   /// lengths is a fingerprint of the text.
   Future<int> publish(String channelId, String body) async {
-    final key = await keyFor(channelId);
+    // The epoch is read now rather than remembered from the last time this
+    // screen was opened. A post composed before somebody was removed and sent
+    // afterwards is the exact case this milestone exists for: sealing it with
+    // the key that is in hand would publish it to the person who was just
+    // thrown out.
+    final state = await currentEpoch(channelId);
+    final key = await keyFor(channelId, state.epoch);
     if (key == null) {
-      throw StateError('No key for this channel — a post would be unreadable');
+      throw ChannelKeyPending(
+        channelId: channelId,
+        epoch: state.epoch,
+        // Nobody has generated it yet, or it has not reached this device. The
+        // difference matters to what the screen says.
+        awaitingGeneration: state.keyId == null,
+      );
     }
-    final result = await _api.publishPost(
-      channelId: channelId,
-      content: base64Encode(await _seal(body, key)),
-    );
-    return result['id'] as int;
+
+    try {
+      final result = await _api.publishPost(
+        channelId: channelId,
+        content: base64Encode(await _seal(body, key)),
+        keyEpoch: state.epoch,
+      );
+      return result['id'] as int;
+    } on ApiException catch (failure) {
+      // The epoch moved between reading it and publishing — somebody was
+      // removed in those few hundred milliseconds. The server refused rather
+      // than storing a post under a superseded key, which is the check working.
+      // One retry, sealed again under whatever is current now.
+      if (failure.code != 'stale_key_epoch') rethrow;
+      final now = await currentEpoch(channelId);
+      final fresh = await keyFor(channelId, now.epoch);
+      if (fresh == null) {
+        throw ChannelKeyPending(
+          channelId: channelId,
+          epoch: now.epoch,
+          awaitingGeneration: now.keyId == null,
+        );
+      }
+      final result = await _api.publishPost(
+        channelId: channelId,
+        content: base64Encode(await _seal(body, fresh)),
+        keyEpoch: now.epoch,
+      );
+      return result['id'] as int;
+    }
   }
 
   /// The feed, newest first. Posts that will not open come back as locked
   /// placeholders rather than being dropped, so a missing key looks like a
   /// missing key instead of an empty channel.
   Future<List<ChannelPost>> posts(String channelId, {int? before, int limit = 50}) async {
-    final key = await keyFor(channelId);
     final response = await _api.channelPosts(channelId, before: before, limit: limit);
     final posts = <ChannelPost>[];
+    // One read per epoch rather than one per post: a feed of fifty posts spans
+    // two or three key versions, not fifty.
+    final keys = <int, Uint8List?>{};
 
     for (final raw in response['posts'] as List<dynamic>? ?? const []) {
       final entry = raw as Map<String, dynamic>;
+      final epoch = (entry['keyEpoch'] as num?)?.toInt() ?? 1;
+      final key = keys.putIfAbsent(epoch, () => null) ?? await keyFor(channelId, epoch);
+      keys[epoch] = key;
       final body = key == null ? null : await _openSealed(entry['content'] as String, key);
       posts.add(
         ChannelPost(
           id: entry['id'] as int,
           body: body ?? '',
           opened: body != null,
+          keyEpoch: epoch,
           createdAt:
               DateTime.tryParse(entry['createdAt'] as String? ?? '')?.toLocal() ??
                   DateTime.now(),
@@ -361,21 +629,40 @@ class ChannelService {
 
   Future<ChannelInfo> _open(Map<String, dynamic> raw) async {
     final id = raw['id'] as String;
-    final key = await keyFor(id);
+    final epoch = (raw['keyEpoch'] as num?)?.toInt() ?? 1;
+    final held = await heldEpochs(id);
     final sealed = raw['encryptedMetadata'] as String?;
     final plaintextTitle = raw['title'] as String?;
 
     var title = plaintextTitle;
-    if (title == null && sealed != null && key != null) {
-      title = await _openSealed(sealed, key);
+    if (title == null && sealed != null) {
+      // The title was sealed when the channel was made, so it is epoch 1's —
+      // and stays epoch 1's, because rotating a key does not rewrite what is
+      // already on the server. Newest first anyway, in case that ever changes.
+      for (final candidate in held.reversed) {
+        final key = await keyFor(id, candidate);
+        if (key == null) continue;
+        title = await _openSealed(sealed, key);
+        if (title != null) break;
+      }
     }
-    return _toInfo(raw, title: title ?? 'Private channel', hasKey: key != null);
+    return _toInfo(
+      raw,
+      title: title ?? 'Private channel',
+      hasKey: held.isNotEmpty,
+      keyEpoch: epoch,
+      // The state the screen has to be able to show: in the channel, holding
+      // old keys, and unable to read what is being posted now.
+      hasCurrentKey: held.contains(epoch),
+    );
   }
 
   ChannelInfo _toInfo(
     Map<String, dynamic> raw, {
     required String title,
     required bool hasKey,
+    int keyEpoch = 1,
+    bool? hasCurrentKey,
   }) =>
       ChannelInfo(
         id: raw['id'] as String,
@@ -394,5 +681,7 @@ class ChannelService {
         inviteCode: raw['inviteCode'] as String?,
         restrictSaving: raw['restrictSaving'] as bool? ?? false,
         hasKey: hasKey,
+        keyEpoch: keyEpoch,
+        hasCurrentKey: hasCurrentKey ?? hasKey,
       );
 }

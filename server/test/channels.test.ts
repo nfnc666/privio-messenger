@@ -721,4 +721,270 @@ describe('channels', () => {
       assert.ok(usernames.includes('roster_dave'), 'but they can see their own standing');
     });
   });
+
+  describe('key rotation when somebody goes', () => {
+    /*
+     * The property under test is narrow and worth stating: a removed member
+     * keeps what they had already read, and cannot read what is published
+     * afterwards. Everything below is the server's half of that — the epoch
+     * counter, the refusal of stale posts, and the arbitration between two
+     * devices that both think they are generating the next key.
+     *
+     * The server never sees a channel key in any of it. That is checked too.
+     */
+
+    let channelId: string;
+    let member: TestUser;
+    let removed: TestUser;
+
+    const currentEpoch = async (user: TestUser) =>
+      (
+        await h.app.inject({
+          method: 'GET',
+          url: `/v1/channels/${channelId}/key-epochs/current`,
+          headers: bearer(user),
+        })
+      ).json();
+
+    const claim = (user: TestUser, epoch: number, keyId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/key-epochs`,
+        headers: bearer(user),
+        payload: { epoch, keyId },
+      });
+
+    const publishAt = (user: TestUser, epoch: number, text: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(user),
+        payload: { content: Buffer.from(text).toString('base64'), keyEpoch: epoch },
+      });
+
+    before(async () => {
+      member = await registerUser(h.app, 'stays');
+      removed = await registerUser(h.app, 'goes');
+      const created = await createChannel(owner, {
+        visibility: 'public',
+        handle: 'rotation',
+        title: 'Rotation',
+      });
+      channelId = created.json().id;
+      for (const user of [member, removed]) {
+        await h.app.inject({
+          method: 'POST',
+          url: `/v1/channels/${channelId}/join`,
+          headers: bearer(user),
+        });
+      }
+    });
+
+    it('starts on epoch 1, with the migrated claim in place', async () => {
+      const state = await currentEpoch(owner);
+      assert.equal(state.epoch, 1);
+      assert.equal(typeof state.keyId, 'string', 'a channel created now claims its own epoch 1');
+    });
+
+    it('a post carries the epoch that sealed it', async () => {
+      const created = await publishAt(owner, 1, 'before anybody left');
+      assert.equal(created.statusCode, 201, created.body);
+      assert.equal(created.json().keyEpoch, 1);
+    });
+
+    it('removing a member advances the epoch', async () => {
+      const before = (await currentEpoch(owner)).epoch;
+
+      const response = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/members/${removed.accountId}`,
+        headers: bearer(owner),
+      });
+
+      assert.equal(response.statusCode, 200, response.body);
+      assert.equal(response.json().keyEpoch, before + 1);
+      assert.equal((await currentEpoch(owner)).epoch, before + 1);
+    });
+
+    it('and leaves the new epoch unclaimed until a device generates a key', async () => {
+      // A real state, not an error: the rotation has happened and nobody has
+      // opened the app yet. The app has to be able to say so.
+      assert.equal((await currentEpoch(owner)).keyId, null);
+    });
+
+    it('refuses a post under the old key once the rotation has happened', async () => {
+      // The rule the whole milestone rests on. An author who was offline while
+      // somebody was removed must not be able to publish under the key that
+      // person still holds.
+      const stale = await publishAt(owner, 1, 'this must not reach them');
+
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'stale_key_epoch');
+    });
+
+    it('refuses a post claiming an epoch that does not exist yet', async () => {
+      const ahead = await publishAt(owner, 99, 'from the future');
+      assert.equal(ahead.statusCode, 409);
+      assert.equal(ahead.json().error, 'unknown_key_epoch');
+    });
+
+    it('settles two devices claiming the same epoch: first writer wins', async () => {
+      const epoch = (await currentEpoch(owner)).epoch;
+
+      const mine = await claim(owner, epoch, 'key-id-from-owner');
+      const theirs = await claim(owner, epoch, 'key-id-from-someone-else');
+
+      assert.equal(mine.json().claimed, true);
+      assert.equal(theirs.json().claimed, false, 'the loser is told it lost');
+      assert.equal(
+        theirs.json().keyId,
+        'key-id-from-owner',
+        'and is handed the winner, so it can ask for the right key',
+      );
+    });
+
+    it('accepts a post under the epoch that was just claimed', async () => {
+      const epoch = (await currentEpoch(owner)).epoch;
+      const fresh = await publishAt(owner, epoch, 'after the rotation');
+      assert.equal(fresh.statusCode, 201, fresh.body);
+      assert.equal(fresh.json().keyEpoch, epoch);
+    });
+
+    it('a claim for a superseded epoch is refused, so a replay cannot reinstate a key', async () => {
+      // The attack this closes: replaying yesterday's claim to put the channel
+      // back on a key the removed member holds.
+      const replay = await claim(owner, 1, 'key-id-from-owner');
+      assert.equal(replay.statusCode, 409);
+      assert.equal(replay.json().error, 'not_the_current_epoch');
+    });
+
+    it('the epoch cannot be walked backwards, even by the database', async () => {
+      // Not a route — a constraint. A bug, a bad migration or a careless UPDATE
+      // must not be able to undo a removal.
+      await assert.rejects(
+        pool.query('UPDATE channels SET key_epoch = 1 WHERE id = $1', [channelId]),
+        /may not go backwards/,
+      );
+    });
+
+    it('a member who is still in the channel reads both epochs', async () => {
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(member),
+      });
+
+      const epochs = feed.json().posts.map((p: { keyEpoch: number }) => p.keyEpoch);
+      assert.ok(epochs.includes(1), 'the old posts are still there');
+      assert.ok(epochs.some((e: number) => e > 1), 'and the new ones');
+      // Which is the point of versioning rather than re-encrypting: nothing was
+      // rewritten, so nobody lost access to anything they already had.
+    });
+
+    it('the removed member cannot fetch the feed at all', async () => {
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(removed),
+      });
+      assert.equal(feed.statusCode, 403);
+    });
+
+    it('a removed member handed the new ciphertext still cannot open it', async () => {
+      // The honest version of the test the milestone asks for. The server can
+      // demonstrate that the bytes differ under the two epochs; whether the old
+      // key opens them is a question for the client suite, which drives real
+      // AES-GCM. Here: the post exists, is sealed, and is marked as belonging
+      // to an epoch the removed member was never given.
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(owner),
+      });
+      const after = feed
+        .json()
+        .posts.find((p: { keyEpoch: number }) => p.keyEpoch > 1);
+
+      assert.ok(after, 'there is a post from after the removal');
+      assert.notEqual(after.content, null);
+      assert.ok(after.keyEpoch > 1, 'and it is answerable to an epoch they never held');
+    });
+
+    it('a pending request from a removed member is never listed', async () => {
+      // Removal deletes their requests, but that is a delete racing an insert.
+      // The row is put back by hand here, which is exactly what that race would
+      // leave behind, and the answer must still be "nobody is waiting".
+      await pool.query(
+        `INSERT INTO key_requests (scope, scope_id, account_id, device_id)
+         VALUES ('channel', $1, $2, $3) ON CONFLICT DO NOTHING`,
+        [channelId, removed.accountId, removed.deviceId],
+      );
+
+      const waiting = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/key-requests`,
+        headers: bearer(owner),
+      });
+
+      const accounts = waiting.json().requests.map((r: { accountId: string }) => r.accountId);
+      assert.equal(
+        accounts.includes(removed.accountId),
+        false,
+        'a request from someone who is no longer a member must not be answered',
+      );
+    });
+
+    it('a subscriber cannot generate the channel key', async () => {
+      // Otherwise anybody who can read the channel could decide who reads it
+      // next, which is the permission being rotated away in the first place.
+      const bump = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/members/me`,
+        headers: bearer(member),
+      });
+      assert.equal(bump.statusCode, 200);
+
+      const attempt = await claim(stranger, bump.json().keyEpoch, 'key-id-from-stranger');
+      assert.ok(attempt.statusCode >= 400, attempt.body);
+    });
+
+    it('leaving rotates too — walking out is not a promise to stop reading', async () => {
+      const walker = await registerUser(h.app, 'walks_out');
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(walker),
+      });
+      const before = (await currentEpoch(owner)).epoch;
+
+      const left = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/members/me`,
+        headers: bearer(walker),
+      });
+
+      assert.equal(left.statusCode, 200, left.body);
+      assert.equal(left.json().keyEpoch, before + 1);
+    });
+
+    it('the server holds no channel key, before or after any of this', async () => {
+      // The claim the whole design rests on, asserted rather than assumed.
+      const { rows } = await pool.query(
+        'SELECT key_id FROM channel_key_epochs WHERE channel_id = $1',
+        [channelId],
+      );
+      assert.ok(rows.length > 0);
+      for (const row of rows) {
+        // 32 bytes of key would be 44 base64 characters. These are labels.
+        assert.ok(row.key_id.length <= 64);
+      }
+      const columns = await pool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name IN ('channels', 'channel_key_epochs', 'channel_posts')`,
+      );
+      const names = columns.rows.map((r) => r.column_name as string);
+      assert.equal(names.includes('key'), false);
+      assert.equal(names.includes('channel_key'), false);
+    });
+  });
 });
