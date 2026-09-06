@@ -1943,9 +1943,18 @@ class ConversationController extends ChangeNotifier {
     if (scopeId == null || key == null) return;
 
     if (payload.keyScope == 'channel') {
+      // Which version this is. A delivery from a client that predates
+      // versioning is epoch 1, which is what such a client holds.
+      //
+      // Filed under its own epoch and never over another: a key that arrives
+      // late — a redelivery, or a replay of an old rotation — lands in the slot
+      // it belongs to and cannot displace the current one. That is what stops a
+      // stale event from putting a channel back on a key a removed member has.
+      final epoch = payload.keyEpoch ?? 1;
       // rememberKey signals the channel screens, so a feed of padlocks unlocks
       // where the reader is already looking at it.
-      await _services.channels.rememberKey(scopeId, Uint8List.fromList(base64Decode(key)));
+      await _services.channels
+          .rememberKey(scopeId, epoch, Uint8List.fromList(base64Decode(key)));
       return;
     }
     if (payload.keyScope == 'group') {

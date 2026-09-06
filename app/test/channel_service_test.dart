@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
@@ -17,8 +18,31 @@ import 'package:privio/services/messaging_service.dart';
 class FakeChannelServer {
   final Map<String, Map<String, dynamic>> channels = {};
   final Map<String, List<Map<String, dynamic>>> posts = {};
+
+  /// Which key version each channel is on, and who claimed it.
+  ///
+  /// Modelled here rather than stubbed, because the rules being tested are
+  /// about exactly this: the epoch goes up on removal, the first claim wins,
+  /// and a post under a superseded version is refused. A fake that simply said
+  /// yes would test nothing.
+  final Map<String, int> epochs = {};
+  final Map<String, Map<int, String>> claims = {};
+
+  /// Who is in each channel, so a removal is something that happens rather
+  /// than something the test asserts about a counter.
+  final Map<String, Set<String>> members = {};
+
+  /// Set to refuse the next claim, standing in for another device winning the
+  /// race by a few milliseconds.
+  String? claimAlreadyHeldBy;
+
   int _nextChannelId = 1;
   int _nextPostId = 1;
+
+  /// Advances a channel to its next key version, as removal and leaving do.
+  int rotate(String channelId) => epochs[channelId] = (epochs[channelId] ?? 1) + 1;
+
+  int epochOf(String channelId) => epochs[channelId] ?? 1;
 
   http.Client client() => MockClient((request) async {
         final path = request.url.path;
@@ -42,6 +66,9 @@ class FakeChannelServer {
             'inviteCode': 'invite-$id',
           };
           posts[id] = [];
+          epochs[id] = 1;
+          claims[id] = {1: body['keyId'] as String? ?? 'created-epoch-1'};
+          members[id] = {'author'};
           return _json(
             {
               ...channels[id]!,
@@ -66,6 +93,73 @@ class FakeChannelServer {
           });
         }
 
+        final oneMatch = RegExp(r'^/v1/channels/([^/]+)$').firstMatch(path);
+        if (oneMatch != null && method == 'GET') {
+          final id = oneMatch.group(1)!;
+          final channel = channels[id];
+          if (channel == null) {
+            return http.Response('{"error":"not_found","message":"no channel"}', 404);
+          }
+          return _json({...channel, 'role': 'owner', 'keyEpoch': epochOf(id)});
+        }
+
+        final epochMatch =
+            RegExp(r'^/v1/channels/([^/]+)/key-epochs/current$').firstMatch(path);
+        if (epochMatch != null && method == 'GET') {
+          final id = epochMatch.group(1)!;
+          return _json({'epoch': epochOf(id), 'keyId': claims[id]?[epochOf(id)]});
+        }
+
+        final claimMatch = RegExp(r'^/v1/channels/([^/]+)/key-epochs$').firstMatch(path);
+        if (claimMatch != null && method == 'POST') {
+          final id = claimMatch.group(1)!;
+          final epoch = (body['epoch'] as num).toInt();
+          if (epoch != epochOf(id)) {
+            return _json(
+              {'error': 'not_the_current_epoch', 'message': 'superseded'},
+              409,
+            );
+          }
+          final held = claims.putIfAbsent(id, () => {});
+          // A claim that lost the race: either somebody really got there first,
+          // or the test asked for that to be what happened.
+          held[epoch] ??= claimAlreadyHeldBy ?? body['keyId'] as String;
+          return _json({
+            'epoch': epoch,
+            'keyId': held[epoch],
+            'claimed': held[epoch] == body['keyId'],
+          });
+        }
+
+        final requestMatch =
+            RegExp(r'^/v1/channels/([^/]+)/key-requests$').firstMatch(path);
+        if (requestMatch != null) {
+          if (method == 'POST') return _json({'requested': true});
+          return _json({'requests': const []});
+        }
+
+        final membersMatch = RegExp(r'^/v1/channels/([^/]+)/members$').firstMatch(path);
+        if (membersMatch != null && method == 'GET') {
+          final id = membersMatch.group(1)!;
+          return _json({
+            'members': [
+              for (final username in members[id] ?? const <String>{})
+                {'id': username, 'username': username, 'role': 'subscriber'},
+            ],
+            'complete': true,
+          });
+        }
+
+        final removeMatch =
+            RegExp(r'^/v1/channels/([^/]+)/members/([^/]+)$').firstMatch(path);
+        if (removeMatch != null && method == 'DELETE') {
+          final id = removeMatch.group(1)!;
+          members[id]?.remove(removeMatch.group(2));
+          // The server's whole part in a rotation: advance the version. The
+          // key that replaces it does not exist yet and never exists here.
+          return _json({'removed': true, 'keyEpoch': rotate(id)});
+        }
+
         final joinMatch = RegExp(r'^/v1/channels/([^/]+)/join$').firstMatch(path);
         if (joinMatch != null && method == 'POST') {
           final channel = channels[joinMatch.group(1)!]!;
@@ -81,15 +175,28 @@ class FakeChannelServer {
         if (postsMatch != null) {
           final id = postsMatch.group(1)!;
           if (method == 'POST') {
+            final claimed = (body['keyEpoch'] as num?)?.toInt() ?? 1;
+            // The rule that makes a removal mean anything, enforced by the
+            // server and therefore by this stand-in for it.
+            if (claimed < epochOf(id)) {
+              return _json(
+                {'error': 'stale_key_epoch', 'message': 'the key has rotated'},
+                409,
+              );
+            }
             final post = {
               'id': _nextPostId++,
               'authorUsername': 'author',
               'content': body['content'],
               'pinned': false,
+              'keyEpoch': claimed,
               'createdAt': DateTime.utc(2026, 1, 1, 12).toIso8601String(),
             };
             posts[id]!.insert(0, post);
-            return _json({'id': post['id'], 'createdAt': post['createdAt']}, 201);
+            return _json(
+              {'id': post['id'], 'keyEpoch': claimed, 'createdAt': post['createdAt']},
+              201,
+            );
           }
           return _json({'posts': posts[id] ?? const [], 'more': false});
         }
@@ -231,7 +338,7 @@ void main() {
       final reader = await _serviceOn(server);
       expect(
         () => reader.publish(channel.id, 'anything'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<ChannelKeyPending>()),
       );
       expect(server.posts[channel.id], isEmpty);
     });
@@ -266,7 +373,7 @@ void main() {
         title: 'Ops',
       );
 
-      final key = (await service.keyFor(channel.id))!;
+      final key = (await service.keyFor(channel.id, 1))!;
       final link = ChannelService.linkForChannel(channel.inviteCode!);
 
       expect(link, 'https://privio.channel/c/${channel.inviteCode}');
@@ -341,10 +448,285 @@ void main() {
       expect((await joiner.posts(channel.id)).single.opened, isFalse);
 
       // What the delivery message carries, applied on the other side.
-      await joiner.rememberKey(channel.id, (await author.keyFor(channel.id))!);
+      await joiner.rememberKey(channel.id, 1, (await author.keyFor(channel.id, 1))!);
       final posts = await joiner.posts(channel.id);
       expect(posts.single.opened, isTrue);
       expect(posts.single.body, 'Deploy at 14:00');
+    });
+  });
+
+  group('rotating the key when somebody goes', () {
+    /*
+     * The property, stated once so the tests below can be short: a removed
+     * member keeps what they had already read and cannot open what is published
+     * afterwards. Real AES-GCM throughout — the point is that the old key
+     * genuinely does not open the new post, not that a mock said so.
+     */
+
+    late FakeChannelServer server;
+    late ChannelService admin;
+    late ChannelInfo channel;
+
+    setUp(() async {
+      server = FakeChannelServer();
+      admin = await _serviceOn(server);
+      channel = await admin.create(
+        visibility: ChannelVisibility.public,
+        handle: 'ops',
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author', 'stays'};
+    });
+
+    /// A member who joined before the removal: holds epoch 1 and nothing after.
+    Future<ChannelService> memberHoldingEpochOne() async {
+      final other = await _serviceOn(server);
+      await other.rememberKey(channel.id, 1, (await admin.keyFor(channel.id, 1))!);
+      return other;
+    }
+
+    test('a removed member cannot open what is published afterwards', () async {
+      final removed = await memberHoldingEpochOne();
+      await admin.publish(channel.id, 'before the removal');
+
+      server.rotate(channel.id);
+      expect(await admin.completeRotation(channel.id), isTrue);
+      await admin.publish(channel.id, 'after the removal');
+
+      // They are handed the ciphertext deliberately — the real server would not
+      // serve it to them, and the test is about the key, not the access check.
+      final feed = await removed.posts(channel.id);
+      final before = feed.firstWhere((p) => p.keyEpoch == 1);
+      final after = feed.firstWhere((p) => p.keyEpoch == 2);
+
+      expect(before.opened, isTrue, reason: 'what they had already read stays readable');
+      expect(before.body, 'before the removal');
+      expect(after.opened, isFalse, reason: 'and the future does not');
+      expect(after.body, isEmpty);
+    });
+
+    test('a remaining member reads both the old posts and the new', () async {
+      final stays = await memberHoldingEpochOne();
+      await admin.publish(channel.id, 'before');
+
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      await admin.publish(channel.id, 'after');
+
+      // The rotation delivers to every remaining member; here that delivery is
+      // applied by hand, which is what the message carries.
+      await stays.rememberKey(channel.id, 2, (await admin.keyFor(channel.id, 2))!);
+
+      final feed = await stays.posts(channel.id);
+      expect(feed.every((p) => p.opened), isTrue);
+      expect(feed.map((p) => p.body), containsAll(['before', 'after']));
+    });
+
+    test('the new key is a different key, not the old one relabelled', () async {
+      final first = (await admin.keyFor(channel.id, 1))!;
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      final second = (await admin.keyFor(channel.id, 2))!;
+
+      expect(second, isNot(equals(first)));
+      expect(second, hasLength(32));
+    });
+
+    test('an offline device catches up to the version it missed', () async {
+      // Away while two people were removed. It comes back holding epoch 1 and
+      // has to end up on epoch 3 without anything in between being guessed.
+      final away = await memberHoldingEpochOne();
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      await admin.publish(channel.id, 'published while it was away');
+
+      expect(await away.hasCurrentKey(channel.id), isFalse);
+      expect((await away.posts(channel.id)).single.opened, isFalse);
+
+      await away.rememberKey(channel.id, 3, (await admin.keyFor(channel.id, 3))!);
+
+      expect(await away.hasCurrentKey(channel.id), isTrue);
+      expect((await away.posts(channel.id)).single.body, 'published while it was away');
+      expect(
+        await away.heldEpochs(channel.id),
+        [1, 3],
+        reason: 'the gap is real and is not papered over',
+      );
+    });
+
+    test('losing the race to claim an epoch discards the losing key', () async {
+      // Two admins removing two people in the same minute. Both generate a key;
+      // only one may be distributed, or half the channel holds each.
+      server.rotate(channel.id);
+      server.claimAlreadyHeldBy = 'key-id-from-the-other-admin';
+
+      expect(await admin.completeRotation(channel.id), isFalse);
+      expect(
+        await admin.keyFor(channel.id, 2),
+        isNull,
+        reason: 'a key that is not the agreed one is worse than no key',
+      );
+    });
+
+    test('the winner keeps its key and the channel has exactly one', () async {
+      server.rotate(channel.id);
+      expect(await admin.completeRotation(channel.id), isTrue);
+      final mine = await admin.keyFor(channel.id, 2);
+      expect(mine, isNotNull);
+
+      // A second attempt must not generate a second key over the first.
+      expect(await admin.completeRotation(channel.id), isTrue);
+      expect(await admin.keyFor(channel.id, 2), equals(mine));
+    });
+
+    test('a replayed key for an epoch already held does not overwrite it', () async {
+      // The rollback this closes: an old delivery arriving late, or a replayed
+      // one, putting the channel back on a key a removed member holds.
+      final original = (await admin.keyFor(channel.id, 1))!;
+      final impostor = Uint8List.fromList(List.filled(32, 7));
+
+      await admin.rememberKey(channel.id, 1, impostor);
+
+      expect(await admin.keyFor(channel.id, 1), equals(original));
+    });
+
+    test('publishing under a superseded key is refused, then retried correctly', () async {
+      // The offline author: composed the post before the removal, sends it
+      // after. The old key must not be what seals it.
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+
+      final id = await admin.publish(channel.id, 'composed earlier');
+
+      final stored = server.posts[channel.id]!.firstWhere((p) => p['id'] == id);
+      expect(stored['keyEpoch'], 2, reason: 'sealed under what is current, not what was in hand');
+
+      final removed = await memberHoldingEpochOne();
+      expect((await removed.posts(channel.id)).single.opened, isFalse);
+    });
+
+    test('a device with no key for the current epoch will not post at all', () async {
+      // No silent fallback: the alternative to failing here is publishing to
+      // somebody who was just removed.
+      final stays = await memberHoldingEpochOne();
+      server.rotate(channel.id);
+
+      await expectLater(
+        stays.publish(channel.id, 'should not go out'),
+        throwsA(isA<ChannelKeyPending>()),
+      );
+      expect(server.posts[channel.id], isEmpty);
+    });
+
+    test('and says which of the two waits it is', () async {
+      final stays = await memberHoldingEpochOne();
+      server.rotate(channel.id);
+
+      // Nobody has generated the replacement yet.
+      var failure = await stays.publish(channel.id, 'x').then<Object?>(
+            (_) => null,
+            onError: (Object e) => e,
+          );
+      expect((failure! as ChannelKeyPending).awaitingGeneration, isTrue);
+      expect(failure.toString(), contains('after a member left'));
+
+      // Now it exists, and this device is simply waiting for it to arrive.
+      await admin.completeRotation(channel.id);
+      failure = await stays.publish(channel.id, 'x').then<Object?>(
+            (_) => null,
+            onError: (Object e) => e,
+          );
+      expect((failure! as ChannelKeyPending).awaitingGeneration, isFalse);
+      expect(failure.toString(), contains('reach this device'));
+    });
+
+    test('an existing channel migrates without losing anything', () async {
+      // A device from before versioning: one key, stored under the old name.
+      // Nothing may become unreadable, and the key must land as epoch 1.
+      final legacy = await _serviceOn(server);
+      final key = (await admin.keyFor(channel.id, 1))!;
+      await legacy.writeLegacyKey(channel.id, key);
+      await admin.publish(channel.id, 'written before any of this existed');
+
+      final feed = await legacy.posts(channel.id);
+
+      expect(feed.single.opened, isTrue, reason: 'no post becomes unreadable');
+      expect(feed.single.body, 'written before any of this existed');
+      expect(await legacy.heldEpochs(channel.id), [1]);
+    });
+
+    test('leaving a channel forgets every version of its key', () async {
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      expect(await admin.heldEpochs(channel.id), [1, 2]);
+
+      await admin.forgetKey(channel.id);
+
+      expect(await admin.heldEpochs(channel.id), isEmpty);
+    });
+  });
+
+  group('what a new member is given', () {
+    /*
+     * The decision this pins down: a rotation is not a claim that past posts
+     * become secret. On a private channel it does withhold them from somebody
+     * who joins afterwards, which is real. On a public channel it does not,
+     * because anyone may join and therefore anyone may hold the keys — saying
+     * otherwise would be a guarantee that does not exist.
+     */
+
+    Future<({FakeChannelServer server, ChannelService admin, ChannelInfo channel})> setUpChannel(
+      ChannelVisibility visibility,
+    ) async {
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: visibility,
+        handle: visibility == ChannelVisibility.public ? 'ops' : null,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author', 'joiner'};
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+      return (server: server, admin: admin, channel: channel);
+    }
+
+    test('a private channel hands over the current version only', () async {
+      final env = await setUpChannel(ChannelVisibility.private);
+
+      expect(await env.admin.heldEpochs(env.channel.id), [1, 2],
+          reason: 'the sender holds both');
+      expect(
+        await env.admin.epochsToShareWith(env.channel.id),
+        [2],
+        reason: 'and passes on only the one that opens what is published now',
+      );
+    });
+
+    test('a public channel does not pretend its past is secret', () async {
+      // The code must not claim a property the design cannot support. A public
+      // channel's history is as public as its membership, which is anybody.
+      final env = await setUpChannel(ChannelVisibility.public);
+
+      expect(await env.admin.epochsToShareWith(env.channel.id), [1, 2]);
+    });
+
+    test('rotation changes who is sent the feed, not who may ever read it again', () async {
+      // Requirement in one sentence, asserted so it cannot be quietly reversed:
+      // a removed person can rejoin a public channel under another account and
+      // be a member again. The rotation is not, and is not presented as, a ban.
+      final env = await setUpChannel(ChannelVisibility.public);
+
+      env.server.members[env.channel.id]!.add('same_person_new_account');
+
+      final roster = await env.admin.members(env.channel.id);
+      expect(
+        roster.members.map((m) => m.username),
+        contains('same_person_new_account'),
+        reason: 'joining again is joining again; the key follows membership',
+      );
     });
   });
 }

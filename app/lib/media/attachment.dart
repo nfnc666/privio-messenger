@@ -164,6 +164,7 @@ class MessagePayload {
         byteSize = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -189,6 +190,7 @@ class MessagePayload {
     required String this.keyScopeId,
     required String this.keyScope,
     required String this.deliveredKey,
+    this.keyEpoch,
   })  : body = '',
         mediaId = null,
         mediaKey = null,
@@ -235,6 +237,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -272,6 +275,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -312,6 +316,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -348,6 +353,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -379,6 +385,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -417,6 +424,7 @@ class MessagePayload {
     this.replySender,
   })  : keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         receiptIds = null,
         receiptKind = null,
@@ -448,6 +456,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -482,6 +491,7 @@ class MessagePayload {
         groupKey = null,
         keyScope = null,
         keyScopeId = null,
+        keyEpoch = null,
         deliveredKey = null,
         voiceDurationMs = null,
         waveform = null,
@@ -556,6 +566,7 @@ class MessagePayload {
       return MessagePayload.key(
         keyScope: json['ks'] as String,
         keyScopeId: json['ki'] as String,
+        keyEpoch: (json['ke'] as num?)?.toInt(),
         deliveredKey: json['kk'] as String,
       );
     }
@@ -630,6 +641,14 @@ class MessagePayload {
 
   /// Which channel or group the delivered key belongs to.
   final String? keyScopeId;
+
+  /// Which version of a channel's key this is.
+  ///
+  /// Null for a group, which has one key, and null from a client that predates
+  /// versioning — read as epoch 1, which is what such a client holds. A channel
+  /// key without its epoch is a key nobody can place: it would either be filed
+  /// over the current one or ignored, and both are wrong.
+  final int? keyEpoch;
 
   /// Base64 of the key itself. Only ever inside a sealed envelope.
   final String? deliveredKey;
@@ -822,6 +841,7 @@ class MessagePayload {
         if (isKeyDelivery) ...{
           'ks': keyScope,
           'ki': keyScopeId,
+          if (keyEpoch != null) 'ke': keyEpoch,
           'kk': deliveredKey,
         },
         if (profileKey != null) 'pk': profileKey,

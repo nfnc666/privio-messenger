@@ -53,6 +53,8 @@ class ChannelInfo {
     this.inviteCode,
     this.restrictSaving = false,
     this.hasKey = false,
+    this.keyEpoch = 1,
+    this.hasCurrentKey = true,
   });
 
   final String id;
@@ -76,8 +78,27 @@ class ChannelInfo {
 
   final bool restrictSaving;
 
-  /// Whether this device holds the key that opens the channel's posts.
+  /// Whether this device holds any version of the key.
   final bool hasKey;
+
+  /// Which version of the key this channel is on.
+  ///
+  /// It goes up when somebody is removed or leaves. Posts are answerable to the
+  /// version that sealed them, so a member who was here before a removal reads
+  /// both the old and the new; somebody who was removed reads neither, because
+  /// they are no longer sent the feed at all.
+  final int keyEpoch;
+
+  /// Whether this device can read — and post — what is being published now.
+  ///
+  /// False while a rotation is in flight: the channel has moved on and this
+  /// device is still waiting for the new key. The screen says so rather than
+  /// falling back to the old one, which would publish to somebody who was
+  /// just removed.
+  final bool hasCurrentKey;
+
+  /// True when this device is behind the channel and has to wait.
+  bool get isAwaitingKey => isMember && !hasCurrentKey;
 
   /// "1 member", not "1 members".
   String get memberLabel => '$memberCount member${memberCount == 1 ? '' : 's'}';
@@ -91,10 +112,14 @@ class ChannelInfo {
     String? role,
     ChannelPermissions? permissions,
     int? memberCount,
+    int? keyEpoch,
+    bool? hasCurrentKey,
   }) =>
       ChannelInfo(
         id: id,
         visibility: visibility,
+        keyEpoch: keyEpoch ?? this.keyEpoch,
+        hasCurrentKey: hasCurrentKey ?? this.hasCurrentKey,
         title: title ?? this.title,
         handle: handle,
         description: description,
@@ -118,6 +143,7 @@ class ChannelPost {
     this.authorUsername,
     this.pinned = false,
     this.opened = true,
+    this.keyEpoch = 1,
   });
 
   final int id;
@@ -133,6 +159,14 @@ class ChannelPost {
   /// decrypt. Shown as a locked placeholder rather than hidden, so the reader
   /// knows something is there.
   final bool opened;
+
+  /// Which version of the channel key sealed this post.
+  ///
+  /// Carried so a padlock can say *why*. A post from an epoch this device never
+  /// held — published before it joined — is a different thing from one it is
+  /// simply still waiting for, and telling somebody to keep waiting for a key
+  /// that is never coming is worse than saying so.
+  final int keyEpoch;
 }
 
 /// Someone in a channel, with what they may do in it.

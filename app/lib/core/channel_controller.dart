@@ -216,6 +216,16 @@ class ChannelController extends ChangeNotifier {
         _members[channelId] = [
           for (final m in membersOf(channelId)) if (m.id != accountId) m,
         ];
+        // Removing somebody advances the channel's key version on the server;
+        // the replacement key does not exist until a device makes one. Doing it
+        // here, on the device that just did the removing, is what turns a
+        // removal into something that has actually happened rather than
+        // something that will happen when an admin next opens the app.
+        //
+        // Failure is not fatal and is not hidden: the channel shows as awaiting
+        // its key until this succeeds, here or on another device.
+        await _channels.completeRotation(channelId);
+        await _refreshKeyState(channelId);
       });
 
   Future<bool> pin(String channelId, int postId, {required bool pinned}) => _run(() async {
@@ -246,6 +256,18 @@ class ChannelController extends ChangeNotifier {
   Future<void> deliverPendingKeys() async {
     for (final channel in _mine) {
       try {
+        // A device that has been offline through a removal comes back to a
+        // channel on a version it has no key for. If it may manage members it
+        // finishes the rotation; otherwise it asks, and waits visibly.
+        if (!channel.hasCurrentKey) {
+          if (channel.permissions.canManageMembers) {
+            await _channels.completeRotation(channel.id);
+          } else {
+            await _channels.requestKey(channel.id);
+          }
+          await _refreshKeyState(channel.id);
+          continue;
+        }
         if (channel.hasKey) {
           await _deliverFor(channel.id);
         } else {
@@ -255,6 +277,33 @@ class ChannelController extends ChangeNotifier {
         // One channel that cannot be served is no reason to skip the rest.
         continue;
       }
+    }
+  }
+
+  /// Re-reads whether this device can still read and post to a channel.
+  ///
+  /// Kept separate from a full refresh because it runs after a removal and
+  /// after a key arrives, and both want the padlock state updated without
+  /// re-fetching every channel this account is in.
+  Future<void> _refreshKeyState(String channelId) async {
+    try {
+      final state = await _channels.currentEpoch(channelId);
+      final held = await _channels.heldEpochs(channelId);
+      _mine = [
+        for (final c in _mine)
+          if (c.id == channelId)
+            c.copyWith(
+              keyEpoch: state.epoch,
+              hasCurrentKey: held.contains(state.epoch),
+              hasKey: held.isNotEmpty,
+            )
+          else
+            c,
+      ];
+      notifyListeners();
+    } on Object {
+      // The state on screen stays as it was, which is the honest answer when
+      // the server could not be asked.
     }
   }
 

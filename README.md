@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-656%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-688%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -1327,11 +1327,11 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  # tests 143 / # pass 143 / # fail 0
+#  # tests 160 / # pass 160 / # fail 0
 
 cd app && flutter analyze && flutter test
 #  No issues found!
-#  All tests passed!   (513 tests)
+#  All tests passed!   (528 tests)
 ```
 
 Both numbers were measured on Node 22 and Flutter 3.47.1 — the versions
@@ -1352,6 +1352,9 @@ Among the things those tests assert:
 - a group's **name is ciphertext** to the server; only members with the key read it
 - a **private channel** answers a stranger exactly as it answers about one that does not exist
 - a deleted post's ciphertext is **overwritten**, not left waiting for a key
+- a **removed member** keeps what they had already read and **cannot open** a post published afterwards — the key is versioned, and the server holds none of them
+- two admins removing two people **at the same moment** end up on one key, not two
+- a post prepared before a removal is **refused** rather than published under the key that person still holds
 - an admin **cannot grant a permission they lack**, so delegation is not takeover
 - a **join link carries no key** — not in the path, not in a fragment, nowhere
 - a device that joins with only a link reads **padlocks**, until a member sends the key
