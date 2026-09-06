@@ -822,11 +822,33 @@ compel a passcode. In an app that ships a duress code for exactly that
 situation, offering a biometric unlock would hand back what the duress code is
 there to protect. `local_auth` is not a dependency any more.
 
-**It guards what is already encrypted.** The local archive is sealed with a key
-in the platform keystore whether the lock is on or not; the passcode stops
-someone holding an unlocked phone from reading it. It is compared, not
-stretched — the keystore is the security boundary — and V2 moves it into the
-native crypto layer where it derives a key-encryption key with Argon2id.
+**It guards the key, not just the screen.** Setting a passcode wraps the archive
+key with Argon2id under it and deletes the readable copy; unlocking derives the
+same key and opens it for the session, in memory, never written back. So there
+is no stored passcode to compare against — verifying one is unwrapping the key —
+and a store somebody walks off with no longer opens the history. Measured on the
+web build, where the whole store is readable: before setting a lock the history
+comes out in the clear; after it, `privio.archive.key` is gone, replaced by
+`privio.archive.key.wrapped`, and the same recovery gets nothing.
+
+**What it does not cover, and why.** The Signal identity and prekeys sit in the
+same store and are *not* behind the passcode. Putting them there would mean a
+locked device could not receive anything, which is a different app. So this
+protects what was said, not the ability to impersonate the device — an attacker
+with the store still has the keys, and the safety number is what catches that on
+the other side.
+
+**And what a short passcode is worth.** Four digits behind 19 MiB Argon2id is
+ten thousand guesses at roughly a tenth of a second each: minutes for somebody
+who wants it, on one core. That is a real cost where there was none, and it is
+not a defence against a determined offline attacker. The passcode screen says as
+much beside each choice, and says that a passphrase is the only one of the three
+that stands up to someone with the phone and time.
+
+**Forgetting it now costs the history.** Before, a forgotten passcode locked the
+app while the archive stayed readable; now the archive is what the passcode
+opens. The screen said so already — "what was already delivered here is gone
+unless it is in a backup" — and it is exactly true rather than nearly.
 
 **Covering and locking are two different moments.** A locked app is not a
 private one if the app switcher beside it still shows the conversation that was
@@ -942,9 +964,12 @@ naming what is missing today.
    change, so it will not scale to a long history, and a keystore is not built
    for bulk data. SQLCipher is the destination; `ArchiveStorage` is the port
    that keeps that swap to one file.
-3. **The PIN is compared, not stretched.** It is stored in the platform
-   keystore, which is the security boundary; V2 moves it into the native crypto
-   layer where it derives a key-encryption key with Argon2id.
+3. **Nothing here — this one is closed.** It used to read: the PIN is compared,
+   not stretched. Setting a screen lock now wraps the archive key with Argon2id
+   (RFC 9106's second recommended setting: 19 MiB, two passes, one lane) under
+   the passcode and deletes the readable copy, so there is no stored passcode
+   left to compare a guess against — checking one *is* unwrapping the key. See
+   "The app lock" for what that is and is not worth.
 4. **No sealed sender.** Envelopes carry a sender account id, which the server
    uses for blocking and rate limiting. Removing it needs delivery tokens. Now
    that length is padded away, this is the largest remaining metadata leak.
@@ -1008,12 +1033,14 @@ naming what is missing today.
     conversation in the clear, message bodies and usernames and timestamps.
 
     There is no fix at this layer: a page cannot ask a browser for an
-    OS-protected key. Deriving the archive key from the passcode with Argon2id
-    would raise the cost for an account that has set one, and is the same change
-    already listed for the PIN in gap 3. Until then the web build says so on its
-    first screen and in Privacy & Security, before anybody has typed anything,
-    because the alternative is a user finding it out afterwards. The phone
-    builds are unaffected, and they are the target.
+    OS-protected key. What there is, now, is a passcode: setting a screen lock
+    wraps the archive key with Argon2id and deletes the readable copy, and the
+    same recovery run against a locked device comes back with nothing. That is a
+    mitigation and not a repair — the Signal keys are still in the clear, and a
+    four-digit passcode is minutes of offline guessing — so the web build still
+    says what it is on its first screen and in Privacy & Security, before
+    anybody has typed anything. The phone builds are unaffected, and they are
+    the target.
 12. **No independent audit.** Before any public release, the crypto integration
     needs review by someone who was not involved in writing it.
 

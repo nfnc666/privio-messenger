@@ -43,7 +43,7 @@ class AppState extends ChangeNotifier {
     LauncherDisguise? launcher,
     bool? supportsDisguise,
   })  : _injectedServices = services,
-        _store = store ?? const KeystoreSecureStore(),
+        _store = store ?? KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
         edition = edition ?? PrivioEdition.current;
@@ -209,7 +209,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     _setProgress(0.15);
-    _services = _injectedServices ?? await PrivioServices.create();
+    // The store goes in rather than being made again inside: it holds the
+    // archive key the passcode opened, and two instances would mean the lock
+    // screen unlocking one of them while the archive waits on the other.
+    _services = _injectedServices ?? await PrivioServices.create(secureStore: _store);
     _setProgress(0.45);
 
     final token = await _store.readToken();
