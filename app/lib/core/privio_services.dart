@@ -62,8 +62,11 @@ class PrivioServices {
   static Future<PrivioServices> create({
     String? baseUrl,
     CryptoStorage? cryptoStorage,
-    SecureStore secureStore = const KeystoreSecureStore(),
+    SecureStore? secureStore,
   }) async {
+    // One instance, shared: it holds the archive key the passcode opened, and
+    // two of them would mean one half of the app locked out of the other.
+    final secure = secureStore ?? KeystoreSecureStore();
     final api = PrivioApiClient(baseUrl: Uri.parse(baseUrl ?? apiBaseUrl));
     final crypto = await PrivioCrypto.open(cryptoStorage ?? const KeystoreCryptoStorage());
     final messaging = MessagingService(api: api, crypto: crypto);
@@ -75,12 +78,12 @@ class PrivioServices {
       channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
       recorder: PluginVoiceRecorder(),
       player: JustAudioVoicePlayer(),
-      backup: BackupService(api: api, store: secureStore, messages: store),
+      backup: BackupService(api: api, store: secure, messages: store),
       store: store,
-      secureStore: secureStore,
+      secureStore: secure,
       archive: EncryptedMessageArchive(
         storage: const KeystoreArchiveStorage(),
-        keyStore: secureStore,
+        keyStore: secure,
       ),
     );
   }

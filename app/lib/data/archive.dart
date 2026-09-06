@@ -153,6 +153,13 @@ class EncryptedMessageArchive implements MessageArchive {
   SecretKey? _cachedKey;
 
   /// Loads the archive key, generating one on first use.
+  ///
+  /// "Not there yet" and "sealed under a passcode nobody has typed" are two
+  /// different answers, and the store raises [ArchiveLockedException] for the
+  /// second rather than answering null. Generating a key here for a locked
+  /// archive would write it over a history this device can still read once it
+  /// is unlocked — silent, total, and exactly the bug this comment exists to
+  /// prevent coming back.
   Future<SecretKey> _key() async {
     final cached = _cachedKey;
     if (cached != null) return cached;

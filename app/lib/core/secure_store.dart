@@ -1,6 +1,11 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'passcode.dart';
+import 'passcode_vault.dart';
 
 /// Where the session and the app-lock state live.
 ///
@@ -104,10 +109,25 @@ abstract interface class SecureStore {
   Future<void> wipe();
 }
 
+/// Thrown when the archive key exists but is sealed under a passcode nobody has
+/// typed yet.
+///
+/// Distinct from "there is no key", and the distinction is the whole point: a
+/// caller that reads the two as the same thing generates a fresh key, writes it
+/// over the old one, and the history is gone. That is not a hypothetical — it
+/// is what happened the first time this was wired up, and the exception is what
+/// stops it happening again.
+class ArchiveLockedException implements Exception {
+  const ArchiveLockedException();
+
+  @override
+  String toString() => 'The archive key is sealed under the passcode';
+}
+
 /// The platform keystore: Keychain on iOS, Keystore-backed encrypted
 /// preferences on Android. Never shared preferences, never a plain file.
 class KeystoreSecureStore implements SecureStore {
-  const KeystoreSecureStore([this._storage = const FlutterSecureStorage()]);
+  KeystoreSecureStore([this._storage = const FlutterSecureStorage()]);
 
   final FlutterSecureStorage _storage;
 
@@ -121,6 +141,16 @@ class KeystoreSecureStore implements SecureStore {
   static const _callLogKey = 'privio.calls.log';
   static const _disguiseKey = 'privio.disguise.skin';
   static const _archiveKeyKey = 'privio.archive.key';
+
+  /// The same key, sealed under the passcode. Present instead of
+  /// [_archiveKeyKey] on a device with a lock set.
+  static const _wrappedArchiveKeyKey = 'privio.archive.key.wrapped';
+
+  /// Held for the life of the process, never written back: the passcode that
+  /// opened this session, and the key it opened. A relaunch asks again, which
+  /// is the whole point of wrapping it.
+  String? _sessionPasscode;
+  String? _sessionArchiveKey;
   static const _recoveryKeyKey = 'privio.backup.recovery_key';
   static const _lastBackupKey = 'privio.backup.last_at';
   static const _backupIntervalKey = 'privio.backup.interval';
@@ -163,24 +193,59 @@ class KeystoreSecureStore implements SecureStore {
     await _write(_accountIdKey, accountId);
   }
 
-  /// The passcode is a *local* lock on an already-encrypted database, and the
-  /// keychain is the security boundary that protects it. It is deliberately not
-  /// stretched here: V2 moves it into the native crypto layer, where it derives
-  /// a key-encryption key with Argon2id instead of being compared.
+  /// The passcode does two things, and until recently it only did one.
+  ///
+  /// It guards the screen, and it now also guards the key to the local history:
+  /// setting one wraps that key with Argon2id under the passcode and deletes
+  /// the readable copy, so a store somebody walks off with no longer opens the
+  /// chats. That is also what makes the passcode stretched rather than
+  /// compared — there is no stored passcode left to match a guess against.
+  ///
+  /// A device with no passcode is unchanged, and honestly so: there is nothing
+  /// to derive from, the key has to stay readable for the app to start, and
+  /// pretending otherwise would be worse than saying it.
   @override
   Future<void> setPasscode(String passcode, PasscodeKind kind) async {
-    await _write(_passcodeKey, passcode);
+    final plain = await _read(_archiveKeyKey);
+    _sessionPasscode = passcode;
+    if (plain != null) {
+      await _write(
+        _wrappedArchiveKeyKey,
+        await PasscodeVault.wrap(
+          passcode: passcode,
+          archiveKey: Uint8List.fromList(base64Decode(plain)),
+        ),
+      );
+      await _storage.delete(key: _archiveKeyKey, iOptions: _iosOptions, aOptions: _androidOptions);
+      _sessionArchiveKey = plain;
+    }
+    // The passcode itself is no longer stored once there is a wrapped key to
+    // check it against; the kind is, because the lock screen has to know which
+    // keyboard to draw before anything is typed.
     await _write(_passcodeKindKey, kind.id);
+    if (plain == null) await _write(_passcodeKey, passcode);
   }
 
   @override
   Future<PasscodeKind?> passcodeKind() async => PasscodeKind.parse(await _read(_passcodeKindKey));
 
   @override
-  Future<bool> hasPasscode() async => await _read(_passcodeKey) != null;
+  Future<bool> hasPasscode() async =>
+      await _read(_wrappedArchiveKeyKey) != null || await _read(_passcodeKey) != null;
 
   @override
   Future<void> clearPasscode() async {
+    // The key goes back to being readable, because the app has to be able to
+    // start without anybody typing anything. Unwrapping it first: a cleared
+    // lock that left the only copy sealed would be a history nobody can open.
+    final key = await readArchiveKey();
+    if (key != null) await _write(_archiveKeyKey, key);
+    await _storage.delete(
+      key: _wrappedArchiveKeyKey,
+      iOptions: _iosOptions,
+      aOptions: _androidOptions,
+    );
+    _sessionPasscode = null;
     await _storage.delete(key: _passcodeKey, iOptions: _iosOptions, aOptions: _androidOptions);
     await _storage.delete(
       key: _passcodeKindKey,
@@ -224,15 +289,60 @@ class KeystoreSecureStore implements SecureStore {
 
   @override
   Future<bool> verifyPasscode(String passcode) async {
+    // Where the archive key is wrapped, checking the passcode *is* opening it:
+    // one operation, no stored secret to compare against, and the key ends up
+    // in memory where the archive needs it.
+    final wrapped = await _read(_wrappedArchiveKeyKey);
+    if (wrapped != null) {
+      final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
+      if (key == null) return false;
+      _sessionPasscode = passcode;
+      _sessionArchiveKey = base64Encode(key);
+      return true;
+    }
     final stored = await _read(_passcodeKey);
     return stored != null && stored == passcode;
   }
 
   @override
-  Future<String?> readArchiveKey() => _read(_archiveKeyKey);
+  Future<String?> readArchiveKey() async {
+    // Once the passcode has opened it, it lives in memory for the session:
+    // writing it back would put the readable copy exactly where wrapping it
+    // took it from.
+    if (_sessionArchiveKey != null) return _sessionArchiveKey;
+    final wrapped = await _read(_wrappedArchiveKeyKey);
+    if (wrapped == null) return _read(_archiveKeyKey);
+    final passcode = _sessionPasscode;
+    if (passcode == null) throw const ArchiveLockedException();
+    final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
+    if (key == null) throw const ArchiveLockedException();
+    return _sessionArchiveKey = base64Encode(key);
+  }
 
   @override
-  Future<void> writeArchiveKey(String base64Key) => _write(_archiveKeyKey, base64Key);
+  Future<void> writeArchiveKey(String base64Key) async {
+    final passcode = _sessionPasscode;
+    if (passcode == null) {
+      // Refusing rather than writing: a caller here with a wrapped key already
+      // stored is a caller about to replace a history it could not read.
+      if (await _read(_wrappedArchiveKeyKey) != null) {
+        throw const ArchiveLockedException();
+      }
+      return _write(_archiveKeyKey, base64Key);
+    }
+    // A key generated after the lock was set — a first archive on a device that
+    // had a passcode before it had any history — is wrapped straight away
+    // rather than written in the clear and wrapped later.
+    _sessionArchiveKey = base64Key;
+    await _write(
+      _wrappedArchiveKeyKey,
+      await PasscodeVault.wrap(
+        passcode: passcode,
+        archiveKey: Uint8List.fromList(base64Decode(base64Key)),
+      ),
+    );
+    await _storage.delete(key: _passcodeKey, iOptions: _iosOptions, aOptions: _androidOptions);
+  }
 
   @override
   Future<String?> readRecoveryKey() => _read(_recoveryKeyKey);
@@ -302,9 +412,24 @@ class InMemorySecureStore implements SecureStore {
       ..['accountId'] = accountId;
   }
 
+  // The same rules as the real store, deliberately: a test that exercises the
+  // lock should exercise the wrapping the lock actually does.
+  String? _sessionPasscode;
+  String? _sessionArchiveKey;
+
   @override
   Future<void> setPasscode(String passcode, PasscodeKind kind) async {
-    _entries['pin'] = passcode;
+    _sessionPasscode = passcode;
+    final plain = _entries.remove('archiveKey');
+    if (plain != null) {
+      _entries['archiveKeyWrapped'] = await PasscodeVault.wrap(
+        passcode: passcode,
+        archiveKey: Uint8List.fromList(base64Decode(plain)),
+      );
+      _sessionArchiveKey = plain;
+    } else {
+      _entries['pin'] = passcode;
+    }
     _entries['pinKind'] = kind.id;
   }
 
@@ -313,6 +438,10 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<void> clearPasscode() async {
+    final key = await readArchiveKey();
+    if (key != null) _entries['archiveKey'] = key;
+    _entries.remove('archiveKeyWrapped');
+    _sessionPasscode = null;
     _entries.remove('pin');
     _entries.remove('pinKind');
   }
@@ -359,17 +488,60 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<bool> verifyDuressCode(String code) async => _entries['duress'] == code;
 
-  @override
-  Future<bool> hasPasscode() async => _entries.containsKey('pin');
+  /// What this store would still have after a relaunch: the written-down half,
+  /// without the passcode and key a running process holds in memory.
+  @visibleForTesting
+  Map<String, String> get entriesForTest => Map.of(_entries);
+
+  @visibleForTesting
+  void restoreForTest(Map<String, String> entries) => _entries.addAll(entries);
 
   @override
-  Future<bool> verifyPasscode(String passcode) async => _entries['pin'] == passcode;
+  Future<bool> hasPasscode() async =>
+      _entries.containsKey('archiveKeyWrapped') || _entries.containsKey('pin');
 
   @override
-  Future<String?> readArchiveKey() async => _entries['archiveKey'];
+  Future<bool> verifyPasscode(String passcode) async {
+    final wrapped = _entries['archiveKeyWrapped'];
+    if (wrapped != null) {
+      final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
+      if (key == null) return false;
+      _sessionPasscode = passcode;
+      _sessionArchiveKey = base64Encode(key);
+      return true;
+    }
+    return _entries['pin'] == passcode;
+  }
 
   @override
-  Future<void> writeArchiveKey(String base64Key) async => _entries['archiveKey'] = base64Key;
+  Future<String?> readArchiveKey() async {
+    if (_sessionArchiveKey != null) return _sessionArchiveKey;
+    final wrapped = _entries['archiveKeyWrapped'];
+    if (wrapped == null) return _entries['archiveKey'];
+    final passcode = _sessionPasscode;
+    if (passcode == null) throw const ArchiveLockedException();
+    final key = await PasscodeVault.unwrap(passcode: passcode, wrapped: wrapped);
+    if (key == null) throw const ArchiveLockedException();
+    return _sessionArchiveKey = base64Encode(key);
+  }
+
+  @override
+  Future<void> writeArchiveKey(String base64Key) async {
+    final passcode = _sessionPasscode;
+    if (passcode == null) {
+      if (_entries.containsKey('archiveKeyWrapped')) {
+        throw const ArchiveLockedException();
+      }
+      _entries['archiveKey'] = base64Key;
+      return;
+    }
+    _sessionArchiveKey = base64Key;
+    _entries['archiveKeyWrapped'] = await PasscodeVault.wrap(
+      passcode: passcode,
+      archiveKey: Uint8List.fromList(base64Decode(base64Key)),
+    );
+    _entries.remove('pin');
+  }
 
   @override
   Future<String?> readRecoveryKey() async => _entries['recoveryKey'];

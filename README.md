@@ -983,7 +983,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Push notifications** | 🔧 | The server sends contentless wake-ups and the endpoint takes a token; the Notifications screen offers the UnifiedPush path on the free builds, and the platform connector that would register a real token is not written yet |
 | **Device management** | ✅ | The devices actually signed in, read from the server, with remote sign-out |
 | **Second device** | ✅ | Sign in again and both devices receive, and both see what either one sends. History before the second sign-in comes from a backup, not from the first device |
-| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding, with the content covered before the app switcher can photograph it. No biometrics, on purpose |
+| **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding, with the content covered before the app switcher can photograph it. It wraps the archive key with Argon2id rather than being compared, so a store somebody walks off with no longer opens the history. No biometrics, on purpose |
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
 | **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore on iOS and Android. A browser has no keystore, so the web build's history is recoverable from its `localStorage` — the app says so on its first screen, and `tools/web-storage-recovery.cjs` demonstrates it |
@@ -1256,7 +1256,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    in [the security model](docs/security-model.md). Writing the two documents is
    a pre-store task, not a formality: a messenger asking for trust and shipping
    without them is asking for it on credit.
-7. **No independent audit.** Before any public release the crypto integration
+7. **The web build has no keystore.** Its local history is recoverable from
+   `localStorage` unless a screen lock is set, and the Signal keys are
+   recoverable either way. `tools/web-storage-recovery.cjs` demonstrates both.
+   The app says so before sign-up; whether the web build ships at all is a
+   decision, not a bug.
+8. **No independent audit.** Before any public release the crypto integration
    needs review by someone who did not write it.
 
 The full list, with the reasoning, is in
