@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The Libre and direct builds are woken by a distributor the user chose.
+         Nothing here is proprietary and nothing here is Google's. -->
+    <application>
+        <receiver
+            android:name=".push.PrivioMessagingReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.MESSAGE" />
+                <action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
+                <action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
+                <action android:name="org.unifiedpush.android.connector.REGISTRATION_FAILED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+    <!-- Distributors are separate apps, so finding one at all needs the query.
+         Without it `getDistributors` returns nothing on Android 11 and later,
+         and the app would report that none is installed when one is. -->
+    <queries>
+        <intent>
+            <action android:name="org.unifiedpush.android.distributor.REGISTER" />
+        </intent>
+    </queries>
+</manifest>

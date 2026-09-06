@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'core/app_state.dart';
+import 'services/push_wake.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,5 +21,8 @@ void main() {
     ),
   );
 
-  runApp(const PrivioApp());
+  // The platform's push callbacks are wired in here, at the one place that
+  // knows there is a platform. `AppState` is handed the listener rather than
+  // reaching for a method channel itself.
+  runApp(PrivioApp(state: AppState(pushWake: PushWakeListener())));
 }

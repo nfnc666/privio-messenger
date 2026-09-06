@@ -2,6 +2,7 @@ package app.privio.privio
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import app.privio.privio.push.PushChannels
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -18,6 +19,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        PushChannels.attach(this, flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -90,6 +92,30 @@ class MainActivity : FlutterActivity() {
     private fun isEnabled(alias: String): Boolean {
         val setting = packageManager.getComponentEnabledSetting(ComponentName(packageName, alias))
         return setting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+    }
+
+    /**
+     * Hands the system's answer back to the Dart call that asked for it.
+     *
+     * Android shows the notification prompt once. A refusal here is final
+     * until someone changes it in settings, which is why the app explains
+     * rather than asking again.
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != NotificationPermissions.REQUEST_CODE) return
+        val waiting = NotificationPermissions.pending ?: return
+        NotificationPermissions.pending = null
+        waiting.success(NotificationPermissions.status(this))
+    }
+
+    override fun onDestroy() {
+        PushChannels.detach()
+        super.onDestroy()
     }
 
     private companion object {
