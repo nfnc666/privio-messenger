@@ -123,6 +123,7 @@ class _StageRouter extends StatelessWidget {
         // them to pay for something they were let into for free.
         AppStage.welcome => WelcomeScreen(
             onGetStarted: () => _openAuth(context, AuthMode.signUp),
+            onSignIn: () => _openAuth(context, AuthMode.signIn),
             // Restoring starts by signing back into the account: a backup holds
             // history, not an identity, so the device needs one of its own
             // before there is anywhere to put the history. The backup screen is

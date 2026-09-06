@@ -516,6 +516,15 @@ class AppState extends ChangeNotifier {
   // --- Lock -----------------------------------------------------------------
 
   Future<bool> unlockWithPasscode(String passcode) async {
+    // Both checks below derive an Argon2id key, which is the point of them and
+    // costs about a tenth of a second each. Something that cannot be either
+    // code must not pay that: in the calculator disguise this runs on every
+    // equals press, and a calculator that pauses before answering is exactly
+    // the tell the disguise exists to avoid. The length is not a secret — the
+    // lock screen draws four dots or six.
+    final expected = _passcodeKind?.length;
+    if (expected != null && passcode.length != expected) return false;
+
     // The duress code is checked first and answers false either way: from the
     // outside, a wipe and a wrong passcode are the same event.
     if (await _store.verifyDuressCode(passcode)) {
