@@ -1172,14 +1172,31 @@ inside the sealed message next to the key, never beside the upload.
 build normally pulls its renderer from `gstatic.com` and its fallback font from
 Google's font CDN on first paint, which tells a company that has nothing to do
 with this messenger who opened it, from which address, and when. Both now ship
-inside the build: the renderer is loaded from the bundled CanvasKit
-(`app/web/flutter_bootstrap.js`) and the typeface from `app/assets/fonts`
-(Roboto, Apache-2.0), declared as the app's own family so it is the file that
-actually renders. One gap remains and is worth naming: on the **web** build,
-emoji glyphs are not in the bundled font, so the engine still asks Google's CDN
-for them — the alternative is a 10 MB colour-emoji file in every download. On
-iOS and Android the system supplies emoji and nothing is fetched. Verifying
-that on a real device is part of the device pass below.
+inside the build: the renderer is loaded from the bundled CanvasKit and the
+typeface from `app/assets/fonts` (Roboto, Apache-2.0).
+
+Bundling the file turned out not to be enough, and the way it failed is worth
+recording. CanvasKit keeps a default font of its own so that laying out text
+with an unregistered family cannot crash it, and it downloads that font from
+Google **unless the font manifest declares a family literally called
+`Roboto`** (`SkiaFontCollection.loadAssetFonts`). Ours was declared as `Privio`,
+so the bundled file sat unused beside a request to `fonts.gstatic.com` fired
+760 ms into every page load — with no interaction, no emoji, and nothing in the
+code to suggest it. The same three files are now declared twice, under both
+names; the asset is bundled once, so it costs nothing.
+
+The second off-origin default is where the engine looks for a glyph no bundled
+font can draw — emoji, most of CJK. That is now pinned to this origin too
+(`fontFallbackBaseUrl`), where it finds nothing and stops asking. Emoji
+therefore render as empty boxes on the **web** build, as they did before; what
+has changed is that nobody is told about it. Carrying a colour-emoji font would
+fix the boxes and cost ~10 MB in every download, which is not worth it for a
+platform that is not the target: on iOS and Android the system supplies emoji
+and nothing is fetched either way.
+
+Both settings are asserted by `app/test/bundled_fonts_test.dart`, because the
+duplicate font entry looks exactly like something to tidy away, and measured in
+the browser by watching every request the page makes.
 
 ---
 

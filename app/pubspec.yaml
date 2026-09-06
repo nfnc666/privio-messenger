@@ -52,8 +52,26 @@ flutter:
   # The typeface ships with the app. A Flutter web build otherwise fetches its
   # fallback font from Google's font CDN on first paint, which tells a third
   # party when someone opens the messenger.
+  #
+  # The same three files are declared twice, under two names, and the second one
+  # is the one that actually stops the request. The CanvasKit engine keeps a
+  # default font of its own so that laying out text with an unregistered family
+  # cannot crash it, and it downloads that font from Google *unless the app's
+  # font manifest declares a family literally called `Roboto`*
+  # (`SkiaFontCollection.loadAssetFonts`). Declaring ours as `Privio` alone left
+  # the bundled file sitting unused beside a request to fonts.gstatic.com on
+  # every page load — the exact thing bundling it was meant to prevent. Naming
+  # it costs nothing: the asset is bundled once and referenced twice.
   fonts:
     - family: Privio
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: Roboto
       fonts:
         - asset: assets/fonts/Roboto-Regular.ttf
           weight: 400
