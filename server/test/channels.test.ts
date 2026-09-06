@@ -967,6 +967,109 @@ describe('channels', () => {
       assert.equal(left.json().keyEpoch, before + 1);
     });
 
+    it('an epoch nobody holds can be stepped over, and the channel moves on', async () => {
+      // The device that generated the current epoch is gone and took the key
+      // with it. Nothing has been published under it — nothing can have been,
+      // because publishing needs the key — so it is safe to leave behind.
+      const before = (await currentEpoch(owner)).epoch;
+
+      const abandoned = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/key-epochs/abandon`,
+        headers: bearer(owner),
+        payload: { epoch: before },
+      });
+
+      assert.equal(abandoned.statusCode, 200, abandoned.body);
+      assert.equal(abandoned.json().keyEpoch, before + 1, 'forward, never back');
+      const now = await currentEpoch(owner);
+      assert.equal(now.epoch, before + 1);
+      assert.equal(now.keyId, null, 'and the new one is there to be claimed');
+    });
+
+    it('the abandoned version cannot be claimed again with another key', async () => {
+      // Reusing it would put two keys on one version and split the channel.
+      const stale = await claim(owner, 1, 'key-id-after-the-fact');
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'not_the_current_epoch');
+    });
+
+    it('an epoch with posts under it is refused, so nothing readable is stranded', async () => {
+      const epoch = (await currentEpoch(owner)).epoch;
+      await claim(owner, epoch, 'key-id-live');
+      const published = await publishAt(owner, epoch, 'somebody does hold this key');
+      assert.equal(published.statusCode, 201, published.body);
+
+      const refused = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/key-epochs/abandon`,
+        headers: bearer(owner),
+        payload: { epoch },
+      });
+
+      assert.equal(refused.statusCode, 409);
+      assert.equal(refused.json().error, 'epoch_has_posts');
+      assert.equal((await currentEpoch(owner)).epoch, epoch, 'and nothing moved');
+    });
+
+    it('a subscriber cannot abandon an epoch', async () => {
+      const epoch = (await currentEpoch(owner)).epoch;
+      const attempt = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/key-epochs/abandon`,
+        headers: bearer(stranger),
+        payload: { epoch },
+      });
+      assert.ok(attempt.statusCode >= 400, attempt.body);
+    });
+
+    it('the same claim sent twice is answered the same way, not refused', async () => {
+      // A device whose reply was lost sends the identical request again. It has
+      // to be told it won, not that somebody else did.
+      // A rotation of its own, so this starts from an epoch nobody has claimed.
+      const passer = await registerUser(h.app, 'passes_through');
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(passer),
+      });
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/members/${passer.accountId}`,
+        headers: bearer(owner),
+      });
+
+      const epoch = (await currentEpoch(owner)).epoch;
+      const first = await claim(owner, epoch, 'key-id-idempotent');
+      const again = await claim(owner, epoch, 'key-id-idempotent');
+
+      assert.equal(first.json().claimed, true);
+      assert.equal(again.json().claimed, true, 'the same key still wins its own epoch');
+      assert.equal(again.json().keyId, 'key-id-idempotent');
+    });
+
+    it('the metadata epoch moves with the metadata, and only forwards', async () => {
+      const patch = (epoch: number, metadata: string) =>
+        h.app.inject({
+          method: 'PATCH',
+          url: `/v1/channels/${channelId}`,
+          headers: bearer(owner),
+          payload: {
+            encryptedMetadata: Buffer.from(metadata).toString('base64'),
+            metadataKeyEpoch: epoch,
+          },
+        });
+
+      const forward = await patch(4, 'sealed under 4');
+      assert.equal(forward.statusCode, 200, forward.body);
+      assert.equal(forward.json().metadataKeyEpoch, 4);
+
+      // A slow re-seal from an earlier rotation arriving late must not put the
+      // name back under a key fewer members hold.
+      const late = await patch(2, 'sealed under 2');
+      assert.equal(late.json().metadataKeyEpoch, 4, 'the older re-seal does not win');
+    });
+
     it('the server holds no channel key, before or after any of this', async () => {
       // The claim the whole design rests on, asserted rather than assumed.
       const { rows } = await pool.query(

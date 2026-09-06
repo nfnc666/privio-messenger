@@ -148,6 +148,17 @@ class ChannelService {
   Future<void> writeLegacyKey(String channelId, Uint8List key) =>
       _crypto.store.writeLegacyChannelKey(channelId, key);
 
+  /// The unconfirmed candidate, so a test can check it was written before the
+  /// network call rather than after it.
+  @visibleForTesting
+  Future<({int epoch, String keyId, Uint8List key})?> pendingKeyForTest(String channelId) =>
+      _crypto.store.readPendingChannelKey(channelId);
+
+  /// The same storage, so a test can build a second service over it — which is
+  /// what a restart looks like from in here.
+  @visibleForTesting
+  PrivioCrypto get cryptoForTest => _crypto;
+
   // --- Key versions ---------------------------------------------------------
 
   /// What the server says this channel's current key version is.
@@ -171,33 +182,81 @@ class ChannelService {
   /// a subscriber generating keys would be a subscriber deciding who reads the
   /// channel next, which is the very permission being rotated.
   ///
-  /// The race is the interesting part. Two admins removing two people in the
-  /// same minute both see the epoch go up, and both generate a key. If both were
-  /// distributed, half the members would hold one and half the other, with posts
-  /// nobody could read and no error anywhere. So the epoch is claimed first, the
-  /// database settles who won, and the loser throws its key away and asks for the
+  /// Two things this has to survive, and the order of operations is what makes
+  /// it survive them.
+  ///
+  /// **The race.** Two admins removing two people in the same minute both see
+  /// the epoch go up and both generate a key. If both were distributed, half
+  /// the members would hold one and half the other, with posts nobody could
+  /// read and no error anywhere. So the epoch is claimed first, the database
+  /// settles who won, and the loser throws its key away and asks for the
   /// winner's rather than distributing a second one.
   ///
+  /// **The crash.** The candidate key is written down *before* the claim goes
+  /// out, not after. A device that claimed successfully and then died — or
+  /// whose reply was lost on the way back — comes back holding the same
+  /// candidate and the same label, sends the identical claim, is told it
+  /// already won, and carries on from there. Without that ordering the epoch
+  /// would be reserved to a key that exists nowhere, which is a channel nobody
+  /// can publish to and nobody can repair.
+  ///
+  /// A candidate is never distributed until the server has confirmed it won.
+  ///
   /// Returns true when this device now holds the current key — whether it made
-  /// it or lost the race and already had it.
+  /// it, resumed it, or already had it.
   Future<bool> completeRotation(String channelId) async {
     final state = await currentEpoch(channelId);
 
     // Already have it: either nothing rotated, or somebody's delivery arrived
     // first. Nothing to do, and nothing to overwrite.
-    if (await keyFor(channelId, state.epoch) != null) return true;
+    if (await keyFor(channelId, state.epoch) != null) {
+      await _crypto.store.clearPendingChannelKey(channelId);
+      return true;
+    }
 
-    // Somebody else has already generated this epoch's key. There is nothing to
-    // claim; what is needed is the key itself, which only a member can send.
-    if (state.keyId != null) {
+    final pending = await _crypto.store.readPendingChannelKey(channelId);
+
+    // A candidate left over from an epoch the channel has since moved past.
+    // It can never be promoted — that epoch is settled or abandoned — so it is
+    // dropped rather than carried around as key material nobody will use.
+    if (pending != null && pending.epoch != state.epoch) {
+      await _crypto.store.clearPendingChannelKey(channelId);
+      return _resumeFrom(channelId, state, null);
+    }
+
+    return _resumeFrom(channelId, state, pending);
+  }
+
+  Future<bool> _resumeFrom(
+    String channelId,
+    ({int epoch, String? keyId}) state,
+    ({int epoch, String keyId, Uint8List key})? pending,
+  ) async {
+    // Somebody else's key already holds this epoch, and it is not the candidate
+    // in hand. There is nothing to claim; what is needed is the key itself,
+    // which only a member can send.
+    if (state.keyId != null && state.keyId != pending?.keyId) {
+      await _crypto.store.clearPendingChannelKey(channelId);
       await requestKey(channelId);
       return false;
     }
 
-    final candidate = Uint8List.fromList(
-      await (await _cipher.newSecretKey()).extractBytes(),
-    );
-    final keyId = _newKeyId();
+    // Either resuming an attempt whose outcome was never learned, or starting
+    // one. Both send the same shape of request; the difference is only whether
+    // the candidate was generated a moment ago or before a crash.
+    final candidate = pending?.key ??
+        Uint8List.fromList(await (await _cipher.newSecretKey()).extractBytes());
+    final keyId = pending?.keyId ?? _newKeyId();
+
+    if (pending == null) {
+      // Before the network call. Always.
+      await _crypto.store.writePendingChannelKey(
+        channelId,
+        epoch: state.epoch,
+        keyId: keyId,
+        key: candidate,
+      );
+    }
 
     final Map<String, dynamic> claim;
     try {
@@ -207,25 +266,90 @@ class ChannelService {
         keyId: keyId,
       );
     } on Object {
-      // Refused — not permitted, or the epoch moved again while this ran. Both
-      // mean this device must not distribute the key it just made.
+      // Refused, or the reply never came back. The candidate stays on disk so
+      // the next attempt sends the same one and finds out what became of it.
+      // Nothing is distributed and nothing is written as the channel's key.
       return false;
     }
 
     if (claim['claimed'] != true) {
-      // Lost. The candidate key is dropped without ever being written down: a
-      // key that is not the agreed one is worse than no key, because it looks
-      // like progress.
+      // Lost. The candidate is deleted without ever having been the channel's
+      // key: a key that is not the agreed one is worse than no key, because it
+      // looks like progress.
+      await _crypto.store.clearPendingChannelKey(channelId);
       await requestKey(channelId);
       return false;
     }
 
+    // Confirmed ours, and only now does it become the channel's key. Promoting
+    // before this point is what would let an unconfirmed candidate be handed
+    // to other members.
     await rememberKey(channelId, state.epoch, candidate);
+    await _crypto.store.clearPendingChannelKey(channelId);
+
+    // Everything after this is repeatable and safe to interrupt: a restart in
+    // the middle of distribution leaves the key stored, and the next pass sends
+    // it to whoever has not had it. Members who already have it ignore a
+    // second copy — see rememberKey.
+    await _resealMetadata(channelId, state.epoch);
     await deliverPendingKeys(channelId);
-    // Everyone who is still here needs it, not only those who happen to have a
-    // request outstanding: the rotation is what created the need.
     await distributeKey(channelId, state.epoch);
     return true;
+  }
+
+  /// Moves past an epoch whose key nobody has.
+  ///
+  /// The device that generated it is gone — wiped, uninstalled, lost — and
+  /// took the only copy with it. The channel cannot be published to, the epoch
+  /// cannot be claimed again with a different key without splitting the channel
+  /// in two, and falling back to the previous key would hand the future back to
+  /// whoever was removed.
+  ///
+  /// So the stuck version is abandoned and the channel moves forward to a fresh
+  /// one, which this device then claims by the ordinary path. The server
+  /// refuses to abandon a version that has posts under it, so nothing readable
+  /// can be stranded by this.
+  ///
+  /// Deliberately not automatic. "Nobody has sent me the key" and "nobody can
+  /// send me the key" look identical from here, and the difference is usually
+  /// that an admin has not opened the app since Tuesday. Spending an epoch on
+  /// that guess would make every slow delivery into a rotation.
+  Future<bool> abandonOrphanedEpoch(String channelId) async {
+    final state = await currentEpoch(channelId);
+    if (await keyFor(channelId, state.epoch) != null) return false;
+    try {
+      await _api.abandonChannelKeyEpoch(channelId: channelId, epoch: state.epoch);
+    } on Object {
+      return false;
+    }
+    await _crypto.store.clearPendingChannelKey(channelId);
+    return completeRotation(channelId);
+  }
+
+  /// Re-seals a private channel's name under the current key.
+  ///
+  /// Without this the name stays sealed under epoch 1 for the life of the
+  /// channel, and a member who joined after a rotation — given only the current
+  /// key, deliberately — can read every new post and not the channel's own
+  /// name. Public channels have a plaintext title and need none of this.
+  ///
+  /// Best effort: a failure here costs a name on somebody's screen, and must
+  /// not undo a rotation that has otherwise completed.
+  Future<void> _resealMetadata(String channelId, int epoch) async {
+    try {
+      final channel = await byId(channelId);
+      if (channel.isPublic) return;
+      if (channel.title.isEmpty || channel.title == 'Private channel') return;
+      final key = await keyFor(channelId, epoch);
+      if (key == null) return;
+      await _api.updateChannel(
+        channelId,
+        encryptedMetadata: base64Encode(await _seal(channel.title, key)),
+        metadataKeyEpoch: epoch,
+      );
+    } on Object {
+      // Left for the next rotation, or for whoever edits the channel next.
+    }
   }
 
   /// Seals the current key to every remaining member.
@@ -636,10 +760,17 @@ class ChannelService {
 
     var title = plaintextTitle;
     if (title == null && sealed != null) {
-      // The title was sealed when the channel was made, so it is epoch 1's —
-      // and stays epoch 1's, because rotating a key does not rewrite what is
-      // already on the server. Newest first anyway, in case that ever changes.
-      for (final candidate in held.reversed) {
+      // The server says which key sealed the name. It is re-sealed on every
+      // rotation, so this is normally the current epoch — which is the whole
+      // point: a member who joined after a rotation holds exactly that one key
+      // and can read the channel's name with it, without being handed any of
+      // the old message keys.
+      //
+      // The named epoch is tried first and the rest afterwards, so a device
+      // that is mid-rotation — holding the old key while the re-seal is still
+      // in flight — still shows a name instead of a placeholder.
+      final metadataEpoch = (raw['metadataKeyEpoch'] as num?)?.toInt() ?? 1;
+      for (final candidate in [metadataEpoch, ...held.reversed]) {
         final key = await keyFor(id, candidate);
         if (key == null) continue;
         title = await _openSealed(sealed, key);

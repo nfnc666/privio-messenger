@@ -302,10 +302,37 @@ no rotation reaches into somebody else's storage. What they lose is everything
 published afterwards. That is the honest shape of it: not "they can no longer
 read the channel", but "they can no longer read the channel's future".
 
-**What history a new member gets.** A private channel hands over the current
-epoch only, so somebody joining today does not receive what was said before they
-arrived — otherwise a person removed on Monday could rejoin under a new account
-on Tuesday and have all of it back. A public channel hands over every epoch,
+**What history a new member gets — and what that does not mean.** A private
+channel hands over the current epoch only, so somebody joining today does not
+receive what was said before they arrived — otherwise a person removed on
+Monday could rejoin under a new account on Tuesday and have all of it back.
+
+That sentence is easy to over-read, so the precise version: **the boundary is
+the last rotation, not the moment they joined.** A key version covers every post
+sealed under it, and a channel that has not rotated for six months is on one
+version for all six months of posts. Somebody who joins today, into a channel
+whose last removal was in March, is given March's key and can read everything
+published since March — including the eight months of conversation that happened
+before they had heard of the channel.
+
+What the rotation actually guarantees is narrower and still worth having: a
+member who is removed cannot read what is published **after their removal**, and
+a member who joins cannot read what was published **before the last rotation**.
+Between rotations, membership changes do not partition the history.
+
+Making the boundary the join itself would need a different construction: a key
+that ratchets forward per post or per interval, with each member given only the
+state from the point they arrived — the sender-key scheme groups use, rather
+than one symmetric key per version. That is a larger change than versioning, it
+costs a key-agreement round per member per epoch, and it is not what is
+implemented here. Nothing in this codebase claims it.
+
+The channel's own name is the one exception, and deliberately: it is re-sealed
+under the current key on every rotation and carries the version it was sealed
+with (`channels.metadata_key_epoch`). A new member reads the name with the one
+key they were given without being handed a single old message key. Without that,
+a member who joined after a rotation would sit in a private channel labelled
+"Private channel" for good. A public channel hands over every epoch,
 deliberately: anyone may join a public channel, so anyone may hold its keys, and
 withholding history there would not keep a determined reader out for five
 minutes while making the channel worse for everyone who joins honestly. On a
@@ -334,6 +361,29 @@ device seals the new key to a roster it can check rather than one it is handed.
 That is a real design change, not a patch, and it is listed as a known gap
 rather than quietly assumed.
 
+**When a rotation is interrupted.** The device that generates a new key writes
+it to the keystore *before* asking the server to reserve the version, not after.
+The order is the whole of it: claim-then-save loses the key if the device dies
+in between, and the version is then reserved to a key that exists nowhere — a
+channel nobody can publish to and nobody can repair, because reserving it again
+with a different key would split the readership in two. Saving first means a
+device that crashed, or whose reply was lost, comes back with the same candidate
+and the same label, sends the identical request, is told it already won, and
+carries on. A candidate is never handed to anybody until the server has
+confirmed it won.
+
+If the generating device is genuinely gone — wiped, uninstalled, lost — the
+version is **abandoned** rather than reused or rolled back, and the channel moves
+forward to a fresh one. What makes that safe is a check the server can make
+holding no key at all: an abandoned version must have no posts under it.
+Publishing at a version requires holding its key and the server refuses any
+other, so a version nobody ever held cannot have anything published under it.
+The route enforces that rather than assuming it, because "there cannot be any"
+and "there are none" are different statements and only the second is checkable.
+It is a deliberate action, not automatic: "nobody has sent me the key" and
+"nobody can send me the key" look identical from a device, and the difference is
+usually that an admin has not opened the app since Tuesday.
+
 **The limits, stated plainly:**
 
 - A rotation is only as complete as the devices that carry it out. Between a
@@ -341,6 +391,8 @@ rather than quietly assumed.
   channel has advanced its epoch and nobody has generated the key. Nothing can
   be published in that window and the app says why; it does not fall back to
   the old key.
+- The history boundary is the last rotation, not the join. See above; this is
+  the limit most likely to be misread as something stronger.
 - Membership is visible to the server, as it must be for delivery, and the
   server is trusted for the roster — see the trust boundary above.
 - "Restrict saving" is a hint the client honours. Anyone who can read a post can
