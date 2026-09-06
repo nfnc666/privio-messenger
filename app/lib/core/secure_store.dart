@@ -206,24 +206,30 @@ class KeystoreSecureStore implements SecureStore {
   /// pretending otherwise would be worse than saying it.
   @override
   Future<void> setPasscode(String passcode, PasscodeKind kind) async {
-    final plain = await _read(_archiveKeyKey);
+    // Through `readArchiveKey`, not straight off the plain entry: on a *change*
+    // of passcode there is no plain entry left — the first one took it away —
+    // and reading it directly would leave the old blob sealed under the old
+    // code while the new code was stored beside it. The old passcode went on
+    // working and the new one opened nothing.
+    final current = await readArchiveKey();
     _sessionPasscode = passcode;
-    if (plain != null) {
+    if (current != null) {
       await _write(
         _wrappedArchiveKeyKey,
         await PasscodeVault.wrap(
           passcode: passcode,
-          archiveKey: Uint8List.fromList(base64Decode(plain)),
+          archiveKey: Uint8List.fromList(base64Decode(current)),
         ),
       );
       await _storage.delete(key: _archiveKeyKey, iOptions: _iosOptions, aOptions: _androidOptions);
-      _sessionArchiveKey = plain;
+      await _storage.delete(key: _passcodeKey, iOptions: _iosOptions, aOptions: _androidOptions);
+      _sessionArchiveKey = current;
     }
     // The passcode itself is no longer stored once there is a wrapped key to
     // check it against; the kind is, because the lock screen has to know which
     // keyboard to draw before anything is typed.
     await _write(_passcodeKindKey, kind.id);
-    if (plain == null) await _write(_passcodeKey, passcode);
+    if (current == null) await _write(_passcodeKey, passcode);
   }
 
   @override
@@ -384,7 +390,14 @@ class KeystoreSecureStore implements SecureStore {
   Future<void> writeActivationAskedFor(String accountId) => _write(_activationAskedKey, accountId);
 
   @override
-  Future<void> wipe() => _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
+  Future<void> wipe() async {
+    // The process keeps the key it was handed at unlock. Deleting the stored
+    // half and leaving that behind is the mistake the crypto store made once
+    // already: a wipe that leaves key material in memory is not a wipe.
+    _sessionPasscode = null;
+    _sessionArchiveKey = null;
+    await _storage.deleteAll(iOptions: _iosOptions, aOptions: _androidOptions);
+  }
 }
 
 /// In-memory store for tests. Never used in a shipped build.
@@ -419,14 +432,16 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<void> setPasscode(String passcode, PasscodeKind kind) async {
+    final current = await readArchiveKey();
     _sessionPasscode = passcode;
-    final plain = _entries.remove('archiveKey');
-    if (plain != null) {
+    _entries.remove('archiveKey');
+    if (current != null) {
       _entries['archiveKeyWrapped'] = await PasscodeVault.wrap(
         passcode: passcode,
-        archiveKey: Uint8List.fromList(base64Decode(plain)),
+        archiveKey: Uint8List.fromList(base64Decode(current)),
       );
-      _sessionArchiveKey = plain;
+      _entries.remove('pin');
+      _sessionArchiveKey = current;
     } else {
       _entries['pin'] = passcode;
     }
@@ -594,5 +609,9 @@ class InMemorySecureStore implements SecureStore {
       _entries['activationAskedFor'] = accountId;
 
   @override
-  Future<void> wipe() async => _entries.clear();
+  Future<void> wipe() async {
+    _sessionPasscode = null;
+    _sessionArchiveKey = null;
+    _entries.clear();
+  }
 }

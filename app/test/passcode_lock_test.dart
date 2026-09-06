@@ -82,4 +82,33 @@ void main() {
     final relaunched = InMemorySecureStore()..restoreForTest(store.entriesForTest);
     expect(await relaunched.readArchiveKey(), key);
   });
+
+  test('changing the passcode keeps the history', () async {
+    // The second call to setPasscode finds no readable key, because the first
+    // one took it away. Getting that wrong locks somebody out with the passcode
+    // they just chose.
+    final store = InMemorySecureStore();
+    await store.writeArchiveKey(key);
+    await store.setPasscode('1234', PasscodeKind.digits4);
+    await store.setPasscode('5678', PasscodeKind.digits4);
+
+    final relaunched = InMemorySecureStore()..restoreForTest(store.entriesForTest);
+    expect(await relaunched.verifyPasscode('1234'), isFalse, reason: 'the old one is gone');
+    expect(await relaunched.verifyPasscode('5678'), isTrue);
+    expect(await relaunched.readArchiveKey(), key, reason: 'the same history');
+  });
+
+  test('a wipe leaves no key in memory either', () async {
+    // The archive blob is deleted by the wipe, but a key still sitting in this
+    // process is the same mistake the crypto store made once already.
+    final store = InMemorySecureStore();
+    await store.writeArchiveKey(key);
+    await store.setPasscode('1234', PasscodeKind.digits4);
+    expect(await store.readArchiveKey(), key);
+
+    await store.wipe();
+
+    expect(await store.hasPasscode(), isFalse);
+    expect(await store.readArchiveKey(), isNull, reason: 'nothing left to hand out');
+  });
 }
