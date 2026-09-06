@@ -372,6 +372,10 @@ class AppState extends ChangeNotifier {
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
+    // The store builds register themselves; the free ones do not, because
+    // choosing a distributor is a disclosure and therefore the user's to make.
+    // Either way this must not block the chat list from appearing.
+    unawaited(wakeUp.ensureRegistered());
     unawaited(controller.refreshContacts());
     // A key request arrives on the socket, and the channels' keys live in a
     // different controller: the conversation one answers for groups and calls
@@ -681,6 +685,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> signOut() async {
     _conversations?.stop();
+    // Before the session goes: clearing the push token needs the token that
+    // authorises it. A device that signs out while still registered leaves the
+    // relay posting wake-ups to a phone that is no longer this account's — and
+    // on a resold or handed-on phone, to somebody else's.
+    await wakeUp.signOutOfPush();
     try {
       await services.api.logout();
     } on Object {

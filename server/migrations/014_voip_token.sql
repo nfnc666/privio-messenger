@@ -1,0 +1,11 @@
+-- iOS rings on a different token than everything else.
+--
+-- PushKit issues its own registry token, with its own APNs topic, and Apple
+-- allows it to launch a killed app — in exchange for the app reporting an
+-- incoming call to CallKit every time one arrives. That trade is why it cannot
+-- double as the ordinary wake-up token: a message wake-up sent on it would
+-- mean either lying to CallKit or having the app terminated by the system.
+--
+-- Null everywhere else. Android rings on the same token as everything else,
+-- and UnifiedPush has one endpoint per app.
+ALTER TABLE devices ADD COLUMN voip_token text;

@@ -38,6 +38,20 @@ export interface StoredEnvelope {
 const EPHEMERAL: ReadonlySet<EnvelopeType> = new Set(['typing']);
 
 /**
+ * The one envelope type a phone has to be woken *now* for.
+ *
+ * Everything else can wait for whatever batching window the operating system
+ * decides on — the envelope is stored, and it will still be there. A call will
+ * not: nobody holds a ringing phone to their ear for four minutes, so a call
+ * signal that arrives late is a call that was never offered at all.
+ *
+ * This is the only thing about an envelope the push layer is told, and it is
+ * not content: it says a call is happening, not who is calling or whether it
+ * was answered.
+ */
+const RINGS: ReadonlySet<EnvelopeType> = new Set(['call_signal']);
+
+/**
  * How long a send waits for wake-ups before going on without them.
  *
  * The envelope is already stored and the live socket already published by the
@@ -80,20 +94,35 @@ export class DeliveryService {
     await Promise.all(
       deviceIds.map((id) => this.bus.publish({ deviceId: id, kind: 'envelopes' })),
     );
-    await this.wake(deviceIds.filter((id) => durable.some((e) => e.recipientDeviceId === id)));
+    const wakeable = deviceIds.filter((id) => durable.some((e) => e.recipientDeviceId === id));
+    const ringing = new Set(
+      durable.filter((e) => RINGS.has(e.type)).map((e) => e.recipientDeviceId),
+    );
+    await this.wake(wakeable, ringing);
   }
 
   /** Sends a contentless push to devices that have registered a token. */
-  private async wake(deviceIds: string[]): Promise<void> {
+  private async wake(deviceIds: string[], ringing: ReadonlySet<string> = new Set()): Promise<void> {
     if (deviceIds.length === 0) return;
-    const { rows } = await pool.query<{ id: string; push_provider: PushProvider; push_token: string }>(
-      `SELECT id, push_provider, push_token FROM devices
+    const { rows } = await pool.query<{
+      id: string;
+      push_provider: PushProvider;
+      push_token: string;
+      voip_token: string | null;
+    }>(
+      `SELECT id, push_provider, push_token, voip_token FROM devices
        WHERE id = ANY($1::uuid[]) AND revoked_at IS NULL
          AND push_provider IS NOT NULL AND push_token IS NOT NULL`,
       [deviceIds],
     );
     const pending = rows.map((row) =>
-      this.notifyQuietly({ deviceId: row.id, provider: row.push_provider, token: row.push_token }),
+      this.notifyQuietly({
+        deviceId: row.id,
+        provider: row.push_provider,
+        token: row.push_token,
+        urgency: ringing.has(row.id) ? 'call' : 'normal',
+        voipToken: row.voip_token,
+      }),
     );
 
     // Stragglers are left to finish on their own — they can no longer reject,
@@ -112,12 +141,34 @@ export class DeliveryService {
    */
   private async notifyQuietly(target: PushTarget): Promise<void> {
     try {
-      await this.push.notify(target);
+      if ((await this.push.notify(target)) === 'gone') await this.forget(target);
     } catch (err) {
       this.log?.debug(
         { err, deviceId: target.deviceId, provider: target.provider },
         'wake-up failed',
       );
+    }
+  }
+
+  /**
+   * Drops a token the vendor has told us is dead.
+   *
+   * Kept narrow on purpose: the update names the token it was told about, so a
+   * device that registered a new one while this wake-up was in flight keeps
+   * the new one. Without that condition a late "gone" for yesterday's token
+   * would silently unregister a device that is working perfectly.
+   */
+  private async forget(target: PushTarget): Promise<void> {
+    try {
+      await pool.query(
+        `UPDATE devices SET push_provider = NULL, push_token = NULL, voip_token = NULL
+         WHERE id = $1 AND push_token = $2`,
+        [target.deviceId, target.token],
+      );
+      this.log?.debug({ deviceId: target.deviceId }, 'push token dropped: the vendor says it is gone');
+    } catch (err) {
+      // Same rule as everything else here: a wake-up cannot fail a send.
+      this.log?.debug({ err, deviceId: target.deviceId }, 'could not drop a dead push token');
     }
   }
 

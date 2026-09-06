@@ -54,6 +54,7 @@ const READABLE: Record<string, string> = {
   'devices.platform': 'shown in the device list',
   'devices.push_provider': 'which service to wake',
   'devices.push_token': 'an address this server sends to; sealing it would break it',
+  'devices.voip_token': 'the second address iOS needs, for the same reason',
   'sessions.user_agent': 'shown beside the session in the device list',
 
   // Licensing, which is an order record rather than anything about a person.
