@@ -45,6 +45,20 @@ npm --workspace server test          # needs TEST_DATABASE_URL
 cd app && flutter analyze && flutter test
 ```
 
+If migration fails with *"Database is ahead of this checkout: it has applied
+`014_channel_key_epochs.sql`"*, that file was renamed to `015_...` when it
+collided with another branch's 014. The schema it created is already in your
+database and nothing needs re-applying; only the ledger row is stale. Correct it
+rather than dropping the database:
+
+```sql
+UPDATE schema_migrations SET name = '015_channel_key_epochs.sql'
+WHERE name = '014_channel_key_epochs.sql';
+```
+
+Written down because renaming an applied migration is a thing that should not
+happen quietly, and this one did.
+
 If the server suite fails with something like `column "alias" does not exist`,
 read the error above it: a test database that carried a migration from a branch
 you have since left is ahead of your checkout, and `migrate()` now says so by

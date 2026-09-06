@@ -54,6 +54,7 @@ class PrivioSignalStore extends SignalProtocolStore {
   static const _keyChangePrefix = 'keychange/';
   static const _profileKeyKey = 'profile_key';
   static const _channelKeyPrefix = 'channel_key/';
+  static const _pendingKeyPrefix = 'channel_key_pending/';
 
   Future<Uint8List?> readProfileKey() async {
     final stored = await _storage.readBytes(_profileKeyKey);
@@ -110,6 +111,54 @@ class PrivioSignalStore extends SignalProtocolStore {
   }
 
   String _epochKey(String channelId, int epoch) => '$_channelKeyPrefix$channelId/$epoch';
+
+  /// The key this device generated for an epoch it has not yet been told it won.
+  ///
+  /// Written **before** the network call that claims the epoch, and kept until
+  /// the claim is confirmed one way or the other. That ordering is the whole
+  /// point: a device that claims first and saves second loses the key if it
+  /// dies in between, and the epoch is then reserved to a key that exists
+  /// nowhere — a channel nobody can publish to and nobody can repair, because
+  /// claiming it again with a different key would split it in two.
+  ///
+  /// Stored in the same place as the keys themselves, which is the platform
+  /// keystore on a phone: this is key material until it is either promoted or
+  /// thrown away.
+  Future<({int epoch, String keyId, Uint8List key})?> readPendingChannelKey(
+    String channelId,
+  ) async {
+    final stored = await _storage.readBytes('$_pendingKeyPrefix$channelId');
+    if (stored == null) return null;
+    try {
+      final decoded = jsonDecode(utf8.decode(stored)) as Map<String, dynamic>;
+      return (
+        epoch: decoded['e'] as int,
+        keyId: decoded['i'] as String,
+        key: Uint8List.fromList(base64Decode(decoded['k'] as String)),
+      );
+    } on Object {
+      // Unreadable is the same as absent: a candidate that cannot be parsed
+      // cannot be confirmed either, and guessing at it is how a wrong key gets
+      // promoted.
+      return null;
+    }
+  }
+
+  Future<void> writePendingChannelKey(
+    String channelId, {
+    required int epoch,
+    required String keyId,
+    required Uint8List key,
+  }) =>
+      _storage.writeBytes(
+        '$_pendingKeyPrefix$channelId',
+        Uint8List.fromList(
+          utf8.encode(jsonEncode({'e': epoch, 'i': keyId, 'k': base64Encode(key)})),
+        ),
+      );
+
+  Future<void> clearPendingChannelKey(String channelId) =>
+      _storage.delete('$_pendingKeyPrefix$channelId');
 
   /// Writes a key the way versions of this app before epochs did.
   ///
