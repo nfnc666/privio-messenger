@@ -8,12 +8,18 @@ import {
   type TestHarness,
   type TestUser,
 } from './helpers.js';
+import { pool } from '../src/db/pool.js';
 import { isPrivateAddress, parsePushEndpoint } from '../src/util/outbound.js';
 import {
+  ApnsSender,
+  FcmSender,
   RoutingPushSender,
   UnifiedPushSender,
   LoggingPushSender,
+  type FetchLike,
+  type PushOutcome,
   type PushSender,
+  type PushTarget,
 } from '../src/services/push.js';
 
 describe('outbound endpoint policy', () => {
@@ -194,7 +200,7 @@ describe('a wake-up that goes wrong', () => {
     // Otherwise registering a black-holing endpoint would cost everyone who
     // messages you the full request timeout, which is a cheap thing to do to
     // other people.
-    const hanging: PushSender = { notify: () => new Promise<void>(() => {}) };
+    const hanging: PushSender = { notify: () => new Promise<PushOutcome>(() => {}) };
     const slow = await createHarness({ push: hanging });
 
     const gina = await registerUser(slow.app, 'gina');
@@ -234,17 +240,38 @@ describe('a wake-up that goes wrong', () => {
 describe('registering an endpoint', () => {
   let h: TestHarness;
   let user: TestUser;
+  let caller: TestUser;
+
+  /**
+   * A sender the tests can steer, because the two things worth checking here
+   * are what the relay is *told* and what it does about it. One harness, not
+   * one per test: `createHarness` truncates, so a second one would delete the
+   * device the first one registered.
+   */
+  const relay = {
+    outcome: 'sent' as 'sent' | 'gone',
+    sent: [] as PushTarget[],
+    notify: async (target: PushTarget) => {
+      relay.sent.push(target);
+      return relay.outcome;
+    },
+  };
 
   before(async () => {
-    h = await createHarness();
+    h = await createHarness({ push: relay });
     user = await registerUser(h.app, 'pusher');
+    caller = await registerUser(h.app, 'caller');
   });
   after(async () => {
     await h.close();
     await closePool();
   });
 
-  async function register(payload: { provider: string | null; token: string | null }) {
+  async function register(payload: {
+    provider: string | null;
+    token: string | null;
+    voipToken?: string | null;
+  }) {
     return h.app.inject({
       method: 'PUT',
       url: '/v1/devices/current/push',
@@ -282,5 +309,225 @@ describe('registering an endpoint', () => {
     const response = await register({ provider: null, token: null });
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().pushEnabled, false);
+  });
+
+  it('takes a VoIP token alongside the APNs one', async () => {
+    const response = await register({
+      provider: 'apns',
+      token: 'a-vendor-token',
+      voipToken: 'a-pushkit-token',
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(response.json().callsRing, true);
+  });
+
+  it('refuses a VoIP token for a provider that has no such thing', async () => {
+    // Android rings on the same token as everything else and a distributor has
+    // one endpoint. Storing a second one there would be storing a string that
+    // nothing will ever read.
+    const response = await register({
+      provider: 'fcm',
+      token: 'a-vendor-token',
+      voipToken: 'a-pushkit-token',
+    });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'invalid_push_config');
+  });
+
+  it('signing out takes the VoIP token with it', async () => {
+    await register({ provider: 'apns', token: 'a-vendor-token', voipToken: 'a-pushkit-token' });
+    await register({ provider: null, token: null });
+
+    const { rows } = await pool.query('SELECT push_token, voip_token FROM devices WHERE id = $1', [
+      user.deviceId,
+    ]);
+    assert.equal(rows[0].push_token, null);
+    assert.equal(rows[0].voip_token, null, 'a device that stopped being pushed to stopped ringing');
+  });
+
+  /** One sealed envelope from `caller` to `pusher`'s device. */
+  async function sendTo(type: string) {
+    relay.sent.length = 0;
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/v1/messages',
+      headers: bearer(caller),
+      payload: {
+        username: 'pusher',
+        messages: [
+          {
+            deviceId: user.deviceId,
+            registrationId: 4242,
+            type,
+            content: Buffer.from('sealed').toString('base64'),
+          },
+        ],
+      },
+    });
+    assert.equal(response.statusCode, 202, response.body);
+  }
+
+  it('a call wakes the device as a call, and a message does not', async () => {
+    await register({ provider: 'apns', token: 'live-token', voipToken: 'live-voip' });
+
+    await sendTo('call_signal');
+    const ring = relay.sent.find((t) => t.deviceId === user.deviceId);
+    assert.equal(ring?.urgency, 'call');
+    assert.equal(ring?.voipToken, 'live-voip', 'and on the token that can ring it');
+
+    await sendTo('ciphertext');
+    const message = relay.sent.find((t) => t.deviceId === user.deviceId);
+    assert.equal(message?.urgency, 'normal', 'a message can wait for a battery window');
+  });
+
+  it('a token the vendor calls dead is dropped, so the relay stops calling it', async () => {
+    await register({ provider: 'apns', token: 'a-dead-token' });
+
+    relay.outcome = 'gone';
+    await sendTo('ciphertext');
+    relay.outcome = 'sent';
+
+    const { rows } = await pool.query(
+      'SELECT push_provider, push_token FROM devices WHERE id = $1',
+      [user.deviceId],
+    );
+    assert.equal(rows[0].push_token, null);
+    assert.equal(rows[0].push_provider, null);
+  });
+
+  it('a "gone" for a token already replaced does not unregister the new one', async () => {
+    // The wake-up and the re-registration race by nature: a vendor answering
+    // about yesterday's token must not silently switch off a device that is
+    // working perfectly today.
+    await register({ provider: 'apns', token: 'old-token' });
+    relay.outcome = 'gone';
+    await sendTo('ciphertext');
+    // The reply is still in flight when the device registers its new token.
+    await register({ provider: 'apns', token: 'new-token' });
+    relay.outcome = 'sent';
+
+    const { rows } = await pool.query('SELECT push_token FROM devices WHERE id = $1', [
+      user.deviceId,
+    ]);
+    assert.equal(rows[0].push_token, 'new-token');
+  });
+});
+
+describe('the vendor senders', () => {
+  /** Records what would have gone to Apple or Google, and answers as they do. */
+  function recorder(status = 200, body = '') {
+    const calls: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const fetch: FetchLike = async (url, init) => {
+      calls.push({ url, headers: init?.headers ?? {}, body: init?.body ?? '' });
+      return { ok: status < 400, status, text: async () => body };
+    };
+    return { calls, fetch };
+  }
+
+  const apns = (fetch: FetchLike) =>
+    new ApnsSender({ authorization: async () => 'jwt', topic: 'com.privio.app', fetch });
+
+  const fcm = (fetch: FetchLike) =>
+    new FcmSender({ authorization: async () => 'oauth', projectId: 'privio', fetch });
+
+  it('an APNs message wake-up carries no alert and no content', async () => {
+    const { calls, fetch } = recorder();
+    await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' });
+
+    const sent = calls[0]!;
+    assert.equal(sent.headers['apns-push-type'], 'background');
+    assert.equal(sent.headers['apns-topic'], 'com.privio.app');
+    const payload = JSON.parse(sent.body);
+    assert.deepEqual(payload, { aps: { 'content-available': 1 } });
+    assert.equal(sent.body.includes('alert'), false, 'Apple never carries a word of it');
+  });
+
+  it('an APNs call goes to the VoIP token, on the VoIP topic, at once', async () => {
+    const { calls, fetch } = recorder();
+    await apns(fetch).notify({
+      deviceId: 'd1',
+      provider: 'apns',
+      token: 'tok',
+      voipToken: 'voip-tok',
+      urgency: 'call',
+    });
+
+    const sent = calls[0]!;
+    assert.ok(sent.url.endsWith('/3/device/voip-tok'), 'a call rings on its own token');
+    assert.equal(sent.headers['apns-push-type'], 'voip');
+    assert.equal(sent.headers['apns-topic'], 'com.privio.app.voip');
+    assert.equal(sent.headers['apns-priority'], '10');
+  });
+
+  it('a call to a device with no VoIP token is not sent as a background push', async () => {
+    // Sending it on the ordinary token would arrive whenever iOS felt like it,
+    // which for a ringing phone is indistinguishable from never — and the
+    // device would have no way to tell it apart from a message.
+    const { calls, fetch } = recorder();
+    await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok', urgency: 'call' });
+    assert.equal(calls.length, 0);
+  });
+
+  it('APNs 410 means the token is gone', async () => {
+    const { fetch } = recorder(410);
+    assert.equal(
+      await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      'gone',
+    );
+  });
+
+  it('APNs BadDeviceToken means the token is gone; a bad topic does not', async () => {
+    const bad = recorder(400, '{"reason":"BadDeviceToken"}');
+    assert.equal(
+      await apns(bad.fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      'gone',
+    );
+    const mine = recorder(403, '{"reason":"ExpiredProviderToken"}');
+    assert.equal(
+      await apns(mine.fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      'sent',
+      'the operator\'s credentials are not this device\'s fault',
+    );
+  });
+
+  it('an FCM wake-up is data-only, so Google composes nothing', async () => {
+    const { calls, fetch } = recorder();
+    await fcm(fetch).notify({ deviceId: 'd1', provider: 'fcm', token: 'tok' });
+
+    const payload = JSON.parse(calls[0]!.body);
+    assert.equal('notification' in payload.message, false, 'a notification block would be text at Google');
+    assert.deepEqual(payload.message.data, { privio: 'wake' });
+    assert.equal(payload.message.android.priority, 'NORMAL');
+  });
+
+  it('an FCM call is high priority, and says only that it is a call', async () => {
+    const { calls, fetch } = recorder();
+    await fcm(fetch).notify({ deviceId: 'd1', provider: 'fcm', token: 'tok', urgency: 'call' });
+
+    const payload = JSON.parse(calls[0]!.body);
+    assert.deepEqual(payload.message.data, { privio: 'call' });
+    assert.equal(payload.message.android.priority, 'HIGH');
+    assert.equal(payload.message.android.ttl, '60s');
+  });
+
+  it('FCM 404 is UNREGISTERED; 403 is the operator\'s problem', async () => {
+    const gone = recorder(404, '');
+    assert.equal(await fcm(gone.fetch).notify({ deviceId: 'd1', provider: 'fcm', token: 'tok' }), 'gone');
+    const mine = recorder(403, '');
+    assert.equal(await fcm(mine.fetch).notify({ deviceId: 'd1', provider: 'fcm', token: 'tok' }), 'sent');
+  });
+
+  it('neither sender ever puts a recipient or a count on the wire', async () => {
+    // The rule, asserted rather than trusted: everything leaving here is
+    // opaque. The device id is ours, and it does not travel.
+    const a = recorder();
+    await apns(a.fetch).notify({ deviceId: 'device-of-nina', provider: 'apns', token: 'tok' });
+    const g = recorder();
+    await fcm(g.fetch).notify({ deviceId: 'device-of-nina', provider: 'fcm', token: 'tok' });
+
+    for (const sent of [...a.calls, ...g.calls]) {
+      assert.equal(sent.body.includes('nina'), false);
+      assert.equal(JSON.stringify(sent.headers).includes('nina'), false);
+    }
   });
 });

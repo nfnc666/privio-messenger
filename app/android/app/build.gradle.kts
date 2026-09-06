@@ -69,6 +69,17 @@ android {
         }
     }
 
+    // What a notification says when the app is not running to say anything
+    // better. Identical in both flavours, and deliberately empty of fact: this
+    // text is composed by code that has never seen a plaintext and cannot.
+    // Anything more specific would have to come from a decrypted message, and
+    // would then be sitting on a lock screen.
+    productFlavors.configureEach {
+        resValue("string", "notification_channel_messages", "Messages")
+        resValue("string", "notification_title", "Privio")
+        resValue("string", "notification_body", "You have new activity")
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -88,6 +99,34 @@ android {
         includeInApk = false
         includeInBundle = false
     }
+}
+
+dependencies {
+    // The Libre and direct builds' only way of being woken while closed, and
+    // the reason they can be: a distributor the user installed, with no Google
+    // library in the APK. On Maven Central, so F-Droid can fetch it like any
+    // other dependency.
+    //
+    // Pinned. The API was renamed between 3.x releases — `registerApp` became
+    // `register` — so an unpinned bump is a compile error waiting to happen.
+    "libreImplementation"("org.unifiedpush.android:connector:3.3.5")
+
+    // Firebase, in the Play flavour and nowhere else. `playImplementation` is
+    // what enforces that: there is no build flag that puts these into the
+    // Libre APK, and no reviewer has to remember.
+    "playImplementation"("com.google.firebase:firebase-messaging:24.1.0")
+    "playImplementation"("com.google.android.gms:play-services-base:18.5.0")
+}
+
+// Firebase needs `app/google-services.json`, which is configuration for one
+// specific Firebase project and is deliberately not in this repository.
+//
+// Applied only when the file is there, so that a clone without it still builds
+// both flavours. Without it the Play build compiles and runs; Firebase simply
+// fails to initialise, the bridge answers "no token", and the app tells the
+// user it can only be reached while it is open — which is exactly true.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 kotlin {

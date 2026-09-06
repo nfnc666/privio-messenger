@@ -61,6 +61,19 @@ class CallService extends ChangeNotifier {
   /// The offer this device has been sent and not yet answered.
   String? _pendingOffer;
 
+  /// Calls that are over, newest last.
+  ///
+  /// A call ends once. Everything after that — a `hangUp` the other side sent
+  /// twice, an envelope redelivered because the acknowledgement was lost, an
+  /// offer this device is only now draining from a queue it could not reach
+  /// while it was asleep — is about a call that is finished, and the phone
+  /// must not ring for any of it.
+  ///
+  /// Bounded, because it is unbounded state on a long-running app otherwise,
+  /// and a call from far enough back that it has fallen out of here would have
+  /// been refused by [_isStale] long before.
+  final List<String> _settled = [];
+
   /// Serialises outgoing signals; see [_send].
   Future<void> _sending = Future<void>.value();
 
@@ -208,8 +221,39 @@ class CallService extends ChangeNotifier {
   ///
   /// Everything that can arrive at the wrong moment arrives here, so this is
   /// where the rules about *which* call a signal belongs to live.
-  Future<void> handleSignal(String senderAccountId, CallSignal signal) async {
+  /// [sentAt] is when the server stored the envelope this signal arrived in.
+  /// It is what tells a call that is happening now from one that was over
+  /// before this device woke up, so it is worth threading through from the
+  /// envelope rather than reading the clock here.
+  Future<void> handleSignal(
+    String senderAccountId,
+    CallSignal signal, {
+    DateTime? sentAt,
+  }) async {
+    // A call that has already ended is not started again by anything that
+    // arrives afterwards, whichever path it arrives on. This is the one check
+    // that has to come before every other: the redelivered offer is the case
+    // where everything below would otherwise do exactly the wrong thing.
+    if (_settled.contains(signal.callId)) return;
+
     final call = _call;
+
+    // An offer for the call that is already ringing, arriving a second time.
+    // Rebuilding the call from it would restart the ring timeout, which is how
+    // a duplicate delivery turns a missed call into one that rings forever.
+    if (signal.action == CallAction.offer && call != null && call.id == signal.callId) {
+      return;
+    }
+
+    // An offer that was already too old to answer when it got here. The device
+    // was asleep, or off the network, and the caller has long since given up:
+    // ringing now would be a phone going off for a call nobody is on the other
+    // end of. It is filed as the missed call it is, and the caller is told
+    // nothing, because there is nobody left listening.
+    if (signal.action == CallAction.offer && _isStale(sentAt)) {
+      await _missed(senderAccountId, signal, sentAt!);
+      return;
+    }
 
     // A signal about some other call. The common case is a `hangUp` for a call
     // that already ended on this side, which is not an error and must not
@@ -256,6 +300,46 @@ class CallService extends ChangeNotifier {
     );
     _startRingTimeout();
     notifyListeners();
+  }
+
+  /// Whether an offer stored at [sentAt] is older than anyone would still wait.
+  ///
+  /// The timestamp is the server's and the comparison is against this device's
+  /// clock, so the two can disagree. A device running behind produces a
+  /// negative age, which is read as "just now" rather than as a reason to
+  /// throw the call away — the failure that matters is refusing a live call,
+  /// not ringing for a stale one a moment longer than needed.
+  bool _isStale(DateTime? sentAt) {
+    if (sentAt == null) return false;
+    final age = _now().difference(sentAt);
+    return age > _ringTimeout;
+  }
+
+  /// Files an offer that arrived too late as the missed call it already was.
+  Future<void> _missed(String senderAccountId, CallSignal signal, DateTime sentAt) async {
+    _markSettled(signal.callId);
+    final party = await _lookUp(senderAccountId) ??
+        CallParty(accountId: senderAccountId, username: 'unknown');
+    await _remember(
+      CallRecord(
+        id: signal.callId,
+        accountId: party.accountId,
+        username: party.username,
+        direction: CallDirection.incoming,
+        media: signal.media,
+        // When they called, not when this device found out.
+        at: sentAt,
+        duration: Duration.zero,
+        ending: CallEnding.unanswered,
+      ),
+    );
+    notifyListeners();
+  }
+
+  void _markSettled(String callId) {
+    if (_settled.contains(callId)) return;
+    _settled.add(callId);
+    if (_settled.length > _settledLimit) _settled.removeAt(0);
   }
 
   Future<void> _answered(CallSignal signal) async {
@@ -352,6 +436,7 @@ class CallService extends ChangeNotifier {
     );
     _pendingOffer = null;
     _earlyCandidates.clear();
+    _markSettled(call.id);
     notifyListeners();
   }
 
@@ -460,6 +545,10 @@ class CallService extends ChangeNotifier {
   }
 
   static const int _historyLimit = 200;
+
+  /// How many finished calls are remembered for the sake of refusing late
+  /// signals about them. Generous: the entries are a hex string each.
+  static const int _settledLimit = 100;
 
   @override
   void dispose() {

@@ -75,11 +75,22 @@ const deviceRoutes: FastifyPluginAsync = async (app) => {
       z.object({
         provider: z.enum(['apns', 'fcm', 'unifiedpush']).nullable(),
         token: z.string().min(1).max(512).nullable(),
+        /**
+         * iOS only, and optional: the PushKit token a call arrives on. Sent
+         * alongside the ordinary one because they are issued separately and
+         * either can be reissued without the other.
+         */
+        voipToken: z.string().min(1).max(512).nullable().optional(),
       }),
       request.body,
     );
     if ((body.provider === null) !== (body.token === null)) {
       throw ApiError.badRequest('invalid_push_config', 'provider and token must be set or cleared together');
+    }
+    // A VoIP token only means anything on APNs. Accepting one for FCM or a
+    // distributor would be storing a string nothing will ever read.
+    if (body.voipToken != null && body.provider !== 'apns') {
+      throw ApiError.badRequest('invalid_push_config', 'a VoIP token belongs to apns only');
     }
     // A UnifiedPush token is not a handle a vendor resolves — it is an address
     // this server will POST to. Checked here so a bad one is rejected while
@@ -87,12 +98,14 @@ const deviceRoutes: FastifyPluginAsync = async (app) => {
     if (body.provider === 'unifiedpush' && body.token !== null) {
       parsePushEndpoint(body.token, { allowedHosts: allowedPushHosts() });
     }
-    await pool.query('UPDATE devices SET push_provider = $2, push_token = $3 WHERE id = $1', [
-      deviceId,
-      body.provider,
-      body.token,
-    ]);
-    return { pushEnabled: body.token !== null };
+    // Clearing the provider clears the VoIP token with it: a device that has
+    // stopped being pushed to has stopped ringing too, and leaving one behind
+    // would have the relay calling a phone that signed out.
+    await pool.query(
+      'UPDATE devices SET push_provider = $2, push_token = $3, voip_token = $4 WHERE id = $1',
+      [deviceId, body.provider, body.token, body.provider === null ? null : body.voipToken ?? null],
+    );
+    return { pushEnabled: body.token !== null, callsRing: body.voipToken != null };
   });
 
   /** Rotate this device's signed prekey (clients do this on a schedule). */
