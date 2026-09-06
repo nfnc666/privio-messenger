@@ -993,7 +993,28 @@ naming what is missing today.
     finds nothing there and gives up, which is why emoji still render as empty
     boxes on the web build. Measured in a browser by watching every request the
     page makes, before and after.
-11. **No independent audit.** Before any public release, the crypto integration
+11. **The web build has no keystore, and its local history is recoverable.**
+    On iOS and Android the archive key lives in the Keychain or in
+    EncryptedSharedPreferences, where the operating system holds it apart from
+    everything else on the device. A browser has no such place.
+    `flutter_secure_storage_web` generates an AES-256 key, stores it **raw** in
+    `localStorage` under `FlutterSecureStorage`, and writes each value beside it
+    as `base64(iv).base64(ciphertext)`. The app's own archive key is one of
+    those values, so both layers peel with one read.
+
+    Demonstrated, not inferred: `tools/web-storage-recovery.cjs` takes a copy of
+    that origin's `localStorage` and no password, and comes back with all 112
+    stored values — every Signal private prekey among them — and the
+    conversation in the clear, message bodies and usernames and timestamps.
+
+    There is no fix at this layer: a page cannot ask a browser for an
+    OS-protected key. Deriving the archive key from the passcode with Argon2id
+    would raise the cost for an account that has set one, and is the same change
+    already listed for the PIN in gap 3. Until then the web build says so on its
+    first screen and in Privacy & Security, before anybody has typed anything,
+    because the alternative is a user finding it out afterwards. The phone
+    builds are unaffected, and they are the target.
+12. **No independent audit.** Before any public release, the crypto integration
     needs review by someone who was not involved in writing it.
 
 ## Reporting a vulnerability

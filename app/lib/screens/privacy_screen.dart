@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
@@ -123,6 +124,16 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ),
             ],
           ),
+          if (WebStorageNotice.applies)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                PrivioSpacing.gutter,
+                PrivioSpacing.sm,
+                PrivioSpacing.gutter,
+                PrivioSpacing.sm,
+              ),
+              child: WebStorageNotice(),
+            ),
           SettingsSection(
             caption: 'Access',
             children: [

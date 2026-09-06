@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/privio_colors.dart';
+import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_logo.dart';
 
 /// Screen 3: what Privio promises, before anything is asked of the user.
@@ -59,6 +60,12 @@ class WelcomeScreen extends StatelessWidget {
               // The call to action sits just under the promises rather than at
               // the very bottom, as the mockup has it.
               const Spacer(),
+              // Before the account exists, because it is a reason somebody
+              // might choose to install the app instead.
+              if (WebStorageNotice.applies) ...[
+                const WebStorageNotice(compact: true),
+                const SizedBox(height: PrivioSpacing.lg),
+              ],
               FilledButton(onPressed: onGetStarted, child: const Text('Get Started')),
               const SizedBox(height: PrivioSpacing.sm),
               TextButton(
