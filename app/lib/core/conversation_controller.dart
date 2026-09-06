@@ -1715,7 +1715,13 @@ class ConversationController extends ChangeNotifier {
     // offer that sits in the queue is a phone that never rings.
     final call = incoming.payload.call;
     if (call != null) {
-      await _services.calls.handleSignal(incoming.senderAccountId, call);
+      await _services.calls.handleSignal(
+        incoming.senderAccountId,
+        call,
+        // The envelope’s own timestamp: an offer drained from a queue after a
+        // night asleep is not a phone that should ring now.
+        sentAt: incoming.receivedAt,
+      );
       return;
     }
     // A copy of something this account sent from another of its own devices.

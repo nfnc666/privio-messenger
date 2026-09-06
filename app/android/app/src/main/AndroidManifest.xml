@@ -4,6 +4,11 @@
          prompt people deny. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Android 13 and later. Asked for when someone turns notifications on,
+         not at launch. A refusal costs the notification and not the message:
+         the push still wakes the process and the envelopes still arrive. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

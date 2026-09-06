@@ -119,70 +119,150 @@ it belongs here as one, not as a promise.
 
 ## State of it
 
-Working and tested: everything on the server. The endpoint validation, the
-sender, the routing between providers, and the checks above have tests in
-`server/test/push.test.ts`.
+Written and tested without a phone; **nothing below has been run on a device**,
+because this was built in an environment with no Android SDK, no macOS and no
+handset. Every "works" here means "the logic is exercised by a test"; every
+claim about what a phone actually does is marked as untested and belongs in the
+test plan at the end.
 
-Working, untested on a device: the Dart side — the delivery preference, the
-registration flow, and what the settings screen shows. Its tests run without a
-phone.
-
-**Not written: the Android half.** `ChannelPushDistributor` talks over a method
-channel to a native implementation that does not exist yet, so on a real phone
-today every call answers "no distributor" and the app stays on its socket. That
-is a deliberate seam, not a stub pretending to work: the channel's absence and
-an uninstalled distributor are the same answer, and the app is honest in both
-cases.
-
-Three methods have to exist behind `app.privio/unifiedpush`:
-
-| Method | Returns | Does |
+| Piece | Where | State |
 | --- | --- | --- |
-| `isAvailable` | `bool` | Whether any distributor is installed and reachable |
-| `register` | `String?` | Registers and yields the endpoint URL, or null if declined |
-| `unregister` | — | Tells the distributor to forget this app |
+| Endpoint validation, routing, wake-up senders | `server/src/services/push.ts` | Tested |
+| APNs and FCM senders, dead-token handling | same | Tested against injected transports |
+| Call urgency, dropping dead tokens | `server/src/services/delivery.ts` | Tested |
+| Registration, renewal, sign-out, permission states | `app/lib/services/wake_up.dart` | Tested |
+| Late and duplicate call signals | `app/lib/services/call_service.dart` | Tested |
+| UnifiedPush bridge and receiver | `app/android/app/src/libre/…` | **Never compiled** |
+| FCM bridge and service | `app/android/app/src/play/…` | **Never compiled** |
+| APNs registration and wake | `app/ios/Runner/PushBridge.swift` | **Never compiled** |
+| CallKit / ConnectionService ringing | — | **Not written** |
 
-### The dependency, and the shape it actually has
+### The two things deliberately not written
 
-The UnifiedPush Android connector is `org.unifiedpush.android:connector`, and
-it **is** on Maven Central — `3.3.5` is the current release, with the `.aar`
-present. So it belongs in `libreImplementation`, and F-Droid can fetch it like
-any other dependency. (An earlier note here worried that the library was
-JitPack-only, because that is what its README advertises. That was wrong, and
-it is corrected rather than quietly deleted: JitPack would have been a problem,
-Maven Central is not.)
+**A background Dart isolate.** On Android, a wake-up that arrives while the
+process is dead currently posts a neutral notification and stops there; the
+fetch happens when the app is opened. Fetching from a dead process means running
+a headless `FlutterEngine` with a registered entry point, and that is a piece of
+machinery whose failure mode is silence — exactly the thing that cannot be
+verified by reasoning about it. It is specified here and left for someone with a
+device.
 
-```kotlin
-// android/app/build.gradle.kts — the Libre flavour only.
-libreImplementation("org.unifiedpush.android:connector:3.3.5")
-```
+**CallKit and PushKit, and ConnectionService.** iOS will launch a killed app for
+a VoIP push, and requires in exchange that the app report an incoming call to
+CallKit *every single time* — an app that does not is terminated by the system,
+and repeat offenders lose the entitlement. That is not a rule to learn from a
+first attempt on a phone somebody else is holding. The server side is ready for
+it (`voip_token`, `apns-push-type: voip`, the `.voip` topic) and refuses to send
+a call push to a device with no VoIP token, so nothing half-works in the
+meantime: a call simply does not ring while the app is closed on iOS.
 
-One thing to know before writing the platform side, because it is not what the
-Dart interface's shape suggests: **the endpoint does not come back from
-`register()`.** The connector's `UnifiedPush.register(...)` starts a
-conversation with the distributor, and the endpoint arrives later on a
-broadcast, at the app's receiver. So the native half has to hold the pending
-method-channel result until that callback fires — with a timeout, so a
-distributor that never answers does not leave the Dart side waiting forever —
-or the interface has to grow an event channel instead.
+## What is actually promised, per platform and edition
 
-The Dart contract is still implementable as written; it just puts that work on
-the native side. That is the right place for it: nothing above the channel
-should have to know that this protocol is asynchronous underneath.
+Nothing here promises delivery in a state where the operating system prevents
+it. The honest table:
 
-Also worth checking against the pinned version rather than the library's
-`main` branch: the API is mid-rename there (`registerApp` → `register`,
-`unregisterApp` → `unregister`), so code written from what is on `main` may not
-compile against 3.3.5.
+| State | libre / direct (Android, UnifiedPush) | play (Android, FCM) | appstore (iOS, APNs) |
+| --- | --- | --- | --- |
+| App in the foreground | Socket. Immediate | Socket. Immediate | Socket. Immediate |
+| App backgrounded, process alive | Wake-up → fetch | Wake-up → fetch | Wake-up → fetch, **when iOS decides** |
+| Device locked | Same as backgrounded | Same as backgrounded | Same as backgrounded |
+| Process killed by the system | Neutral notification; fetch on open | Neutral notification; fetch on open | **Nothing until opened** |
+| Force-stopped by the user | **Nothing.** Android delivers no broadcast to a force-stopped app until it is opened again | **Nothing**, same reason | Not applicable — iOS has no force-stop with this effect; a swipe from the app switcher still allows a push |
+| Connection lost and restored | Socket reconnects and drains; the watermark stops anything arriving twice | Same | Same |
+| Notifications refused | Messages still arrive and are fetched. **Nothing is shown**, and a call does not ring | Same | Same |
+| Signed in on several devices | Every device is woken separately; each has its own token and fetches its own copy | Same | Same |
 
-The Kotlin itself is still not written, and deliberately so. There is no
-Android SDK on the machine this was built on, and the connector's released
-sources could not be read from here either — only its `main` branch, which is
-mid-rename. Committing Kotlin nobody has compiled, against an API read from the
-wrong branch, into the tree F-Droid builds from is the one mistake that would
-stay invisible until it broke for everyone. The seam holds until someone can
-run `flutter build apk --flavor libre` and watch it go green.
+Three of those deserve saying out loud rather than leaving in a table:
 
-Also not written: APNs and FCM adapters. `LoggingPushSender` records the intent
-and sends nothing, which is why the store builds are not offered a choice yet
-either.
+* **Force-stop is final.** "Force stop" in Android's settings puts the app in a
+  stopped state, and the system delivers no broadcast or FCM message to it until
+  a person launches it again. No app can work around this and none should claim
+  to. The same is true of some manufacturers' aggressive battery managers, which
+  is a real and widely-reported problem outside the app's control.
+* **iOS background pushes are a request, not an instruction.** A
+  `content-available` push is delivered when iOS decides, weighted by how much
+  the user opens the app and how the battery is doing. It can be minutes and it
+  can be never. This is why a *call* uses PushKit instead — and why, until
+  PushKit is implemented here, calls to a closed iOS app do not ring.
+* **A refused permission costs the notification, not the message.** The push
+  still wakes the process and the envelopes still arrive; nothing appears on
+  screen. The app says exactly this rather than showing a warning triangle, and
+  it does not re-prompt — neither platform shows its dialog twice.
+
+## What is still needed to finish it
+
+Nothing on this list can be produced from a source tree; each needs an account,
+a certificate or a physical device.
+
+| Needed | For | Why it cannot be done here |
+| --- | --- | --- |
+| Apple Developer account, APNs `.p8` key, key id, team id | `appstore` | Signing keys, issued to an enrolled account |
+| The `voip` background mode and a PushKit entitlement | iOS calls | Part of the signed provisioning profile |
+| A Firebase project and `app/google-services.json` | `play` | Per-project configuration; deliberately not in this repository |
+| An FCM service-account key | The server's `FcmSender` | A credential. It belongs in the environment, never in a commit |
+| An Android phone and an iPhone | All of it | See the test plan below |
+| A UnifiedPush distributor (ntfy or similar) | `libre` / `direct` | An app the tester installs |
+
+Credentials go in the server's environment. There is no place in this repository
+where one belongs, and nothing here reads one from a file.
+
+## Testing it on a phone
+
+Roughly forty minutes per platform. The point of writing it down is that the
+interesting cases are the ones nobody thinks to try.
+
+### Both platforms, first
+
+1. Run a server the phone can reach, and register two accounts on two devices.
+2. Sign in on the phone under test. Settings → Notifications should show which
+   path this build uses.
+3. Send a message from the other device with Privio **open**. It should appear
+   immediately — this is the socket, and it proves the setup before push is in
+   the picture at all.
+
+### Android, `libre`
+
+4. Install ntfy from F-Droid. Settings → Notifications → the UnifiedPush option
+   should now be offered; before installing it, it should say plainly that there
+   is nothing to register with.
+5. Turn it on. Expect a distributor prompt, then a registered endpoint.
+6. Background Privio. Send a message. **Expect:** a neutral notification saying
+   only "You have new activity" — no name, no preview, no count.
+7. Lock the phone and repeat. Same result on the lock screen.
+8. Swipe Privio out of the recents list and repeat. Same result.
+9. Settings → Apps → Privio → **Force stop**, then send. **Expect nothing.**
+   This is the documented limit, and seeing it is the point of the step.
+10. Turn Privio's notifications off in system settings. Send a message, then
+    open Privio. **Expect:** nothing on screen, and the message present when
+    opened. The Notifications screen should explain exactly that.
+11. Aeroplane mode for two minutes while three messages are sent; then back on.
+    **Expect:** all three, each once.
+12. Sign out. Confirm on the server that `push_token` is null for that device.
+
+### Android, `play`
+
+Same list, minus steps 4 and 5 — registration happens on sign-in. Additionally
+try a device or emulator image **without** Play services: the app should say it
+cannot be woken while closed, rather than failing silently.
+
+### iOS, `appstore`
+
+Same list, minus the distributor. Two differences to watch for:
+
+* Step 6 may take noticeably longer than on Android, and occasionally not
+  arrive at all until the app is opened. That is the documented iOS behaviour,
+  not a bug to chase.
+* Step 9 has no equivalent. Swiping the app away in the switcher does **not**
+  stop pushes on iOS.
+
+### Calls
+
+13. With Privio open on both devices, place a call. It should ring, answer,
+    connect and hang up. (This path is covered by tests and should already work.)
+14. Background the callee and call again. **Today: it does not ring** on iOS,
+    and on Android it produces the neutral notification. This is the gap that
+    CallKit and ConnectionService close.
+15. The one to try deliberately: put the callee in aeroplane mode, call, and
+    hang up after five seconds. Bring the callee back online. **Expect:** a
+    missed call in the log and **no ringing**. A call that is over stays over —
+    this is tested, and it is worth confirming on a real queue.

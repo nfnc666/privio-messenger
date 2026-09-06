@@ -10,6 +10,7 @@ import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
+import '../services/push_wake.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
@@ -41,8 +42,10 @@ class AppState extends ChangeNotifier {
     SecureStore? store,
     PrivioEdition? edition,
     LauncherDisguise? launcher,
+    PushWakeListener? pushWake,
     bool? supportsDisguise,
   })  : _injectedServices = services,
+        _pushWake = pushWake,
         _store = store ?? KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
@@ -62,6 +65,14 @@ class AppState extends ChangeNotifier {
   final bool disguiseSupported;
 
   final PrivioServices? _injectedServices;
+
+  /// The platform's push callbacks, wired in by whoever built this.
+  ///
+  /// Null in a test, and null on a platform with nothing to listen to. The
+  /// alternative — reaching for a method channel from inside sign-in — needs a
+  /// binding this class has no business assuming, and made every test that
+  /// merely signs somebody in fail on a channel it never asked for.
+  final PushWakeListener? _pushWake;
   final SecureStore _store;
 
   /// The app's entry in the launcher. Injectable so a test can drive a device
@@ -372,6 +383,21 @@ class AppState extends ChangeNotifier {
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
     unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
+    // The store builds register themselves; the free ones do not, because
+    // choosing a distributor is a disclosure and therefore the user's to make.
+    // Either way this must not block the chat list from appearing.
+    unawaited(wakeUp.ensureRegistered());
+    // The platform's side of push: a wake-up means fetch, and a reissued token
+    // means tell the server before it goes on posting to the old one.
+    //
+    // Null unless something wired it in. Listening on a method channel needs a
+    // binding and a platform behind it, and neither is a thing this class
+    // should assume it has — the composition root in `main.dart` knows, and a
+    // test that never asked for push should not have to stub one out.
+    _pushWake?.listen(
+      onWake: () => controller.drain(),
+      onTokenChanged: (token) => wakeUp.handleTokenChanged(token),
+    );
     unawaited(controller.refreshContacts());
     // A key request arrives on the socket, and the channels' keys live in a
     // different controller: the conversation one answers for groups and calls
@@ -665,6 +691,7 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
     await _store.wipe();
@@ -681,6 +708,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> signOut() async {
     _conversations?.stop();
+    // Before the session goes: clearing the push token needs the token that
+    // authorises it. A device that signs out while still registered leaves the
+    // relay posting wake-ups to a phone that is no longer this account's — and
+    // on a resold or handed-on phone, to somebody else's.
+    await wakeUp.signOutOfPush();
     try {
       await services.api.logout();
     } on Object {
@@ -691,6 +723,7 @@ class AppState extends ChangeNotifier {
     _sessionToken = null;
     services.ice.clear();
     services.store.clear();
+    _pushWake?.stop();
     _channels?.dispose();
     _channels = null;
     _license?.dispose();

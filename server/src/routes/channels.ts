@@ -53,7 +53,7 @@ function publicView(row: Record<string, unknown>) {
     restrictSaving: row.restrict_saving,
     memberCount: row.member_count,
     // Which key version this channel is on. The server counts these and holds
-    // no key for any of them; see migration 014.
+    // no key for any of them; see migration 015.
     keyEpoch: row.key_epoch ?? 1,
     createdAt: (row.created_at as Date).toISOString(),
   };

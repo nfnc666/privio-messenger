@@ -77,7 +77,14 @@ void main() {
           final signal = incoming.payload.call;
           if (signal == null) continue;
           moved = true;
-          await end.calls.handleSignal(incoming.senderAccountId, signal);
+          // With the envelope's own timestamp, as the app does — so the
+          // staleness rule is exercised by every test here, not only the ones
+          // written for it.
+          await end.calls.handleSignal(
+            incoming.senderAccountId,
+            signal,
+            sentAt: incoming.receivedAt,
+          );
         }
       }
       quiet = moved ? 0 : quiet + 1;
@@ -445,6 +452,140 @@ void main() {
     final received = await bob.who.messaging.receive();
     expect(received.messages.single.payload.isControl, isTrue);
     expect(received.messages.single.payload.body, isEmpty);
+  });
+
+  group('a call that is already over', () {
+    // The states this covers are the ones a phone is actually in: asleep, off
+    // the network, or handed the same envelope twice because the
+    // acknowledgement for it was lost. All three end with a signal arriving
+    // about a call nobody is waiting on, and none of them may ring.
+
+    CallSignal offerFrom(String callId) => CallSignal(
+          callId: callId,
+          action: CallAction.offer,
+          sdp: 'sdp-offer',
+        );
+
+    test('an offer older than the ring timeout is filed as missed, not rung', () async {
+      final stale = DateTime.now().subtract(const Duration(minutes: 20));
+
+      await bob.calls.handleSignal('account-alice', offerFrom('call-old'), sentAt: stale);
+
+      expect(bob.calls.current, isNull, reason: 'nobody is on the other end any more');
+      expect(bob.calls.history, hasLength(1));
+      expect(bob.calls.history.single.ending, CallEnding.unanswered);
+      expect(bob.calls.history.single.username, 'alice', reason: 'who called still matters');
+      expect(bob.calls.history.single.at, stale, reason: 'when they called, not when we woke');
+    });
+
+    test('a stale offer is not answered back — the caller is long gone', () async {
+      final before = server.envelopes.length;
+      await bob.calls.handleSignal(
+        'account-alice',
+        offerFrom('call-old'),
+        sentAt: DateTime.now().subtract(const Duration(minutes: 20)),
+      );
+      expect(server.envelopes.length, before, reason: 'nothing to say, and nobody listening');
+    });
+
+    test('an offer inside the timeout still rings', () async {
+      // The other half of the rule. A device that was briefly asleep must not
+      // lose a call that is still ringing on the other side.
+      await bob.calls.handleSignal(
+        'account-alice',
+        offerFrom('call-fresh'),
+        sentAt: DateTime.now().subtract(const Duration(seconds: 3)),
+      );
+      expect(bob.calls.current, isNotNull);
+      expect(bob.calls.current!.state, CallState.ringing);
+    });
+
+    test('a clock running behind does not throw a live call away', () async {
+      // The timestamp is the server's, the comparison is this device's. If the
+      // two disagree the safe answer is to ring: refusing a real call is the
+      // worse failure.
+      await bob.calls.handleSignal(
+        'account-alice',
+        offerFrom('call-future'),
+        sentAt: DateTime.now().add(const Duration(minutes: 5)),
+      );
+      expect(bob.calls.current, isNotNull, reason: 'a negative age reads as "just now"');
+    });
+
+    test('the offer for a call that already ended does not ring it again', () async {
+      await alice.calls.place(bobParty);
+      await settle();
+      expect(bob.calls.current!.state, CallState.ringing);
+      final callId = bob.calls.current!.id;
+
+      await alice.calls.hangUp();
+      await settle();
+      expect(bob.calls.current!.state, CallState.ended, reason: 'the caller gave up');
+
+      // The same envelope again — redelivered because the acknowledgement for
+      // it never reached the server.
+      await bob.calls.handleSignal('account-alice', offerFrom(callId), sentAt: DateTime.now());
+
+      expect(
+        bob.calls.current!.state,
+        CallState.ended,
+        reason: 'this call is over, and stays over',
+      );
+      expect(bob.calls.history, hasLength(1), reason: 'and it is one call, logged once');
+    });
+
+    test('a duplicate offer does not restart the ring timeout', () async {
+      final carol = Participant('carol', 'account-carol', 1);
+      await carol.join(server);
+      final quick = build(
+        carol,
+        store: InMemorySecureStore(),
+        ringTimeout: const Duration(milliseconds: 120),
+      );
+      addTearDown(quick.calls.dispose);
+
+      await quick.calls.handleSignal(
+        'account-alice',
+        offerFrom('call-dup'),
+        sentAt: DateTime.now(),
+      );
+      expect(quick.calls.current!.state, CallState.ringing);
+
+      // Half way through the ring, the same offer lands again. If it rebuilt
+      // the call the timeout would start over, and the phone would ring on.
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+      await quick.calls.handleSignal(
+        'account-alice',
+        offerFrom('call-dup'),
+        sentAt: DateTime.now(),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(
+        quick.calls.current!.state,
+        CallState.ended,
+        reason: 'the original timeout still governs',
+      );
+      expect(quick.calls.history.single.ending, CallEnding.unanswered);
+    });
+
+    test('a hang-up redelivered after the call ended changes nothing', () async {
+      await alice.calls.place(bobParty);
+      await settle();
+      final callId = bob.calls.current!.id;
+      await bob.calls.decline();
+      await settle();
+      final logged = bob.calls.history.length;
+
+      await bob.calls.handleSignal(
+        'account-alice',
+        CallSignal(callId: callId, action: CallAction.hangUp),
+        sentAt: DateTime.now(),
+      );
+
+      expect(bob.calls.history, hasLength(logged), reason: 'one call, one entry');
+      expect(bob.calls.current!.ending, CallEnding.declined, reason: 'still declined, not hung up');
+    });
   });
 
   test('an unknown caller is rung as unknown rather than not at all', () async {

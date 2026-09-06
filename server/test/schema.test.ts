@@ -34,7 +34,7 @@ const READABLE: Record<string, string> = {
   'schema_migrations.name': 'not user data',
   // A random label a device invents for the key it generated, so members can
   // agree on which key an epoch means. Not derived from the key and says
-  // nothing about it; see migration 014.
+  // nothing about it; see migration 015.
   'channel_key_epochs.key_id': 'an opaque label for a key the server never sees',
 
   // Enumerations the server acts on.
@@ -58,6 +58,7 @@ const READABLE: Record<string, string> = {
   'devices.platform': 'shown in the device list',
   'devices.push_provider': 'which service to wake',
   'devices.push_token': 'an address this server sends to; sealing it would break it',
+  'devices.voip_token': 'the second address iOS needs, for the same reason',
   'sessions.user_agent': 'shown beside the session in the device list',
 
   // Licensing, which is an order record rather than anything about a person.

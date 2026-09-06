@@ -166,10 +166,19 @@ describe('messaging', () => {
     await send(alice, 'dave', [dave.deviceId], 'wake-me');
     assert.equal(h.push.sent.length, 1);
     assert.equal(h.push.sent[0]!.deviceId, dave.deviceId);
+    // An allowlist, not a spot check: anything new on a push target has to be
+    // argued for here before it can reach a vendor. `deviceId` is ours and
+    // never leaves; `provider` and `token` are the address; `voipToken` is the
+    // second address iOS needs in order to ring; `urgency` is one of two
+    // constants and says a call is happening, not who is calling.
     assert.deepEqual(
       Object.keys(h.push.sent[0]!).sort(),
-      ['deviceId', 'provider', 'token'],
+      ['deviceId', 'provider', 'token', 'urgency', 'voipToken'],
       'the push carries no message content of any kind',
+    );
+    assert.ok(
+      ['normal', 'call'].includes(h.push.sent[0]!.urgency ?? ''),
+      'urgency is a category, not a fact about anybody',
     );
   });
 

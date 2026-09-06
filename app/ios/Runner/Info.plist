@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- A wake-up arrives as a background push with no payload. Without this the
+	     system delivers it only while the app is in the foreground, which is the
+	     one state that did not need a push in the first place.
+
+	     `voip` is deliberately absent: it belongs with PushKit and CallKit,
+	     which are not implemented — see docs/notifications.md. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
