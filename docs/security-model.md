@@ -845,6 +845,13 @@ not a defence against a determined offline attacker. The passcode screen says as
 much beside each choice, and says that a passphrase is the only one of the three
 that stands up to someone with the phone and time.
 
+**Changing it re-wraps rather than re-storing.** The second call has no
+readable key to work from — the first one took it away — so it takes the key
+through the unlocked session and seals it again under the new passcode. Reading
+the stored entry directly instead left the old blob sealed under the old code
+with the new code written beside it: the old passcode went on working, and the
+new one opened nothing. Both halves are tested, and driven in a browser.
+
 **"Locked" and "not there" are different answers.** The store raises
 `ArchiveLockedException` when the key exists but is sealed, rather than
 answering null. A caller that reads the two as the same thing generates a fresh
