@@ -963,6 +963,14 @@ secure generator, kept in the platform keystore so an automatic backup does not
 have to ask for it weekly. The device's copy goes with the device — which is the
 situation a backup exists for, and why the key is shown to be written down.
 
+**Driven end to end, not assumed.** `tools/web-backup-restore-check.cjs` runs
+the whole path in a browser: two accounts talk, one backs up, and a third
+context signs into the same account with nothing on it and restores from the
+recovery key. The message arrives in a chat list on a device that never had it,
+and the account ends up with two devices at indexes 1 and 2 — the restored one
+having built its own identity rather than inheriting the first one's, which is
+what the screen promises.
+
 **A backup carries no key material.** No identity key, no ratchet state, no
 session. This is deliberate: restoring the same ratchet state onto two devices
 breaks both of them, and does so silently, in a way that looks like network
