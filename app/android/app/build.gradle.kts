@@ -61,6 +61,23 @@ android {
             resValue("string", "calculator_name", "Calculator")
             buildConfigField("String", "PRIVIO_EDITION", "\"libre\"")
         }
+        // The APK from getprivio.com. The same code and the same dependencies
+        // as `libre` — no Firebase, no Play services, woken by UnifiedPush —
+        // and a different product all the same: it is called Privio, it is
+        // signed by us rather than by F-Droid, and it updates itself from our
+        // website instead of from a repository.
+        //
+        // A flavour of its own rather than "libre with a different name",
+        // because the name is in a resource and the edition is in a
+        // dart-define, and the two used to be set independently. That produced
+        // an APK labelled "Privio Libre" whose Dart side believed it was the
+        // website build.
+        create("direct") {
+            dimension = "distribution"
+            resValue("string", "app_name", "Privio")
+            resValue("string", "calculator_name", "Calculator")
+            buildConfigField("String", "PRIVIO_EDITION", "\"direct\"")
+        }
         create("play") {
             dimension = "distribution"
             resValue("string", "app_name", "Privio")
@@ -101,6 +118,54 @@ android {
     }
 }
 
+/*
+ * Refuses a build whose two halves disagree about which edition it is.
+ *
+ * Gradle picks the flavour and `--dart-define` picks the edition, and nothing
+ * connected them. `flutter build apk --flavor libre
+ * --dart-define=PRIVIO_EDITION=play` was a perfectly ordinary command that
+ * produced an APK named "Privio Libre", containing no Firebase, whose Dart
+ * side registered for FCM and hid the licence-key screen. It would have been
+ * rejected by F-Droid and would have failed silently for its users.
+ *
+ * Flutter passes the dart-defines to Gradle as a comma-separated list of
+ * base64-encoded `KEY=VALUE` strings in the `dart-defines` property, which is
+ * how this reads it without the Dart side having to be running.
+ *
+ * A missing define is allowed here and refused on the Dart side instead: this
+ * has to keep working for `flutter test` and for tooling that never sets one.
+ */
+fun expectedEditionFor(flavour: String): String = flavour
+
+fun assertEditionMatchesFlavour() {
+    val defines = (project.findProperty("dart-defines") as String?)
+        ?.split(",")
+        ?.mapNotNull {
+            runCatching { String(java.util.Base64.getDecoder().decode(it.trim())) }.getOrNull()
+        }
+        ?.mapNotNull { entry ->
+            entry.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
+        }
+        ?.toMap()
+        ?: return
+
+    val declared = defines["PRIVIO_EDITION"] ?: return
+
+    android.applicationVariants.configureEach {
+        val flavour = productFlavors.firstOrNull()?.name ?: return@configureEach
+        val expected = expectedEditionFor(flavour)
+        if (declared != expected) {
+            throw org.gradle.api.GradleException(
+                "Build refused: --flavor $flavour expects " +
+                    "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +
+                    "An APK whose name and whose edition disagree ships as the wrong product."
+            )
+        }
+    }
+}
+
+assertEditionMatchesFlavour()
+
 dependencies {
     // The Libre and direct builds' only way of being woken while closed, and
     // the reason they can be: a distributor the user installed, with no Google
@@ -110,6 +175,10 @@ dependencies {
     // Pinned. The API was renamed between 3.x releases — `registerApp` became
     // `register` — so an unpinned bump is a compile error waiting to happen.
     "libreImplementation"("org.unifiedpush.android:connector:3.3.5")
+    // The website APK is woken the same way and by the same library. It shares
+    // `src/libre` for its Kotlin — see sourceSets below — so it needs the same
+    // dependency under its own configuration.
+    "directImplementation"("org.unifiedpush.android:connector:3.3.5")
 
     // Firebase, in the Play flavour and nowhere else. `playImplementation` is
     // what enforces that: there is no build flag that puts these into the
@@ -127,6 +196,14 @@ dependencies {
 // user it can only be reached while it is open — which is exactly true.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+}
+
+// `direct` is `libre` with a different name on it, so it compiles the same
+// Kotlin and merges the same manifest rather than keeping a second copy of both
+// in step by hand.
+android.sourceSets.getByName("direct") {
+    kotlin.srcDir("src/libre/kotlin")
+    manifest.srcFile("src/libre/AndroidManifest.xml")
 }
 
 kotlin {

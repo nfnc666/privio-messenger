@@ -361,7 +361,9 @@ describe('device entitlement', () => {
   });
   after(async () => {
     await h.close();
-    await closePool();
+    // The pool is closed by the last describe in this file, not here: node's
+    // test runner runs them in order in one process, and ending it early
+    // leaves the ones after it without a database.
   });
 
   /** Buys a license covering a given number of devices. */
@@ -481,3 +483,138 @@ describe('device entitlement', () => {
 function response(r: { statusCode: number; body: string }): string {
   return `${r.statusCode}: ${r.body}`;
 }
+
+/**
+ * What a client may and may not assert about its own entitlement.
+ *
+ * The rule holds for all four distributions: entitlement is the server's to
+ * decide. A build anyone can compile with the activation screen deleted must
+ * not be able to talk its way past the gate, and a store build must not be able
+ * to claim a purchase nobody verified.
+ */
+describe('the entitlement boundary', () => {
+  let h: TestHarness;
+
+  before(async () => {
+    h = await createHarness();
+  });
+  after(async () => {
+    await h.close();
+    await closePool();
+  });
+
+  it('no client-facing route lets an account declare itself licensed', async () => {
+    const routes = h.app.printRoutes({ commonPrefix: false });
+    const licenseRoutes = routes
+      .split('\n')
+      .filter((line) => line.includes('license'))
+      .join('\n');
+
+    assert.ok(licenseRoutes.includes('redeem'), 'redemption exists');
+    assert.equal(
+      /grant|activate|entitle|unlock/i.test(licenseRoutes),
+      false,
+      'and nothing that would let a client set its own entitlement',
+    );
+  });
+
+  it('the shapes a modified client might try are not routes', async () => {
+    const fresh = await registerUser(h.app, 'selfdeclarer');
+
+    for (const attempt of [
+      { method: 'POST' as const, url: '/v1/licenses/me' },
+      { method: 'PUT' as const, url: '/v1/licenses/me' },
+      { method: 'POST' as const, url: '/v1/licenses/activate' },
+    ]) {
+      const answer = await h.app.inject({
+        ...attempt,
+        headers: bearer(fresh),
+        payload: {},
+      });
+      assert.ok(
+        answer.statusCode === 404 || answer.statusCode === 405,
+        `${attempt.method} ${attempt.url} answered ${answer.statusCode}`,
+      );
+    }
+
+    const status = await h.app.inject({
+      method: 'GET',
+      url: '/v1/licenses/me',
+      headers: bearer(fresh),
+    });
+    assert.equal(status.json().licensed, false, 'and it is still unlicensed');
+  });
+
+  it('a store purchase cannot be claimed, because nothing verifies one yet', async () => {
+    // Deliberately asserting an absence. The schema has `source` values for
+    // apple and google and there is no route that sets them: verifying a
+    // receipt needs credentials this deployment does not have, and a route that
+    // accepted one without checking would be worse than no route at all — a
+    // free pass wearing a lock. See docs/distribution.md.
+    const routes = h.app.printRoutes({ commonPrefix: false });
+    assert.equal(
+      /receipt|purchase|subscription/i.test(routes),
+      false,
+      'no purchase-verification endpoint exists yet',
+    );
+  });
+
+  it('a licence follows the account, so a new phone keeps it', async () => {
+    const owner = await registerUser(h.app, 'newphone');
+    const key = await issue(h, 'order-new-phone');
+    const redeemed = await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(owner),
+      payload: { licenseKey: key },
+    });
+    assert.equal(redeemed.statusCode, 200, redeemed.body);
+
+    // The old handset is gone; a replacement signs in to the same account.
+    const replacement = await h.app.inject({
+      method: 'POST',
+      url: '/v1/sessions',
+      payload: {
+        username: owner.username,
+        password: 'correct-horse-battery',
+        device: deviceBody(deviceFixture()),
+      },
+    });
+    assert.equal(replacement.statusCode, 200, replacement.body);
+
+    const status = await h.app.inject({
+      method: 'GET',
+      url: '/v1/licenses/me',
+      headers: { authorization: `Bearer ${replacement.json().token}` },
+    });
+    assert.equal(status.statusCode, 200, status.body);
+    assert.equal(status.json().licensed, true, "the entitlement is the account's");
+  });
+
+  it('and a redeemed key cannot be used again by somebody else', async () => {
+    const owner = await registerUser(h.app, 'newphone2');
+    const key = await issue(h, 'order-new-phone-2');
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(owner),
+      payload: { licenseKey: key },
+    });
+
+    const opportunist = await registerUser(h.app, 'opportunist');
+    const stolen = await h.app.inject({
+      method: 'POST',
+      url: '/v1/licenses/redeem',
+      headers: bearer(opportunist),
+      payload: { licenseKey: key },
+    });
+
+    assert.ok(stolen.statusCode >= 400, stolen.body);
+    const status = await h.app.inject({
+      method: 'GET',
+      url: '/v1/licenses/me',
+      headers: bearer(opportunist),
+    });
+    assert.equal(status.json().licensed, false);
+  });
+});

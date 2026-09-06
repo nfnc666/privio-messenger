@@ -34,11 +34,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The two Android flavours the Gradle config declares. They differ in
+        # Every Android distribution the Gradle config declares. They differ in
         # more than a name — `play` does not carry the licence-key screen and
-        # wakes over FCM instead of UnifiedPush — so building only one would
-        # leave the other unproven.
-        flavour: [libre, play]
+        # wakes over FCM instead of UnifiedPush, and `direct` is the website APK
+        # that shares Libre's free-software dependencies under its own name — so
+        # building a subset would leave the rest unproven.
+        flavour: [libre, direct, play]
 
     steps:
       - uses: actions/checkout@v4
@@ -87,8 +88,13 @@ jobs:
 
       - run: flutter pub get
 
+      # `appstore`, explicitly. A release build refuses an unknown edition, but
+      # a wrong one would still ship: `libre` here would put the licence-key
+      # screen and UnifiedPush into an App Store binary.
       - name: Build iOS (no signing)
-        run: flutter build ios --release --no-codesign
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=PRIVIO_EDITION=appstore
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
