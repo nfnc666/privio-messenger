@@ -169,11 +169,8 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
 
-  Future<Map<String, dynamic>> addContact(String username, {String? alias}) =>
-      _send('POST', '/v1/contacts', body: {
-        'username': username,
-        if (alias != null) 'alias': alias,
-      },);
+  Future<Map<String, dynamic>> addContact(String username) =>
+      _send('POST', '/v1/contacts', body: {'username': username});
 
   Future<Map<String, dynamic>> lookup(String username) =>
       _send('GET', '/v1/users/$username');

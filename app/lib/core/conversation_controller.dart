@@ -373,7 +373,7 @@ class ConversationController extends ChangeNotifier {
     return Contact(
       id: id,
       username: json['username'] as String,
-      displayName: (json['alias'] ?? json['displayName'] ?? json['username']) as String,
+      displayName: (json['displayName'] ?? json['username']) as String,
       // Null whenever their setting does not include us, which is the normal
       // answer and not a missing one.
       lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? '')?.toLocal(),
@@ -1209,6 +1209,15 @@ class ConversationController extends ChangeNotifier {
 
   /// How many voice messages are waiting for a network.
   int get queuedCount => _outbox.length;
+
+  /// Whether this message is still waiting in the queue rather than sent.
+  ///
+  /// The chat needs it to know what to offer on a long press: a recording that
+  /// never went out can be tried again or dropped, and deleting it has to take
+  /// the queue entry with it — a bubble removed on its own leaves the message
+  /// to arrive later from a queue the person thought they had emptied.
+  bool isQueued(String clientId) =>
+      _outbox.any((pending) => pending.clientId == clientId);
 
   /// Seals [recording] and puts it on the wire, or in the queue if that fails.
   ///
