@@ -36,6 +36,17 @@ class FakeChannelServer {
   /// race by a few milliseconds.
   String? claimAlreadyHeldBy;
 
+  /// When true the claim is recorded and the reply is thrown away, which is
+  /// what a dropped connection looks like from the client: the server did the
+  /// thing, the device never found out.
+  bool loseClaimReply = false;
+
+  /// Which epochs were abandoned as orphans.
+  final List<int> abandoned = [];
+
+  /// Which key version each channel's sealed name is under.
+  final Map<String, int> metadataEpochs = {};
+
   int _nextChannelId = 1;
   int _nextPostId = 1;
 
@@ -67,6 +78,7 @@ class FakeChannelServer {
           };
           posts[id] = [];
           epochs[id] = 1;
+          metadataEpochs[id] = 1;
           claims[id] = {1: body['keyId'] as String? ?? 'created-epoch-1'};
           members[id] = {'author'};
           return _json(
@@ -100,7 +112,12 @@ class FakeChannelServer {
           if (channel == null) {
             return http.Response('{"error":"not_found","message":"no channel"}', 404);
           }
-          return _json({...channel, 'role': 'owner', 'keyEpoch': epochOf(id)});
+          return _json({
+            ...channel,
+            'role': 'owner',
+            'keyEpoch': epochOf(id),
+            'metadataKeyEpoch': metadataEpochs[id] ?? 1,
+          });
         }
 
         final epochMatch =
@@ -124,11 +141,44 @@ class FakeChannelServer {
           // A claim that lost the race: either somebody really got there first,
           // or the test asked for that to be what happened.
           held[epoch] ??= claimAlreadyHeldBy ?? body['keyId'] as String;
+          if (loseClaimReply) {
+            // Recorded, then the connection dies. The client must be able to
+            // come back and find out what happened to it.
+            return http.Response('', 502);
+          }
           return _json({
             'epoch': epoch,
             'keyId': held[epoch],
             'claimed': held[epoch] == body['keyId'],
           });
+        }
+
+        final abandonMatch =
+            RegExp(r'^/v1/channels/([^/]+)/key-epochs/abandon$').firstMatch(path);
+        if (abandonMatch != null && method == 'POST') {
+          final id = abandonMatch.group(1)!;
+          final epoch = (body['epoch'] as num).toInt();
+          if (epoch != epochOf(id)) {
+            return _json({'error': 'not_the_current_epoch', 'message': 'stale'}, 409);
+          }
+          // The server refuses to abandon a version somebody has published
+          // under — an epoch with posts is not an orphan.
+          if (posts[id]!.any((p) => p['keyEpoch'] == epoch)) {
+            return _json({'error': 'epoch_has_posts', 'message': 'somebody holds it'}, 409);
+          }
+          abandoned.add(epoch);
+          claims[id]?.remove(epoch);
+          return _json({'abandoned': epoch, 'keyEpoch': rotate(id)});
+        }
+
+        final patchMatch = RegExp(r'^/v1/channels/([^/]+)$').firstMatch(path);
+        if (patchMatch != null && method == 'PATCH') {
+          final id = patchMatch.group(1)!;
+          if (body['encryptedMetadata'] != null) {
+            channels[id]!['encryptedMetadata'] = body['encryptedMetadata'];
+            metadataEpochs[id] = (body['metadataKeyEpoch'] as num?)?.toInt() ?? 1;
+          }
+          return _json(channels[id]!);
         }
 
         final requestMatch =
@@ -713,6 +763,46 @@ void main() {
       expect(await env.admin.epochsToShareWith(env.channel.id), [1, 2]);
     });
 
+    test('the boundary is the last rotation, not the moment somebody joined', () async {
+      // The limit most likely to be misread as something stronger, pinned here
+      // so nobody can quietly start claiming it.
+      //
+      // "New members get the current version only" does not mean "new members
+      // get nothing from before they arrived". A key version covers every post
+      // sealed under it, so a joiner can read back to the last removal — which
+      // may be months of conversation they were never part of.
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+
+      // One removal, long ago. Everything since has been under epoch 2.
+      server.rotate(channel.id);
+      expect(await admin.completeRotation(channel.id), isTrue);
+      await admin.publish(channel.id, 'months before the joiner had heard of it');
+      await admin.publish(channel.id, 'the day before they joined');
+
+      final joiner = await _serviceOn(server);
+      await joiner.rememberKey(channel.id, 2, (await admin.keyFor(channel.id, 2))!);
+
+      final feed = await joiner.posts(channel.id);
+      expect(
+        feed.every((p) => p.opened),
+        isTrue,
+        reason: 'both are epoch 2, so both open — this is the documented behaviour',
+      );
+      expect(
+        feed.map((p) => p.body),
+        contains('months before the joiner had heard of it'),
+      );
+      // Getting a join-time boundary would need a per-post ratchet rather than
+      // one key per version. See docs/security-model.md; it is not implemented
+      // and is not claimed.
+    });
+
     test('rotation changes who is sent the feed, not who may ever read it again', () async {
       // Requirement in one sentence, asserted so it cannot be quietly reversed:
       // a removed person can rejoin a public channel under another account and
@@ -729,4 +819,249 @@ void main() {
       );
     });
   });
+
+  group('surviving a crash mid-rotation', () {
+    /*
+     * Everything here is about the window between reserving a key version on
+     * the server and having the key safely on disk. Before this branch the
+     * order was claim-then-save, and a device that died in between left the
+     * epoch reserved to a key that existed nowhere: a channel nobody could
+     * publish to, that nobody could repair, because claiming it again with a
+     * different key would split the channel in two.
+     */
+
+    late FakeChannelServer server;
+    late ChannelService admin;
+    late ChannelInfo channel;
+
+    setUp(() async {
+      server = FakeChannelServer();
+      admin = await _serviceOn(server);
+      channel = await admin.create(
+        visibility: ChannelVisibility.public,
+        handle: 'ops',
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+      server.rotate(channel.id);
+    });
+
+    /// A fresh device on the same storage — what a restart looks like from here.
+    Future<ChannelService> restart(ChannelService from) => _restartOn(server, from);
+
+    test('a lost reply is resolved on the next attempt, not re-generated', () async {
+      // The server recorded the claim; the answer never came back. The device
+      // must not conclude it failed and make a second key.
+      server.loseClaimReply = true;
+      expect(await admin.completeRotation(channel.id), isFalse);
+      expect(await admin.keyFor(channel.id, 2), isNull, reason: 'nothing unconfirmed is promoted');
+
+      server.loseClaimReply = false;
+      expect(await admin.completeRotation(channel.id), isTrue);
+
+      expect(await admin.keyFor(channel.id, 2), isNotNull);
+      expect(
+        server.claims[channel.id]![2],
+        isNotNull,
+        reason: 'and it is the same reservation, not a second one',
+      );
+    });
+
+    test('the candidate is on disk before the claim goes out', () async {
+      // The ordering the whole thing rests on. If the write happened after the
+      // claim, this would be null.
+      server.loseClaimReply = true;
+      await admin.completeRotation(channel.id);
+
+      final pending = await admin.pendingKeyForTest(channel.id);
+      expect(pending, isNotNull);
+      expect(pending!.epoch, 2);
+      expect(pending.key, hasLength(32));
+    });
+
+    test('a restart after a successful claim promotes the same key', () async {
+      // Claimed, then killed before the key was stored. The replacement process
+      // finds the candidate, asks the server what became of it, and is told it
+      // won — so the key it generated before the crash becomes the channel key
+      // rather than being lost with the epoch reserved to nothing.
+      server.loseClaimReply = true;
+      await admin.completeRotation(channel.id);
+      final candidate = (await admin.pendingKeyForTest(channel.id))!.key;
+      server.loseClaimReply = false;
+
+      final afterCrash = await restart(admin);
+      expect(await afterCrash.completeRotation(channel.id), isTrue);
+
+      expect(await afterCrash.keyFor(channel.id, 2), equals(candidate));
+      expect(
+        await afterCrash.pendingKeyForTest(channel.id),
+        isNull,
+        reason: 'and the candidate is cleared once it is the real thing',
+      );
+    });
+
+    test('a restart after losing the race discards the candidate', () async {
+      server.loseClaimReply = true;
+      await admin.completeRotation(channel.id);
+      // While this device was away, another admin claimed the epoch.
+      server.claims[channel.id]![2] = 'key-id-from-the-other-admin';
+      server.loseClaimReply = false;
+
+      final afterCrash = await restart(admin);
+      expect(await afterCrash.completeRotation(channel.id), isFalse);
+
+      expect(await afterCrash.keyFor(channel.id, 2), isNull);
+      expect(await afterCrash.pendingKeyForTest(channel.id), isNull);
+    });
+
+    test('a candidate for an epoch the channel has left is not resurrected', () async {
+      server.loseClaimReply = true;
+      await admin.completeRotation(channel.id);
+      // Two more people leave while this device is off.
+      server.rotate(channel.id);
+      server.loseClaimReply = false;
+
+      await admin.completeRotation(channel.id);
+
+      expect(await admin.keyFor(channel.id, 2), isNull, reason: 'epoch 2 is behind us');
+      expect(await admin.keyFor(channel.id, 3), isNotNull);
+    });
+
+    test('a restart during distribution finishes it without a new key', () async {
+      // Distribution is after the promotion and is repeatable on purpose: the
+      // key is already the channel key, so a second pass sends it again rather
+      // than making another one.
+      expect(await admin.completeRotation(channel.id), isTrue);
+      final key = await admin.keyFor(channel.id, 2);
+
+      final afterCrash = await restart(admin);
+      expect(await afterCrash.completeRotation(channel.id), isTrue);
+
+      expect(await afterCrash.keyFor(channel.id, 2), equals(key));
+      expect(server.claims[channel.id]![2], isNotNull);
+    });
+
+    test('an orphaned version is stepped over, never reused or rolled back', () async {
+      // The device that generated epoch 2 is gone and took the key with it.
+      server.claims[channel.id]![2] = 'key-id-from-a-device-that-is-gone';
+
+      final rescuer = await _serviceOn(server);
+      await rescuer.rememberKey(channel.id, 1, (await admin.keyFor(channel.id, 1))!);
+
+      expect(await rescuer.abandonOrphanedEpoch(channel.id), isTrue);
+
+      expect(server.abandoned, [2], reason: 'the dead version is left behind');
+      expect(server.epochOf(channel.id), 3, reason: 'and the channel moves forward');
+      expect(await rescuer.keyFor(channel.id, 3), isNotNull);
+      expect(
+        await rescuer.keyFor(channel.id, 2),
+        isNull,
+        reason: 'the orphaned version is never given a second key',
+      );
+    });
+
+    test('a version with posts under it is not treated as an orphan', () async {
+      // Somebody does hold that key and has been using it. Abandoning it would
+      // strand posts people can read.
+      expect(await admin.completeRotation(channel.id), isTrue);
+      await admin.publish(channel.id, 'published under epoch 2');
+
+      final other = await _serviceOn(server);
+      await other.rememberKey(channel.id, 1, (await admin.keyFor(channel.id, 1))!);
+
+      expect(await other.abandonOrphanedEpoch(channel.id), isFalse);
+      expect(server.abandoned, isEmpty);
+      expect(server.epochOf(channel.id), 2, reason: 'and nothing moved');
+    });
+
+    test('a device that already holds the key does not abandon anything', () async {
+      expect(await admin.completeRotation(channel.id), isTrue);
+      expect(await admin.abandonOrphanedEpoch(channel.id), isFalse);
+      expect(server.abandoned, isEmpty);
+    });
+  });
+
+  group('a private channel keeps its name across rotations', () {
+    test('a member who joins after two rotations reads the name, not the past', () async {
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Sicherheitsteam',
+      );
+      server.members[channel.id] = {'author'};
+
+      await admin.publish(channel.id, 'from before anybody joined');
+
+      // Two removals, two rotations, two re-seals of the name.
+      for (var i = 0; i < 2; i++) {
+        server.rotate(channel.id);
+        expect(await admin.completeRotation(channel.id), isTrue);
+      }
+      final current = server.epochOf(channel.id);
+      expect(current, 3);
+      await admin.publish(channel.id, 'after both rotations');
+
+      // The joiner is given exactly what the rules say: the current key, and
+      // nothing older.
+      final joiner = await _serviceOn(server);
+      await joiner.rememberKey(channel.id, current, (await admin.keyFor(channel.id, current))!);
+
+      final seen = await joiner.byId(channel.id);
+      expect(seen.title, 'Sicherheitsteam', reason: 'the name opens with the key they were given');
+
+      final feed = await joiner.posts(channel.id);
+      final old = feed.firstWhere((p) => p.keyEpoch == 1);
+      final fresh = feed.firstWhere((p) => p.keyEpoch == current);
+      expect(old.opened, isFalse, reason: 'and the posts from before they arrived do not');
+      expect(fresh.opened, isTrue);
+      expect(fresh.body, 'after both rotations');
+    });
+
+    test('the name is re-sealed under the new key, not left under the first', () async {
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+      expect(server.metadataEpochs[channel.id], 1);
+
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+
+      expect(server.metadataEpochs[channel.id], 2);
+    });
+
+    test('a public channel is not re-sealed, because its title is not sealed', () async {
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.public,
+        handle: 'open',
+        title: 'Open',
+      );
+      server.members[channel.id] = {'author'};
+
+      server.rotate(channel.id);
+      await admin.completeRotation(channel.id);
+
+      expect(server.metadataEpochs[channel.id], 1, reason: 'nothing to re-seal');
+    });
+  });
+}
+
+/// A second service over the same storage: what a restart looks like from here.
+Future<ChannelService> _restartOn(FakeChannelServer server, ChannelService from) async {
+  final api = PrivioApiClient(
+    baseUrl: Uri.parse('http://localhost:8080'),
+    client: server.client(),
+  );
+  api.useToken('token');
+  return ChannelService(
+    api: api,
+    crypto: from.cryptoForTest,
+    messaging: MessagingService(api: api, crypto: from.cryptoForTest),
+  );
 }

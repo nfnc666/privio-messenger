@@ -382,6 +382,7 @@ class PrivioApiClient {
     String? description,
     String? category,
     String? encryptedMetadata,
+    int? metadataKeyEpoch,
     bool? restrictSaving,
   }) =>
       _send('PATCH', '/v1/channels/$channelId', body: {
@@ -389,8 +390,22 @@ class PrivioApiClient {
         if (description != null) 'description': description,
         if (category != null) 'category': category,
         if (encryptedMetadata != null) 'encryptedMetadata': encryptedMetadata,
+        // Which key sealed the name being uploaded. Without it a new member of
+        // a rotated private channel reads every post and not the channel's own
+        // name, because the name is still under epoch 1.
+        if (metadataKeyEpoch != null) 'metadataKeyEpoch': metadataKeyEpoch,
         if (restrictSaving != null) 'restrictSaving': restrictSaving,
       },);
+
+  /// Moves a channel past a key version whose key nobody holds.
+  ///
+  /// The server refuses if anything has been published under it — an epoch
+  /// somebody can read is not an orphan — so this cannot strand content.
+  Future<Map<String, dynamic>> abandonChannelKeyEpoch({
+    required String channelId,
+    required int epoch,
+  }) =>
+      _send('POST', '/v1/channels/$channelId/key-epochs/abandon', body: {'epoch': epoch});
 
   Future<void> deleteChannel(String channelId) async =>
       _send('DELETE', '/v1/channels/$channelId');

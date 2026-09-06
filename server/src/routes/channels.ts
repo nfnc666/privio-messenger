@@ -55,8 +55,49 @@ function publicView(row: Record<string, unknown>) {
     // Which key version this channel is on. The server counts these and holds
     // no key for any of them; see migration 015.
     keyEpoch: row.key_epoch ?? 1,
+    // And which one opens its name, for a private channel. See migration 016.
+    metadataKeyEpoch: row.metadata_key_epoch ?? 1,
     createdAt: (row.created_at as Date).toISOString(),
   };
+}
+
+/**
+ * Anything that can run a query: the pool, or one transaction's client.
+ *
+ * The membership helpers take one so a permission check can happen *inside*
+ * the transaction that is about to act on it. Reading membership on the pool
+ * and then writing on a client is two different points in time, which is
+ * exactly the race this file now avoids.
+ */
+type Queryable = { query: typeof pool.query };
+
+/**
+ * Takes the channel's row lock, in the one order everything here uses.
+ *
+ * Every operation that touches both `channels` and `channel_members` locks the
+ * channel row **first**. Not a style preference: publishing needs the channel
+ * and then the membership, removing needs the membership and then the channel,
+ * and two transactions taking the same two locks in opposite orders is the
+ * textbook deadlock. Naming the order in one function is how it stays the same
+ * order in six routes.
+ *
+ * `FOR SHARE` for a reader that must not have the epoch move under it —
+ * several posts may be in flight at once and they do not conflict with each
+ * other. `FOR UPDATE` for the writer that is about to advance the epoch, which
+ * must wait for those posts to land or refuse them.
+ */
+async function lockChannel(
+  client: Queryable,
+  channelId: string,
+  mode: 'share' | 'update',
+): Promise<{ key_epoch: number } | null> {
+  const { rows } = await client.query<{ key_epoch: number }>(
+    `SELECT key_epoch FROM channels
+     WHERE id = $1 AND deleted_at IS NULL
+     FOR ${mode === 'share' ? 'SHARE' : 'UPDATE'}`,
+    [channelId],
+  );
+  return rows[0] ?? null;
 }
 
 /**
@@ -80,8 +121,12 @@ interface Membership {
   permissions: ChannelPermissions;
 }
 
-async function membership(channelId: string, accountId: string): Promise<Membership | null> {
-  const { rows } = await pool.query(
+async function membership(
+  channelId: string,
+  accountId: string,
+  client: Queryable = pool,
+): Promise<Membership | null> {
+  const { rows } = await client.query(
     `SELECT m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
             m.can_manage_members, m.can_delete_channel
      FROM channel_members m
@@ -93,8 +138,12 @@ async function membership(channelId: string, accountId: string): Promise<Members
   return row ? { role: row.role, permissions: permissionsFromRow(row) } : null;
 }
 
-async function requireMember(channelId: string, accountId: string): Promise<Membership> {
-  const member = await membership(channelId, accountId);
+async function requireMember(
+  channelId: string,
+  accountId: string,
+  client: Queryable = pool,
+): Promise<Membership> {
+  const member = await membership(channelId, accountId, client);
   if (!member) throw ApiError.forbidden('not_a_member', 'You are not in this channel');
   return member;
 }
@@ -103,8 +152,9 @@ async function requirePermission(
   channelId: string,
   accountId: string,
   permission: ChannelPermission,
+  client: Queryable = pool,
 ): Promise<Membership> {
-  const member = await requireMember(channelId, accountId);
+  const member = await requireMember(channelId, accountId, client);
   if (!member.permissions[permission]) {
     throw ApiError.forbidden('insufficient_permission', `You need ${permission} for that`);
   }
@@ -377,6 +427,9 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     }
 
     const epoch = await withTransaction(async (client) => {
+      // Channel first, then membership — the same order publishing uses, so
+      // the two can only queue behind each other and never deadlock.
+      await lockChannel(client, params.id, 'update');
       await client.query('DELETE FROM channel_members WHERE channel_id = $1 AND account_id = $2', [
         params.id,
         accountId,
@@ -461,48 +514,73 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       request.body,
     );
 
-    const actor = await requirePermission(params.id, accountId, 'canManageMembers');
     if (params.accountId === accountId) {
       throw ApiError.badRequest('cannot_change_own_role', 'You cannot change your own role');
     }
 
-    const target = await membership(params.id, params.accountId);
-    if (!target) throw ApiError.notFound('member_not_found', 'Not a member of this channel');
-    if (target.role === 'owner') {
-      throw ApiError.forbidden('owner_is_fixed', 'The owner cannot be changed');
-    }
-    // Nobody may demote or rewrite someone who holds more than they do.
-    if (!withinAuthority(actor.permissions, target.permissions)) {
-      throw ApiError.forbidden(
-        'target_outranks_you',
-        'That member holds permissions you do not',
-      );
-    }
-
+    /*
+     * Under the channel lock, and in the same transaction as the write.
+     *
+     * The two authority rules below — you cannot grant what you do not hold,
+     * and you cannot rewrite somebody who outranks you — are read-then-write,
+     * which means they were checked against a membership row that another
+     * request could change before the UPDATE landed. Two admins demoting each
+     * other at the same moment is the shape of it: both read the other as
+     * demotable, both write, and the channel ends with neither able to manage
+     * anybody.
+     *
+     * Same lock and same order as publishing and removal, so a permission
+     * change and a rotation queue behind one another rather than interleaving.
+     */
     const granted = resolvePermissions(body.role, body.permissions);
-    if (!withinAuthority(actor.permissions, granted)) {
-      throw ApiError.forbidden(
-        'cannot_grant_what_you_lack',
-        'You cannot grant a permission you do not hold',
-      );
-    }
 
-    await pool.query(
-      `UPDATE channel_members
-       SET role = $3, can_post = $4, can_edit_channel = $5, can_delete_posts = $6,
-           can_manage_members = $7, can_delete_channel = $8
-       WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
-      [
+    await withTransaction(async (client) => {
+      await lockChannel(client, params.id, 'update');
+
+      const actor = await requirePermission(
         params.id,
-        params.accountId,
-        body.role,
-        granted.canPost,
-        granted.canEditChannel,
-        granted.canDeletePosts,
-        granted.canManageMembers,
-        granted.canDeleteChannel,
-      ],
-    );
+        accountId,
+        'canManageMembers',
+        client,
+      );
+
+      const target = await membership(params.id, params.accountId, client);
+      if (!target) throw ApiError.notFound('member_not_found', 'Not a member of this channel');
+      if (target.role === 'owner') {
+        throw ApiError.forbidden('owner_is_fixed', 'The owner cannot be changed');
+      }
+      // Nobody may demote or rewrite someone who holds more than they do.
+      if (!withinAuthority(actor.permissions, target.permissions)) {
+        throw ApiError.forbidden(
+          'target_outranks_you',
+          'That member holds permissions you do not',
+        );
+      }
+      if (!withinAuthority(actor.permissions, granted)) {
+        throw ApiError.forbidden(
+          'cannot_grant_what_you_lack',
+          'You cannot grant a permission you do not hold',
+        );
+      }
+
+      await client.query(
+        `UPDATE channel_members
+         SET role = $3, can_post = $4, can_edit_channel = $5, can_delete_posts = $6,
+             can_manage_members = $7, can_delete_channel = $8
+         WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
+        [
+          params.id,
+          params.accountId,
+          body.role,
+          granted.canPost,
+          granted.canEditChannel,
+          granted.canDeletePosts,
+          granted.canManageMembers,
+          granted.canDeleteChannel,
+        ],
+      );
+    });
+
     return { role: body.role, permissions: granted };
   });
 
@@ -522,6 +600,18 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     }
 
     const epoch = await withTransaction(async (client) => {
+      // Waits for any post already in flight to land at the old epoch, and
+      // blocks any that starts after this — which is what makes "no new posts
+      // under the old key" true rather than usually true.
+      await lockChannel(client, params.id, 'update');
+      // Re-checked inside the lock. Two admins removing the same person at the
+      // same moment would otherwise both pass the check outside it and advance
+      // the epoch twice for one removal.
+      const { rowCount } = await client.query(
+        'SELECT 1 FROM channel_members WHERE channel_id = $1 AND account_id = $2',
+        [params.id, params.accountId],
+      );
+      if (!rowCount) return null;
       await client.query('DELETE FROM channel_members WHERE channel_id = $1 AND account_id = $2', [
         params.id,
         params.accountId,
@@ -537,6 +627,12 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       // below, not by who got here first.
       return rotateKeyEpoch(client, params.id);
     });
+    if (epoch === null) {
+      // Somebody else removed them first. Their removal did the rotation; doing
+      // it again would spend an epoch nobody has a key for and leave the
+      // channel unwritable until a device generates one.
+      throw ApiError.notFound('member_not_found', 'Not a member of this channel');
+    }
     // A request from someone who is no longer a member must not be answered.
     await clearKeyRequestsFor('channel', params.id, params.accountId);
     await wakeKeyHolders(bus, 'channel', params.id, '00000000-0000-0000-0000-000000000000');
@@ -556,18 +652,37 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         description: z.string().trim().max(512).optional(),
         category: z.string().trim().max(32).optional(),
         encryptedMetadata: base64Bytes(1, config.MAX_ENVELOPE_BYTES).optional(),
+        /**
+         * Which key sealed the metadata being uploaded.
+         *
+         * A private channel's name is sealed like a post, and until this
+         * existed it stayed sealed under epoch 1 forever — so a member who
+         * joined after a rotation, and was given only the current key, could
+         * read every new post and not the channel's own name. Re-sealing under
+         * the current key fixes that without handing over the old message keys.
+         */
+        metadataKeyEpoch: z.number().int().min(1).optional(),
         restrictSaving: z.boolean().optional(),
       }),
       request.body,
     );
     await requirePermission(params.id, accountId, 'canEditChannel');
 
+    // The metadata epoch moves only with the metadata, and only forwards.
+    // A re-seal that arrives out of order — two devices re-sealing after the
+    // same rotation, one of them slow — must not put the channel's name back
+    // under a key that fewer members hold.
     const { rows } = await pool.query(
       `UPDATE channels SET
          title = COALESCE($2, title),
          description = COALESCE($3, description),
          category = COALESCE($4, category),
          encrypted_metadata = COALESCE($5, encrypted_metadata),
+         metadata_key_epoch = CASE
+           WHEN $5::bytea IS NULL THEN metadata_key_epoch
+           WHEN COALESCE($7::int, 1) > metadata_key_epoch THEN COALESCE($7::int, 1)
+           ELSE metadata_key_epoch
+         END,
          restrict_saving = COALESCE($6, restrict_saving)
        WHERE id = $1 RETURNING *`,
       [
@@ -577,6 +692,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         body.category ?? null,
         body.encryptedMetadata ?? null,
         body.restrictSaving ?? null,
+        body.metadataKeyEpoch ?? null,
       ],
     );
     return publicView(rows[0]);
@@ -653,6 +769,11 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
 
     // Read back rather than trusting the insert: on a conflict nothing was
     // written, and the caller has to be told whose key won.
+    //
+    // Idempotent by construction. A device whose claim succeeded but whose
+    // reply was lost sends the same keyId again, sees `claimed: true` a second
+    // time, and carries on — which is the whole point of the keyId being
+    // chosen and stored by the client before the request goes out.
     const { rows } = await pool.query<{ key_id: string; claimed_by: string | null }>(
       'SELECT key_id, claimed_by FROM channel_key_epochs WHERE channel_id = $1 AND epoch = $2',
       [params.id, body.epoch],
@@ -665,25 +786,113 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     };
   });
 
+  /**
+   * Moves past an epoch whose key nobody has.
+   *
+   * The failure this recovers from: a device advanced the epoch, claimed it,
+   * and then died — dropped in a river, wiped, uninstalled — before the key it
+   * generated reached anybody, or even before it managed to write the key down.
+   * The channel is then stuck. Nobody can publish, because publishing needs a
+   * key for the current epoch; nobody can claim it, because claiming it again
+   * with a different key would split the channel into two halves holding two
+   * keys; and nobody may fall back to the previous key, because that is the one
+   * the removed member still has.
+   *
+   * So the epoch is not reused and not rolled back. It is marked abandoned and
+   * the channel moves *forward* to a fresh one, which the caller then claims
+   * through the ordinary route.
+   *
+   * What makes that safe is a check the server can make with no key at all: an
+   * abandoned epoch must have no posts. Publishing at epoch N requires holding
+   * N's key and the server refuses any other epoch, so an epoch nobody ever
+   * held cannot have anything published under it. That is enforced here rather
+   * than argued, because "there cannot be any" and "there are none" are
+   * different statements and only the second is checkable.
+   */
+  app.post('/v1/channels/:id/key-epochs/abandon', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(z.object({ epoch: z.number().int().min(1) }), request.body);
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const result = await withTransaction(async (client) => {
+      const channel = await lockChannel(client, params.id, 'update');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+      // Under the lock, so this cannot race a rotation or a publish. The epoch
+      // named has to be the one that is actually stuck; anything else is a
+      // stale request from a device that has not caught up.
+      if (body.epoch !== channel.key_epoch) {
+        throw ApiError.conflict('not_the_current_epoch', `This channel is on epoch ${channel.key_epoch}`);
+      }
+
+      const { rows: posts } = await client.query<{ count: string }>(
+        `SELECT count(*) FROM channel_posts
+         WHERE channel_id = $1 AND key_epoch = $2 AND deleted_at IS NULL`,
+        [params.id, body.epoch],
+      );
+      if (Number(posts[0]!.count) > 0) {
+        // Somebody does hold this key and has been using it. Abandoning it now
+        // would strand posts that people can read, which is the one outcome
+        // this whole mechanism exists to avoid.
+        throw ApiError.conflict(
+          'epoch_has_posts',
+          'That key version has posts under it, so somebody holds it',
+        );
+      }
+
+      await client.query(
+        `UPDATE channel_key_epochs SET abandoned_at = now()
+         WHERE channel_id = $1 AND epoch = $2 AND abandoned_at IS NULL`,
+        [params.id, body.epoch],
+      );
+      return rotateKeyEpoch(client, params.id);
+    });
+
+    return { abandoned: body.epoch, keyEpoch: result };
+  });
+
   /** Which key version is current, and whether anybody has generated it yet. */
   app.get('/v1/channels/:id/key-epochs/current', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     await requireMember(params.id, accountId);
 
-    const { rows } = await pool.query<{ key_epoch: number; key_id: string | null }>(
-      `SELECT c.key_epoch, e.key_id
+    const { rows } = await pool.query<{
+      key_epoch: number;
+      key_id: string | null;
+      claimed_at: Date | null;
+      metadata_key_epoch: number;
+      posts_at_epoch: string;
+    }>(
+      `SELECT c.key_epoch, c.metadata_key_epoch, e.key_id, e.claimed_at,
+              (SELECT count(*) FROM channel_posts p
+                WHERE p.channel_id = c.id AND p.key_epoch = c.key_epoch
+                  AND p.deleted_at IS NULL) AS posts_at_epoch
        FROM channels c
-       LEFT JOIN channel_key_epochs e ON e.channel_id = c.id AND e.epoch = c.key_epoch
+       LEFT JOIN channel_key_epochs e
+         ON e.channel_id = c.id AND e.epoch = c.key_epoch AND e.abandoned_at IS NULL
        WHERE c.id = $1 AND c.deleted_at IS NULL`,
       [params.id],
     );
     if (rows.length === 0) throw ApiError.notFound('channel_not_found', 'No such channel');
+    const row = rows[0]!;
     return {
-      epoch: rows[0]!.key_epoch,
+      epoch: row.key_epoch,
       // Null means the rotation has happened and nobody has generated the new
       // key yet. That is a real state the app has to show, not an error.
-      keyId: rows[0]!.key_id,
+      keyId: row.key_id,
+      // When it was claimed, so a device can tell "somebody generated this a
+      // second ago and it is on its way" from "somebody generated this last
+      // week and has not been seen since".
+      claimedAt: row.claimed_at ? row.claimed_at.toISOString() : null,
+      // Which key opens the channel's own name. Usually the same as the
+      // current epoch; behind it only between a rotation and the re-seal.
+      metadataKeyEpoch: row.metadata_key_epoch,
+      // Whether abandoning this epoch could strand anything readable. Zero is
+      // what an orphaned epoch looks like, and it is not a coincidence: you
+      // cannot publish at an epoch whose key nobody holds.
+      postsAtEpoch: Number(row.posts_at_epoch),
     };
   });
 
@@ -744,59 +953,82 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       }),
       request.body,
     );
-    await requirePermission(params.id, accountId, 'canPost');
+    const postEpoch = body.keyEpoch ?? 1;
 
     /*
      * The rule that makes a removal mean anything: nothing new under the old
      * key once the rotation has happened.
      *
-     * Enforced here rather than trusted to the client, because the client that
-     * would get this wrong is exactly the one that has not noticed the rotation
-     * — an author who was offline while somebody was removed, publishing a post
-     * they prepared beforehand. Refusing it sends them back to seal it again
-     * under the current key, which costs a round trip and is the whole point.
+     * All of it in one transaction, holding the channel's row lock, because
+     * the three steps used to be three separate statements and the gap between
+     * them was real. The sequence that got through it:
+     *
+     *   1. the author's permission is checked — still a member, may post
+     *   2. an admin removes somebody; the epoch goes 1 → 2 and commits
+     *   3. the author's `SELECT key_epoch` had already returned 1
+     *   4. the post is inserted at epoch 1 — readable by the person just removed
+     *
+     * A transaction on its own does not close that: at READ COMMITTED the
+     * SELECT would simply see whichever value was committed when it ran, and
+     * the INSERT would still land afterwards. What closes it is the lock. The
+     * publisher holds the channel row `FOR SHARE` from before the epoch is read
+     * until after the post is written, so a rotation — which needs `FOR UPDATE`
+     * on the same row — either commits before the read, in which case the stale
+     * epoch is refused below, or waits until the post is safely at the epoch
+     * that was current when it was checked.
+     *
+     * The permission check moved inside the same transaction for the same
+     * reason: an author whose right to post is revoked in step 2 must not get
+     * through on a membership read from step 1.
      *
      * The server still cannot read the post and cannot tell whether the epoch
-     * claimed is the epoch actually used. It can only tell that a post claiming
-     * an epoch it has already moved past must not be accepted.
+     * claimed is the epoch actually used. It can only refuse one that admits to
+     * a superseded version.
      */
-    const { rows: current } = await pool.query<{ key_epoch: number }>(
-      'SELECT key_epoch FROM channels WHERE id = $1 AND deleted_at IS NULL',
-      [params.id],
-    );
-    const channelEpoch = current[0]?.key_epoch ?? 1;
-    const postEpoch = body.keyEpoch ?? 1;
-    if (postEpoch < channelEpoch) {
-      throw ApiError.conflict(
-        'stale_key_epoch',
-        `This channel has rotated its key. Seal the post under epoch ${channelEpoch}.`,
-      );
-    }
-    if (postEpoch > channelEpoch) {
-      // Ahead of the server is not a thing a correct client can be: the epoch
-      // only moves when the server moves it. Refused rather than accepted,
-      // because storing a post nobody can place is worse than a failed publish.
-      throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
-    }
+    const created = await withTransaction(async (client) => {
+      // Channel first, then membership. Every route in this file takes these
+      // two in this order; see lockChannel.
+      const channel = await lockChannel(client, params.id, 'share');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
 
-    if (body.mediaId) {
-      const { rowCount } = await pool.query(
-        'SELECT 1 FROM media_objects WHERE id = $1 AND owner_account_id = $2',
-        [body.mediaId, accountId],
-      );
-      if (!rowCount) throw ApiError.notFound('media_not_found', 'No such upload of yours');
-    }
+      await requirePermission(params.id, accountId, 'canPost', client);
 
-    const { rows } = await pool.query(
-      `INSERT INTO channel_posts (channel_id, author_account_id, content, media_id, key_epoch)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, key_epoch`,
-      [params.id, accountId, body.content, body.mediaId ?? null, postEpoch],
-    );
+      const channelEpoch = channel.key_epoch;
+      if (postEpoch < channelEpoch) {
+        throw ApiError.conflict(
+          'stale_key_epoch',
+          `This channel has rotated its key. Seal the post under epoch ${channelEpoch}.`,
+        );
+      }
+      if (postEpoch > channelEpoch) {
+        // Ahead of the server is not a thing a correct client can be: the epoch
+        // only moves when the server moves it. Refused rather than accepted,
+        // because storing a post nobody can place is worse than a failed
+        // publish.
+        throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
+      }
+
+      if (body.mediaId) {
+        const { rowCount } = await client.query(
+          'SELECT 1 FROM media_objects WHERE id = $1 AND owner_account_id = $2',
+          [body.mediaId, accountId],
+        );
+        if (!rowCount) throw ApiError.notFound('media_not_found', 'No such upload of yours');
+      }
+
+      const { rows } = await client.query(
+        `INSERT INTO channel_posts (channel_id, author_account_id, content, media_id, key_epoch)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, key_epoch`,
+        [params.id, accountId, body.content, body.mediaId ?? null, postEpoch],
+      );
+      return rows[0];
+    });
+
     reply.code(201);
     return {
-      id: rows[0].id,
-      keyEpoch: rows[0].key_epoch,
-      createdAt: (rows[0].created_at as Date).toISOString(),
+      id: created.id,
+      keyEpoch: created.key_epoch,
+      createdAt: (created.created_at as Date).toISOString(),
     };
   });
 
