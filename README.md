@@ -986,7 +986,7 @@ because the socket and the poll each delivered the same envelope once.
 | **App lock** | ✅ | A passcode set in the app — 4 digits, 6 digits or a passphrase — re-locking on backgrounding, with the content covered before the app switcher can photograph it. No biometrics, on purpose |
 | **Text size** | ✅ | Four sizes in Appearance, applied to every screen at once and kept across a restart, on top of whatever the phone is already set to |
 | **Chat UI wired to crypto** | ✅ | Real accounts, real sends, real decryption |
-| **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore |
+| **Encrypted local history** | ✅ | AES-256-GCM under a key in the platform keystore on iOS and Android. A browser has no keystore, so the web build's history is recoverable from its `localStorage` — the app says so on its first screen, and `tools/web-storage-recovery.cjs` demonstrates it |
 | **Metadata stripped from files** | ✅ | GPS, camera, serial numbers, timestamps, document authors and companies — automatically, no setting. JPEG, PNG, WebP, GIF, MP4/MOV, Word, Excel, PowerPoint and OpenDocument; a PDF is passed through and says so rather than being half-stripped |
 | **Attachments in the chat** | 🔧 | 1:1 and groups; send, receive and display work; the OS file dialog is untested (see below) |
 | **Attachment authorisation** | ✅ | Downloading needs a capability minted at upload and carried inside the sealed payload — the server hands the bytes over without ever learning who is entitled to them. Only the token's hash is stored |
@@ -1213,7 +1213,7 @@ implementations of established protocols.
 | Transport | TLS 1.3 |
 | Attachments | AES-256-GCM, a fresh random key per file, size padded |
 | Backups | AES-256-GCM under a key derived (HKDF-SHA256) from your recovery key |
-| Local history | AES-256-GCM under a key in the platform keystore |
+| Local history | AES-256-GCM under a key in the platform keystore (iOS, Android). Not on the web — see the known gaps |
 | Profile pictures | AES-256-GCM under a profile key, shared only with contacts |
 | License keys at rest | HMAC-SHA256 under a server secret — deterministic, because a redemption arrives with the key and nothing to look it up by |
 | Two-factor | TOTP, RFC 6238 |
@@ -1335,7 +1335,7 @@ Among the things those tests assert:
 - the same plaintext **never** produces the same ciphertext twice
 - a used one-time prekey is **deleted**, so forward secrecy holds
 - a **swapped identity key is refused on send** — the attack this all exists to stop
-- the history at rest is **ciphertext** — not the messages, not even the contact names
+- the history at rest is **ciphertext** — not the messages, not even the contact names — on iOS and Android, where the key is in the platform keystore. In a browser there is nowhere to put a key the page cannot also read, and the web build says so before you sign up
 - a different key **cannot** read that archive, and a tampered one is discarded
 - a photo's **GPS, camera model and serial number** are gone from what the recipient receives
 - an avatar on the server is **not a picture** — a stranger's key opens nothing
