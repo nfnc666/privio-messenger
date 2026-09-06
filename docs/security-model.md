@@ -291,6 +291,31 @@ Which accounts exchange envelopes and when; group membership; that an account
 uploaded a file of roughly some size. Removing the sender identifier needs sealed
 sender, which is listed under known gaps.
 
+It also holds a few things somebody typed, and they are worth naming rather than
+leaving to be discovered: the **username and display name**, which are how people
+are found; a **public channel's** handle, title, description and category, because
+search cannot run over ciphertext; a **device's** name and platform, which the
+connected-devices screen shows; and the **alias** somebody gave a contact. The
+last one is the odd one out — a private nickname, useful to nobody but its
+author, sitting readable in `contacts.alias`. Sealing it needs a per-account
+symmetric key that survives a reinstall and reaches a second device, which the
+app does not have today outside the backup recovery key; until then it is listed
+here rather than implied to be encrypted.
+
+`server/test/schema.test.ts` holds that list as an allowlist: every free-text
+column in the schema with the reason it is not sealed. A migration that adds a
+new one fails the test until somebody either seals it or writes down why not.
+
+**Measured, not asserted.** `tools/db-canary-sweep.mjs` reads every value in
+every column of every table and looks for phrases typed into a real client. A
+run on 5 September 2026 — a direct message, a group message and a group name
+sent from the browser build with the recipient offline, so the ciphertext was
+still queued — found none of the three anywhere among 14,792 values in 19
+tables, while finding both usernames in `accounts.username` and nowhere else.
+The control is the part that matters: a sweeper that cannot find anything would
+report the same clean result. The queued envelopes were 404 bytes for a
+nineteen-character message, which is the padding doing its job.
+
 ## Authentication
 
 Registration takes a username and a password — no phone number, no email, so
