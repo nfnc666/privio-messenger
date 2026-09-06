@@ -283,15 +283,13 @@ class KeystoreSecureStore implements SecureStore {
       : _write(_callLogKey, json);
 
   @override
-  Future<void> setDuressCode(String? code) => code == null
+  Future<void> setDuressCode(String? code) async => code == null
       ? _storage.delete(key: _duressKey, iOptions: _iosOptions, aOptions: _androidOptions)
-      : _write(_duressKey, code);
+      : _write(_duressKey, await PasscodeVault.hash(code));
 
   @override
-  Future<bool> verifyDuressCode(String code) async {
-    final stored = await _read(_duressKey);
-    return stored != null && stored == code;
-  }
+  Future<bool> verifyDuressCode(String code) async =>
+      PasscodeVault.matches(code: code, stored: await _read(_duressKey));
 
   @override
   Future<bool> verifyPasscode(String passcode) async {
@@ -496,12 +494,13 @@ class InMemorySecureStore implements SecureStore {
     if (code == null) {
       _entries.remove('duress');
     } else {
-      _entries['duress'] = code;
+      _entries['duress'] = await PasscodeVault.hash(code);
     }
   }
 
   @override
-  Future<bool> verifyDuressCode(String code) async => _entries['duress'] == code;
+  Future<bool> verifyDuressCode(String code) async =>
+      PasscodeVault.matches(code: code, stored: _entries['duress']);
 
   /// What this store would still have after a relaunch: the written-down half,
   /// without the passcode and key a running process holds in memory.

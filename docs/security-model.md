@@ -651,6 +651,15 @@ knowing; not worth giving up the shoulder-surfing property for.
 while something is verified — the calculator adds the number up. Anything else
 is a tell, and a tell is the only thing a disguise has to avoid.
 
+That survived the passcode moving behind Argon2id only because of a length
+check. Every equals press runs the unlock, and two key derivations on each of
+them is a calculator that hesitates before answering — the exact tell. A sum
+whose result is not as long as the passcode cannot be either code, so it pays
+nothing and the arithmetic is instant. What that gives away is the length of the
+passcode, to somebody who is already timing sums on a calculator they do not
+know is Privio; the alternative gave away that something was being checked at
+all.
+
 **It replaces the lock screen rather than sitting in front of it.** Two screens
 to get past would be two screens to explain.
 
@@ -895,6 +904,15 @@ phone sees what a typo looks like.
 
 **It cannot be the password.** The server refuses to store one that is, because
 an ordinary sign-in would then destroy the account.
+
+**It is hashed on the device, not stored.** Once the passcode moved behind
+Argon2id, the duress code was the last thing in the local store still written as
+itself — which defeated the feature outright rather than weakening it: whoever
+could read the store learned the code and could simply avoid typing it, and
+learned that one existed at all, which under coercion is its own kind of
+dangerous. It is now kept as salt and Argon2id hash and compared in constant
+time. Checking one when none is set does the same work rather than returning
+early, so how long the answer took does not say whether a duress code exists.
 
 **Setting or removing it needs the password.** In both directions: an unlocked
 phone is not authority over the setting that decides whether the account can be

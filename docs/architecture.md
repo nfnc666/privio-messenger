@@ -285,6 +285,14 @@ bubble, never sent, never unread, never searched, and with no expiry of its own.
 and the group info screen, so the wording that tells a user what this actually
 promises exists once.
 
+**The KDF cost is turned down in tests.** Argon2id is expensive on purpose, and
+the suite touches it hundreds of times — every lock set, every unlock, every
+wrong code a calculator disguise is fed. At production cost the disguise tests
+alone took over ten minutes. `test/flutter_test_config.dart` lowers it for the
+whole suite; `passcode_vault_test.dart` puts the real parameters back for
+itself, because there the cost is the subject. Blobs carry their own parameters,
+so one sealed cheaply still opens.
+
 ## Receipts and typing
 
 Both are ordinary sealed envelopes whose payload says what they are —

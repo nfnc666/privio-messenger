@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 /// Locks the archive key behind the passcode.
 ///
@@ -31,6 +31,30 @@ abstract final class PasscodeVault {
   static const int iterations = 2;
   static const int parallelism = 1;
 
+  /// What a derivation actually costs right now.
+  ///
+  /// Production is [memoryKiB]. Tests turn it down, because the cost is the
+  /// whole point of the algorithm and a suite that pays it hundreds of times
+  /// takes minutes to say nothing new — the widget tests for the calculator
+  /// disguise alone went from seconds to over ten minutes. What is being tested
+  /// there is that the right code unlocks and a wrong one does not, and that is
+  /// true at any cost setting; the parameters live in the blob, so one sealed
+  /// cheaply still opens.
+  static int _memoryKiB = memoryKiB;
+  static int _iterations = iterations;
+
+  @visibleForTesting
+  static void useCheapParameters() {
+    _memoryKiB = 64;
+    _iterations = 1;
+  }
+
+  @visibleForTesting
+  static void useRealParameters() {
+    _memoryKiB = memoryKiB;
+    _iterations = iterations;
+  }
+
   /// Bumped when the parameters change, so an old blob is still openable and a
   /// new one is not silently read with the wrong cost.
   static const int version = 1;
@@ -40,8 +64,8 @@ abstract final class PasscodeVault {
   static final AesGcm _cipher = AesGcm.with256bits();
 
   static Argon2id _kdf() => Argon2id(
-        memory: memoryKiB,
-        iterations: iterations,
+        memory: _memoryKiB,
+        iterations: _iterations,
         parallelism: parallelism,
         hashLength: 32,
       );
@@ -62,8 +86,8 @@ abstract final class PasscodeVault {
     final box = await _cipher.encrypt(archiveKey, secretKey: kek);
     return jsonEncode({
       'v': version,
-      'm': memoryKiB,
-      't': iterations,
+      'm': _memoryKiB,
+      't': _iterations,
       'p': parallelism,
       's': base64Encode(salt),
       'n': base64Encode(box.nonce),
@@ -117,6 +141,70 @@ abstract final class PasscodeVault {
     } on SecretBoxAuthenticationError {
       return null;
     }
+  }
+
+  /// A verifier for a code that has to be checked *before* anything is
+  /// unlocked — the duress code, which cannot be wrapped under the passcode
+  /// because typing it is precisely the case where the passcode is not coming.
+  ///
+  /// Stored as salt and hash rather than as itself. In the clear it defeated
+  /// the feature outright: whoever read the store learned the duress code and
+  /// could simply avoid typing it, and learned that one existed at all, which
+  /// under coercion is its own kind of dangerous.
+  static Future<String> hash(String code) async {
+    final salt = _randomBytes(_saltLength);
+    final derived = await _derive(code, salt);
+    return jsonEncode({
+      'v': version,
+      'm': _memoryKiB,
+      't': _iterations,
+      'p': parallelism,
+      's': base64Encode(salt),
+      'h': base64Encode(await derived.extractBytes()),
+    });
+  }
+
+  /// Whether [code] is the one behind [stored].
+  ///
+  /// [stored] may be null, and the work is done anyway: returning early when no
+  /// duress code is set would make "there is one" and "there is not" tell
+  /// themselves apart by how long the answer took.
+  static Future<bool> matches({required String code, required String? stored}) async {
+    Map<String, dynamic>? blob;
+    if (stored != null) {
+      try {
+        final decoded = jsonDecode(stored) as Map<String, dynamic>;
+        // A map that parses but carries none of the fields is as good as
+        // nothing here, and must take the same path as nothing — including the
+        // work, so the timing does not give it away.
+        blob = decoded['s'] is String && decoded['h'] is String ? decoded : null;
+      } on Object {
+        blob = null;
+      }
+    }
+    final salt = blob == null
+        ? _randomBytes(_saltLength)
+        : base64Decode(blob['s'] as String);
+    final kdf = Argon2id(
+      memory: (blob?['m'] as int?) ?? _memoryKiB,
+      iterations: (blob?['t'] as int?) ?? _iterations,
+      parallelism: (blob?['p'] as int?) ?? parallelism,
+      hashLength: 32,
+    );
+    final derived = await kdf.deriveKey(
+      secretKey: SecretKey(utf8.encode(code)),
+      nonce: salt,
+    );
+    final bytes = await derived.extractBytes();
+    if (blob == null) return false;
+    final expected = base64Decode(blob['h'] as String);
+    if (expected.length != bytes.length) return false;
+    // Constant time: a code compared byte by byte can be walked into.
+    var diff = 0;
+    for (var i = 0; i < bytes.length; i++) {
+      diff |= bytes[i] ^ expected[i];
+    }
+    return diff == 0;
   }
 
   static Uint8List _randomBytes(int length) {
