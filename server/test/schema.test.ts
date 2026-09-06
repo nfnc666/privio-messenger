@@ -32,6 +32,10 @@ const READABLE: Record<string, string> = {
   'groups.invite_code': 'the same',
   'sent_message_keys.idempotency_key': 'opaque to the server; it is compared, never read',
   'schema_migrations.name': 'not user data',
+  // A random label a device invents for the key it generated, so members can
+  // agree on which key an epoch means. Not derived from the key and says
+  // nothing about it; see migration 014.
+  'channel_key_epochs.key_id': 'an opaque label for a key the server never sees',
 
   // Enumerations the server acts on.
   'channels.visibility': 'decides whether it is listed at all',
