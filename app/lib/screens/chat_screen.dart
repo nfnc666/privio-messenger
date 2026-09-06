@@ -149,6 +149,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// a message that is already there — and a long press that opened a menu of
   /// twelve would be a long press people stop using.
   Future<void> _openMessageActions(AppState state, Message message) async {
+    final clientId = message.clientId;
+    final queued = clientId != null && state.conversations.isQueued(clientId);
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -164,7 +166,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  for (final emoji in ConversationController.quickReactions)
+                  for (final emoji in queued ? const <String>[] : ConversationController.quickReactions)
                     GestureDetector(
                       onTap: () => Navigator.of(sheetContext).pop('react:$emoji'),
                       child: Container(
@@ -185,11 +187,29 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             const Divider(height: 1, color: PrivioColors.border),
-            ListTile(
-              leading: const Icon(Icons.reply_rounded),
-              title: const Text('Reply'),
-              onTap: () => Navigator.of(sheetContext).pop('reply'),
-            ),
+            // A recording that never went out. The controller has had a retry
+            // and a discard since the offline queue was written, and nothing
+            // offered either of them: a failed voice message showed a red mark
+            // and left the person looking at it with nothing to do.
+            if (queued) ...[
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('Try again'),
+                subtitle: Text(
+                  message.state == DeliveryState.failed
+                      ? 'It did not go out. Send it now.'
+                      : 'Waiting for a network. Try now anyway.',
+                ),
+                onTap: () => Navigator.of(sheetContext).pop('retry'),
+              ),
+              const Divider(height: 1, color: PrivioColors.border),
+            ],
+            if (!queued)
+              ListTile(
+                leading: const Icon(Icons.reply_rounded),
+                title: const Text('Reply'),
+                onTap: () => Navigator.of(sheetContext).pop('reply'),
+              ),
             if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -210,6 +230,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
     if (action == null || !mounted) return;
 
+    if (action == 'retry') {
+      await state.conversations.retry(clientId!);
+      return;
+    }
     if (action == 'reply') {
       setState(() => _replyingTo = message);
       return;
@@ -222,6 +246,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
     if (action == 'delete') {
+      // Dropping the queue entry too. Removing only the bubble would leave the
+      // message to arrive later out of a queue the person thought was empty.
+      if (queued) {
+        state.conversations.discard(clientId);
+        return;
+      }
       await _confirmDelete(state, message);
       return;
     }

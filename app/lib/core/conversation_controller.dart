@@ -1210,6 +1210,15 @@ class ConversationController extends ChangeNotifier {
   /// How many voice messages are waiting for a network.
   int get queuedCount => _outbox.length;
 
+  /// Whether this message is still waiting in the queue rather than sent.
+  ///
+  /// The chat needs it to know what to offer on a long press: a recording that
+  /// never went out can be tried again or dropped, and deleting it has to take
+  /// the queue entry with it — a bubble removed on its own leaves the message
+  /// to arrive later from a queue the person thought they had emptied.
+  bool isQueued(String clientId) =>
+      _outbox.any((pending) => pending.clientId == clientId);
+
   /// Seals [recording] and puts it on the wire, or in the queue if that fails.
   ///
   /// Sealing happens first and in memory: by the time anything can go wrong,

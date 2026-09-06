@@ -997,7 +997,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches. Receipts work in groups too, where the ticks move only once *everyone* has and the count is shown until then; typing notices stay 1:1 |
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat and per group, agreed end to end; every change announced in the chat; the server is never asked |
-| **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is |
+| **Offline queue** | ✅ | A recording made with no signal waits as ciphertext and goes when there is. A long press on one that failed offers to try again or drop it — dropping takes the queue entry with it, not just the bubble |
 | **Voice calls** | ✅ | WebRTC over the Signal session the chat already uses: the SDP and the candidates are sealed to the other device, so the server routes a call without learning either party's address |
 | **STUN / TURN** | ✅ | Configured on the server and handed to clients, with time-limited TURN credentials that name no account. Privio runs no relay of its own — a deployment points at its own, or at none |
 | **Video calls** | ✅ | The camera button in a chat places one: the other side's picture full-bleed, your own in a small window, and a camera you can turn off mid-call |
