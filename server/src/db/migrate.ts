@@ -18,6 +18,23 @@ export async function migrate(): Promise<string[]> {
   const applied = new Set(rows.map((r) => r.name));
   const ran: string[] = [];
 
+  // A database that records a migration this checkout does not have is ahead of
+  // the code, and nothing below would notice: the loop only ever adds. That
+  // happens on a long-lived dev or test database — a branch is checked out,
+  // migrated, and then abandoned — and it turns into test failures that read
+  // like broken code and are not. CI never sees it, because CI gets an empty
+  // database every run, so the person who hits it is alone with it. Say so
+  // instead, and name the fix.
+  const unknown = [...applied].filter((name) => !files.includes(name)).sort();
+  if (unknown.length > 0) {
+    throw new Error(
+      `Database is ahead of this checkout: it has applied ${unknown.join(', ')}, ` +
+        'which no migration file here provides. This is schema drift, not a code ' +
+        'fault — recreate the database, or check out the branch those migrations ' +
+        'came from.',
+    );
+  }
+
   for (const file of files) {
     if (applied.has(file)) continue;
     const sql = await readFile(join(migrationsDir, file), 'utf8');

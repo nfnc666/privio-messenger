@@ -1,66 +1,92 @@
-name: Build APK & IPA
+name: Release artifacts
 
+# Tag builds. The same two compilations `build-mobile.yml` runs on a pull
+# request, kept for a version tag so a release has something to attach.
+#
+# Neither artifact is signed for distribution: the Android release build uses
+# the debug key (see `android/app/build.gradle.kts`, which says so and why), and
+# the iOS build is `--no-codesign`. Signing is a release step with secrets
+# behind it, and it is not part of this workflow.
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.47.1"
+  FLUTTER_SUPPRESS_ANALYTICS: "true"
 
 jobs:
   build-android:
+    name: Android — ${{ matrix.flavour }} APK
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        working-directory: app
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The two Android flavours the Gradle config declares. They differ in
+        # more than a name — `play` does not carry the licence-key screen and
+        # wakes over FCM instead of UnifiedPush — so building only one would
+        # leave the other unproven.
+        flavour: [libre, play]
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/setup-java@v4
         with:
-          # No version pin: app/pubspec.yaml requires Flutter >=3.22.0.
-          channel: 'stable'
+          distribution: temurin
+          java-version: "17"
 
-      - name: Get dependencies
-        working-directory: ./app
-        run: flutter pub get
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
 
-      # The app ships as flavours, so a bare `flutter build apk` no longer has
-      # enough to go on. Both are built here because both are shipped: `libre`
-      # is what F-Droid and the direct APK come from, `play` is the store build.
-      - name: Build Libre APK
-        working-directory: ./app
-        run: |
-          flutter build apk --release --flavor libre \
-            --dart-define=PRIVIO_EDITION=libre \
-            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
+      - run: flutter pub get
 
-      - name: Build Play APK
-        working-directory: ./app
-        run: |
-          flutter build apk --release --flavor play \
-            --dart-define=PRIVIO_EDITION=play \
-            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
+      - name: Build APK
+        run: >-
+          flutter build apk --release
+          --flavor ${{ matrix.flavour }}
+          --dart-define=PRIVIO_EDITION=${{ matrix.flavour }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: privio-${{ matrix.flavour }}-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
 
   build-ios:
+    name: iOS — unsigned build
     runs-on: macos-latest
-    
+    defaults:
+      run:
+        working-directory: app
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          # No version pin: app/pubspec.yaml requires Flutter >=3.22.0.
-          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
 
-      - name: Get dependencies
-        working-directory: ./app
-        run: flutter pub get
+      - run: flutter pub get
 
-      - name: Build iOS
-        working-directory: ./app
-        run: |
-          flutter build ios --release --no-codesign \
-            --dart-define=PRIVIO_EDITION=appstore \
-            --dart-define=PRIVIO_API_URL=https://api.getprivio.com
+      - name: Build iOS (no signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: privio-ios-unsigned
+          path: app/build/ios/iphoneos/Runner.app
+          if-no-files-found: error

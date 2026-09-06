@@ -4,6 +4,15 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  workflow_dispatch:
+
+# The version is pinned rather than tracking `stable`, so a run that passed
+# yesterday means the same thing today: "reproducible" and "whatever the channel
+# moved to overnight" are not compatible. The floor comes from the app's own
+# pubspec (`flutter: ">=3.22.0"`, `sdk: ">=3.4.0"`); this is the release the
+# checks were last verified against locally.
+env:
+  FLUTTER_VERSION: "3.47.1"
 
 jobs:
   server:
@@ -63,6 +72,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 

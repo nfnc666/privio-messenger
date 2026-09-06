@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-400%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-656%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -1327,11 +1327,16 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  115 passing
+#  # tests 143 / # pass 143 / # fail 0
 
 cd app && flutter analyze && flutter test
-#  285 passing
+#  No issues found!
+#  All tests passed!   (513 tests)
 ```
+
+Both numbers were measured on Node 22 and Flutter 3.47.1 — the versions
+`.github/workflows/ci.yml` pins — and they are what the commit this paragraph
+ships with produces, not a remembered figure.
 
 Among the things those tests assert:
 
@@ -1381,6 +1386,32 @@ Among the things those tests assert:
 - the duress code at the lock screen wipes **before** it tries the network, so a phone with no signal still loses its copy
 - turning the app lock off **takes the duress code with it**, rather than leaving a wipe armed on a screen nobody sees
 - blocking is **invisible** to the blocked sender
+
+### Continuous integration
+
+Three workflows, and each one says what it proves:
+
+| Workflow | Runs on | Proves |
+| --- | --- | --- |
+| `ci.yml` | every push, every PR | server typecheck and tests against a real Postgres 17; `flutter analyze` and `flutter test` |
+| `build-mobile.yml` | PRs and `main` | the Android and iOS projects **compile** from a clean checkout |
+| `build.yml` | version tags | the same two compilations, kept as release artifacts |
+
+Flutter is pinned (`FLUTTER_VERSION: 3.47.1`) rather than tracking `stable`, so
+a run that passed yesterday means the same thing today.
+
+Compiling is not working. `build-mobile.yml` produces an unsigned APK and an
+unsigned `Runner.app`; whether either behaves on a phone is a separate question
+that no workflow here answers.
+
+There is no blanket `dart format --set-exit-if-changed` gate. There was one, in
+a workflow that has never passed: 134 of 144 files differ from the formatter at
+its default width, and 72 still differ at `--line-length=100`, because this code
+is laid out by hand and the comments are written to be read in place.
+Reformatting it would be a hundred-file diff that reviews as noise. `flutter
+analyze`, which does pass and does catch things, is the gate instead. That is a
+deliberate trade and it is written here rather than left as a workflow nobody
+looks at.
 
 ---
 

@@ -313,12 +313,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// handed over as a path, because they have to be scrubbed and sealed before
   /// anything leaves the device.
   Future<void> _attach() async {
-    FilePickerResult? picked;
+    PlatformFile? picked;
     try {
       // A platform whose picker is missing answers with a future that never
       // completes, which looks to the user like a button that does nothing. The
       // timeout turns that into a message they can act on.
-      picked = await FilePicker.pickFiles(withData: true).timeout(const Duration(minutes: 2));
+      picked = await FilePicker.pickFile().timeout(const Duration(minutes: 2));
     } on TimeoutException {
       if (mounted) _showError('The file picker did not respond.');
       return;
@@ -327,17 +327,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
 
-    final file = picked?.files.singleOrNull;
-    if (file == null || !mounted) return;
-    if (file.bytes == null) {
-      _showError('Could not read ${file.name}.');
+    if (picked == null || !mounted) return;
+
+    // Reading is a separate step now, and a separate failure: the picker can
+    // hand back a file the app then cannot open.
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object {
+      if (mounted) _showError('Could not read ${picked.name}.');
       return;
     }
+    if (!mounted) return;
 
     final report = await PrivioScope.of(context).conversations.sendAttachment(
           widget.accountId,
-          file: file.bytes!,
-          fileName: file.name,
+          file: bytes,
+          fileName: picked.name,
         );
     _scrollToEnd();
     if (report != null && mounted) ScrubNotice.show(context, report);

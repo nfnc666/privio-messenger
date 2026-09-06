@@ -59,39 +59,46 @@ is why an APK from F-Droid and one built here cannot update each other.
 The Libre build is meant to be reproducible from source: see
 [`../docs/privio-libre.md`](../docs/privio-libre.md).
 
-## The Android build is blocked
+## The Android build
 
-No Android APK can be produced today, in any environment. Found by dispatching
-the release workflow by hand, which is the only Android compiler this project
-has; the iOS build passes, and so do the analyzer and the tests.
+It could not be produced at all until now, and the chain was:
 
-The chain, in the order it has to be undone:
-
-1. Flutter has moved to built-in Kotlin. `file_picker` 11 still applies its own
-   Kotlin Gradle Plugin, so its Android classes are never produced, and the
-   registrant Flutter generates fails to compile against them:
+1. Flutter moved to built-in Kotlin. `file_picker` 11 still applied its own
+   Kotlin Gradle Plugin, so its Android classes were never produced and the
+   registrant Flutter generates failed to compile against them:
    `cannot find symbol: class FilePickerPlugin`.
-2. `file_picker` 12 fixes that, and raises the floor to Flutter >=3.38 and
-   Dart >=3.10 — which is honest, since nothing older can build anyway.
-3. But 12 will not resolve alongside `flutter_secure_storage` 9. Pub says to go
-   to `flutter_secure_storage` 11.
+2. `file_picker` 12 fixes that.
+3. But 12 would not resolve alongside `flutter_secure_storage` 9, and pub's
+   advice was to move that to 11 — the package holding the session token, the
+   archive key and the recovery key, whose Android implementation changed in
+   version 10 such that data written by 9 may not be readable afterwards.
 
-Step 3 is why this is not a one-line change. That package is the keystore:
-the session token, the archive key, the recovery key and a held licence key all
-live in it. Its Android implementation changed substantially in version 10, so
-**data written by version 9 may not be readable afterwards** — on this app that
-means someone's history and their backup, not a preference.
+Step 3 turned out not to be about the keystore at all. The conflict is between
+`windows_file_picker` (wants `win32` ^6) and `flutter_secure_storage_windows`
+3.1.2 (pins `win32` ^5) — two Windows packages, in an app with no `windows/`
+directory, neither of which is ever compiled. Pub resolves every platform's
+plugins regardless, so a Windows version range was refusing an Android fix.
 
-So it wants doing deliberately, on a real device, with the upgrade path tested
-against a keystore written by the current release, and a migration if there is
-none. It is not something to bump and hope, and it is not something CI can
-answer: green here would only prove it compiles.
+So `pubspec.yaml` carries one `dependency_overrides` entry, `win32: ^6.3.0`,
+and `flutter_secure_storage` stays at 9. No keystore migration, no history to
+lose. `file_picker` 12 also replaces `FilePickerResult` with a plain
+`PlatformFile` and moves reading off the picker (`readAsBytes()`), which the
+two call sites — the avatar picker and the chat attachment button — now use.
+
+**What that is verified to mean, and what it is not.** Verified: the
+dependencies resolve, `flutter analyze` is clean, and the whole test suite
+passes on Flutter 3.47.1. Not verified here: that `flutter build apk` succeeds.
+This environment has no Android SDK and cannot install one — `dl.google.com` is
+refused by its network policy, which also rules out Gradle reaching AGP — so
+the compile has to be proven by CI or by a machine with an SDK. Until one of
+those runs green, treat the Android build as *unblocked in principle, unproven
+in fact*, and treat anything about how it behaves on a phone as untested.
 
 ## Tests
 
 ```bash
-flutter analyze
-flutter test
+flutter analyze   # No issues found!
+flutter test      # All tests passed!  (513 tests, ~45 s)
 ```
 
 The suite runs without a device, an emulator or a server. Hardware sits behind

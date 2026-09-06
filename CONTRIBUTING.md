@@ -45,6 +45,13 @@ npm --workspace server test          # needs TEST_DATABASE_URL
 cd app && flutter analyze && flutter test
 ```
 
+If the server suite fails with something like `column "alias" does not exist`,
+read the error above it: a test database that carried a migration from a branch
+you have since left is ahead of your checkout, and `migrate()` now says so by
+name instead of letting it look like broken code. `dropdb privio_test &&
+createdb privio_test` is the fix. CI never hits this — it gets an empty database
+every run — which is exactly why it costs a developer an hour and not a build.
+
 A change to the client that touches sending, receiving or key handling should
 come with a test. The existing suite runs without a device or a server on
 purpose — keep it that way, and put anything that genuinely needs hardware
