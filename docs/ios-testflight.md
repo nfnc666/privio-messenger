@@ -1,304 +1,287 @@
-# iOS beta from Windows, with no Mac
+# iOS beta from an iPhone, with no computer at all
 
-Everything Apple needs a Mac for happens on GitHub's macOS runner. What is left
-for you is a browser, and one optional stretch with a command prompt that is
-not Xcode and never touches a phone.
+Everything Apple normally needs a Mac for happens on GitHub's runners. What is
+left for you is Safari on the phone you are going to install the app on.
 
-The route:
+No Xcode. No terminal. No `openssl` on a laptop you do not own. The signing
+key is generated inside a GitHub Actions run and goes straight into this
+repository's secrets, so it exists only in the two places it should: Apple's
+records, and GitHub's encrypted storage.
 
 ```
-  developer.apple.com   ─┐
-  App Store Connect     ─┤  browser, on Windows: identifiers, an app record,
-  App Store Connect API ─┘  an API key, internal testers
-            │
-            ▼
-  GitHub → Settings → Secrets     four secrets, pasted once
-            │
-            ▼
-  GitHub → Actions → "iOS signed build" → Run workflow
-            │                              (upload: no, the first time)
-            ▼
-  a signed .ipa as a build artifact        ← proof the signing works
-            │
-            ▼
-  Run workflow again with upload: yes      ← your decision, never automatic
-            │
-            ▼
-  App Store Connect → TestFlight → your iPhone
+  Safari, on the iPhone
+    ├─ developer.apple.com          nothing to do here — the setup run does it
+    ├─ appstoreconnect.apple.com    an app record, an API key, a tester group
+    └─ github.com                   four secrets pasted in, two buttons pressed
+                │
+                ▼
+  Actions ▸ "iOS signing setup"     Linux runner. Makes the key, gets the
+                │                   certificate and profile from Apple, writes
+                │                   them back as secrets. Once.
+                ▼
+  Actions ▸ "iOS signed build"      macOS runner. upload: no ⇒ a signed .ipa
+                │                   upload: yes ⇒ TestFlight
+                ▼
+  TestFlight, on the iPhone         Install.
 ```
 
-**Read this first, in order.** Two of the steps cost money or make a build
-visible to testers, and both are marked.
+**Read section 0 first.** Actions does not currently run at all, and that is
+not something this repository can fix.
 
 ---
 
-## 0. Before anything: GitHub Actions is not currently running
-
-This has to be fixed by you, in the browser, and nothing in the repository can
-work around it.
+## 0. GitHub Actions is not currently running
 
 Since **2026-09-05** every workflow run in this repository has failed within
 seconds without executing a step. The last green run was CI #80 (2026-09-05,
 00:57 UTC); #81, twelve minutes later, failed after 3 seconds, and every run
-since has failed the same way. The workflow files did not change at that
-boundary, and the jobs are never assigned a runner — the API reports
-`runner_id: 0`, there are no step records, and downloading the logs returns 404
-because none were produced. That combination is an account-level cause, not a
-repository one.
+since — over sixty of them — has failed the same way. The workflow files did
+not change at that boundary, and no runner is ever assigned: the API reports
+`runner_id: 0`, there are no step records, and the logs return 404 because none
+were produced. That combination is an account-level cause, not a repository one.
 
-**This repository is private.** That matters twice over:
+**This repository is private**, which is what makes minutes finite:
 
-* Actions minutes for a private repository are billed against your account's
-  included quota (2,000 minutes a month on Free, 3,000 on Pro).
-* **macOS runners bill at ten times the Linux rate.** A run of the signed iOS
-  build is roughly 20–35 minutes of wall clock, so **200 to 350 minutes** of
-  quota. On a Free plan that is a tenth of the month per build.
+* Actions minutes for a private repository come out of the account's quota
+  (2,000 a month on Free, 3,000 on Pro).
+* **macOS bills at ten times the Linux rate.** The signed build is 20–35
+  minutes of wall clock, so **200–350 minutes of quota per build**. On Free,
+  roughly a tenth of the month, each time.
+* The signing setup below runs on **Linux**, so it costs about ten minutes of
+  quota — a hundredth of what it would cost if it needed a Mac. It only runs
+  once.
 
-So: go to **<https://github.com/settings/billing>** and look at Actions usage.
-You will find one of three things.
+On the phone, open **<https://github.com/settings/billing>** and look at
+Actions usage.
 
-| What you see | What it means | What to do |
-| --- | --- | --- |
-| Included minutes used up | Every run fails instantly, exactly as observed | Wait for the monthly reset, or set a spending limit above zero — **which costs money and is your decision** |
-| No payment method / spending limit at $0 | Same symptom | Same choice |
-| Actions disabled for the account | Same symptom | Re-enable it |
+| What you find | What to do |
+| --- | --- |
+| Included minutes used up | Wait for the monthly reset, **or** set a spending limit above zero — that costs money and is your call |
+| No payment method, or the limit is $0 | Same choice |
+| Actions disabled for the account | Turn it back on |
 
-Two alternatives, so the choice is a real one:
+Two alternatives, so it is a real choice: making the repository **public** gives
+free Actions minutes including macOS — but it is a publication decision, and
+irreversible in practice; and a **self-hosted runner**, the usual escape, does
+not apply because it would have to be a Mac.
 
-* **Make the repository public.** Actions are free for public repositories,
-  macOS runners included. It is also a publication decision — the code is
-  AGPL-3.0, so nothing stops it, but it is not reversible in any meaningful
-  sense and it is not mine to make. Nothing in this repository has been made
-  public.
-* **A self-hosted runner** is the usual escape, and it does not apply here: it
-  would have to be a Mac.
-
-Nothing below can run until this is resolved. Everything below can be *prepared*
-before it is.
+Nothing below runs until this is sorted. Everything below can be prepared now.
 
 ---
 
-## 1. Apple, in the browser
+## Working on the phone: three things worth knowing first
+
+**Ask for the desktop site.** App Store Connect and the Apple developer portal
+have mobile layouts that hide the buttons you need. In Safari: **aA** in the
+address bar → **Request Desktop Website**. Do it for `appstoreconnect.apple.com`,
+`developer.apple.com` and `github.com`. Under Settings → Safari → Request
+Desktop Website you can make it the default per site so it sticks.
+
+**Downloads land in Files.** Safari's download arrow puts files in
+*On My iPhone → Downloads* (or iCloud Drive → Downloads).
+
+**Getting a downloaded file's text onto the clipboard.** You will need this
+exactly once, for Apple's `.p8` key. iOS will not let you select text inside an
+unknown file type, so use the built-in **Shortcuts** app:
+
+1. Shortcuts → **+** (new shortcut).
+2. **Add Action** → search *Get File* → add **Get File** (from Files). Tap the
+   action and turn **Show Document Picker** on.
+3. **Add Action** → search *Get Text* → add **Get Text from Input**.
+4. **Add Action** → search *Clipboard* → add **Copy to Clipboard**.
+5. Name it "Copy file text", done. Run it, pick the file, and the whole text is
+   on the clipboard.
+
+(The fallback, if you would rather not build a shortcut: in Files, long-press
+the file → **Rename** → change the ending from `.p8` to `.txt`, then tap it —
+iOS will show it as text.)
+
+---
+
+## 1. Apple, in Safari
 
 You need a paid Apple Developer Program membership. You have one.
 
-### 1.1 Register the App ID
+Notice what is **not** in this section: no certificate, no provisioning
+profile, no App ID. The setup workflow in section 3 creates all three through
+Apple's API. There is nothing to download and nothing to sign.
 
-<https://developer.apple.com/account/resources/identifiers/list>
-
-* **+** → **App IDs** → **App**.
-* Description: `Privio`.
-* Bundle ID: **Explicit**, `app.privio.privio` — that is what the Xcode project
-  is set to. If it is taken, pick your own (`com.yourname.privio`) and type it
-  into the workflow's `bundle_id` box when you start a build; the workflow
-  rewrites the project for that run.
-* Capabilities: tick **Push Notifications**. Not optional — the app asks for the
-  `aps-environment` entitlement, and signing fails if the App ID does not have
-  the capability.
-* Register.
-
-### 1.2 Create the app record
-
-<https://appstoreconnect.apple.com/apps> → **+** → **New App**
-
-* Platform: iOS. Bundle ID: the one from 1.1. SKU: anything unique, `privio-1`.
-* **Name must be unique across the entire App Store.** If "Privio" is taken,
-  use something like "Privio Messenger" — this is only the store listing name;
-  the name under the icon on your phone comes from the app itself and stays
-  **Privio**.
-* You are not submitting anything. An app record is what TestFlight hangs off.
-
-### 1.3 Create an App Store Connect API key
+### 1.1 An App Store Connect API key
 
 <https://appstoreconnect.apple.com/access/integrations/api> → **Team Keys** →
 **+**
 
 * Name: `GitHub Actions`.
-* Access: **App Manager**. Less than that and the runner cannot create signing
-  certificates or upload builds.
-* **Download the `.p8` file. Apple lets you download it once.** Keep it
-  somewhere safe on your PC; you will paste its contents into a GitHub secret
-  in step 2 and can then delete it if you like. It is a private key: do not mail
-  it to yourself, do not put it in the repository, do not paste it into a chat.
-* Note the **Key ID** (10 characters, shown in the row) and the **Issuer ID**
-  (a UUID above the table, the same for every key on the team).
+* Access: **App Manager**. Anything less cannot create certificates or upload
+  builds.
+* **Download the `.p8`. Apple allows that once.** It goes to Files. Use the
+  shortcut above to copy its text when you get to section 2.
+* Note the **Key ID** (10 characters, in the row) and the **Issuer ID** (a UUID
+  above the table, the same for every key on the team). Both are on screen; you
+  can copy them by long-pressing.
 
-### 1.4 Find your Team ID
+This key is the credential that lets a runner act on your Apple account. It is
+also the one to revoke, on this page, if anything ever looks wrong — revoking
+takes effect immediately and breaks nothing that is already installed.
 
-<https://developer.apple.com/account> → **Membership details** → **Team ID**,
-ten characters like `A1B2C3D4E5`.
+### 1.2 The app record
 
-### 1.5 Set up internal testing
+<https://appstoreconnect.apple.com/apps> → **+** → **New App**
 
-<https://appstoreconnect.apple.com> → your app → **TestFlight** → **Internal
-Testing** → **+** next to Testers group.
+* Platform iOS, bundle ID `app.privio.privio` (or your own — whatever you use,
+  type the same thing into both workflows later), SKU anything unique.
+* **The name has to be unique across the whole App Store.** If "Privio" is
+  taken, use "Privio Messenger" or similar. That is the store listing name only
+  — the name under the icon on your phone comes from the app and stays
+  **Privio**.
+* This is not a submission. TestFlight needs an app record to hang off.
 
-* Create a group, call it `Internal`.
-* Add yourself. You must exist under **Users and Access** first — as the account
-  holder you already do.
-* Internal testers get builds **without Beta App Review**, which is why this is
-  the fast route to your own phone. Up to 100 people.
+> The bundle ID drop-down here only lists identifiers that already exist. If
+> yours is not in it, run the signing setup (section 3) first — it registers
+> the identifier — then come back and create the app record.
 
-### 1.6 On the iPhone
+### 1.3 A tester group with you in it
 
-Install **TestFlight** from the App Store and sign in with the same Apple ID.
+Your app → **TestFlight** → **Internal Testing** → **+** next to Testers.
+
+* Create a group called `Internal`, add yourself. As the account holder you are
+  already a user, so you can be added straight away.
+* Internal testers get builds **without Beta App Review** — that is what makes
+  this the short route to your own phone.
+
+### 1.4 TestFlight on the phone
+
+Install **TestFlight** from the App Store, sign in with the same Apple ID.
 
 ---
 
-## 2. GitHub secrets
+## 2. Four secrets, in the GitHub web UI
 
 <https://github.com/nfnc666/privio-messenger/settings/secrets/actions> → **New
-repository secret**, four times. The names must match exactly.
+repository secret**. Names must match exactly.
 
-| Secret | What to paste | Where it came from |
-| --- | --- | --- |
-| `APPSTORE_KEY_ID` | e.g. `2X9ABC3DEF` | 1.3 |
-| `APPSTORE_ISSUER_ID` | e.g. `69a6de70-…-1f2e3d4c5b6a` | 1.3 |
-| `APPSTORE_PRIVATE_KEY` | the **whole** contents of the `.p8`, including the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines | 1.3 |
-| `APPLE_TEAM_ID` | e.g. `A1B2C3D4E5` | 1.4 |
+| Secret | What goes in it |
+| --- | --- |
+| `APPSTORE_KEY_ID` | the Key ID from 1.1, e.g. `2X9ABC3DEF` |
+| `APPSTORE_ISSUER_ID` | the Issuer ID from 1.1, a UUID |
+| `APPSTORE_PRIVATE_KEY` | the whole text of the `.p8`, `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` included — use the shortcut from above |
+| `SIGNING_ADMIN_TOKEN` | a GitHub token, made in the next paragraph |
 
-To read the `.p8` on Windows: right-click → **Open with** → **Notepad**. It is a
-text file. Select all, copy, paste into the secret box. The workflow checks for
-the `BEGIN PRIVATE KEY` line and stops with a readable error if what arrived was
-a filename or half a file.
+**The token.** The setup workflow writes secrets back into this repository, and
+the token a workflow gets by default deliberately cannot do that. Make one at
+<https://github.com/settings/personal-access-tokens/new>:
 
-A GitHub secret cannot be read back — not by you, not by me, not by a workflow
-log. If you ever need to know what it was, make a new key and replace it. If one
-ever leaks, revoke it at 1.3's page; that takes effect immediately.
+* **Fine-grained**, expiring in 7 days — it is needed for one run.
+* Resource owner: you. Repository access: **Only select repositories** →
+  `privio-messenger`.
+* Permissions → Repository permissions → **Secrets: Read and write**. That is
+  the only one to change; Metadata comes with it automatically.
+* Generate, copy, paste into the `SIGNING_ADMIN_TOKEN` secret.
+* **Revoke it after the setup run.** It is the one credential here that can
+  overwrite the others.
 
-**Nothing else in this repository holds a key.** The `.p8` reaches the runner
-only through the secret, is written to a file that only the runner user can
-read, and is deleted in a step that runs even if the job fails or is cancelled.
+A GitHub secret cannot be read back afterwards — not by you, not by me, not in
+a log. If you lose one, make a new key and replace it.
 
 ---
 
-## 3. The first run: build only, no upload
+## 3. Run "iOS signing setup" — once
+
+<https://github.com/nfnc666/privio-messenger/actions/workflows/ios-signing-setup.yml>
+→ **Run workflow**.
+
+| Field | Value |
+| --- | --- |
+| `bundle_id` | `app.privio.privio`, or yours |
+| `profile_name` | `Privio App Store` |
+| `revoke_oldest` | **no** |
+
+About ten minutes on a Linux runner. What it does, in order:
+
+1. Generates a 2048-bit RSA key and a certificate request **on the runner**.
+2. Registers the bundle identifier with Apple if it does not exist, and turns
+   on **Push Notifications** for it — without that capability the profile
+   carries no `aps-environment` and signing fails with an error that names an
+   entitlement rather than a checkbox.
+3. Asks Apple for a distribution certificate for that request.
+4. Creates the App Store provisioning profile for the identifier and the new
+   certificate, replacing any earlier profile of the same name — a profile is a
+   snapshot of a certificate list, so one made for a replaced certificate is not
+   repairable.
+5. Packs key and certificate into a `.p12` with a random password, and writes
+   `IOS_DIST_CERT_P12_BASE64`, `IOS_DIST_CERT_PASSWORD`,
+   `IOS_PROVISIONING_PROFILE_BASE64` and `APPLE_TEAM_ID` into this repository's
+   secrets. The team id is read back from Apple rather than typed.
+6. Deletes every working copy, whether it succeeded or failed.
+
+The run summary says what Apple now holds — identifiers, serial numbers,
+expiry dates. No key, certificate body or profile body is ever printed.
+
+**If it stops with "Apple already holds 3 distribution certificates".** That is
+the account limit, and it refuses rather than revoking something quietly: a
+certificate you revoke stops signing everywhere, including on machines that
+have nothing to do with this repository. Either revoke one yourself at
+<https://developer.apple.com/account/resources/certificates/list>, or re-run
+with `revoke_oldest: yes` if you are sure the oldest one is unused.
+
+Then **revoke `SIGNING_ADMIN_TOKEN`** at
+<https://github.com/settings/personal-access-tokens>. Nothing needs it again
+unless you re-run the setup.
+
+---
+
+## 4. Run "iOS signed build" — upload off
 
 <https://github.com/nfnc666/privio-messenger/actions/workflows/ios-testflight.yml>
 → **Run workflow**.
 
-| Field | What to put |
+| Field | Value |
 | --- | --- |
-| `api_url` | Your server, `https://…`. **https only** — iOS blocks plain HTTP, and the workflow refuses an `http://` address rather than building something that installs and never connects |
+| `api_url` | your server, **https only** — iOS blocks plain HTTP, and the workflow refuses an `http://` address rather than building something that installs and never connects |
 | `upload` | **no** |
-| `bundle_id` | `app.privio.privio`, or yours from 1.1 |
-| `build_number` | leave empty — the run number is used, and it only goes up |
-| `xcode_version` | leave empty |
+| `bundle_id` | the same identifier as in section 3 |
+| `build_number` | empty — the run number is used, and it only goes up |
+| `xcode_version` | empty |
 
-Then **Run workflow**, and watch it. Twenty to thirty-five minutes.
+Twenty to thirty-five minutes. It picks up the certificate and profile the
+setup run stored, imports them into a keychain it creates for the run and
+deletes afterwards, archives, and exports a signed `.ipa` as an artifact.
 
-What you get: an artifact called `privio-ios-<number>` containing a signed
-`.ipa`, at the bottom of the run's summary page.
+**That artifact cannot be installed from an iPhone**, and there is no way to
+make it installable outside TestFlight. This run exists to prove the signing
+works before anything is distributed. If it goes green, the hard part is done.
 
-**You cannot install that .ipa from Windows.** There is no supported way to put
-an .ipa on an iPhone from a PC — that is what TestFlight is for. The point of
-this run is to prove that signing works before anything is distributed. If it
-succeeds, the hard part is done.
+### The server
 
-### About your server
-
-The build talks to whatever `api_url` you gave it, and to nothing else. Without
+The build talks to whatever `api_url` you gave it and to nothing else. Without
 a reachable Privio server the app installs and cannot register — there is no
-demo mode and no fallback. Getting that server up is a separate job from this
-document; `README.md` and `server/.env.example` cover it. `APNS_ENVIRONMENT` on
-that server must be **production**, because a TestFlight build is a Release
-build and Release builds use Apple's production push servers.
+demo mode. That server also needs `APNS_ENVIRONMENT=production`, because a
+TestFlight build is a Release build and Release builds use Apple's production
+push servers. Setting one up is a separate job; `README.md` and
+`server/.env.example` cover it.
 
 ---
 
-## 4. The second run: upload to TestFlight
+## 5. Run it again with upload: yes
 
 Same form, `upload` set to **yes**. This is the step that puts a build in front
-of testers, which is why it is never the default and never happens on a push.
+of testers, which is why it is never a default and never happens on a push.
 
-The workflow validates the build with Apple first and then uploads it. After it
-finishes:
+Afterwards, in App Store Connect on the phone:
 
-1. **App Store Connect → TestFlight** shows the build as *Processing*. Five to
-   thirty minutes, sometimes longer for a first build.
-2. It will then say **Missing Compliance**. TestFlight asks whether your app
-   uses encryption, and Privio does — end-to-end, which is the whole point.
-   Answering it is a legal declaration about export rules, so it is yours to
-   make and not something this repository should answer for you. Apple's
-   questionnaire is in the browser next to the build; the relevant reading is
-   Apple's "Export compliance overview" and, if you want to stop being asked on
-   every build, the `ITSAppUsesNonExemptEncryption` key in `Info.plist` records
-   the answer permanently. **It is deliberately not set in this repository.**
-3. Once the answer is in, the build appears for your internal group.
-4. On the iPhone: open TestFlight, the build is there, **Install**.
+1. **TestFlight** shows the build as *Processing* — five to thirty minutes,
+   longer for a first build.
+2. Then it says **Missing Compliance**. TestFlight asks whether the app uses
+   encryption. Privio does, end-to-end, which is the whole point of it.
+   Answering is an export-control declaration and is yours to make, not
+   something this repository should answer on your behalf; Apple's questionnaire
+   is next to the build. (The `ITSAppUsesNonExemptEncryption` key in
+   `Info.plist` records an answer permanently and is deliberately not set here.)
+3. The build then appears for your internal group.
+4. TestFlight app → **Install**.
 
-Nothing in this flow submits anything for App Store review, and TestFlight is
-not the App Store.
-
----
-
-## 5. When the certificate limit bites
-
-The default path signs *automatically*: Xcode, using your API key, creates a
-distribution certificate and a provisioning profile on the runner. It works
-with zero setup, and it has one flaw — the runner is thrown away after every
-run, so the next run creates **another** certificate. Apple allows a small
-number of distribution certificates per account (typically two or three), and
-when they are used up a build fails with:
-
-> Maximum number of certificates generated
-
-Two ways out.
-
-**The quick one.** <https://developer.apple.com/account/resources/certificates/list>
-→ revoke the unused `Apple Distribution` certificates. Nothing installed
-breaks: a build that is already uploaded stays valid. Then run the workflow
-again.
-
-**The durable one.** Make one certificate yourself, keep it in a secret, and the
-workflow will use it every time instead of making new ones. This needs a
-command prompt on Windows — not Xcode, and no phone involved. Git for Windows
-ships `openssl`; if `openssl version` is not found, use
-`"C:\Program Files\Git\usr\bin\openssl.exe"` instead of `openssl` below.
-
-```powershell
-# 1. A key that stays on your PC, and a request Apple can sign.
-openssl genrsa -out privio-dist.key 2048
-openssl req -new -key privio-dist.key -out privio-dist.csr `
-  -subj "/emailAddress=you@example.com/CN=Your Name/C=DE"
-```
-
-* Upload `privio-dist.csr` at
-  <https://developer.apple.com/account/resources/certificates/add> →
-  **Apple Distribution** → download `distribution.cer`.
-* Create a profile at
-  <https://developer.apple.com/account/resources/profiles/add> →
-  **App Store Connect** distribution → your App ID → that certificate →
-  download `Privio_AppStore.mobileprovision`.
-
-```powershell
-# 2. Certificate + key into one .p12, protected by a password you choose.
-openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
-openssl pkcs12 -export -inkey privio-dist.key -in distribution.pem -out privio-dist.p12
-
-# 3. Base64, because a GitHub secret holds text. PowerShell, one line each:
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("privio-dist.p12")) | Set-Clipboard
-# paste into the secret, then:
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("Privio_AppStore.mobileprovision")) | Set-Clipboard
-```
-
-(Use PowerShell's `[Convert]`, not `certutil -encode` — certutil wraps the
-output in `BEGIN CERTIFICATE` lines that are not part of the data.)
-
-Three more secrets:
-
-| Secret | What to paste |
-| --- | --- |
-| `IOS_DIST_CERT_P12_BASE64` | the base64 of `privio-dist.p12` |
-| `IOS_DIST_CERT_PASSWORD` | the password you chose in step 2 |
-| `IOS_PROVISIONING_PROFILE_BASE64` | the base64 of the `.mobileprovision` |
-
-The workflow notices all three and switches to manual signing on its own: it
-imports the certificate into a keychain it creates for that run and deletes
-afterwards, and it reads the profile's name out of the profile rather than
-asking you for it. Delete `privio-dist.key` and the `.p12` from your PC once the
-secrets are in, or keep them somewhere safe — they are the identity that signs
-your app.
+Nothing in this submits anything for App Store review. TestFlight is not the
+App Store.
 
 ---
 
@@ -306,36 +289,41 @@ your app.
 
 | What it says | What it is | What to do |
 | --- | --- | --- |
-| The run fails in seconds with no logs | Section 0 — no runner | Billing, not the code |
+| A run fails in seconds with no logs | Section 0 — no runner | Billing, not the code |
 | `Secret … is not set` | A name is misspelled or missing | Section 2; names are case-sensitive |
-| `does not look like a .p8 key` | The filename or a partial paste landed in the secret | Paste the whole file including BEGIN/END |
-| `Maximum number of certificates generated` | Section 5 | Revoke, or move to manual signing |
-| `No profiles for 'app.privio.privio' were found` | The App ID is not registered, or belongs to a different team | Section 1.1, and check `APPLE_TEAM_ID` |
-| `Provisioning profile … doesn't include the aps-environment entitlement` | The App ID has no Push Notifications capability | Section 1.1, tick it, then re-run |
-| `The bundle version must be higher than the previously uploaded version` | That build number is already in TestFlight | Re-run; the run number will be higher, or set `build_number` yourself |
-| `Invalid Bundle. The bundle … does not support the minimum OS version` | Xcode/Flutter mismatch on the runner image | Pin `xcode_version` when starting the run |
-| TestFlight shows *Missing Compliance* forever | Nobody answered the export question | Section 4, step 2 |
-| The app installs and cannot connect | `api_url` was wrong, or the server is not reachable over HTTPS | Re-run with the right address |
+| `does not look like a .p8 key` | A filename, or half a file, landed in the secret | Copy the whole text with the shortcut |
+| `App Store Connect GET … failed: 401` | The key, issuer or `.p8` do not match, or the key was revoked | Re-check 1.1; a new key is cheap |
+| `Apple already holds 3 distribution certificates` | The account limit | Section 3 |
+| `Resource not found` when creating the app record | The bundle ID is not registered yet | Run the signing setup first, then create the app record |
+| `No profiles for '…' were found` | The build's `bundle_id` is not the one the setup used | Use the same identifier in both |
+| `doesn't include the aps-environment entitlement` | The App ID has no Push capability | Re-run the signing setup; it turns it on |
+| `MAC verification failed` while importing the certificate | The `.p12` and its password disagree | Re-run the signing setup; it writes both together |
+| `The bundle version must be higher than the previously uploaded version` | TestFlight already has that build number | Re-run — the run number is higher — or set `build_number` |
+| TestFlight stays on *Missing Compliance* | Nobody answered the export question | Section 5, step 2 |
+| The app installs and cannot connect | `api_url` was wrong, or the server is unreachable | Re-run with the right address |
+
+**A certificate expires after a year**, and a provisioning profile with it.
+When that happens, run the signing setup again: it replaces both and rewrites
+the secrets. You will need a fresh `SIGNING_ADMIN_TOKEN` for that run.
 
 ---
 
-## 7. What has not been verified
+## 7. What is not verified
 
-Stated plainly, because everything above is instructions and none of it is a
-result:
+Everything above is instructions. None of it is a result.
 
-* **The workflow has never run.** It cannot be run from here: this environment
-  has no macOS, and the repository's Actions have not executed since
-  2026-09-05.
-* **The entitlements change has never been compiled.** `Runner.entitlements` and
-  the three `CODE_SIGN_ENTITLEMENTS` lines in the Xcode project are written and
-  unbuilt. They are what makes push work on the device; if they turn out to be
-  what breaks the first build, the error will be one of the two entitlement
-  rows in section 6.
-* **No Apple credential exists in this repository or in this environment**, so
-  no part of the signing path has been exercised against Apple.
-* **Nothing has been uploaded anywhere**, no billing setting has been changed,
-  no repository setting has been changed, and no workflow has been started.
+* **Neither workflow has ever run.** This environment has no macOS, and the
+  repository's Actions have not executed since 2026-09-05.
+* **No Apple credential exists here**, so nothing has ever spoken to the App
+  Store Connect API from this repository. The setup script's token signing,
+  its decisions and the requests it builds are covered by 15 unit tests against
+  a stand-in for Apple; what those tests cannot cover is whether Apple accepts
+  them.
+* **The entitlements change has never been compiled.** `Runner.entitlements`
+  and the three `CODE_SIGN_ENTITLEMENTS` lines in the Xcode project are
+  written and unbuilt.
+* **Nothing has been uploaded**, no billing setting changed, no repository
+  setting changed, no workflow started.
 
-The device beta checklist (`device-beta-checklist.md`) still has every row at
-`not run`. Installing this build on your iPhone is what starts filling it in.
+`device-beta-checklist.md` still has every row at `not run`. Installing this
+build is what starts filling it in.
