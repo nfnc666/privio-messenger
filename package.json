@@ -6,7 +6,8 @@
   "workspaces": ["server"],
   "scripts": {
     "build": "npm --workspace server run build",
-    "test": "npm --workspace server test",
+    "test": "npm --workspace server test && npm run test:tools",
+    "test:tools": "node --test tools/*.test.mjs",
     "dev": "npm --workspace server run dev"
   }
 }

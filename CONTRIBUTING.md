@@ -93,7 +93,9 @@ billed against the account's quota rather than free as they would be on a public
 repository. Keep that in mind before adding a job, and especially before adding
 a macOS one — **macOS bills at ten times the Linux rate**, so the signed iOS
 build in `ios-testflight.yml` costs 200–350 minutes of quota per run. That is
-why it is `workflow_dispatch` only.
+why it is `workflow_dispatch` only, and why its companion,
+`ios-signing-setup.yml`, runs on Linux: making a certificate is a request and an
+answer, not a compile, so it has no business on a macOS runner.
 
 Until it is fixed, the checks on a pull request are red for that reason and the
 suites have to be run locally, with the results and the commit written into the

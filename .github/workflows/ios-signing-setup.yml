@@ -1,0 +1,168 @@
+name: iOS signing setup
+
+# One-time setup for signing, done in the cloud because the person doing it has
+# an iPhone and nothing else. It makes the signing key on a runner, has Apple
+# issue a certificate for it, creates the App ID and the App Store profile, and
+# writes all three into this repository's secrets — where the build workflow
+# already knows to look for them.
+#
+# Nothing about this needs macOS: a certificate is a request and an answer, not
+# a compile. It runs on Linux, at a tenth of the cost of the build.
+#
+# What it does NOT do: build anything, upload anything, or touch a certificate
+# that already exists. Revoking one is possible and is off by default, because
+# a certificate somebody's Mac is using would stop working and that is not a
+# surprise to hand out.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "Bundle identifier. Registered with Apple if it does not exist yet"
+        required: true
+        default: "app.privio.privio"
+        type: string
+      profile_name:
+        description: "Name for the provisioning profile at Apple"
+        required: true
+        default: "Privio App Store"
+        type: string
+      revoke_oldest:
+        description: "If Apple is at its certificate limit, revoke the oldest one to make room"
+        required: true
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+
+concurrency:
+  group: ios-signing-setup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Certificate, profile and secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          ADMIN_TOKEN: ${{ secrets.SIGNING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY ADMIN_TOKEN; do
+            [ -n "${!name:-}" ] || fail "Secret $name is not set. See docs/ios-testflight.md §2."
+          done
+          case "$ASC_PRIVATE_KEY" in
+            *"BEGIN PRIVATE KEY"*) ;;
+            *) fail "APPSTORE_PRIVATE_KEY does not look like a .p8 key. Paste the whole file, BEGIN and END lines included." ;;
+          esac
+
+      # RSA 2048, which is what Apple issues distribution certificates against.
+      # The key is made here and never leaves except inside the .p12 that goes
+      # into a secret: nobody has to generate one on a device they do not have.
+      - name: Make a signing key and a certificate request
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl genrsa -out "$RUNNER_TEMP/signing.key" 2048
+          openssl req -new -key "$RUNNER_TEMP/signing.key" -out "$RUNNER_TEMP/signing.csr" \
+            -subj "/CN=Privio Distribution/O=Privio/C=DE"
+
+      - name: Ask Apple for the certificate and the profile
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          PROFILE_NAME: ${{ inputs.profile_name }}
+          REVOKE_OLDEST: ${{ inputs.revoke_oldest }}
+        run: |
+          set -euo pipefail
+          node tools/ios-signing-setup.mjs \
+            --csr "$RUNNER_TEMP/signing.csr" \
+            --bundle-id "$BUNDLE_ID" \
+            --profile-name "$PROFILE_NAME" \
+            --revoke-oldest "$REVOKE_OLDEST" \
+            --out "$RUNNER_TEMP/signing"
+
+      # The certificate is public; the key is not. Together they are the
+      # identity, which is why the .p12 gets a password of its own and both go
+      # into secrets rather than into an artifact.
+      - name: Bundle the identity
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl x509 -inform DER -in "$RUNNER_TEMP/signing/certificate.cer" \
+            -out "$RUNNER_TEMP/signing/certificate.pem"
+          openssl rand -base64 24 | tr -d '\n' > "$RUNNER_TEMP/signing/p12.password"
+          # The algorithms are named rather than left to OpenSSL 3's defaults.
+          # A .p12 written with the modern default (AES-256 under PBES2) is
+          # regularly refused by macOS's `security import` with nothing more
+          # helpful than "MAC verification failed", and this file exists to be
+          # imported by exactly that command. 3DES with a SHA-1 MAC is the
+          # shape every keychain reads, and the file's real protection is that
+          # it lives in a GitHub secret rather than that its password is
+          # wrapped in the newest cipher.
+          openssl pkcs12 -export \
+            -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+            -inkey "$RUNNER_TEMP/signing.key" \
+            -in "$RUNNER_TEMP/signing/certificate.pem" \
+            -out "$RUNNER_TEMP/signing/identity.p12" \
+            -passout "file:$RUNNER_TEMP/signing/p12.password"
+          base64 -w0 "$RUNNER_TEMP/signing/identity.p12" > "$RUNNER_TEMP/signing/identity.p12.b64"
+          base64 -w0 "$RUNNER_TEMP/signing/profile.mobileprovision" > "$RUNNER_TEMP/signing/profile.b64"
+
+      # `gh secret set` encrypts to the repository's public key before sending,
+      # so the values never travel in the clear, and each is read from a file
+      # rather than a command line — a command line is visible to every process
+      # on the machine.
+      - name: Store them as repository secrets
+        env:
+          GH_TOKEN: ${{ secrets.SIGNING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/signing"
+          gh secret set IOS_DIST_CERT_P12_BASE64 --repo "$GITHUB_REPOSITORY" < identity.p12.b64
+          gh secret set IOS_DIST_CERT_PASSWORD   --repo "$GITHUB_REPOSITORY" < p12.password
+          gh secret set IOS_PROVISIONING_PROFILE_BASE64 --repo "$GITHUB_REPOSITORY" < profile.b64
+          if [ -s team-id.txt ]; then
+            gh secret set APPLE_TEAM_ID --repo "$GITHUB_REPOSITORY" < team-id.txt
+            echo "Team id read back from Apple and stored."
+          else
+            echo "::warning::Apple did not report a team id. Set APPLE_TEAM_ID by hand — developer.apple.com → Membership details."
+          fi
+
+      - name: Say what happened
+        run: |
+          set -euo pipefail
+          {
+            echo "### iOS signing is set up"
+            echo
+            echo "Secrets written: \`IOS_DIST_CERT_P12_BASE64\`, \`IOS_DIST_CERT_PASSWORD\`, \`IOS_PROVISIONING_PROFILE_BASE64\`, \`APPLE_TEAM_ID\`."
+            echo
+            echo "Apple now holds:"
+            echo
+            echo '```json'
+            cat "$RUNNER_TEMP/signing/summary.json"
+            echo '```'
+            echo
+            echo "Next: **Actions → iOS signed build → Run workflow**, with \`upload\` on \`no\` for the first one."
+            echo
+            echo "You can revoke \`SIGNING_ADMIN_TOKEN\` now — it is only needed when this workflow runs."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The key, the certificate and the .p12 exist nowhere else after this.
+      # They are in the secrets, which is the only place they should be.
+      - name: Shred the working copies
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing" "$RUNNER_TEMP/signing.key" "$RUNNER_TEMP/signing.csr"

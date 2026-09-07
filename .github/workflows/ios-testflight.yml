@@ -108,7 +108,7 @@ jobs:
           else
             echo "signing=automatic" >> "$GITHUB_ENV"
             echo "Signing automatically: Xcode will fetch or create the certificate and profile through the API key."
-            echo "::notice::Automatic signing creates a new distribution certificate per runner. Apple allows a limited number — if a run fails with 'maximum number of certificates', revoke the unused ones in the developer portal, or move to the manual path in docs/ios-testflight.md."
+            echo "::notice::Automatic signing creates a new distribution certificate per runner, and Apple allows only a few. Run the 'iOS signing setup' workflow once to make one certificate and keep it in the secrets — after that this build reuses it instead."
           fi
 
       - name: Select Xcode

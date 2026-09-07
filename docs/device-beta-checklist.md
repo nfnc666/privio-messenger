@@ -45,7 +45,7 @@ useful than an optimistic tick.
 | APNs key (`.p8`, key id, team id, topic) | Otherwise iOS pushes are `skipped`, not sent | Not held |
 | FCM service-account key | Otherwise Play-edition pushes are `skipped`, not sent | Not held |
 | A UnifiedPush distributor (ntfy, NextPush, Sunup) | The `libre`/`direct` path has no push without one | Not installed |
-| An Apple developer account | An iOS build cannot be installed on a handset without one. No Mac needed — see [`ios-testflight.md`](ios-testflight.md) | Account held; nothing configured yet |
+| An Apple developer account | An iOS build cannot be installed on a handset without one. No Mac and no PC needed — see [`ios-testflight.md`](ios-testflight.md) | Account held; nothing configured yet |
 
 The server says which push providers are real at start-up
 (`push providers configured; …`). Read that line before testing anything about
@@ -64,7 +64,8 @@ them has been produced in this environment: there is no Android SDK here
 | B1 | `flutter build apk --flavor libre --dart-define=PRIVIO_EDITION=libre` produces an APK that installs and opens | — | | | | not run | |
 | B2 | `flutter build apk --flavor direct --dart-define=PRIVIO_EDITION=direct` — same, and the app is named Privio, not Privio Libre | — | | | | not run | |
 | B3 | `flutter build appbundle --flavor play --dart-define=PRIVIO_EDITION=play` builds | — | | | | not run | |
-| B4 | The **iOS signed build** workflow produces a signed `.ipa` — Actions → *iOS signed build* → Run workflow, `upload: no`. See [`ios-testflight.md`](ios-testflight.md) | Needs no Mac; needs the four App Store Connect secrets and a working Actions account | | | | not run | |
+| B4a | The **iOS signing setup** workflow creates the certificate and profile and writes them back as secrets — once, on a Linux runner | Needs the App Store Connect key and a short-lived token with secrets write. Refuses rather than revoking a certificate you may be using | | | | not run | |
+| B4 | The **iOS signed build** workflow produces a signed `.ipa` — Actions → *iOS signed build* → Run workflow, `upload: no`. See [`ios-testflight.md`](ios-testflight.md) | Needs no Mac and no PC; needs a working Actions account | | | | not run | |
 | B7 | The same workflow with `upload: yes` puts the build in TestFlight, and it installs on the iPhone | Export compliance has to be answered in App Store Connect before an internal tester sees it | | | | not run | |
 | B5 | A mismatched pair (`--flavor libre` with `PRIVIO_EDITION=play`) is refused by Gradle rather than shipped | Rule is unit-tested; the refusal itself is not, it needs a real Gradle run | | | | not run | |
 | B6 | About screen shows the same commit and edition `tools/build-info.sh` printed | — | | | | not run | |
@@ -206,7 +207,7 @@ scope that was not tested, and belong in the release notes as exactly that.
 
 | Section | Rows | Passed | Failed | Blocked | Not run |
 | --- | --- | --- | --- | --- | --- |
-| 1 Builds | 7 | 0 | 0 | 0 | 7 |
+| 1 Builds | 8 | 0 | 0 | 0 | 8 |
 | 2 Account and session | 7 | 0 | 0 | 0 | 7 |
 | 3 Revocation | 6 | 0 | 0 | 0 | 6 |
 | 4 Android ↔ Android | 6 | 0 | 0 | 0 | 6 |
@@ -216,6 +217,6 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **63** | **0** | **0** | **0** | **63** |
+| **Total** | **64** | **0** | **0** | **0** | **64** |
 
 Nothing in this table has been run. It is a plan, not a result.

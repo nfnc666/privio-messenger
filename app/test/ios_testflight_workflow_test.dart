@@ -104,6 +104,81 @@ void main() {
     );
   });
 
+  group('the signing setup workflow', () {
+    final setup = File('${root.path}/.github/workflows/ios-signing-setup.yml');
+    final setupText = setup.existsSync() ? setup.readAsStringSync() : '';
+
+    test('exists, because the alternative is a Mac', () {
+      expect(setup.existsSync(), isTrue, reason: 'no ${setup.path}');
+    });
+
+    test('is started by hand and by nothing else', () {
+      final on = setupText.substring(setupText.indexOf('\non:') + 1);
+      final block = on.substring(0, on.indexOf(RegExp(r'\n[a-z]', multiLine: true), 1));
+      expect(block, contains('workflow_dispatch'));
+      expect(block, isNot(contains('push:')));
+      expect(block, isNot(contains('pull_request')));
+      expect(block, isNot(contains('schedule')));
+    });
+
+    test('revokes nothing unless the run asked it to', () {
+      // Revoking a certificate stops it signing anywhere, including on a
+      // machine that has nothing to do with this repository.
+      final input = setupText.substring(setupText.indexOf('      revoke_oldest:'));
+      expect(
+        input.substring(0, input.indexOf('concurrency')),
+        contains(RegExp(r'''default:\s*"no"''')),
+      );
+    });
+
+    test('does not need a macOS runner, and says so by not asking for one', () {
+      // A certificate is a request and an answer. Running this on macOS would
+      // cost ten times as much for the same result.
+      expect(setupText, contains('runs-on: ubuntu-latest'));
+      expect(setupText, isNot(contains('runs-on: macos')));
+    });
+
+    test('never interpolates a secret into a shell command', () {
+      for (final line in setupText.split('\n')) {
+        final trimmed = line.trimLeft();
+        if (!trimmed.startsWith('run:') && !trimmed.startsWith('- run:')) continue;
+        expect(line, isNot(contains(r'${{ secrets.')), reason: 'secret on a run line: $line');
+      }
+    });
+
+    test('writes the three secrets the build workflow reads', () {
+      for (final name in const [
+        'IOS_DIST_CERT_P12_BASE64',
+        'IOS_DIST_CERT_PASSWORD',
+        'IOS_PROVISIONING_PROFILE_BASE64',
+      ]) {
+        expect(setupText, contains('gh secret set $name'), reason: '$name is never written');
+        expect(
+          File('${root.path}/.github/workflows/ios-testflight.yml').readAsStringSync(),
+          contains(name),
+          reason: '$name is written and never read',
+        );
+      }
+    });
+
+    test('passes secret values through files, never on a command line', () {
+      // A command line is readable by every process on the machine; `gh`
+      // reads the value from standard input instead.
+      final setters = RegExp('gh secret set [^\n]*').allMatches(setupText);
+      expect(setters, isNotEmpty);
+      for (final match in setters) {
+        expect(match.group(0), isNot(contains('--body')), reason: match.group(0));
+        expect(match.group(0), contains('<'), reason: 'not read from a file: ${match.group(0)}');
+      }
+    });
+
+    test('cleans up however the run ends', () {
+      final shred = setupText.indexOf('Shred the working copies');
+      expect(shred, greaterThan(0));
+      expect(setupText.substring(shred), contains('if: always()'));
+    });
+  });
+
   test('push is entitled, and the release build uses production APNs', () {
     // `Info.plist` asking for the remote-notification background mode is half
     // of it; without the entitlement the token request fails on the device.
