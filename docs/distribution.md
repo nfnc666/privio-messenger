@@ -247,9 +247,11 @@ when it is present.
 
 * **Rights review** (section 2). Blocks the licence change and the App Store
   distribution. Needs decisions and documents, not code.
-* **No CI runners.** The account's Actions minutes are exhausted, so none of the
-  build jobs above have run. Every check reports red in seconds with
-  `runner_id: 0` and no logs, which says nothing about the code.
+* ~~**No CI runners.**~~ Resolved on 2026-09-07 by making the repository public:
+  public repositories get Actions minutes free, macOS included. The build jobs
+  run again — and the first time they did, they found the Android build broken
+  since #64 and the iOS build unable to get past its entitlements file. Neither
+  was visible while nothing could run.
 * **No Android SDK and no macOS in this environment**, so nothing in the
   "Compiled" column can be filled in here. `dl.google.com` is blocked by the
   network policy.

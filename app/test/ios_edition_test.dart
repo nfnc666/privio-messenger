@@ -18,42 +18,61 @@ void main() {
       ? Directory(Directory.current.parent.path)
       : Directory.current;
 
-  /// The lines of every job that builds for iOS, one string per workflow.
-  Map<String, String> iosBuildSteps() {
-    final found = <String, String>{};
+  /// Every `flutter build ios` **command**, by workflow file.
+  ///
+  /// Commands, not the file's text: a comment that mentions the command — and
+  /// there is one, explaining why the iOS job stopped using it in one piece —
+  /// is prose, and matching it made this guard read the wrong 200 characters
+  /// and fail on a workflow that was perfectly correct. A command is a line
+  /// that begins with the command, plus the folded continuations under it.
+  Map<String, List<String>> iosBuildCommands() {
+    final found = <String, List<String>>{};
     final dir = Directory('${root.path}/.github/workflows');
     for (final file in dir.listSync().whereType<File>()) {
-      final text = file.readAsStringSync();
-      if (!text.contains('flutter build ios')) continue;
-      found[file.uri.pathSegments.last] = text;
+      final lines = file.readAsStringSync().split('\n');
+      final commands = <String>[];
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].trimLeft().startsWith('flutter build ios')) continue;
+        final buffer = StringBuffer(lines[i].trim());
+        // Folded YAML (`>-`) puts each argument on its own indented line.
+        for (var j = i + 1; j < lines.length; j++) {
+          final next = lines[j].trim();
+          if (!next.startsWith('-')) break;
+          buffer.write(' $next');
+        }
+        commands.add(buffer.toString());
+      }
+      if (commands.isNotEmpty) found[file.uri.pathSegments.last] = commands;
     }
     return found;
   }
 
   test('there is an iOS build to check at all', () {
-    expect(iosBuildSteps(), isNotEmpty, reason: 'no workflow builds for iOS any more?');
+    expect(iosBuildCommands(), isNotEmpty, reason: 'no workflow builds for iOS any more?');
   });
 
   test('every iOS build is told it is the App Store edition', () {
-    for (final entry in iosBuildSteps().entries) {
-      // The `flutter build ios` command and whatever follows it on the folded
-      // continuation lines.
-      final index = entry.value.indexOf('flutter build ios');
-      final command = entry.value.substring(index, index + 200);
-      expect(
-        command,
-        contains('PRIVIO_EDITION=appstore'),
-        reason: '${entry.key} builds iOS without saying it is the App Store edition',
-      );
+    for (final entry in iosBuildCommands().entries) {
+      for (final command in entry.value) {
+        expect(
+          command,
+          contains('PRIVIO_EDITION=appstore'),
+          reason: '${entry.key} builds iOS without saying it is the App Store edition: $command',
+        );
+      }
     }
   });
 
   test('and never as one of the Android editions', () {
-    for (final entry in iosBuildSteps().entries) {
-      final index = entry.value.indexOf('flutter build ios');
-      final command = entry.value.substring(index, index + 200);
-      for (final wrong in ['PRIVIO_EDITION=libre', 'PRIVIO_EDITION=direct', 'PRIVIO_EDITION=play']) {
-        expect(command, isNot(contains(wrong)), reason: '${entry.key}: $wrong on an iOS build');
+    for (final entry in iosBuildCommands().entries) {
+      for (final command in entry.value) {
+        for (final wrong in [
+          'PRIVIO_EDITION=libre',
+          'PRIVIO_EDITION=direct',
+          'PRIVIO_EDITION=play',
+        ]) {
+          expect(command, isNot(contains(wrong)), reason: '${entry.key}: $wrong on an iOS build');
+        }
       }
     }
   });

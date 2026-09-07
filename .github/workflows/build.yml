@@ -91,14 +91,47 @@ jobs:
       # `appstore`, explicitly. A release build refuses an unknown edition, but
       # a wrong one would still ship: `libre` here would put the licence-key
       # screen and UnifiedPush into an App Store binary.
-      - name: Build iOS (no signing)
+      #
+      # Two commands rather than one `flutter build ios --no-codesign`, because
+      # of what that one does with an entitlements file.
+      #
+      # The Runner target carries `Runner.entitlements` — it has to: without
+      # `aps-environment` the app never gets a push token on a device. An
+      # entitlement is a claim about a provisioning profile, so Xcode wants one
+      # even when signing is off, and the first run of this job on a real macOS
+      # runner failed with Flutter's "requires a selected Development Team with
+      # a Provisioning Profile" after compiling for 66 seconds. There is no team
+      # here and there should not be: this job checks that the project
+      # *compiles*, and a compile check that needs an Apple account is not one.
+      #
+      # So the entitlements are cleared for this build only. `--config-only`
+      # writes the dart-defines and runs CocoaPods; the archive-less xcodebuild
+      # below does the compiling, and prints its own errors instead of Flutter's
+      # summary of them.
+      - name: Configure the Xcode project
         run: >-
-          flutter build ios --release --no-codesign
+          flutter build ios --config-only --release --no-codesign
           --dart-define=PRIVIO_EDITION=appstore
+
+      - name: Build iOS (no signing, no entitlements)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            build
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:
           name: privio-ios-unsigned
-          path: app/build/ios/iphoneos/Runner.app
+          path: ${{ runner.temp }}/DerivedData/Build/Products/Release-iphoneos/Runner.app
           if-no-files-found: error

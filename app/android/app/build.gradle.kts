@@ -1,3 +1,12 @@
+// `java.util.Base64`, imported rather than written out where it is used.
+//
+// In a project build script the name `java` resolves to the Java plugin's
+// extension, not to the package — so `java.util.Base64` reads as "the `util`
+// property of the java extension", which does not exist. It compiled nowhere
+// and was invisible for a day: the Android build had been failing since the
+// dart-define check was added, and no runner was available to say so.
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -141,7 +150,7 @@ fun assertEditionMatchesFlavour() {
     val defines = (project.findProperty("dart-defines") as String?)
         ?.split(",")
         ?.mapNotNull {
-            runCatching { String(java.util.Base64.getDecoder().decode(it.trim())) }.getOrNull()
+            runCatching { String(Base64.getDecoder().decode(it.trim())) }.getOrNull()
         }
         ?.mapNotNull { entry ->
             entry.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
