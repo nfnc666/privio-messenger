@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-778%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-804%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -1327,11 +1327,11 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  # tests 204 / # pass 204 / # fail 0
+#  # tests 209 / # pass 209 / # fail 0
 
 cd app && flutter analyze && flutter test
 #  No issues found!
-#  All tests passed!   (574 tests)
+#  All tests passed!   (595 tests)
 ```
 
 Both numbers were measured on Node 22 and Flutter 3.47.1 — the versions
@@ -1529,6 +1529,13 @@ no Firebase, no analytics, no push SDK. It is a Gradle flavour, so the
 guarantee is enforced by the build rather than remembered — see
 [`docs/privio-libre.md`](docs/privio-libre.md). F-Droid builds it from
 [privio-libre-open-source-fdroid](https://github.com/nfnc666/privio-libre-open-source-fdroid).
+
+The APK from the website is the **same** free-software build under its own name,
+"Privio": same dependencies, same UnifiedPush wake-up, different signing key and
+a different update path. The four distributions and what separates them are in
+[`docs/distribution.md`](docs/distribution.md), together with the licence review
+that has to come before any of it can be split into a public client and a
+private server — including two findings that block it today.
 
 A license key is a different thing from the licence: it pays for the hosted
 relay, is redeemed once, and belongs to one account for good. It does not

@@ -24,11 +24,20 @@ env:
 
 jobs:
   android:
-    name: Android — libre APK
+    name: Android — ${{ matrix.edition }} APK
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every Android distribution, because they differ in ways a build can
+        # get wrong silently: `libre` is F-Droid's and is called Privio Libre,
+        # `direct` is the website APK called Privio with the same free-software
+        # dependencies, and `play` is the only one allowed to contain Firebase.
+        edition: [libre, direct, play]
 
     steps:
       - uses: actions/checkout@v4
@@ -53,16 +62,19 @@ jobs:
       # one is refused. The edition has to be passed alongside it, because the
       # Gradle flavour sets the Android resources and the dart-define sets what
       # the Dart code reads — they are two halves of the same choice.
-      - name: Build APK (libre)
+      # The flavour and the edition are the same word on purpose: Gradle
+      # refuses the build if they disagree, so a mismatch is a failed build
+      # rather than a wrongly-labelled APK.
+      - name: Build APK
         run: >-
           flutter build apk --release
-          --flavor libre
-          --dart-define=PRIVIO_EDITION=libre
+          --flavor ${{ matrix.edition }}
+          --dart-define=PRIVIO_EDITION=${{ matrix.edition }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: privio-libre-apk
+          name: privio-${{ matrix.edition }}-apk
           path: app/build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -97,11 +109,12 @@ jobs:
       # No `--flavor`: the Xcode project has one scheme, `Runner`. The Android
       # flavours have no counterpart here, and asking for one fails.
       #
-      # The edition has to be said, and it is `appstore`. This job used to pass
-      # `PRIVIO_EDITION=libre`, copied from the Android job above — which built
-      # an iOS binary that called itself free software, offered the licence-key
-      # screen a store build must never show, and registered for UnifiedPush
-      # instead of APNs. None of that is visible in a build log.
+      # The edition is `appstore` and has to be said. iOS used to be built with
+      # `PRIVIO_EDITION=libre` — copied from the Android job — which produced a
+      # binary that called itself free software, offered the licence-key screen
+      # a store build must never show, and registered for UnifiedPush instead of
+      # APNs. A release build now refuses an unknown edition rather than
+      # falling back, but a *wrong* one is still a wrong one, so it is set here.
       - name: Build iOS (no signing)
         run: >-
           flutter build ios --release --no-codesign

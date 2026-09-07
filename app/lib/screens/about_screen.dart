@@ -73,7 +73,7 @@ class AboutScreen extends StatelessWidget {
             children: [
               SettingsRow(
                 label: 'Edition',
-                value: edition.isLibre ? '${edition.name} · free software' : edition.name,
+                value: edition.containsOnlyFreeSoftware ? '${edition.name} · free software' : edition.name,
               ),
               const SettingsRow(label: 'License', value: PrivioEdition.licenseSpdxId),
               SettingsRow(
@@ -116,7 +116,7 @@ class _SourceNote extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Text(
-      edition.isLibre
+      edition.containsOnlyFreeSoftware
           ? 'This build contains no proprietary code and can be reproduced from '
               'the source above. Nothing here has to be taken on trust — build it '
               'yourself and compare.'
