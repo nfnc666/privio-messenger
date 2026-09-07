@@ -160,10 +160,28 @@ fun assertEditionMatchesFlavour() {
 
     val declared = defines["PRIVIO_EDITION"] ?: return
 
-    android.applicationVariants.configureEach {
-        val flavour = productFlavors.firstOrNull()?.name ?: return@configureEach
+    // The check belongs to the variant that is *built*, not to every variant
+    // that is configured. Gradle configures all of them on every build, so the
+    // first version of this — throwing straight out of
+    // `applicationVariants.configureEach` — refused a perfectly correct
+    // `--flavor libre` build because the `direct` variant also exists and its
+    // expected edition is `direct`. All three flavours failed that way the
+    // first time CI ever ran this file.
+    //
+    // Flutter names the task after the flavour (`assembleLibreRelease`) and
+    // passes the flavour no other way, so the task name is what says which
+    // build this is. Hanging the refusal off that task's own execution also
+    // means it fires however the build was started, not only through the
+    // Flutter tool.
+    val variantTask = Regex("^(?:assemble|bundle)([A-Z]\\w*?)(Debug|Profile|Release)$")
+    tasks.configureEach {
+        val flavour = variantTask.find(name)
+            ?.groupValues?.get(1)
+            ?.replaceFirstChar { it.lowercaseChar() }
+            ?: return@configureEach
         val expected = expectedEditionFor(flavour)
-        if (declared != expected) {
+        if (declared == expected) return@configureEach
+        doFirst {
             throw org.gradle.api.GradleException(
                 "Build refused: --flavor $flavour expects " +
                     "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +

@@ -65,6 +65,30 @@ jobs:
       # The flavour and the edition are the same word on purpose: Gradle
       # refuses the build if they disagree, so a mismatch is a failed build
       # rather than a wrongly-labelled APK.
+      # The guard that refuses a flavour and an edition that disagree has been
+      # in the repository since #64 and had never run: the Gradle script did
+      # not compile, and when it did, the check refused every build including
+      # the correct ones. A guard nobody exercises is a guard nobody can trust,
+      # so one build per run is deliberately mismatched and has to be refused.
+      # It fails during task execution, before any compiling, so it is cheap.
+      - name: A mismatched flavour and edition is refused
+        if: matrix.edition == 'libre'
+        run: |
+          set -euo pipefail
+          if flutter build apk --release --flavor libre \
+              --dart-define=PRIVIO_EDITION=play > mismatch.log 2>&1; then
+            echo "::error::a build whose flavour and edition disagree was accepted"
+            tail -30 mismatch.log
+            exit 1
+          fi
+          grep -q "Build refused" mismatch.log || {
+            echo "::error::the build failed, but not on the edition check"
+            tail -30 mismatch.log
+            exit 1
+          }
+          echo "Refused, as it should be:"
+          grep -m1 "Build refused" mismatch.log
+
       - name: Build APK
         run: >-
           flutter build apk --release
