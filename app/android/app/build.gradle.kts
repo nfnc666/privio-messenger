@@ -169,33 +169,50 @@ fun assertEditionMatchesFlavour() {
     // first time CI ever ran this file.
     //
     // Flutter names the task after the flavour (`assembleLibreRelease`) and
-    // passes the flavour no other way, so the task name is what says which
-    // build this is. Hanging the refusal off that task's own execution also
-    // means it fires however the build was started, not only through the
-    // Flutter tool.
-    //
-    // `preBuild` first, and `assemble`/`bundle` only as the backstop: the
-    // output task runs *after* everything it depends on, so a refusal there
-    // arrives once the Dart and Kotlin have already been compiled — three
-    // minutes spent to reject a build that was wrong before it started. CI
-    // showed exactly that. `pre<Variant>Build` is the first task in a
-    // variant's graph.
-    val preBuildTask = Regex("^pre([A-Z]\\w*?)(?:Debug|Profile|Release)Build$")
+    // passes the flavour no other way, so a task name is what says which build
+    // this is.
     val outputTask = Regex("^(?:assemble|bundle)([A-Z]\\w*?)(?:Debug|Profile|Release)$")
-    tasks.configureEach {
-        val flavour = (preBuildTask.find(name) ?: outputTask.find(name))
+    val flavourOf: (String) -> String? = { taskName ->
+        outputTask.find(taskName.substringAfterLast(':'))
             ?.groupValues?.get(1)
             ?.replaceFirstChar { it.lowercaseChar() }
-            ?: return@configureEach
+    }
+
+    fun refuse(flavour: String, expected: String): Nothing = throw org.gradle.api.GradleException(
+        "Build refused: --flavor $flavour expects " +
+            "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +
+            "An APK whose name and whose edition disagree ships as the wrong product."
+    )
+
+    // The task Gradle was *asked* for, checked while the build is still being
+    // configured — which is the only point early enough to be worth anything.
+    //
+    // Two later attempts are why this is written this way. Throwing from
+    // `applicationVariants.configureEach` refused every build, correct ones
+    // included, because Gradle configures all three variants whichever one you
+    // asked for. Moving the throw into a task's `doFirst` fixed that and
+    // arrived far too late: `assemble` runs after everything it depends on,
+    // and `pre<Variant>Build` turned out to be no earlier than the Dart
+    // compile, so CI spent three and a half minutes building before rejecting
+    // a build that was wrong before it started — and the compile failed first
+    // and swallowed the refusal entirely.
+    //
+    // The command line says which variant this is, in the task name Flutter
+    // generates (`assembleLibreRelease`), and it says it before anything runs.
+    gradle.startParameter.taskNames.forEach { requested ->
+        val flavour = flavourOf(requested) ?: return@forEach
+        val expected = expectedEditionFor(flavour)
+        if (declared != expected) refuse(flavour, expected)
+    }
+
+    // And a backstop for a build started some other way — an IDE run, or a
+    // task that depends on the output rather than naming it. Late, but late is
+    // better than never shipping the check at all.
+    tasks.configureEach {
+        val flavour = flavourOf(name) ?: return@configureEach
         val expected = expectedEditionFor(flavour)
         if (declared == expected) return@configureEach
-        doFirst {
-            throw org.gradle.api.GradleException(
-                "Build refused: --flavor $flavour expects " +
-                    "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +
-                    "An APK whose name and whose edition disagree ships as the wrong product."
-            )
-        }
+        doFirst { refuse(flavour, expected) }
     }
 }
 
