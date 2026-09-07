@@ -254,6 +254,10 @@ where one belongs, and nothing here reads one from a file.
 
 ## Testing it on a phone
 
+The full list, with a row per test and columns to record a build, a handset and
+the evidence, is [`device-beta-checklist.md`](device-beta-checklist.md). What
+follows is the short version, per edition.
+
 Roughly forty minutes per platform. The point of writing it down is that the
 interesting cases are the ones nobody thinks to try.
 

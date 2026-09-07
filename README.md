@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-804%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-818%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -1327,11 +1327,11 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  # tests 209 / # pass 209 / # fail 0
+#  # tests 218 / # pass 218 / # fail 0
 
 cd app && flutter analyze && flutter test
 #  No issues found!
-#  All tests passed!   (595 tests)
+#  All tests passed!   (600 tests)
 ```
 
 Both numbers were measured on Node 22 and Flutter 3.47.1 — the versions
@@ -1604,6 +1604,8 @@ screen deleted.
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
 | [Notifications](docs/notifications.md) | Wake-ups without a proprietary push service |
+| [Device beta checklist](docs/device-beta-checklist.md) | The 62 things only a real handset can answer — none of them run yet |
+| [Distribution](docs/distribution.md) | The four distributions, and the licence review that gates them |
 | [Client editions](app/README.md) | The four builds, what separates them, and how to build each |
 
 <div align="center">
