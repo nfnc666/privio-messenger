@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { config } from '../config.js';
 import type { DeliveryBus } from '../services/bus.js';
 import type { DeliveryService } from '../services/delivery.js';
 import { resolveSession } from '../services/sessions.js';
@@ -30,11 +31,16 @@ import { resolveSession } from '../services/sessions.js';
  * backstop for the cases a broadcast cannot cover — a session that simply
  * expired, a revocation published while this process was briefly disconnected
  * from Redis, or a row changed by something that never went through the API at
- * all. A minute is short enough that "revoked" does not mean "in an hour" and
- * long enough that ten thousand idle sockets are not ten thousand queries a
- * second.
+ * all. The default minute is short enough that "revoked" does not mean "in an
+ * hour" and long enough that ten thousand idle sockets are not ten thousand
+ * queries a second.
+ *
+ * It is read from configuration rather than fixed, because it is also the
+ * outer bound on how long a session that ended without a broadcast keeps its
+ * socket — a number a deployment may want to choose, and one a test has to be
+ * able to shorten to exercise the timer that actually enforces it.
  */
-const REVALIDATE_MS = 60_000;
+const revalidateMs = (): number => config.WS_REVALIDATE_MS;
 export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): FastifyPluginAsync {
   return async (app) => {
     app.get('/v1/ws', { websocket: true }, async (socket, request) => {
@@ -69,6 +75,10 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
         if (revoked) return;
         revoked = true;
         clearInterval(revalidation);
+        // Stop listening as well as stop sending. `close` fires eventually and
+        // unsubscribes too, but "eventually" is not a property to rely on for a
+        // callback that can still reach a connection nobody is entitled to.
+        unsubscribe?.();
         try {
           if (socket.readyState === socket.OPEN) {
             socket.send(JSON.stringify({ type: 'error', code: reason }));
@@ -104,7 +114,7 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
         }
       };
 
-      const revalidation = setInterval(() => void revalidate(), REVALIDATE_MS);
+      const revalidation = setInterval(() => void revalidate(), revalidateMs());
       // Never hold the process open for the sake of a heartbeat.
       revalidation.unref?.();
 
@@ -120,6 +130,19 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
             queuedWake = false;
             if (revoked || socket.readyState !== socket.OPEN) return;
             const envelopes = await delivery.fetch(auth.deviceId, BATCH);
+            // Checked again on this side of the await. The guard above passed
+            // when the read started; the read is a round trip to Postgres, and
+            // the session it passed for can end during it.
+            //
+            // Today the frame would not go out anyway — `stop` has already put
+            // the socket into CLOSING and `ws` drops a send on a socket in that
+            // state — so this is not a hole anyone can currently fall through.
+            // It is here because that is a property of the library rather than
+            // of this code, and "we do not deliver after a revocation" should
+            // not rest on it. Nothing was deleted by the read, so dropping the
+            // batch costs nothing: the envelopes stay queued for the device
+            // that is still entitled to them.
+            if (revoked || socket.readyState !== socket.OPEN) return;
             if (envelopes.length > 0) {
               socket.send(JSON.stringify({ type: 'envelopes', envelopes }));
             }
@@ -133,7 +156,11 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
         }
       };
 
-      const unsubscribe = bus.subscribe((wake) => {
+      // Declared before `stop` runs, so that closing a connection can also stop
+      // listening for it. Assigned below; `stop` cannot reach it any earlier
+      // than the subscription itself exists.
+      let unsubscribe: (() => void) | undefined;
+      unsubscribe = bus.subscribe((wake) => {
         if (wake.deviceId !== auth.deviceId) return;
         if (wake.kind === 'revoked') {
           // Either this exact session ended, or the whole device was revoked
@@ -180,11 +207,11 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
 
       socket.on('close', () => {
         clearInterval(revalidation);
-        unsubscribe();
+        unsubscribe?.();
       });
       socket.on('error', () => {
         clearInterval(revalidation);
-        unsubscribe();
+        unsubscribe?.();
       });
 
       // The race the door alone cannot close: a revocation that was published
@@ -194,7 +221,7 @@ export function websocketRoutes(delivery: DeliveryService, bus: DeliveryBus): Fa
       // either told by the broadcast or finds out here — there is no ordering
       // in which it learns neither.
       if (!(await revalidate())) {
-        unsubscribe();
+        unsubscribe?.();
         return;
       }
 

@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { migrate } from '../src/db/migrate.js';
 import { pool } from '../src/db/pool.js';
-import { InProcessBus } from '../src/services/bus.js';
+import { InProcessBus, type DeliveryBus } from '../src/services/bus.js';
 import { LoggingPushSender, type PushSender } from '../src/services/push.js';
 import { LocalFileStorage } from '../src/services/storage.js';
 import { deviceRegistrationSchema } from '../src/services/devices.js';
@@ -14,7 +14,12 @@ export interface TestHarness {
   app: FastifyInstance;
   push: LoggingPushSender;
   storage: LocalFileStorage;
-  bus: InProcessBus;
+  /**
+   * The in-process bus, or whatever was passed in its place. Typed as the
+   * interface so a test can hand in a bus that fails on purpose — what a Redis
+   * outage looks like from the API's side.
+   */
+  bus: DeliveryBus;
   close: () => Promise<void>;
 }
 
@@ -22,12 +27,12 @@ let counter = 0;
 
 /** Boots the API against the test database with an in-process bus and temp storage. */
 export async function createHarness(
-  overrides: { push?: PushSender } = {},
+  overrides: { push?: PushSender; bus?: DeliveryBus } = {},
 ): Promise<TestHarness> {
   await migrate();
   await truncateAll();
   const dir = await mkdtemp(join(tmpdir(), 'privio-test-'));
-  const bus = new InProcessBus();
+  const bus = overrides.bus ?? new InProcessBus();
   const push = new LoggingPushSender();
   const storage = new LocalFileStorage(dir);
   const app = await buildApp({ bus, push: overrides.push ?? push, storage });

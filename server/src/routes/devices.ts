@@ -71,7 +71,7 @@ const deviceRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     // Every socket on that device, whichever session it belongs to. Revoking a
     // phone from another phone is the case where "it will notice eventually"
     // is exactly the wrong behaviour: the point is that it stops now.
-    await announceDeviceRevocation(bus, [params.id]);
+    await announceDeviceRevocation(bus, [params.id], request.log);
     return { revoked: true };
   });
 
