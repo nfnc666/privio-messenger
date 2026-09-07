@@ -7,7 +7,14 @@ import { auth } from '../plugins/auth.js';
 import * as accounts from '../services/accounts.js';
 import type { BlobStorage } from '../services/storage.js';
 import { deviceRegistrationSchema, registerDevice } from '../services/devices.js';
-import { createSession, revokeAllSessions, revokeSession } from '../services/sessions.js';
+import {
+  createSession,
+  liveSessionsFor,
+  revokeAllSessions,
+  revokeSession,
+} from '../services/sessions.js';
+import { announceRevocation } from '../services/revocation.js';
+import type { DeliveryBus } from '../services/bus.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
@@ -57,7 +64,7 @@ const loginSchema = z.object({
   device: deviceRegistrationSchema,
 });
 
-const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) => {
+const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   /** Create an account and its first device. No phone number, no email. */
   app.post('/v1/accounts', guessable, async (request, reply) => {
     const body = parse(registerSchema, request.body);
@@ -108,7 +115,12 @@ const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) 
     if (!passwordOk) {
       // A duress code looks exactly like a wrong password from outside.
       if (await accounts.matchesDuressCode(account, body.password)) {
+        // Read the sessions before the wipe removes them, then close every
+        // socket. A duress wipe that left a signed-in device receiving is not
+        // a wipe.
+        const open = await liveSessionsFor(account.id);
         await accounts.wipeAccount(account.id, storage);
+        await announceRevocation(bus, open);
       }
       throw ApiError.unauthorized('invalid_credentials', 'Username or password is incorrect');
     }
@@ -138,15 +150,19 @@ const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) 
 
   app.delete('/v1/sessions/current', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { sessionId, accountId } = auth(request);
-    await revokeSession(sessionId, accountId);
+    // Told to close, not left to notice. Before this the socket kept running
+    // on a session that no longer existed: it went on receiving envelopes and
+    // its acknowledgements went on deleting them from the queue.
+    await announceRevocation(bus, await revokeSession(sessionId, accountId));
     return { revoked: true };
   });
 
   /** Remote logout of every other device. */
   app.post('/v1/sessions/revoke-all', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { sessionId, accountId } = auth(request);
-    const revoked = await revokeAllSessions(accountId, sessionId);
-    return { revoked };
+    const ended = await revokeAllSessions(accountId, sessionId);
+    await announceRevocation(bus, ended);
+    return { revoked: ended.length };
   });
 
   app.get('/v1/accounts/me', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
@@ -198,8 +214,12 @@ const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) 
       throw ApiError.unauthorized('invalid_credentials', 'Current password is incorrect');
     }
     await accounts.setPassword(accountId, body.newPassword);
-    const revoked = await revokeAllSessions(accountId, sessionId);
-    return { updated: true, otherSessionsRevoked: revoked };
+    // Changing a password is what somebody does when they think another device
+    // is not theirs any more. Leaving that device's socket open would make the
+    // change cosmetic until it happened to reconnect.
+    const ended = await revokeAllSessions(accountId, sessionId);
+    await announceRevocation(bus, ended);
+    return { updated: true, otherSessionsRevoked: ended.length };
   });
 
   /** Set or clear the duress code. */
@@ -253,7 +273,9 @@ const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) 
         // able to use this to find out whether a duress code exists.
         throw ApiError.unauthorized('invalid_credentials', 'That code is not right');
       }
+      const open = await liveSessionsFor(accountId);
       await accounts.wipeAccount(accountId, storage);
+      await announceRevocation(bus, open);
       return { wiped: true };
     },
   );
@@ -413,7 +435,11 @@ const accountRoutes = (storage: BlobStorage): FastifyPluginAsync => async (app) 
     if (!account || !(await verifySecret(account.password_hash, body.currentPassword))) {
       throw ApiError.unauthorized('invalid_credentials', 'Current password is incorrect');
     }
+    // Same order and the same reason: the rows that name the sockets are about
+    // to be gone, so they are read first and the sockets closed afterwards.
+    const open = await liveSessionsFor(accountId);
     await accounts.deleteAccount(accountId, storage);
+    await announceRevocation(bus, open);
     return { deleted: true };
   });
 };

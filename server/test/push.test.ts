@@ -9,6 +9,7 @@ import {
   type TestUser,
 } from './helpers.js';
 import { pool } from '../src/db/pool.js';
+import type { ApnsTransport } from '../src/services/apns_transport.js';
 import { isPrivateAddress, parsePushEndpoint } from '../src/util/outbound.js';
 import {
   ApnsSender,
@@ -264,7 +265,9 @@ describe('registering an endpoint', () => {
   });
   after(async () => {
     await h.close();
-    await closePool();
+    // The pool is closed by the last describe in this file: node runs them in
+    // order in one process, and ending it early leaves the rest without a
+    // database.
   });
 
   async function register(payload: {
@@ -424,15 +427,35 @@ describe('the vendor senders', () => {
     return { calls, fetch };
   }
 
-  const apns = (fetch: FetchLike) =>
-    new ApnsSender({ authorization: async () => 'jwt', topic: 'com.privio.app', fetch });
+  /**
+   * A stand-in transport, for the payload rules only.
+   *
+   * What this cannot show, and what the HTTP/2 test in
+   * `apns_transport.test.ts` exists for: whether the request can be made at
+   * all. Apple speaks HTTP/2 only, and a fake here would be just as happy with
+   * a sender that could never connect.
+   */
+  function apnsRecorder(status = 200, body = '') {
+    const calls: { path: string; headers: Record<string, string>; body: string }[] = [];
+    const transport = {
+      post: async (path: string, headers: Record<string, string>, payload: string) => {
+        calls.push({ path, headers, body: payload });
+        return { status, body };
+      },
+      close: async () => {},
+    };
+    return { calls, transport };
+  }
+
+  const apns = (transport: { post: ApnsTransport['post']; close: ApnsTransport['close'] }) =>
+    new ApnsSender({ authorization: async () => 'jwt', topic: 'com.privio.app', transport });
 
   const fcm = (fetch: FetchLike) =>
     new FcmSender({ authorization: async () => 'oauth', projectId: 'privio', fetch });
 
   it('an APNs message wake-up carries no alert and no content', async () => {
-    const { calls, fetch } = recorder();
-    await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' });
+    const { calls, transport } = apnsRecorder();
+    await apns(transport).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' });
 
     const sent = calls[0]!;
     assert.equal(sent.headers['apns-push-type'], 'background');
@@ -443,8 +466,8 @@ describe('the vendor senders', () => {
   });
 
   it('an APNs call goes to the VoIP token, on the VoIP topic, at once', async () => {
-    const { calls, fetch } = recorder();
-    await apns(fetch).notify({
+    const { calls, transport } = apnsRecorder();
+    await apns(transport).notify({
       deviceId: 'd1',
       provider: 'apns',
       token: 'tok',
@@ -453,7 +476,7 @@ describe('the vendor senders', () => {
     });
 
     const sent = calls[0]!;
-    assert.ok(sent.url.endsWith('/3/device/voip-tok'), 'a call rings on its own token');
+    assert.equal(sent.path, '/3/device/voip-tok', 'a call rings on its own token');
     assert.equal(sent.headers['apns-push-type'], 'voip');
     assert.equal(sent.headers['apns-topic'], 'com.privio.app.voip');
     assert.equal(sent.headers['apns-priority'], '10');
@@ -463,28 +486,28 @@ describe('the vendor senders', () => {
     // Sending it on the ordinary token would arrive whenever iOS felt like it,
     // which for a ringing phone is indistinguishable from never — and the
     // device would have no way to tell it apart from a message.
-    const { calls, fetch } = recorder();
-    await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok', urgency: 'call' });
+    const { calls, transport } = apnsRecorder();
+    await apns(transport).notify({ deviceId: 'd1', provider: 'apns', token: 'tok', urgency: 'call' });
     assert.equal(calls.length, 0);
   });
 
   it('APNs 410 means the token is gone', async () => {
-    const { fetch } = recorder(410);
+    const { transport } = apnsRecorder(410);
     assert.equal(
-      await apns(fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      await apns(transport).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
       'gone',
     );
   });
 
   it('APNs BadDeviceToken means the token is gone; a bad topic does not', async () => {
-    const bad = recorder(400, '{"reason":"BadDeviceToken"}');
+    const bad = apnsRecorder(400, '{"reason":"BadDeviceToken"}');
     assert.equal(
-      await apns(bad.fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      await apns(bad.transport).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
       'gone',
     );
-    const mine = recorder(403, '{"reason":"ExpiredProviderToken"}');
+    const mine = apnsRecorder(403, '{"reason":"ExpiredProviderToken"}');
     assert.equal(
-      await apns(mine.fetch).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
+      await apns(mine.transport).notify({ deviceId: 'd1', provider: 'apns', token: 'tok' }),
       'sent',
       'the operator\'s credentials are not this device\'s fault',
     );
@@ -520,8 +543,8 @@ describe('the vendor senders', () => {
   it('neither sender ever puts a recipient or a count on the wire', async () => {
     // The rule, asserted rather than trusted: everything leaving here is
     // opaque. The device id is ours, and it does not travel.
-    const a = recorder();
-    await apns(a.fetch).notify({ deviceId: 'device-of-nina', provider: 'apns', token: 'tok' });
+    const a = apnsRecorder();
+    await apns(a.transport).notify({ deviceId: 'device-of-nina', provider: 'apns', token: 'tok' });
     const g = recorder();
     await fcm(g.fetch).notify({ deviceId: 'device-of-nina', provider: 'fcm', token: 'tok' });
 
@@ -529,5 +552,93 @@ describe('the vendor senders', () => {
       assert.equal(sent.body.includes('nina'), false);
       assert.equal(JSON.stringify(sent.headers).includes('nina'), false);
     }
+  });
+});
+
+describe('what an unconfigured provider reports', () => {
+  /*
+   * The bug this covers: unconfigured APNs and FCM fell through to
+   * `LoggingPushSender`, which records the intent and answers `sent`. The relay
+   * therefore reported successful delivery for every wake-up it had no means to
+   * make — quietly, in production, for as long as nobody looked.
+   */
+
+  it('answers skipped, never sent', async () => {
+    const { createPushSender } = await import('../src/services/push_setup.js');
+    const setup = createPushSender();
+
+    // Nothing is configured in the test environment, which is the case being
+    // tested: this is what a self-hosted server without an Apple or Google
+    // account looks like.
+    assert.equal(setup.configured.includes('apns'), false);
+    assert.equal(setup.configured.includes('fcm'), false);
+
+    for (const provider of ['apns', 'fcm'] as const) {
+      const outcome = await setup.sender.notify({
+        deviceId: 'd1',
+        provider,
+        token: 'a-token',
+      });
+      assert.equal(outcome, 'skipped', `${provider} must not claim to have delivered`);
+    }
+    await setup.close();
+  });
+
+  it('still delivers UnifiedPush, which needs no credentials', async () => {
+    const { createPushSender } = await import('../src/services/push_setup.js');
+    const setup = createPushSender();
+    assert.equal(setup.configured.includes('unifiedpush'), true);
+    await setup.close();
+  });
+
+  it('a skipped push does not drop the envelope or fail the send', async () => {
+    // The rule that outranks all of this: the message is already stored. A push
+    // that could not be made is not a message that was lost, and must not be
+    // reported to the sender as a failure.
+    const skipping: PushSender = { notify: async () => 'skipped' };
+    const h = await createHarness({ push: skipping });
+    const alice = await registerUser(h.app, 'skipsender');
+    const bob = await registerUser(h.app, 'skiprecipient');
+
+    await h.app.inject({
+      method: 'PUT',
+      url: '/v1/devices/current/push',
+      headers: bearer(bob),
+      payload: { provider: 'apns', token: 'a-token' },
+    });
+
+    const sent = await h.app.inject({
+      method: 'POST',
+      url: '/v1/messages',
+      headers: bearer(alice),
+      payload: {
+        username: 'skiprecipient',
+        messages: [
+          {
+            deviceId: bob.deviceId,
+            registrationId: 4242,
+            type: 'ciphertext',
+            content: Buffer.from('sealed').toString('base64'),
+          },
+        ],
+      },
+    });
+    assert.equal(sent.statusCode, 202, sent.body);
+
+    const { rows } = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM envelopes WHERE recipient_device_id = $1',
+      [bob.deviceId],
+    );
+    assert.equal(Number(rows[0]!.count), 1, 'the envelope is queued and waiting');
+
+    // And the token was not dropped: `skipped` is not `gone`.
+    const { rows: device } = await pool.query<{ push_token: string | null }>(
+      'SELECT push_token FROM devices WHERE id = $1',
+      [bob.deviceId],
+    );
+    assert.equal(device[0]!.push_token, 'a-token');
+
+    await h.close();
+    await closePool();
   });
 });

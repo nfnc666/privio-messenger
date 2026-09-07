@@ -7,14 +7,19 @@ void main() {
 
   late List<String> tokens;
   late int fetches;
+  late bool fetched;
   late PushWakeListener listener;
 
   setUp(() {
     tokens = [];
     fetches = 0;
+    fetched = true;
     listener = PushWakeListener()
       ..listen(
-        onWake: () async => fetches += 1,
+        onWake: () async {
+        fetches += 1;
+        return fetched;
+      },
         onTokenChanged: (token) async => tokens.add(token),
       );
   });
@@ -67,5 +72,44 @@ void main() {
     await listener.handle(const MethodCall('tokenChanged', 'https://ntfy.sh/UPnew'));
     expect(fetches, 0);
     expect(tokens, isEmpty);
+  });
+  group('what the platform is told the fetch did', () {
+    // iOS decides how generously to deliver future background pushes partly on
+    // whether the app really had work to do. The bridge used to report
+    // "new data" immediately, before Dart had done anything at all.
+
+    test('new data when something arrived', () async {
+      fetched = true;
+      expect(await listener.handle(const MethodCall('wake')), isTrue);
+    });
+
+    test('no data when the queue was empty', () async {
+      fetched = false;
+      expect(await listener.handle(const MethodCall('wake')), isFalse);
+    });
+
+    test('a failed fetch is an error, not an empty queue', () async {
+      // The two mean different things to the system, and reporting a failure
+      // as "nothing to do" hides it.
+      final failing = PushWakeListener()
+        ..listen(
+          onWake: () async => throw Exception('network is gone'),
+          onTokenChanged: (_) async {},
+        );
+      addTearDown(failing.stop);
+
+      await expectLater(failing.handle(const MethodCall('wake')), throwsException);
+    });
+
+    test('no listener answers "nothing", not an error', () async {
+      // Signed out, or shutting down. There was nothing this app could have
+      // fetched, which is not the same as a failure.
+      listener.stop();
+      expect(await listener.handle(const MethodCall('wake')), isFalse);
+    });
+
+    test('a token change reports nothing, because it fetched nothing', () async {
+      expect(await listener.handle(const MethodCall('tokenChanged', 'https://x')), isNull);
+    });
   });
 }

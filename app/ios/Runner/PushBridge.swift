@@ -124,16 +124,61 @@ final class PushBridge: NSObject {
     }
 
     /// A background push arrived. There is nothing in it to read.
+    ///
+    /// The completion handler reports what the fetch actually did, and is
+    /// called exactly once. It used to fire `.newData` immediately, before Dart
+    /// had done anything — which is not a small inaccuracy: iOS decides how
+    /// generously to deliver future background pushes partly on whether the
+    /// app really had work to do, and an app that always claims new data while
+    /// sometimes having none gets throttled. Reporting a failure as success
+    /// also hides the failure.
+    ///
+    /// Three things have to be true at once, and the guard below is what makes
+    /// them so: exactly one call, even if the timeout and the reply race; a
+    /// bounded wait, because iOS kills the process after roughly thirty
+    /// seconds and a handler that never fires is the worst outcome; and an
+    /// answer even when there is no Dart side listening at all.
     func woken(completion: @escaping (UIBackgroundFetchResult) -> Void) {
+        var finished = false
+        let lock = NSLock()
+
+        /// Calls back once, whoever gets here first.
+        func finish(_ result: UIBackgroundFetchResult) {
+            lock.lock()
+            let alreadyDone = finished
+            finished = true
+            lock.unlock()
+            guard !alreadyDone else { return }
+            DispatchQueue.main.async { completion(result) }
+        }
+
         guard let wake else {
-            completion(.noData)
+            // No engine is listening — the app is not running its Dart side.
+            // Nothing was fetched and saying so is the truth.
+            finish(.noData)
             return
         }
-        wake.invokeMethod("wake", arguments: nil)
-        // iOS wants an answer promptly and judges future deliveries by whether
-        // the app did anything. The fetch itself is asynchronous in Dart, so
-        // this reports that work was started rather than pretending to know
-        // how it ended.
-        completion(.newData)
+
+        // Comfortably inside the system's own limit, and short enough that a
+        // wedged fetch does not spend the whole budget.
+        let deadline = DispatchTime.now() + .seconds(25)
+        DispatchQueue.main.asyncAfter(deadline: deadline) { finish(.failed) }
+
+        wake.invokeMethod("wake", arguments: nil) { reply in
+            if reply is FlutterError {
+                // The fetch threw. `.failed` rather than `.noData`, because the
+                // two mean different things to the system: one is "nothing to
+                // do", the other is "this did not work".
+                finish(.failed)
+            } else if FlutterMethodNotImplemented as AnyObject === reply as AnyObject {
+                finish(.noData)
+            } else if let didFetch = reply as? Bool {
+                finish(didFetch ? .newData : .noData)
+            } else {
+                // An older Dart side that answers nothing. It did go and look,
+                // so `.newData` is the closer of the two.
+                finish(.newData)
+            }
+        }
     }
 }

@@ -18,7 +18,7 @@ import { websocketRoutes } from './routes/ws.js';
 import type { DeliveryBus } from './services/bus.js';
 import { DeliveryService } from './services/delivery.js';
 import type { PushSender } from './services/push.js';
-import { LoggingPushSender, RoutingPushSender, UnifiedPushSender } from './services/push.js';
+import { createPushSender } from './services/push_setup.js';
 import type { BlobStorage } from './services/storage.js';
 import { LocalFileStorage } from './services/storage.js';
 import { ApiError } from './util/errors.js';
@@ -59,15 +59,19 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   });
 
   // UnifiedPush needs no credentials — the endpoint is the credential — so it
-  // works out of the box, including on a self-hosted server that has no Apple
-  // or Google account at all. APNs and FCM stay on the logging sender until a
-  // deployment plugs real adapters in.
-  const push =
-    deps.push ??
-    new RoutingPushSender(
-      { unifiedpush: new UnifiedPushSender({ log: app.log }) },
-      new LoggingPushSender(app.log),
+  // works out of the box, including on a self-hosted server with no Apple or
+  // Google account at all. APNs and FCM are wired from configuration, and a
+  // provider that is not configured now says so instead of falling through to
+  // a logging sender that answered "sent" for a push it never made.
+  const pushSetup = deps.push ? null : createPushSender(app.log);
+  const push = deps.push ?? pushSetup!.sender;
+  if (pushSetup) {
+    app.log.info(
+      { push: pushSetup.configured },
+      'push providers configured; anything not listed wakes devices only while the app is open',
     );
+    app.addHook('onClose', () => pushSetup.close());
+  }
   const storage = deps.storage ?? new LocalFileStorage();
   const delivery = new DeliveryService(deps.bus, push, app.log);
 
@@ -126,9 +130,9 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // `routes/accounts.ts`. It used to wrap the whole account plugin, which put
   // `GET /v1/accounts/me` on a login-grade allowance: opening a settings screen
   // a few times could lock someone out of their own account for five minutes.
-  await app.register(accountRoutes(storage));
+  await app.register(accountRoutes(storage, deps.bus));
 
-  await app.register(deviceRoutes);
+  await app.register(deviceRoutes(deps.bus));
   await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));

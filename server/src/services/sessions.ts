@@ -63,20 +63,48 @@ export async function resolveSession(token: string): Promise<AuthContext | null>
   };
 }
 
-export async function revokeSession(sessionId: string, accountId: string): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    'UPDATE sessions SET revoked_at = now() WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL',
+/** One session that has just ended, and the device it belonged to. */
+export interface EndedSession {
+  sessionId: string;
+  deviceId: string;
+}
+
+export async function revokeSession(
+  sessionId: string,
+  accountId: string,
+): Promise<EndedSession | null> {
+  // Returning the device rather than a boolean, because the caller has to tell
+  // the open socket to close and the socket is identified by its device.
+  const { rows } = await pool.query<{ id: string; device_id: string }>(
+    `UPDATE sessions SET revoked_at = now()
+     WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL
+     RETURNING id, device_id`,
     [sessionId, accountId],
   );
-  return (rowCount ?? 0) > 0;
+  const row = rows[0];
+  return row ? { sessionId: row.id, deviceId: row.device_id } : null;
 }
 
 /** Remote logout: kills every session for the account, optionally sparing the caller's. */
-export async function revokeAllSessions(accountId: string, exceptSessionId?: string): Promise<number> {
-  const { rowCount } = await pool.query(
+export async function revokeAllSessions(
+  accountId: string,
+  exceptSessionId?: string,
+): Promise<EndedSession[]> {
+  const { rows } = await pool.query<{ id: string; device_id: string }>(
     `UPDATE sessions SET revoked_at = now()
-     WHERE account_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR id <> $2)`,
+     WHERE account_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR id <> $2)
+     RETURNING id, device_id`,
     [accountId, exceptSessionId ?? null],
   );
-  return rowCount ?? 0;
+  return rows.map((row) => ({ sessionId: row.id, deviceId: row.device_id }));
+}
+
+/** Every session an account has open, for a revocation that is not per-session. */
+export async function liveSessionsFor(accountId: string): Promise<EndedSession[]> {
+  const { rows } = await pool.query<{ id: string; device_id: string }>(
+    `SELECT id, device_id FROM sessions
+     WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > now()`,
+    [accountId],
+  );
+  return rows.map((row) => ({ sessionId: row.id, deviceId: row.device_id }));
 }
