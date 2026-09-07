@@ -173,9 +173,17 @@ fun assertEditionMatchesFlavour() {
     // build this is. Hanging the refusal off that task's own execution also
     // means it fires however the build was started, not only through the
     // Flutter tool.
-    val variantTask = Regex("^(?:assemble|bundle)([A-Z]\\w*?)(Debug|Profile|Release)$")
+    //
+    // `preBuild` first, and `assemble`/`bundle` only as the backstop: the
+    // output task runs *after* everything it depends on, so a refusal there
+    // arrives once the Dart and Kotlin have already been compiled — three
+    // minutes spent to reject a build that was wrong before it started. CI
+    // showed exactly that. `pre<Variant>Build` is the first task in a
+    // variant's graph.
+    val preBuildTask = Regex("^pre([A-Z]\\w*?)(?:Debug|Profile|Release)Build$")
+    val outputTask = Regex("^(?:assemble|bundle)([A-Z]\\w*?)(?:Debug|Profile|Release)$")
     tasks.configureEach {
-        val flavour = variantTask.find(name)
+        val flavour = (preBuildTask.find(name) ?: outputTask.find(name))
             ?.groupValues?.get(1)
             ?.replaceFirstChar { it.lowercaseChar() }
             ?: return@configureEach
