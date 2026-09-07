@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Without this entitlement `registerForRemoteNotifications` fails at
+	  runtime with "no valid aps-environment entitlement string found", and
+	  the app never gets a token: `Info.plist` asking for the
+	  remote-notification background mode is only half of it.
+
+	  The value is a build setting rather than a literal because the two
+	  environments are different servers at Apple, and a build signed for one
+	  cannot receive pushes sent to the other. `APS_ENVIRONMENT` is
+	  `development` for Debug and Profile and `production` for Release —
+	  TestFlight builds are Release, and so use production APNs, which is what
+	  the server's own `APNS_ENVIRONMENT` has to be set to as well.
+	-->
+	<key>aps-environment</key>
+	<string>$(APS_ENVIRONMENT)</string>
+</dict>
+</plist>

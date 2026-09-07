@@ -88,6 +88,13 @@ Actions minutes, a spending limit, or Actions disabled for the account. **It can
 only be fixed by the repository owner**, in GitHub's billing settings — not by
 anything in this repository, and not by weakening a check to make it green.
 
+This repository is **private**, which is what makes minutes finite: they are
+billed against the account's quota rather than free as they would be on a public
+repository. Keep that in mind before adding a job, and especially before adding
+a macOS one — **macOS bills at ten times the Linux rate**, so the signed iOS
+build in `ios-testflight.yml` costs 200–350 minutes of quota per run. That is
+why it is `workflow_dispatch` only.
+
 Until it is fixed, the checks on a pull request are red for that reason and the
 suites have to be run locally, with the results and the commit written into the
 pull request. Say which they are; a red tick that means "no runner" and a red

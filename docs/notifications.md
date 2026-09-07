@@ -297,6 +297,13 @@ cannot be woken while closed, rather than failing silently.
 
 ### iOS, `appstore`
 
+Getting a build onto an iPhone without a Mac is its own procedure —
+[`ios-testflight.md`](ios-testflight.md) — and the push half of it has one
+requirement that lives outside this document: the App ID must have the Push
+Notifications capability, and the server's `APNS_ENVIRONMENT` must be
+`production`, because a TestFlight build is a Release build and Release builds
+talk to Apple's production push servers.
+
 Same list, minus the distributor. Two differences to watch for:
 
 * Step 6 may take noticeably longer than on Android, and occasionally not
