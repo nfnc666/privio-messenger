@@ -96,8 +96,16 @@ jobs:
 
       # No `--flavor`: the Xcode project has one scheme, `Runner`. The Android
       # flavours have no counterpart here, and asking for one fails.
+      #
+      # The edition has to be said, and it is `appstore`. This job used to pass
+      # `PRIVIO_EDITION=libre`, copied from the Android job above — which built
+      # an iOS binary that called itself free software, offered the licence-key
+      # screen a store build must never show, and registered for UnifiedPush
+      # instead of APNs. None of that is visible in a build log.
       - name: Build iOS (no signing)
-        run: flutter build ios --release --no-codesign
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=PRIVIO_EDITION=appstore
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4

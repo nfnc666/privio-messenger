@@ -189,6 +189,52 @@ Three of those deserve saying out loud rather than leaving in a table:
   screen. The app says exactly this rather than showing a warning triangle, and
   it does not re-prompt — neither platform shows its dialog twice.
 
+## Configuring the vendor services
+
+Both are optional. A server with neither still wakes phones over UnifiedPush,
+which is the point of having it.
+
+```
+# Apple. All four together, or none — the server refuses a half-filled set.
+APNS_KEY_P8=$(cat AuthKey_ABC123.p8)   # the file's contents, not its path
+APNS_KEY_ID=ABC123
+APNS_TEAM_ID=DEF456
+APNS_TOPIC=com.privio.app               # the VoIP topic is this plus .voip
+APNS_ENVIRONMENT=production             # sandbox for a TestFlight build
+
+# Google. All three together, or none.
+FCM_PROJECT_ID=privio
+FCM_CLIENT_EMAIL=...@...iam.gserviceaccount.com
+FCM_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...
+```
+
+The `.p8` and the service-account key are read from the environment as
+contents, never from a path: a key on disk is a key in a container image and a
+key in a backup. Neither is ever logged, and neither is ever part of an error
+message — the FCM token exchange deliberately logs only the status code,
+because an OAuth error can echo the assertion back, and the assertion is signed
+with that key.
+
+**A provider that is not configured says so.** The server logs which ones are
+live at start-up and reports `skipped` for the others. It used to fall through
+to a logging sender that answered "sent", so the relay reported successful
+delivery for every APNs and FCM wake-up it had no means to make. A skipped push
+never drops the envelope and never fails the send: the message was stored before
+any of this ran, and it is still there for the device's next poll or socket.
+
+**APNs does not go over `fetch`.** Apple's endpoint speaks HTTP/2 only, and
+Node's global fetch offers only `http/1.1` in the TLS ALPN handshake — a real
+request dies during the handshake with `tlsv1 alert no application protocol`.
+Verified against a local HTTP/2-only server, which is what
+`server/test/apns_transport.test.ts` stands up: fetch fails that way, and
+`node:http2` gets a 200. Tests that inject a fake fetch cannot show this, which
+is why that one exists.
+
+Provider tokens are minted from the key and cached: APNs reissues at forty
+minutes (Apple refuses one older than an hour and one minted more often than
+every twenty), FCM until a minute before the access token expires, with one
+exchange in flight at a time.
+
 ## What is still needed to finish it
 
 Nothing on this list can be produced from a source tree; each needs an account,

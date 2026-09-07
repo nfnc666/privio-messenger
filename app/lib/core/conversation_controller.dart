@@ -1552,20 +1552,33 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// Fetches, decrypts and files whatever is queued for this device.
-  Future<void> drain() async {
-    if (_draining) return;
+  /// Returns whether anything actually arrived.
+  ///
+  /// The answer travels back to iOS, which uses it to decide how generously to
+  /// deliver future background pushes: an app that always claims new data gets
+  /// throttled. `false` for a drain that found an empty queue, and for one that
+  /// was already in progress — the other drain will report for itself.
+  ///
+  /// A network failure is a *failure*, not an empty queue, so `ApiException` is
+  /// rethrown rather than swallowed into `false`. The screen state is still
+  /// updated on the way past, as before.
+  Future<bool> drain() async {
+    if (_draining) return false;
     _draining = true;
     try {
-      await _fileResult(await _services.messaging.receive());
+      final result = await _services.messaging.receive();
+      await _fileResult(result);
       // Draining is the one thing that happens regularly, so it is also where
       // someone waiting on a group key gets answered, where anything queued
       // gets another try, and where expired messages go.
       pruneExpired();
       unawaited(_maintainGroupKeys());
       unawaited(flushOutbox());
+      return result.messages.isNotEmpty;
     } on ApiException catch (failure) {
       _error = failure.message;
       notifyListeners();
+      rethrow;
     } finally {
       _draining = false;
     }

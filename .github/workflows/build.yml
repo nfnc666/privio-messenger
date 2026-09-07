@@ -87,8 +87,12 @@ jobs:
 
       - run: flutter pub get
 
+      # `appstore`, explicitly — not the Android matrix's flavour, which is
+      # what the neighbouring job iterates over and has no iOS counterpart.
       - name: Build iOS (no signing)
-        run: flutter build ios --release --no-codesign
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=PRIVIO_EDITION=appstore
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4

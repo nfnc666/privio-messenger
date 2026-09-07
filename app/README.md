@@ -98,7 +98,7 @@ in fact*, and treat anything about how it behaves on a phone as untested.
 
 ```bash
 flutter analyze   # No issues found!
-flutter test      # All tests passed!  (565 tests, ~45 s)
+flutter test      # All tests passed!  (574 tests, ~45 s)
 ```
 
 The suite runs without a device, an emulator or a server. Hardware sits behind
