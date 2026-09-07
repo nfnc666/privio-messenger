@@ -98,7 +98,56 @@ const schema = z.object({
    * narrow it to the distributors it trusts.
    */
   UNIFIEDPUSH_ALLOWED_HOSTS: z.string().default(''),
+
+  /**
+   * Apple Push Notification service. All four or none.
+   *
+   * `APNS_KEY_P8` is the contents of the `.p8` file from the developer portal,
+   * not a path: a key on disk is a key in a container image and a key in a
+   * backup. Newlines may be written as `\n`, because most secret stores make
+   * a literal newline awkward.
+   *
+   * Without these, APNs is not configured and the server says so at start-up
+   * rather than pretending to deliver.
+   */
+  APNS_KEY_P8: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  APNS_TEAM_ID: z.string().optional(),
+  /** The app's bundle identifier. The VoIP topic is this plus `.voip`. */
+  APNS_TOPIC: z.string().optional(),
+  /** `production` or `sandbox`. A TestFlight build needs the sandbox host. */
+  APNS_ENVIRONMENT: z.enum(['production', 'sandbox']).default('production'),
+
+  /**
+   * Firebase Cloud Messaging, from a service-account key.
+   *
+   * The three fields taken out of the JSON Google hands you, rather than the
+   * whole file, so that what the server holds is exactly what it needs.
+   */
+  FCM_PROJECT_ID: z.string().optional(),
+  FCM_CLIENT_EMAIL: z.string().optional(),
+  FCM_PRIVATE_KEY: z.string().optional(),
 }).superRefine((env, ctx) => {
+  // Half-configured is worse than unconfigured: it looks like it works.
+  const apns = [env.APNS_KEY_P8, env.APNS_KEY_ID, env.APNS_TEAM_ID, env.APNS_TOPIC];
+  if (apns.some(Boolean) && !apns.every(Boolean)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['APNS_KEY_P8'],
+      message:
+        'APNs needs APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID and APNS_TOPIC together, or none of them',
+    });
+  }
+  const fcm = [env.FCM_PROJECT_ID, env.FCM_CLIENT_EMAIL, env.FCM_PRIVATE_KEY];
+  if (fcm.some(Boolean) && !fcm.every(Boolean)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['FCM_PROJECT_ID'],
+      message:
+        'FCM needs FCM_PROJECT_ID, FCM_CLIENT_EMAIL and FCM_PRIVATE_KEY together, or none of them',
+    });
+  }
+
   // Better to refuse to boot than to run a paid server that cannot tell who
   // has paid.
   if (env.LICENSE_REQUIRED && !env.LICENSE_HASH_SECRET) {

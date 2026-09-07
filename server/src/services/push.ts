@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { assertResolvesPublicly } from '../util/outbound.js';
+import type { ApnsTransport } from './apns_transport.js';
 
 export type PushProvider = 'apns' | 'fcm' | 'unifiedpush';
 
@@ -37,8 +38,13 @@ export interface PushTarget {
  * the app was uninstalled, or the token was reissued and this is the old one.
  * A relay that keeps it goes on making a request per message forever, for a
  * device that will never hear it.
+ *
+ * `skipped` means nothing was attempted, because the provider is not configured
+ * on this deployment. It exists so that an unconfigured provider cannot report
+ * `sent` — which is what a logging fallback used to do, in production, for
+ * every APNs and FCM wake-up the server had no means to deliver.
  */
-export type PushOutcome = 'sent' | 'gone';
+export type PushOutcome = 'sent' | 'gone' | 'skipped';
 
 /**
  * Push payloads carry no content — only a wake-up. The device connects and
@@ -171,11 +177,18 @@ export class ApnsSender implements PushSender {
       authorization: () => Promise<string>;
       /** The app's bundle identifier. The VoIP topic is this plus `.voip`. */
       topic: string;
-      /** `https://api.push.apple.com` or the sandbox host. */
-      host?: string;
-      fetch?: FetchLike;
+      /**
+       * How the request actually goes out.
+       *
+       * Not `fetch`. Apple's endpoint speaks HTTP/2 only and Node's global
+       * fetch offers only `http/1.1` in the TLS ALPN handshake, so a real
+       * request to `api.push.apple.com` dies during the handshake with
+       * `tlsv1 alert no application protocol` — verified against a local
+       * HTTP/2-only server. An injected fake fetch cannot show that, which is
+       * exactly why this takes a transport instead.
+       */
+      transport: ApnsTransport;
       log?: FastifyBaseLogger;
-      timeoutMs?: number;
     },
   ) {}
 
@@ -187,49 +200,44 @@ export class ApnsSender implements PushSender {
     const token = isCall ? target.voipToken : target.token;
     if (!token) return 'sent';
 
-    const host = this.options.host ?? 'https://api.push.apple.com';
-    const send = this.options.fetch ?? (globalThis.fetch as unknown as FetchLike);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 5000);
+    const response = await this.options.transport.post(
+      `/3/device/${token}`,
+      {
+        authorization: `bearer ${await this.options.authorization()}`,
+        'apns-topic': isCall ? `${this.options.topic}.voip` : this.options.topic,
+        'apns-push-type': isCall ? 'voip' : 'background',
+        // 10 is "now". 5 is "when it suits the battery", which is the right
+        // answer for a message and the wrong one for a telephone.
+        'apns-priority': isCall ? '10' : '5',
+        // Nothing here is worth waking a phone for tomorrow: the envelope is
+        // on the server and the next launch collects it either way.
+        'apns-expiration': String(Math.floor(Date.now() / 1000) + (isCall ? 60 : 3600)),
+        'content-type': 'application/json',
+      },
+      // `content-available` and nothing else. No alert, no badge, no sound, no
+      // sender, no count — Apple relays a fact with no subject.
+      isCall ? JSON.stringify({ aps: {} }) : JSON.stringify({ aps: { 'content-available': 1 } }),
+    );
 
-    try {
-      const response = await send(`${host}/3/device/${token}`, {
-        method: 'POST',
-        headers: {
-          authorization: `bearer ${await this.options.authorization()}`,
-          'apns-topic': isCall ? `${this.options.topic}.voip` : this.options.topic,
-          'apns-push-type': isCall ? 'voip' : 'background',
-          // 10 is "now". 5 is "when it suits the battery", which is the right
-          // answer for a message and the wrong one for a telephone.
-          'apns-priority': isCall ? '10' : '5',
-          // Nothing here is worth waking a phone for tomorrow: the envelope is
-          // on the server and the next launch collects it either way.
-          'apns-expiration': String(Math.floor(Date.now() / 1000) + (isCall ? 60 : 3600)),
-          'content-type': 'application/json',
-        },
-        // `content-available` and nothing else. No alert, no badge, no sound,
-        // no sender, no count — Apple relays a fact with no subject.
-        body: isCall ? JSON.stringify({ aps: {} }) : JSON.stringify({ aps: { 'content-available': 1 } }),
-        signal: controller.signal,
-      });
-
-      // 410 is Apple's "this token is dead". 400 with BadDeviceToken is the
-      // same thing said at registration time, for a token that never was.
-      if (response.status === 410) return 'gone';
-      if (response.status === 400) {
-        const body = (await response.text?.()) ?? '';
-        if (body.includes('BadDeviceToken') || body.includes('DeviceTokenNotForTopic')) return 'gone';
-      }
-      if (!response.ok) {
-        this.options.log?.debug(
-          { deviceId: target.deviceId, status: response.status },
-          'apns refused the wake-up',
-        );
-      }
-      return 'sent';
-    } finally {
-      clearTimeout(timer);
+    // 410 is Apple's "this token is dead". 400 with BadDeviceToken is the same
+    // thing said at registration time, for a token that never was.
+    if (response.status === 410) return 'gone';
+    if (
+      response.status === 400 &&
+      (response.body.includes('BadDeviceToken') ||
+        response.body.includes('DeviceTokenNotForTopic'))
+    ) {
+      return 'gone';
     }
+    if (response.status >= 400) {
+      // The device id is ours and the status is Apple's. The token is not
+      // logged, and neither is the body, which can echo request detail.
+      this.options.log?.debug(
+        { deviceId: target.deviceId, status: response.status },
+        'apns refused the wake-up',
+      );
+    }
+    return 'sent';
   }
 }
 
