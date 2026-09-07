@@ -12,6 +12,19 @@ const schema = z.object({
   /** Attachments are unconditionally deleted after this many days. */
   MEDIA_TTL_DAYS: z.coerce.number().int().positive().default(30),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(365),
+  /**
+   * How often an open WebSocket re-reads its session.
+   *
+   * The revocation broadcast is what closes a socket promptly; this is the
+   * backstop for what a broadcast cannot cover — a session that merely expired,
+   * a revocation published while this process was disconnected from Redis, or a
+   * row changed by something that never went through the API. It is therefore
+   * also the width of the worst-case window between "the session ended" and
+   * "the socket stopped", and it is configuration rather than a constant so
+   * that a deployment can trade queries for promptness, and so a test can drive
+   * the real timer instead of a stand-in for it.
+   */
+  WS_REVALIDATE_MS: z.coerce.number().int().positive().default(60_000),
   /** Undelivered envelopes are purged after this many days. */
   ENVELOPE_TTL_DAYS: z.coerce.number().int().positive().default(30),
   MAX_ENVELOPE_BYTES: z.coerce.number().int().positive().default(64 * 1024),

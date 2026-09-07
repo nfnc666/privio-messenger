@@ -66,6 +66,33 @@ name instead of letting it look like broken code. `dropdb privio_test &&
 createdb privio_test` is the fix. CI never hits this — it gets an empty database
 every run — which is exactly why it costs a developer an hour and not a build.
 
+### Continuous integration is currently not running
+
+Since **2026-09-05** every workflow run has failed in a few seconds without
+executing a single step. This is not the code, and it is worth knowing before
+spending an afternoon on it:
+
+* The last green run was CI #80 (2026-09-05 00:57 UTC). #81, twelve minutes
+  later, failed in 3 seconds, and all 60 runs since have failed the same way —
+  a median of 3 seconds, the longest 39.
+* The workflow files did not change at that boundary. The last edit to
+  `.github/workflows/` before it was 2026-09-04 15:15, and 29 runs passed after
+  that edit.
+* The jobs are never assigned a runner: the API reports `runner_id: 0` and an
+  empty `runner_name`, there are no step records, no annotations, and
+  downloading the logs returns 404 — there are no logs, because nothing ran.
+
+A failure that begins on a date, affects every workflow at once, leaves no logs
+and correlates with nothing in the repository is an account-level one: exhausted
+Actions minutes, a spending limit, or Actions disabled for the account. **It can
+only be fixed by the repository owner**, in GitHub's billing settings — not by
+anything in this repository, and not by weakening a check to make it green.
+
+Until it is fixed, the checks on a pull request are red for that reason and the
+suites have to be run locally, with the results and the commit written into the
+pull request. Say which they are; a red tick that means "no runner" and a red
+tick that means "the tests failed" must not be allowed to look the same.
+
 A change to the client that touches sending, receiving or key handling should
 come with a test. The existing suite runs without a device or a server on
 purpose — keep it that way, and put anything that genuinely needs hardware

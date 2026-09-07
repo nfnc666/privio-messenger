@@ -208,9 +208,20 @@ class ChannelService {
     final state = await currentEpoch(channelId);
 
     // Already have it: either nothing rotated, or somebody's delivery arrived
-    // first. Nothing to do, and nothing to overwrite.
+    // first. Nothing to claim, and nothing to overwrite — but not necessarily
+    // nothing to do.
+    //
+    // This used to return here, and that was a way for a rotation to end up
+    // permanently half-finished. The claim is one step; re-sealing the
+    // channel's name under the new key and answering whoever is waiting for
+    // that key are the others, and they run after the promotion — so a device
+    // that lost its connection in between came back, saw it already held the
+    // current key, and returned without ever finishing them. The name then
+    // stayed sealed under a key that members who joined later are deliberately
+    // never given, for the life of the channel.
     if (await keyFor(channelId, state.epoch) != null) {
       await _crypto.store.clearPendingChannelKey(channelId);
+      await _finishRotation(channelId, state.epoch);
       return true;
     }
 
@@ -291,10 +302,29 @@ class ChannelService {
     // the middle of distribution leaves the key stored, and the next pass sends
     // it to whoever has not had it. Members who already have it ignore a
     // second copy — see rememberKey.
-    await _resealMetadata(channelId, state.epoch);
-    await deliverPendingKeys(channelId);
+    await _finishRotation(channelId, state.epoch);
     await distributeKey(channelId, state.epoch);
     return true;
+  }
+
+  /// The part of a rotation that comes after the key is the channel's key.
+  ///
+  /// Kept separate because it has to run on both paths — the device that just
+  /// claimed the epoch, and the device that comes back later already holding
+  /// it. Both are idempotent: the re-seal is skipped when the name is already
+  /// under the current key, and answering key requests is driven by what is
+  /// still outstanding on the server.
+  ///
+  /// Nothing here is allowed to fail the rotation. The key is promoted and the
+  /// channel is usable; what is left is repair work, and it is retried on the
+  /// next pass rather than turned into an error on this one.
+  Future<void> _finishRotation(String channelId, int epoch) async {
+    await _resealMetadata(channelId, epoch);
+    try {
+      await deliverPendingKeys(channelId);
+    } on Object {
+      // Whoever is waiting stays waiting, and asks again.
+    }
   }
 
   /// Moves past an epoch whose key nobody has.
@@ -333,12 +363,22 @@ class ChannelService {
   /// key, deliberately — can read every new post and not the channel's own
   /// name. Public channels have a plaintext title and need none of this.
   ///
-  /// Best effort: a failure here costs a name on somebody's screen, and must
-  /// not undo a rotation that has otherwise completed.
+  /// Best effort *per attempt*: a failure here costs a name on somebody's
+  /// screen and must not undo a rotation that has otherwise completed. It is
+  /// not best effort overall — it is attempted again on every later pass until
+  /// the name is under the current key, because there is no other repair for
+  /// it and nothing else notices.
+  ///
+  /// The server says which version sealed the name, so a device that is
+  /// already current does nothing: the check is one read the caller was making
+  /// anyway, and it keeps this from becoming a write on every poll.
   Future<void> _resealMetadata(String channelId, int epoch) async {
     try {
-      final channel = await byId(channelId);
-      if (channel.isPublic) return;
+      final raw = await _api.channel(channelId);
+      if (raw['visibility'] == 'public') return;
+      final sealedUnder = (raw['metadataKeyEpoch'] as num?)?.toInt() ?? 1;
+      if (sealedUnder >= epoch) return;
+      final channel = await _open(raw);
       if (channel.title.isEmpty || channel.title == 'Private channel') return;
       final key = await keyFor(channelId, epoch);
       if (key == null) return;
@@ -348,7 +388,7 @@ class ChannelService {
         metadataKeyEpoch: epoch,
       );
     } on Object {
-      // Left for the next rotation, or for whoever edits the channel next.
+      // Left for the next pass, which now happens.
     }
   }
 

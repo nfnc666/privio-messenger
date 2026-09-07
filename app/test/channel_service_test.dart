@@ -47,6 +47,13 @@ class FakeChannelServer {
   /// Which key version each channel's sealed name is under.
   final Map<String, int> metadataEpochs = {};
 
+  /// How many times a channel's sealed name has actually been written.
+  final Map<String, int> metadataWrites = {};
+
+  /// When true, every attempt to re-seal the name fails — the device rotated
+  /// the key and then lost the connection before the name followed it.
+  bool failMetadataUpdate = false;
+
   int _nextChannelId = 1;
   int _nextPostId = 1;
 
@@ -175,8 +182,12 @@ class FakeChannelServer {
         if (patchMatch != null && method == 'PATCH') {
           final id = patchMatch.group(1)!;
           if (body['encryptedMetadata'] != null) {
+            if (failMetadataUpdate) {
+              return _json({'error': 'unavailable', 'message': 'no'}, 503);
+            }
             channels[id]!['encryptedMetadata'] = body['encryptedMetadata'];
             metadataEpochs[id] = (body['metadataKeyEpoch'] as num?)?.toInt() ?? 1;
+            metadataWrites[id] = (metadataWrites[id] ?? 0) + 1;
           }
           return _json(channels[id]!);
         }
@@ -259,6 +270,52 @@ class FakeChannelServer {
         status,
         headers: {'content-type': 'application/json'},
       );
+}
+
+/// A messaging service that records key deliveries instead of encrypting them.
+///
+/// Everything about sealing a key into a Signal message is covered by the
+/// `key delivery` group above, with real crypto. What this stands in for is
+/// the fan-out decision on top of it: after a rotation, who is sent the new
+/// key — which is not something the ordinary fake server can answer, because
+/// it has no sessions and every send simply fails.
+class RecordingMessaging extends MessagingService {
+  RecordingMessaging({required super.api, required super.crypto});
+
+  final List<({String username, String scopeId, int? epoch, String key})> delivered = [];
+
+  /// Set to fail every delivery, which is what an unreachable member looks
+  /// like from here.
+  bool failEveryDelivery = false;
+
+  @override
+  Future<void> deliverKey({
+    required String username,
+    required String scope,
+    required String scopeId,
+    required String base64Key,
+    int? keyEpoch,
+  }) async {
+    if (failEveryDelivery) throw StateError('unreachable');
+    delivered.add((username: username, scopeId: scopeId, epoch: keyEpoch, key: base64Key));
+  }
+}
+
+/// A service whose key deliveries are recorded rather than sent.
+Future<(ChannelService, RecordingMessaging)> _recordingServiceOn(
+  FakeChannelServer server,
+) async {
+  final crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
+  final api = PrivioApiClient(
+    baseUrl: Uri.parse('http://localhost:8080'),
+    client: server.client(),
+  );
+  api.useToken('token');
+  final messaging = RecordingMessaging(api: api, crypto: crypto);
+  return (
+    ChannelService(api: api, crypto: crypto, messaging: messaging),
+    messaging,
+  );
 }
 
 Future<ChannelService> _serviceOn(FakeChannelServer server) async {
@@ -570,6 +627,58 @@ void main() {
       final feed = await stays.posts(channel.id);
       expect(feed.every((p) => p.opened), isTrue);
       expect(feed.map((p) => p.body), containsAll(['before', 'after']));
+    });
+
+    test('the members who are left are sent the new key, and the one who went is not',
+        () async {
+      final (admin, deliveries) = await _recordingServiceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.public,
+        handle: 'ops2',
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author', 'stays', 'goes'};
+
+      // What removal does on the server: the roster loses a member and the
+      // channel moves to a version nobody has a key for yet.
+      server.members[channel.id]!.remove('goes');
+      server.rotate(channel.id);
+
+      expect(await admin.completeRotation(channel.id), isTrue);
+
+      expect(
+        deliveries.delivered.map((d) => d.username),
+        unorderedEquals(['author', 'stays']),
+        reason: 'the remaining members have to receive the key they now need',
+      );
+      expect(deliveries.delivered.every((d) => d.epoch == 2), isTrue);
+      expect(deliveries.delivered.every((d) => d.scopeId == channel.id), isTrue);
+      expect(
+        deliveries.delivered.map((d) => d.key),
+        everyElement(base64Encode((await admin.keyFor(channel.id, 2))!)),
+        reason: 'and the key they are sent is the one the channel is on',
+      );
+    });
+
+    test('a member who could not be reached does not hold up the others', () async {
+      final (admin, deliveries) = await _recordingServiceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.public,
+        handle: 'ops3',
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author', 'stays'};
+      server.rotate(channel.id);
+
+      deliveries.failEveryDelivery = true;
+      // The rotation still completes: the key is the channel's key whether or
+      // not the fan-out got through, and whoever missed it asks for it.
+      expect(await admin.completeRotation(channel.id), isTrue);
+      expect(await admin.keyFor(channel.id, 2), isNotNull);
+      expect(deliveries.delivered, isEmpty);
+
+      deliveries.failEveryDelivery = false;
+      expect(await admin.distributeKey(channel.id, 2), 2, reason: 'a later pass reaches them');
     });
 
     test('the new key is a different key, not the old one relabelled', () async {
@@ -1032,6 +1141,73 @@ void main() {
       await admin.completeRotation(channel.id);
 
       expect(server.metadataEpochs[channel.id], 2);
+    });
+
+    test('an interrupted re-seal is finished on the next pass, not abandoned', () async {
+      // The rotation itself is repeatable and survives a crash. The name was
+      // not: the key was promoted, the re-seal failed, and every later pass
+      // took the "already holding the current key" shortcut and returned
+      // without ever trying again. The channel then kept a name sealed under a
+      // key that new members are deliberately never given — permanently.
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+      server.rotate(channel.id);
+
+      server.failMetadataUpdate = true;
+      expect(await admin.completeRotation(channel.id), isTrue);
+      expect(await admin.keyFor(channel.id, 2), isNotNull, reason: 'the key is the channel key');
+      expect(server.metadataEpochs[channel.id], 1, reason: 'the name did not follow it');
+
+      server.failMetadataUpdate = false;
+      expect(await admin.completeRotation(channel.id), isTrue);
+
+      expect(server.metadataEpochs[channel.id], 2, reason: 'the next pass has to finish it');
+    });
+
+    test('and is finished after a restart, by the device that comes back', () async {
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+      server.rotate(channel.id);
+
+      server.failMetadataUpdate = true;
+      await admin.completeRotation(channel.id);
+      server.failMetadataUpdate = false;
+
+      final afterCrash = await _restartOn(server, admin);
+      expect(await afterCrash.completeRotation(channel.id), isTrue);
+
+      expect(server.metadataEpochs[channel.id], 2);
+    });
+
+    test('and is not re-written once it is already current', () async {
+      // The repair has to be cheap enough to run on every pass: a device that
+      // opens the app should not re-seal a name that is already under the
+      // current key, nor send that write on every poll.
+      final server = FakeChannelServer();
+      final admin = await _serviceOn(server);
+      final channel = await admin.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      server.members[channel.id] = {'author'};
+      server.rotate(channel.id);
+
+      await admin.completeRotation(channel.id);
+      expect(server.metadataWrites[channel.id], 1);
+
+      await admin.completeRotation(channel.id);
+      await admin.completeRotation(channel.id);
+      expect(server.metadataWrites[channel.id], 1, reason: 'nothing left to repair');
     });
 
     test('a public channel is not re-sealed, because its title is not sealed', () async {

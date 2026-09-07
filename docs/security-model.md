@@ -462,6 +462,49 @@ in a breach.
 The PIN is a **local** lock on an already-encrypted database, not the account
 password. It never leaves the device.
 
+### Ending a session that already has a socket open
+
+A revoked session used to keep the connection it already had. The socket
+resolved its session once, at the handshake, and never again: a device that
+signed out, was revoked from another phone, or belonged to an account that had
+just changed its password went on receiving envelopes — and its
+acknowledgements went on deleting them from the queue, which is the half that
+loses messages rather than merely leaking them.
+
+Three things now end it, because no one of them covers every case:
+
+1. **A broadcast over the delivery bus.** Publishing a `revoked` wake reaches
+   whichever instance holds the socket, which is usually not the one that
+   handled the logout. Naming the session id closes only that session; omitting
+   it closes every session on the device, which is what a device revocation and
+   an account wipe mean.
+2. **A re-read on a timer**, every `WS_REVALIDATE_MS` (60 s by default). This is
+   what catches an *expiry* — nothing announces one, it simply becomes true —
+   and anything a broadcast missed.
+3. **A re-read immediately after subscribing**, which closes the race between
+   the handshake and a revocation published while it was in flight: the
+   connection is either told by the broadcast or finds out for itself, and
+   there is no ordering in which it learns neither.
+
+Between them, the connection stops delivering and stops acknowledging the
+moment it knows, including across the `await` in a read of the queue that
+started while the session was still valid.
+
+**The residual windows, stated rather than implied:**
+
+| Failure | What still works | The window |
+| --- | --- | --- |
+| Redis down, or the broadcast fails | The session is revoked in the database — that is a committed transaction and does not depend on the bus. The failure is logged (`revocation broadcast failed`) with no credential in the line | Up to `WS_REVALIDATE_MS`: the socket closes at its next re-read instead of within milliseconds |
+| Postgres unreachable | Connections stay open. An outage is deliberately not treated as a mass logout — signing out an entire deployment because a database blinked is its own kind of failure | Until the database answers again; the next re-read then enforces the truth |
+| A session expires | Nothing announces it | Up to `WS_REVALIDATE_MS` |
+| Neither the bus nor the timer (process wedged) | — | The socket dies with the process |
+
+Shortening `WS_REVALIDATE_MS` narrows the first three at the cost of one query
+per connection per interval. A deployment that wants revocation to be
+near-instantaneous without Redis should set it low; the default trades a minute
+of exposure against ten thousand idle sockets not being ten thousand queries a
+second.
+
 ## Key management
 
 Each device has a stable per-account index, a long-term identity key, a

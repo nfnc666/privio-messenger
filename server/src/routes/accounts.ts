@@ -120,7 +120,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
         // a wipe.
         const open = await liveSessionsFor(account.id);
         await accounts.wipeAccount(account.id, storage);
-        await announceRevocation(bus, open);
+        await announceRevocation(bus, open, request.log);
       }
       throw ApiError.unauthorized('invalid_credentials', 'Username or password is incorrect');
     }
@@ -153,7 +153,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // Told to close, not left to notice. Before this the socket kept running
     // on a session that no longer existed: it went on receiving envelopes and
     // its acknowledgements went on deleting them from the queue.
-    await announceRevocation(bus, await revokeSession(sessionId, accountId));
+    await announceRevocation(bus, await revokeSession(sessionId, accountId), request.log);
     return { revoked: true };
   });
 
@@ -161,7 +161,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
   app.post('/v1/sessions/revoke-all', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { sessionId, accountId } = auth(request);
     const ended = await revokeAllSessions(accountId, sessionId);
-    await announceRevocation(bus, ended);
+    await announceRevocation(bus, ended, request.log);
     return { revoked: ended.length };
   });
 
@@ -218,7 +218,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // is not theirs any more. Leaving that device's socket open would make the
     // change cosmetic until it happened to reconnect.
     const ended = await revokeAllSessions(accountId, sessionId);
-    await announceRevocation(bus, ended);
+    await announceRevocation(bus, ended, request.log);
     return { updated: true, otherSessionsRevoked: ended.length };
   });
 
@@ -275,7 +275,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
       }
       const open = await liveSessionsFor(accountId);
       await accounts.wipeAccount(accountId, storage);
-      await announceRevocation(bus, open);
+      await announceRevocation(bus, open, request.log);
       return { wiped: true };
     },
   );
@@ -439,7 +439,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // to be gone, so they are read first and the sockets closed afterwards.
     const open = await liveSessionsFor(accountId);
     await accounts.deleteAccount(accountId, storage);
-    await announceRevocation(bus, open);
+    await announceRevocation(bus, open, request.log);
     return { deleted: true };
   });
 };

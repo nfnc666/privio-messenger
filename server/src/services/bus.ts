@@ -75,7 +75,24 @@ export class RedisBus implements DeliveryBus {
     private readonly publisher: Redis,
     private readonly subscriber: Redis,
   ) {
-    void this.subscriber.subscribe(CHANNEL);
+    // Redis going away must not take the server with it, and neither of these
+    // is decoration. An ioredis client emits `error` on every failed
+    // connection attempt; an EventEmitter with no `error` listener rethrows,
+    // so an unreachable Redis crashed the process rather than degrading it.
+    // The clients reconnect on their own — what is needed here is that
+    // nothing dies while they do.
+    this.publisher.on('error', () => {});
+    this.subscriber.on('error', () => {});
+
+    // And a subscribe that never happened is a node that quietly stops
+    // receiving revocations: sockets on it would then only close at their next
+    // revalidation, with nothing anywhere saying why. The rejection was
+    // discarded before — as an unhandled rejection, which is fatal by default
+    // in current Node — and is now reported on the client, where a deployment's
+    // own error handling already listens.
+    this.subscriber.subscribe(CHANNEL).catch((err: unknown) => {
+      this.subscriber.emit('error', err);
+    });
     this.subscriber.on('message', (channel: string, message: string) => {
       if (channel !== CHANNEL) return;
       try {

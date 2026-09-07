@@ -2,6 +2,37 @@ import type { DeliveryBus } from './bus.js';
 import type { EndedSession } from './sessions.js';
 
 /**
+ * Just enough of a logger to report a broadcast that did not go out.
+ *
+ * Optional, because the announcement must work from anywhere a session can
+ * end; where a request logger is at hand it is passed, and a failure becomes
+ * something an operator can see rather than something only the clock reveals.
+ */
+export interface RevocationLog {
+  warn(details: Record<string, unknown>, message: string): void;
+}
+
+/**
+ * What a failed broadcast costs, stated once so both callers can point at it.
+ *
+ * The session is already revoked in the database — that part is a committed
+ * transaction and does not depend on any of this. What is lost is only the
+ * promptness: the socket closes at its next revalidation
+ * (`WS_REVALIDATE_MS`, a minute by default) instead of within milliseconds.
+ * That window is the documented residual exposure of a bus outage, and it is
+ * bounded; the alternative, failing the logout when Redis is down, would leave
+ * somebody unable to sign out at all.
+ */
+function reportFailure(log: RevocationLog | undefined, deviceId: string, err: unknown): void {
+  // The device id identifies a row, not a person, and no token, session id or
+  // key goes anywhere near this line.
+  log?.warn(
+    { err, deviceId },
+    'revocation broadcast failed; the socket closes at its next revalidation instead',
+  );
+}
+
+/**
  * Tells whatever process is holding the socket that a session has ended.
  *
  * A WebSocket used to check its session exactly once, when it was opened. A
@@ -24,6 +55,7 @@ import type { EndedSession } from './sessions.js';
 export async function announceRevocation(
   bus: DeliveryBus,
   ended: EndedSession[] | EndedSession | null,
+  log?: RevocationLog,
 ): Promise<void> {
   if (!ended) return;
   const list = Array.isArray(ended) ? ended : [ended];
@@ -31,7 +63,7 @@ export async function announceRevocation(
     list.map((session) =>
       bus
         .publish({ deviceId: session.deviceId, kind: 'revoked', sessionId: session.sessionId })
-        .catch(() => {}),
+        .catch((err: unknown) => reportFailure(log, session.deviceId, err)),
     ),
   );
 }
@@ -45,10 +77,13 @@ export async function announceRevocation(
 export async function announceDeviceRevocation(
   bus: DeliveryBus,
   deviceIds: string[],
+  log?: RevocationLog,
 ): Promise<void> {
   await Promise.all(
     deviceIds.map((deviceId) =>
-      bus.publish({ deviceId, kind: 'revoked' }).catch(() => {}),
+      bus
+        .publish({ deviceId, kind: 'revoked' })
+        .catch((err: unknown) => reportFailure(log, deviceId, err)),
     ),
   );
 }
