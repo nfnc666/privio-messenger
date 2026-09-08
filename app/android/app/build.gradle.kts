@@ -226,11 +226,28 @@ dependencies {
     //
     // Pinned. The API was renamed between 3.x releases — `registerApp` became
     // `register` — so an unpinned bump is a compile error waiting to happen.
-    "libreImplementation"("org.unifiedpush.android:connector:3.3.5")
+    //
+    // Tink comes in two packagings of the same classes: `tink` for the JVM and
+    // `tink-android`. The connector asks for the JVM one and
+    // `flutter_secure_storage` for the Android one, and having both on the
+    // classpath is thousands of duplicate classes and a failed build. The JVM
+    // packaging is the wrong one here, so it is excluded and `tink-android` is
+    // named at the version the connector expects — the Android build of
+    // exactly what it asked for.
+    //
+    // This was always true and never seen: every Android build died in the
+    // Dart compile before Gradle ever got as far as merging dex input.
+    "libreImplementation"("org.unifiedpush.android:connector:3.3.5") {
+        exclude(group = "com.google.crypto.tink", module = "tink")
+    }
+    "libreImplementation"("com.google.crypto.tink:tink-android:1.23.0")
     // The website APK is woken the same way and by the same library. It shares
     // `src/libre` for its Kotlin — see sourceSets below — so it needs the same
-    // dependency under its own configuration.
-    "directImplementation"("org.unifiedpush.android:connector:3.3.5")
+    // dependency, and the same exclusion, under its own configuration.
+    "directImplementation"("org.unifiedpush.android:connector:3.3.5") {
+        exclude(group = "com.google.crypto.tink", module = "tink")
+    }
+    "directImplementation"("com.google.crypto.tink:tink-android:1.23.0")
 
     // Firebase, in the Play flavour and nowhere else. `playImplementation` is
     // what enforces that: there is no build flag that puts these into the
