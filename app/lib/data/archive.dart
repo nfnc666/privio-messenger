@@ -60,7 +60,12 @@ class KeystoreArchiveStorage implements ArchiveStorage {
   static const _iosOptions = IOSOptions(
     accessibility: KeychainAccessibility.first_unlock_this_device,
   );
-  static const _androidOptions = AndroidOptions(encryptedSharedPreferences: true);
+  // No `encryptedSharedPreferences`: the flag was removed in
+  // flutter_secure_storage 11 and is ignored in 10. Jetpack Security's
+  // EncryptedSharedPreferences is deprecated by Google, and the package now
+  // uses its own AES-GCM ciphers over the Android keystore — migrating
+  // anything an older version wrote on first access.
+  static const _androidOptions = AndroidOptions();
 
   @override
   Future<Uint8List?> read() async {

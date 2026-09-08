@@ -12,7 +12,12 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    PushBridge.shared.attach(messenger: engineBridge.applicationBinaryMessenger)
+    // `applicationRegistrar.messenger()`, not `applicationBinaryMessenger` —
+    // the bridge has no such property, and this file had never been compiled
+    // to say so. `FlutterImplicitEngineBridge` vends a
+    // `FlutterApplicationRegistrar`, and the messenger comes off that:
+    // `FlutterEngine.h` and `FlutterPlugin.h` in the engine's own headers.
+    PushBridge.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - APNs
