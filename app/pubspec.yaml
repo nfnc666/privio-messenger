@@ -16,8 +16,25 @@ dependencies:
     sdk: flutter
   # Talks to the Privio API. Nothing leaves the device unencrypted.
   http: ^1.2.2
-  # Keychain on iOS, EncryptedSharedPreferences/Keystore on Android.
-  flutter_secure_storage: ^9.2.2
+  # Keychain on iOS, AES-GCM over the Keystore on Android. Holds the session
+  # token, the archive key and the recovery key.
+  #
+  # At 10 rather than 9, and the reason is worth keeping: 9 pulled
+  # `flutter_secure_storage_windows` 3.1.2, which pins `win32` ^5, while
+  # `file_picker` 12 pulls `windows_file_picker`, which needs ^6. That was
+  # papered over with a `win32` override and a comment saying the Windows
+  # plugins are never compiled because there is no `windows/` directory.
+  #
+  # They are. Flutter's generated `dart_plugin_registrant.dart` imports every
+  # platform's Dart plugin into one file and switches on `Platform.isX` at
+  # runtime, so the Windows implementation is compiled into an iOS build too —
+  # and against the overridden `win32` it did not compile at all. No release
+  # build of this app worked, on any platform, until CI came back and said so.
+  #
+  # 10.3.1 allows `flutter_secure_storage_windows` 4.2.2, which is on `win32`
+  # ^6, so the conflict is gone and there is no override. Not 11: that one
+  # drops the migration path from 9, and 10 still performs it on first access.
+  flutter_secure_storage: ^10.3.1
   # Renders the invite deep link as a QR code, on-device.
   qr_flutter: ^4.1.0
   libsignal_protocol_dart: ^0.8.2
@@ -45,24 +62,6 @@ dependencies:
   # until it has been laid out. Pure Dart, from the Flutter team's own widgets
   # repository — it adds nothing native and nothing to the F-Droid build.
   scrollable_positioned_list: ^0.3.8
-
-# The one override, and it exists to keep `flutter_secure_storage` at 9.
-#
-# `file_picker` 12 pulls `windows_file_picker`, which wants `win32` ^6;
-# `flutter_secure_storage_windows` 3.1.2 pins `win32` ^5. Pub resolves every
-# platform's plugin whether or not it is ever compiled, so a Windows conflict
-# was refusing an Android fix. Pub's own suggestion is to move
-# `flutter_secure_storage` to 11 — and that package holds the session token, the
-# archive key and the recovery key, its Android implementation changed in 10,
-# and data written by 9 may not be readable afterwards. Somebody's history and
-# their backup are not a thing to bump and hope.
-#
-# This app builds for Android, iOS and web: there is no `windows/` directory,
-# so neither Windows plugin is ever compiled and the version this pins is never
-# loaded. Delete the override the day a Windows target is added — and expect to
-# do the keystore migration then.
-dependency_overrides:
-  win32: ^6.3.0
 
 dev_dependencies:
   flutter_test:
