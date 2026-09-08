@@ -30,42 +30,35 @@ not something this repository can fix.
 
 ---
 
-## 0. GitHub Actions is not currently running
+## 0. Actions runs again — and what being public changed
 
-Since **2026-09-05** every workflow run in this repository has failed within
-seconds without executing a step. The last green run was CI #80 (2026-09-05,
-00:57 UTC); #81, twelve minutes later, failed after 3 seconds, and every run
-since — over sixty of them — has failed the same way. The workflow files did
-not change at that boundary, and no runner is ever assigned: the API reports
-`runner_id: 0`, there are no step records, and the logs return 404 because none
-were produced. That combination is an account-level cause, not a repository one.
+For two days it did not. Between **2026-09-05 and 2026-09-07** every workflow
+run failed within seconds without executing a step: no runner assigned
+(`runner_id: 0`), no step records, 404 for the logs because none were produced.
+That is an account-level cause, and on a private repository it usually means
+Actions minutes.
 
-**This repository is private**, which is what makes minutes finite:
+**The repository is public now, and that fixed it.** Public repositories get
+Actions minutes free, macOS runners included — so nothing below costs anything,
+and no spending limit has to be raised. The first run after the change (CI #147)
+was assigned a real runner and went green.
 
-* Actions minutes for a private repository come out of the account's quota
-  (2,000 a month on Free, 3,000 on Pro).
-* **macOS bills at ten times the Linux rate.** The signed build is 20–35
-  minutes of wall clock, so **200–350 minutes of quota per build**. On Free,
-  roughly a tenth of the month, each time.
-* The signing setup below runs on **Linux**, so it costs about ten minutes of
-  quota — a hundredth of what it would cost if it needed a Mac. It only runs
-  once.
+Two consequences to know before you start a build:
 
-On the phone, open **<https://github.com/settings/billing>** and look at
-Actions usage.
+* **Logs and artifacts are readable by anyone.** That includes the signed `.ipa`
+  this workflow uploads. It is a signed build of your app, and it cannot be
+  installed by a stranger — an App Store build only runs on devices Apple lets
+  it run on — but it is public. If that is not what you want, delete the
+  artifact after a run, or set the repository back to private and read the
+  billing paragraph below.
+* **Your secrets are still yours.** They are not readable in a log, a fork's
+  pull request gets none of them, and both workflows here are start-by-hand
+  only, which requires write access to the repository. Nothing changed about
+  that when the repository became public.
 
-| What you find | What to do |
-| --- | --- |
-| Included minutes used up | Wait for the monthly reset, **or** set a spending limit above zero — that costs money and is your call |
-| No payment method, or the limit is $0 | Same choice |
-| Actions disabled for the account | Turn it back on |
-
-Two alternatives, so it is a real choice: making the repository **public** gives
-free Actions minutes including macOS — but it is a publication decision, and
-irreversible in practice; and a **self-hosted runner**, the usual escape, does
-not apply because it would have to be a Mac.
-
-Nothing below runs until this is sorted. Everything below can be prepared now.
+If you make it private again: minutes are metered (2,000 a month on Free, 3,000
+on Pro) and **macOS bills at ten times the Linux rate**, so a signed build is
+200–350 minutes of quota. The signing setup runs on Linux and costs about ten.
 
 ---
 
@@ -289,7 +282,7 @@ App Store.
 
 | What it says | What it is | What to do |
 | --- | --- | --- |
-| A run fails in seconds with no logs | Section 0 — no runner | Billing, not the code |
+| A run fails in seconds with no logs | No runner was assigned — the outage in section 0 | Check Actions is enabled and, on a private repository, that minutes are left |
 | `Secret … is not set` | A name is misspelled or missing | Section 2; names are case-sensitive |
 | `does not look like a .p8 key` | A filename, or half a file, landed in the secret | Copy the whole text with the shortcut |
 | `App Store Connect GET … failed: 401` | The key, issuer or `.p8` do not match, or the key was revoked | Re-check 1.1; a new key is cheap |
@@ -312,8 +305,12 @@ the secrets. You will need a fresh `SIGNING_ADMIN_TOKEN` for that run.
 
 Everything above is instructions. None of it is a result.
 
-* **Neither workflow has ever run.** This environment has no macOS, and the
-  repository's Actions have not executed since 2026-09-05.
+* **Neither of these two workflows has ever run.** They are start-by-hand, and
+  nobody has started one. Actions itself does run again — the ordinary CI and
+  the unsigned mobile builds execute on every pull request.
+* **The unsigned iOS build has been compiled on a real macOS runner**, which is
+  how the entitlements file's effect on an unsigned build was found. That is a
+  compile, not a signed build: nothing here has produced an `.ipa`.
 * **No Apple credential exists here**, so nothing has ever spoken to the App
   Store Connect API from this repository. The setup script's token signing,
   its decisions and the requests it builds are covered by 15 unit tests against

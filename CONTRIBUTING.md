@@ -66,41 +66,58 @@ name instead of letting it look like broken code. `dropdb privio_test &&
 createdb privio_test` is the fix. CI never hits this — it gets an empty database
 every run — which is exactly why it costs a developer an hour and not a build.
 
-### Continuous integration is currently not running
+### The outage that hid two broken builds
 
-Since **2026-09-05** every workflow run has failed in a few seconds without
-executing a single step. This is not the code, and it is worth knowing before
-spending an afternoon on it:
+Between **2026-09-05 and 2026-09-07** every workflow run failed within seconds
+without executing a step. It was never the code: the jobs were not assigned a
+runner (`runner_id: 0`, no steps, no annotations, 404 for the logs), the
+workflow files had not changed at that boundary, and the last green run before
+it — CI #80 — was followed by 60 identical failures. That is the signature of an
+account-level cause, and on a private repository it usually means Actions
+minutes.
 
-* The last green run was CI #80 (2026-09-05 00:57 UTC). #81, twelve minutes
-  later, failed in 3 seconds, and all 60 runs since have failed the same way —
-  a median of 3 seconds, the longest 39.
-* The workflow files did not change at that boundary. The last edit to
-  `.github/workflows/` before it was 2026-09-04 15:15, and 29 runs passed after
-  that edit.
-* The jobs are never assigned a runner: the API reports `runner_id: 0` and an
-  empty `runner_name`, there are no step records, no annotations, and
-  downloading the logs returns 404 — there are no logs, because nothing ran.
+It was resolved by making the repository **public**. Public repositories get
+Actions minutes free, macOS runners included, and the first run afterwards
+(CI #147) got a real runner and went green on the server job in 55 seconds.
 
-A failure that begins on a date, affects every workflow at once, leaves no logs
-and correlates with nothing in the repository is an account-level one: exhausted
-Actions minutes, a spending limit, or Actions disabled for the account. **It can
-only be fixed by the repository owner**, in GitHub's billing settings — not by
-anything in this repository, and not by weakening a check to make it green.
+Two things are worth keeping from it.
 
-This repository is **private**, which is what makes minutes finite: they are
-billed against the account's quota rather than free as they would be on a public
-repository. Keep that in mind before adding a job, and especially before adding
-a macOS one — **macOS bills at ten times the Linux rate**, so the signed iOS
-build in `ios-testflight.yml` costs 200–350 minutes of quota per run. That is
-why it is `workflow_dispatch` only, and why its companion,
-`ios-signing-setup.yml`, runs on Linux: making a certificate is a request and an
-answer, not a compile, so it has no business on a macOS runner.
+**A check nobody can run is not a check.** `build-mobile.yml` was added during
+the outage, so its jobs had never once executed. The first minute they ran they
+found an Android build that had been broken since #64 — `java.util.Base64` in a
+Gradle Kotlin script, where `java` resolves to the Java plugin's extension and
+not to the package — and an iOS build that could not proceed past an
+entitlements file without an Apple team. Both were merged with a green-looking
+pull request and a paragraph explaining that the red ticks meant "no runner".
+That paragraph was true and it was not enough.
 
-Until it is fixed, the checks on a pull request are red for that reason and the
-suites have to be run locally, with the results and the commit written into the
-pull request. Say which they are; a red tick that means "no runner" and a red
-tick that means "the tests failed" must not be allowed to look the same.
+**Say which red is which.** A red tick that means "no runner" and a red tick
+that means "the tests failed" must not be allowed to look the same. When CI
+cannot run, run the suites locally and put the results and the commit in the
+pull request — and say plainly that no CI run exists.
+
+### Minutes, and where they go
+
+Public repositories do not meter Actions minutes, so the arithmetic below is no
+longer a budget — but it is still the reason the expensive jobs are shaped the
+way they are, and it comes back the moment the repository is private again.
+**macOS bills at ten times the Linux rate**, which is why the signed iOS build
+in `ios-testflight.yml` (20–35 minutes, so 200–350 minutes of quota) is
+`workflow_dispatch` only, and why its companion `ios-signing-setup.yml` runs on
+Linux: making a certificate is a request and an answer, not a compile, and has
+no business on a macOS runner.
+
+### What being public changes
+
+* **Workflow logs and build artifacts are readable by anyone.** That includes
+  the signed `.ipa` the iOS build uploads. Nothing in these workflows prints a
+  secret — there are tests asserting it — but the bar is now "a stranger reads
+  this", not "a colleague does".
+* **Secrets are still not exposed.** A pull request from a fork gets none of
+  them, and the two workflows that use them are `workflow_dispatch` only, which
+  needs write access to start.
+* **A fork's first pull request waits for approval** before its workflows run.
+  That is a repository setting, and it should stay on.
 
 A change to the client that touches sending, receiving or key handling should
 come with a test. The existing suite runs without a device or a server on

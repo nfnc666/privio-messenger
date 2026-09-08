@@ -10,7 +10,7 @@ A privacy-first secure messenger for iOS and Android.
 <img src="https://img.shields.io/badge/server-Node.js%2022-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
 <img src="https://img.shields.io/badge/database-PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
 <img src="https://img.shields.io/badge/crypto-Signal%20Protocol-22C55E?style=flat-square" alt="Signal Protocol">
-<img src="https://img.shields.io/badge/tests-849%20passing-22C55E?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/tests-850%20passing-22C55E?style=flat-square" alt="Tests">
 <img src="https://img.shields.io/badge/license-AGPL--3.0-22C55E?style=flat-square" alt="AGPL-3.0">
 
 </div>
@@ -1327,7 +1327,7 @@ the parts worth testing are the queries.
 ```bash
 createdb privio_test
 cd server && TEST_DATABASE_URL=postgres://you@localhost:5432/privio_test npm test
-#  # tests 218 / # pass 218 / # fail 0
+#  # tests 219 / # pass 219 / # fail 0
 #  # tests 15  / # pass 15  / # fail 0     ← tools/, no database needed
 
 cd app && flutter analyze && flutter test
@@ -1405,13 +1405,15 @@ Three workflows, and each one says what it proves:
 Flutter is pinned (`FLUTTER_VERSION: 3.47.1`) rather than tracking `stable`, so
 a run that passed yesterday means the same thing today.
 
-A private repository meters Actions minutes, and a macOS runner bills at ten
-times the Linux rate — which is how a month's allowance disappears into an iOS
-build that ran on every push. So: a pull request is checked as the merge commit
-it would create, a new push to that branch cancels the run it superseded, and
-the iOS build does not run a second time for the merge of a tree it just
-compiled. `main` is never cancelled — every commit that lands there is checked
-on its own — and nothing is checked less than once.
+The repository is public, so Actions minutes are free — but the jobs are still
+shaped as though they were not, because for two days they were. A private
+repository meters minutes and a macOS runner bills at ten times the Linux rate,
+which is how a month's allowance disappears into an iOS build that runs on every
+push. So: a pull request is checked as the merge commit it would create, a new
+push to that branch cancels the run it superseded, and the iOS build does not run
+a second time for the merge of a tree it just compiled. `main` is never
+cancelled — every commit that lands there is checked on its own — and nothing is
+checked less than once.
 
 Compiling is not working. `build-mobile.yml` produces an unsigned APK and an
 unsigned `Runner.app`; whether either behaves on a phone is a separate question

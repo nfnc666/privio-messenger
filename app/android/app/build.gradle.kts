@@ -1,3 +1,12 @@
+// `java.util.Base64`, imported rather than written out where it is used.
+//
+// In a project build script the name `java` resolves to the Java plugin's
+// extension, not to the package — so `java.util.Base64` reads as "the `util`
+// property of the java extension", which does not exist. It compiled nowhere
+// and was invisible for a day: the Android build had been failing since the
+// dart-define check was added, and no runner was available to say so.
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -141,7 +150,7 @@ fun assertEditionMatchesFlavour() {
     val defines = (project.findProperty("dart-defines") as String?)
         ?.split(",")
         ?.mapNotNull {
-            runCatching { String(java.util.Base64.getDecoder().decode(it.trim())) }.getOrNull()
+            runCatching { String(Base64.getDecoder().decode(it.trim())) }.getOrNull()
         }
         ?.mapNotNull { entry ->
             entry.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
@@ -151,16 +160,59 @@ fun assertEditionMatchesFlavour() {
 
     val declared = defines["PRIVIO_EDITION"] ?: return
 
-    android.applicationVariants.configureEach {
-        val flavour = productFlavors.firstOrNull()?.name ?: return@configureEach
+    // The check belongs to the variant that is *built*, not to every variant
+    // that is configured. Gradle configures all of them on every build, so the
+    // first version of this — throwing straight out of
+    // `applicationVariants.configureEach` — refused a perfectly correct
+    // `--flavor libre` build because the `direct` variant also exists and its
+    // expected edition is `direct`. All three flavours failed that way the
+    // first time CI ever ran this file.
+    //
+    // Flutter names the task after the flavour (`assembleLibreRelease`) and
+    // passes the flavour no other way, so a task name is what says which build
+    // this is.
+    val outputTask = Regex("^(?:assemble|bundle)([A-Z]\\w*?)(?:Debug|Profile|Release)$")
+    val flavourOf: (String) -> String? = { taskName ->
+        outputTask.find(taskName.substringAfterLast(':'))
+            ?.groupValues?.get(1)
+            ?.replaceFirstChar { it.lowercaseChar() }
+    }
+
+    fun refuse(flavour: String, expected: String): Nothing = throw org.gradle.api.GradleException(
+        "Build refused: --flavor $flavour expects " +
+            "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +
+            "An APK whose name and whose edition disagree ships as the wrong product."
+    )
+
+    // The task Gradle was *asked* for, checked while the build is still being
+    // configured — which is the only point early enough to be worth anything.
+    //
+    // Two later attempts are why this is written this way. Throwing from
+    // `applicationVariants.configureEach` refused every build, correct ones
+    // included, because Gradle configures all three variants whichever one you
+    // asked for. Moving the throw into a task's `doFirst` fixed that and
+    // arrived far too late: `assemble` runs after everything it depends on,
+    // and `pre<Variant>Build` turned out to be no earlier than the Dart
+    // compile, so CI spent three and a half minutes building before rejecting
+    // a build that was wrong before it started — and the compile failed first
+    // and swallowed the refusal entirely.
+    //
+    // The command line says which variant this is, in the task name Flutter
+    // generates (`assembleLibreRelease`), and it says it before anything runs.
+    gradle.startParameter.taskNames.forEach { requested ->
+        val flavour = flavourOf(requested) ?: return@forEach
         val expected = expectedEditionFor(flavour)
-        if (declared != expected) {
-            throw org.gradle.api.GradleException(
-                "Build refused: --flavor $flavour expects " +
-                    "--dart-define=PRIVIO_EDITION=$expected, but it is set to \"$declared\". " +
-                    "An APK whose name and whose edition disagree ships as the wrong product."
-            )
-        }
+        if (declared != expected) refuse(flavour, expected)
+    }
+
+    // And a backstop for a build started some other way — an IDE run, or a
+    // task that depends on the output rather than naming it. Late, but late is
+    // better than never shipping the check at all.
+    tasks.configureEach {
+        val flavour = flavourOf(name) ?: return@configureEach
+        val expected = expectedEditionFor(flavour)
+        if (declared == expected) return@configureEach
+        doFirst { refuse(flavour, expected) }
     }
 }
 

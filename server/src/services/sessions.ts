@@ -45,15 +45,29 @@ export async function resolveSession(token: string): Promise<AuthContext | null>
   const row = rows[0];
   if (!row) return null;
 
-  // Presence bookkeeping is best-effort and must not block the request.
-  void pool
-    .query(
-      `WITH s AS (UPDATE sessions SET last_used_at = now() WHERE id = $1),
-            d AS (UPDATE devices SET last_seen_at = now() WHERE id = $2)
-       UPDATE accounts SET last_seen_at = now() WHERE id = $3`,
-      [row.id, row.device_id, row.account_id],
-    )
-    .catch(() => {});
+  // Presence bookkeeping is best-effort and must not block the request — and
+  // must not deadlock with a real write either, which is what the single
+  // statement this replaces did.
+  //
+  // It was one CTE touching sessions, devices and accounts, so it held three
+  // row locks in one transaction. `wipeAccount` holds the same three in the
+  // other order: it deletes the devices first and updates the account last.
+  // Two transactions taking the same rows in opposite orders is the textbook
+  // deadlock, and Postgres resolved it by killing one of them — sometimes the
+  // wipe, which is how deleting an account came back as a 500 while one of that
+  // account's own sockets happened to be checking in. Seen in CI on
+  // 2026-09-07, in `ws_revocation.test.ts`.
+  //
+  // Three statements instead, each its own transaction, so this holds exactly
+  // one row lock at a time and can never be one side of a cycle — whatever
+  // order anything else takes. That is a stronger guarantee than agreeing on
+  // an order, which would bind every future writer to a rule nothing enforces.
+  // The cost is three round trips on a path that nothing waits for.
+  void (async () => {
+    await pool.query('UPDATE sessions SET last_used_at = now() WHERE id = $1', [row.id]);
+    await pool.query('UPDATE devices SET last_seen_at = now() WHERE id = $1', [row.device_id]);
+    await pool.query('UPDATE accounts SET last_seen_at = now() WHERE id = $1', [row.account_id]);
+  })().catch(() => {});
 
   return {
     sessionId: row.id,

@@ -20,6 +20,7 @@ import { pool } from '../src/db/pool.js';
 import { RedisBus, type DeliveryBus, type Wake } from '../src/services/bus.js';
 import { DeliveryService } from '../src/services/delivery.js';
 import { announceRevocation } from '../src/services/revocation.js';
+import { resolveSession } from '../src/services/sessions.js';
 import {
   bearer,
   closePool,
@@ -242,6 +243,66 @@ describe('a session that ends mid-flight', () => {
       [owner.deviceId],
     );
     assert.equal(await closedWithin(socket, 4000), 4401);
+  });
+});
+
+describe('the presence bookkeeping that runs on every request', () => {
+  let h: TestHarness;
+
+  before(async () => {
+    h = await createHarness();
+  });
+
+  after(async () => {
+    await h.close();
+  });
+
+  it('never holds one row lock while it waits for another', async () => {
+    // The bug this pins, seen in CI on 2026-09-07 and not reproducible here by
+    // timing alone: `resolveSession` updated `sessions`, `devices` and
+    // `accounts` in a single statement, so it held three row locks in one
+    // transaction. `wipeAccount` holds the same three the other way round —
+    // devices deleted first, the account row updated last. Postgres broke the
+    // cycle by killing one side, and when that side was the wipe, deleting an
+    // account answered 500 to somebody who had asked for their data to be
+    // erased.
+    //
+    // Rather than race it, the collision is built. A transaction that does not
+    // commit holds the device row — which is exactly where CI caught the old
+    // statement waiting, "rechecking updated tuple in relation devices". The
+    // question is what it is still holding while it waits there.
+    const user = await registerUser(h.app, 'touch_locks');
+    const blocker = await pool.connect();
+    const probe = await pool.connect();
+
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('UPDATE devices SET last_seen_at = now() WHERE id = $1', [
+        user.deviceId,
+      ]);
+
+      // Fire-and-forget by design, so nothing here is awaited: what matters is
+      // what it leaves locked on its way through.
+      await resolveSession(user.token);
+      await sleep(200);
+
+      // If the bookkeeping is parked on the device row while still holding the
+      // account row, this cannot take it and gives up rather than hanging.
+      // That is the shape a deadlock needs — a wipe holding devices and
+      // wanting accounts closes the cycle — and without it there is none to
+      // form, whatever order anything else takes its locks in.
+      await probe.query('BEGIN');
+      await probe.query("SET LOCAL lock_timeout = '2s'");
+      await probe.query('UPDATE accounts SET last_seen_at = now() WHERE id = $1', [
+        user.accountId,
+      ]);
+      await probe.query('COMMIT');
+    } finally {
+      await blocker.query('ROLLBACK').catch(() => {});
+      await probe.query('ROLLBACK').catch(() => {});
+      blocker.release();
+      probe.release();
+    }
   });
 });
 
