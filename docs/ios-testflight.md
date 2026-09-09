@@ -250,8 +250,15 @@ The build talks to whatever `api_url` you gave it and to nothing else. Without
 a reachable Privio server the app installs and cannot register — there is no
 demo mode. That server also needs `APNS_ENVIRONMENT=production`, because a
 TestFlight build is a Release build and Release builds use Apple's production
-push servers. Setting one up is a separate job; `README.md` and
-`server/.env.example` cover it.
+push servers.
+
+Setting one up is its own job, and it has the same constraint this document
+does — it has to be doable from the phone.
+[`docs/deployment.md`](deployment.md) is that walkthrough: a Render Blueprint
+read straight from this repository, a managed Postgres and a disk, no terminal
+at any point. Deploy it first, then come back here and put its URL into
+`api_url`; the address is compiled into the build, so a build made against the
+wrong one has to be made again.
 
 ---
 

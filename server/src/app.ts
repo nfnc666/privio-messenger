@@ -21,13 +21,23 @@ import type { PushSender } from './services/push.js';
 import { createPushSender } from './services/push_setup.js';
 import type { BlobStorage } from './services/storage.js';
 import { LocalFileStorage } from './services/storage.js';
+import { pingDatabase } from './db/pool.js';
 import { ApiError } from './util/errors.js';
 
 export interface AppDependencies {
   bus: DeliveryBus;
   push?: PushSender;
   storage?: BlobStorage;
+  /**
+   * What `GET /health` asks before reporting healthy. Injectable so a test can
+   * make the database fail without taking the database away from every other
+   * test in the process.
+   */
+  pingDatabase?: () => Promise<void>;
 }
+
+/** Reported by `GET /health`. */
+const VERSION = '0.1.0';
 
 /** Replaces the value of any credential-bearing query parameter with a marker. */
 export function redactSecrets(url: string): string {
@@ -143,7 +153,30 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));
 
-  app.get('/health', async () => ({ status: 'ok', version: '0.1.0' }));
+  /**
+   * Liveness *and* readiness, because the platforms this runs on offer one hook.
+   *
+   * It used to return 200 unconditionally, which is worse than having no health
+   * check at all: with the database gone, every real request failed while the
+   * platform saw a healthy instance, kept it in the load balancer, and reported
+   * a successful deploy. A health check that cannot fail only certifies that
+   * Node is running.
+   *
+   * So it takes the one dependency without which nothing works — Postgres — and
+   * answers 503 when it cannot reach it. Redis is deliberately not checked: the
+   * server degrades to an in-process bus without it, and failing health for a
+   * degradation would take a serving instance out of rotation for no gain.
+   */
+  const ping = deps.pingDatabase ?? (() => pingDatabase());
+  app.get('/health', async (_request, reply) => {
+    try {
+      await ping();
+    } catch (err) {
+      app.log.error({ err }, 'health check failed: database unreachable');
+      return reply.code(503).send({ status: 'unhealthy', version: VERSION, database: 'unreachable' });
+    }
+    return { status: 'ok', version: VERSION, database: 'ok' };
+  });
 
   /**
    * What a client has to know before it has an account.
@@ -158,7 +191,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
    * state, and nothing here is a secret.
    */
   app.get('/v1/server', async () => ({
-    version: '0.1.0',
+    version: VERSION,
     licenseRequired: config.LICENSE_REQUIRED,
   }));
 

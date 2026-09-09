@@ -1,0 +1,17 @@
+# Everything the image has no use for. Keeping this tight is not only about
+# size: `app/` carries the Flutter client, and a server image has no business
+# containing it.
+.git
+.github
+node_modules
+**/node_modules
+app
+design
+docs
+tools
+server/test
+server/dist
+**/.dart_tool
+**/build
+**/.data
+*.md

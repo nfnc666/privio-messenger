@@ -1,4 +1,4 @@
-import { config } from './config.js';
+import { config, configWarnings } from './config.js';
 import { buildApp } from './app.js';
 import { migrate } from './db/migrate.js';
 import { pool } from './db/pool.js';
@@ -12,6 +12,11 @@ const storage = new LocalFileStorage();
 const app = await buildApp({ bus, storage });
 
 if (applied.length > 0) app.log.info({ applied }, 'database migrations applied');
+
+// Said once, at start-up, where an operator reading the deploy log will see it.
+// These are configurations that run and lose something — attachments across a
+// redeploy, two-factor enrolment, a second instance — not ones worth refusing.
+for (const warning of configWarnings(config)) app.log.warn(warning);
 
 const stopSweeper = startRetentionSweeper(storage, (err) => app.log.error({ err }, 'retention sweep failed'));
 

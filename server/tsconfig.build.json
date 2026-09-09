@@ -1,0 +1,19 @@
+{
+  // The build, as opposed to the typecheck.
+  //
+  // `tsconfig.json` includes `test/` so the editor and `npm run typecheck` see
+  // the whole workspace — and that made `rootDir` the workspace root, so `tsc`
+  // emitted `dist/src/index.js` while `npm start` ran `dist/index.js`. Nothing
+  // caught it: the tests run through `tsx` against the sources, and no workflow
+  // had ever built the server and started it. The first thing that would have
+  // noticed was a production deployment.
+  //
+  // Rooting the build at `src/` puts the entry point where `start` looks for
+  // it, and leaves the tests out of the image.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}

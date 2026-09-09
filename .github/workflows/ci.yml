@@ -94,3 +94,73 @@ jobs:
 
       - name: Tests
         run: flutter test
+
+  image:
+    name: Server — image builds and serves
+    runs-on: ubuntu-latest
+
+    # The image is the deployment artifact, and nothing else in this workflow
+    # touches it: `npm test` runs from source, against a checkout, with dev
+    # dependencies present. A Dockerfile that does not build, or that builds an
+    # image whose start command was never right, would otherwise be discovered
+    # by the person deploying it.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: privio_image
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t privio-server:ci .
+
+      - name: Refuses to start in production without a database URL
+        run: |
+          # The guard that stops a deployment from silently running against
+          # localhost. It must fail the boot, not warn and continue.
+          if docker run --rm privio-server:ci > refuse.log 2>&1; then
+            echo "the server started without DATABASE_URL" >&2
+            cat refuse.log
+            exit 1
+          fi
+          grep -q "DATABASE_URL" refuse.log
+          echo "refused as expected:"; cat refuse.log
+
+      - name: Starts, migrates and reports healthy
+        run: |
+          docker run -d --name privio --network host \
+            -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/privio_image \
+            -e PORT=8080 \
+            privio-server:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health > health.json; then break; fi
+            sleep 2
+          done
+          cat health.json
+          grep -q '"status":"ok"' health.json
+          # Migrations ran inside the container, not from a checkout.
+          docker logs privio 2>&1 | grep -q "database migrations applied"
+
+      - name: Reports unhealthy once the database is gone
+        run: |
+          # The failure this milestone is about: before the health check asked
+          # Postgres anything, this still answered 200 and a platform kept the
+          # instance in rotation while every real request failed.
+          docker stop "$(docker ps --format '{{.ID}} {{.Image}}' | awk '/postgres/ {print $1; exit}')"
+          code=$(curl -s -o unhealthy.json -w '%{http_code}' http://localhost:8080/health)
+          cat unhealthy.json
+          test "$code" = "503"
+
+      - name: Server logs
+        if: always()
+        run: docker logs privio 2>&1 | tail -50 || true

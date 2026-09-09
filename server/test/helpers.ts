@@ -27,7 +27,7 @@ let counter = 0;
 
 /** Boots the API against the test database with an in-process bus and temp storage. */
 export async function createHarness(
-  overrides: { push?: PushSender; bus?: DeliveryBus } = {},
+  overrides: { push?: PushSender; bus?: DeliveryBus; pingDatabase?: () => Promise<void> } = {},
 ): Promise<TestHarness> {
   await migrate();
   await truncateAll();
@@ -35,7 +35,7 @@ export async function createHarness(
   const bus = overrides.bus ?? new InProcessBus();
   const push = new LoggingPushSender();
   const storage = new LocalFileStorage(dir);
-  const app = await buildApp({ bus, push: overrides.push ?? push, storage });
+  const app = await buildApp({ bus, push: overrides.push ?? push, storage, pingDatabase: overrides.pingDatabase });
   await app.ready();
   return {
     app,

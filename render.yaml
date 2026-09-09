@@ -1,0 +1,125 @@
+# Render Blueprint for the Privio server.
+#
+# Why Render, and why this file exists at all: the whole deployment has to be
+# doable from a phone browser, without a terminal, a Docker daemon, or an SSH
+# key. Render reads this file from the repository and turns it into a web
+# service, a Postgres database and a disk, so the manual part is a few taps —
+# everything that can be decided in advance is decided here, in review, rather
+# than typed into a form on a small screen.
+#
+# Nothing here deploys by itself. A Blueprint is an offer: it takes effect when
+# somebody signs in and clicks. `autoDeploy: false` keeps it that way afterwards
+# — a merge to the default branch does not ship anything, a deploy is always a
+# deliberate act.
+#
+# Costs are not stated here on purpose. Plans and prices change, and this file
+# would be quietly wrong; the dashboard shows the current figures before the
+# confirm button. What is structural, and worth knowing before you start:
+#   * A persistent disk requires a paid instance type. A free web service cannot
+#     mount one, and without one every attachment and backup is lost on each
+#     redeploy — the server warns about exactly this at start-up.
+#   * A free Postgres database on Render is time-limited. When it lapses the
+#     data goes with it.
+# `docs/deployment.md` covers what to do if neither of those is acceptable.
+
+services:
+  - type: web
+    name: privio-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Frankfurt: closest to the people this is being built for, and it keeps
+    # message metadata and attachments inside the EU. The database below has no
+    # region of its own in this file — Render places it with the service.
+    region: frankfurt
+    # `starter` rather than `free` because of the disk below. A free instance
+    # also sleeps when idle, which for a messenger means push notifications stop
+    # arriving until somebody opens the app.
+    plan: starter
+    # The health check now actually asks Postgres whether it is there, so a
+    # deploy that cannot reach its database fails instead of going live and
+    # failing every request. See `GET /health` in server/src/app.ts.
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: privio-media
+      # Matches MEDIA_DIR below and the volume the image expects.
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      # The one value the server refuses to guess in production.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: privio-db
+          property: connectionString
+      # Must stay inside the mounted disk above, or attachments do not survive a
+      # redeploy.
+      - key: MEDIA_DIR
+        value: /data/media
+      # Explicit, and equal to the Dockerfile's EXPOSE.
+      - key: PORT
+        value: "8080"
+      - key: NODE_ENV
+        value: production
+      # Render generates a base64-encoded 256-bit value, which is exactly the
+      # 32 bytes the TOTP sealing key requires. Generated once, on first deploy,
+      # and never printed into this repository.
+      #
+      # Rotating it makes every enrolled second factor undecryptable, so treat
+      # it as permanent.
+      - key: TOTP_SECRET_KEY
+        generateValue: true
+      # `sync: false` means Render asks for the value in the dashboard instead of
+      # reading it from here — which is how a secret stays out of a public
+      # repository. Leave them empty to run without the feature:
+      #   LICENSE_* — only for a deployment that sells access. The self-hosted
+      #     default is LICENSE_REQUIRED=false, and then none of these are read.
+      #   TURN_SECRET — the shared secret of a coturn server, if you run one.
+      #   APNS_*/FCM_* — push credentials. Without them the server delivers over
+      #     an open WebSocket only, and says so at start-up.
+      - key: LICENSE_REQUIRED
+        value: "false"
+      - key: LICENSE_HASH_SECRET
+        sync: false
+      - key: LICENSE_ISSUER_TOKEN
+        sync: false
+      - key: ICE_SERVERS
+        sync: false
+      - key: TURN_SECRET
+        sync: false
+      - key: APNS_KEY_P8
+        sync: false
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_TOPIC
+        sync: false
+      # `production`, and that is right for TestFlight too: a TestFlight build
+      # is a Release build, the Release configuration sets
+      # `APS_ENVIRONMENT = production` in the entitlements, and a token issued
+      # by one APNs environment is not valid in the other. `sandbox` belongs to
+      # builds installed from Xcode with a development profile — which, on this
+      # project, nobody makes.
+      - key: APNS_ENVIRONMENT
+        value: production
+      - key: FCM_PROJECT_ID
+        sync: false
+      - key: FCM_CLIENT_EMAIL
+        sync: false
+      - key: FCM_PRIVATE_KEY
+        sync: false
+      # No REDIS_URL: one instance with the in-process event bus. Add a Redis
+      # instance and this variable before running a second one, or the two will
+      # not see each other's deliveries and revocations.
+
+databases:
+  - name: privio-db
+    databaseName: privio
+    user: privio
+    # Migrations run inside the server at start-up, so there is no release step
+    # to configure here.
+    postgresMajorVersion: "16"
+    # Empty means the database accepts connections only from inside Render's
+    # private network — the web service above reaches it, the internet does not.
+    ipAllowList: []

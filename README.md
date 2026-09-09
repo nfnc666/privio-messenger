@@ -1470,7 +1470,7 @@ privio-messenger/
 │   ├── src/routes/           HTTP endpoints
 │   ├── src/services/         Delivery, storage, sessions
 │   ├── migrations/           SQL schema
-│   └── test/                 130 tests against real PostgreSQL
+│   └── test/                 230 tests against real PostgreSQL
 ├── design/                 Brand assets and the source mockups
 └── docs/                   Architecture, security model, design system, licensing, Libre
 ```
@@ -1607,6 +1607,7 @@ screen deleted.
 | [Licensing](docs/licensing.md) | How a license key is issued, redeemed and enforced |
 | [Privio Libre](docs/privio-libre.md) | The free-software build, AGPL-3.0, and reproducibility |
 | [Notifications](docs/notifications.md) | Wake-ups without a proprietary push service |
+| [Deployment](docs/deployment.md) | Putting the server somewhere, from a phone browser — Blueprint, Docker, and what is actually verified |
 | [iOS beta from an iPhone](docs/ios-testflight.md) | Signing, certificates and TestFlight entirely in the cloud — no Mac, no PC |
 | [Device beta checklist](docs/device-beta-checklist.md) | The 64 things only a real handset can answer — none of them run yet |
 | [Distribution](docs/distribution.md) | The four distributions, and the licence review that gates them |

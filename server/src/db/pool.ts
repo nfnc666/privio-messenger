@@ -28,3 +28,35 @@ export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>)
     client.release();
   }
 }
+
+/**
+ * One round trip to Postgres, for the health check.
+ *
+ * Bounded, because an unreachable database is not the same as a refused
+ * connection: a host that has vanished (a failover, a network partition, a
+ * managed database being resized) accepts the TCP handshake and then says
+ * nothing, and `pg` has no default connection timeout, so the query would hang
+ * until the OS gives up. A platform health check that hangs is read as a
+ * timeout and eventually as a failure, but only after minutes — this answers in
+ * seconds.
+ *
+ * The losing promise is not cancellable, so its eventual rejection is swallowed
+ * deliberately; without that, a late failure would surface as an unhandled
+ * rejection long after the request it belonged to was answered.
+ */
+export async function pingDatabase(timeoutMs = 2_000): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const query = pool.query('SELECT 1');
+  query.catch(() => {});
+  try {
+    await Promise.race([
+      query,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`database did not answer within ${timeoutMs}ms`)), timeoutMs);
+        timer.unref();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
