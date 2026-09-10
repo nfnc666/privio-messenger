@@ -57,6 +57,15 @@ class FakeChannelServer {
   int _nextChannelId = 1;
   int _nextPostId = 1;
 
+  /// Uploaded blobs, and the token each one is guarded by.
+  ///
+  /// Modelled rather than stubbed, because the property being tested is exactly
+  /// this: the server holds bytes it cannot read, and hands them over only to
+  /// whoever presents the capability that was sealed inside the post.
+  final Map<String, List<int>> media = {};
+  final Map<String, String> mediaTokens = {};
+  int _nextMediaId = 1;
+
   /// Advances a channel to its next key version, as removal and leaving do.
   int rotate(String channelId) => epochs[channelId] = (epochs[channelId] ?? 1) + 1;
 
@@ -65,6 +74,25 @@ class FakeChannelServer {
   http.Client client() => MockClient((request) async {
         final path = request.url.path;
         final method = request.method;
+
+        if (method == 'POST' && path == '/v1/media') {
+          final id = 'media-${_nextMediaId++}';
+          media[id] = request.bodyBytes;
+          mediaTokens[id] = 'token-for-$id';
+          return _json({'id': id, 'token': mediaTokens[id]}, 201);
+        }
+
+        final blobMatch = RegExp(r'^/v1/media/([^/]+)$').firstMatch(path);
+        if (blobMatch != null && method == 'GET') {
+          final id = blobMatch.group(1)!;
+          final bytes = media[id];
+          if (bytes == null) return _json({'error': 'not_found', 'message': id}, 404);
+          // The capability, checked the way the real server checks it.
+          if (request.headers['x-privio-media-token'] != mediaTokens[id]) {
+            return _json({'error': 'forbidden', 'message': 'no capability'}, 403);
+          }
+          return http.Response.bytes(bytes, 200);
+        }
         final body = request.body.isEmpty
             ? <String, dynamic>{}
             : jsonDecode(request.body) as Map<String, dynamic>;
@@ -397,6 +425,81 @@ void main() {
       expect(posts.single.opened, isTrue);
       expect(posts.single.body, 'Deploy at 14:00');
       expect(posts.single.authorUsername, 'author');
+    });
+
+    test('a file goes up sealed, and comes back through the post that carries it', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+
+      // A JPEG, so there is something recognisable to look for in what the
+      // server ends up holding.
+      final picture = Uint8List.fromList([
+        0xFF, 0xD8, 0xFF, 0xE0, ...utf8.encode('JFIF'), ...List.filled(64, 7),
+      ]);
+
+      await service.publish(
+        channel.id,
+        'Here it is',
+        file: ChannelUpload(bytes: picture, name: 'photo.jpg'),
+      );
+
+      // What the server holds is not a picture.
+      final stored = Uint8List.fromList(server.media.values.single);
+      expect(stored.sublist(0, 3), isNot([0xFF, 0xD8, 0xFF]));
+      expect(utf8.decode(stored, allowMalformed: true), isNot(contains('JFIF')));
+
+      final post = (await service.posts(channel.id)).single;
+      expect(post.body, 'Here it is', reason: 'the caption survives the envelope');
+      expect(post.attachment, isNotNull);
+      expect(post.attachment!.isImage, isTrue);
+      expect(post.attachment!.name, 'photo.jpg');
+
+      final opened = await service.openAttachment(channel.id, post);
+      expect(opened, picture, reason: 'a member gets the file back byte for byte');
+    });
+
+    test('the download capability is the sealed post, not the media id', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+      await service.publish(
+        channel.id,
+        '',
+        file: ChannelUpload(bytes: Uint8List.fromList(List.filled(32, 3))),
+      );
+
+      final id = server.media.keys.single;
+      // The id alone buys nothing: the token is what the server checks, and it
+      // travelled inside the post, where only a member with the channel key
+      // could read it.
+      expect(server.mediaTokens[id], isNotNull);
+      final post = (await service.posts(channel.id)).single;
+      expect(post.attachment!.token, server.mediaTokens[id]);
+      expect(post.body, isEmpty, reason: 'a file with no caption is still a post');
+    });
+
+    test('a post without a file still reads as plain text', () async {
+      // Posts published before attachments existed are sealed text and nothing
+      // else. The envelope must not swallow them.
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Ops',
+      );
+
+      await service.publish(channel.id, '{ this one merely starts with a brace');
+      final post = (await service.posts(channel.id)).single;
+
+      expect(post.body, '{ this one merely starts with a brace');
+      expect(post.attachment, isNull);
     });
 
     test('are padded, so the ciphertext does not leak the length', () async {

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 
 /// What a member is allowed to do in a channel.
@@ -135,6 +137,77 @@ class ChannelInfo {
 
 /// One post in a channel, after it has been opened.
 @immutable
+/// A file on its way into a channel, before anything has been sealed.
+///
+/// Separate from [ChannelAttachment] because they are different things: this is
+/// what came off the picker and still has plaintext bytes, that is a pointer to
+/// something already sealed and uploaded.
+@immutable
+class ChannelUpload {
+  const ChannelUpload({required this.bytes, this.mimeType, this.name});
+
+  final Uint8List bytes;
+
+  /// A hint only. The real type is sniffed from the bytes when the file is
+  /// sealed, because a file's name is what somebody typed and its first bytes
+  /// are what it is.
+  final String? mimeType;
+  final String? name;
+}
+
+/// A file hanging off a channel post.
+///
+/// The bytes are sealed with the channel key of the post's epoch, so the server
+/// holds ciphertext, and [token] is the capability that lets it be downloaded
+/// at all. The token travels *inside* the sealed post: a member who can open
+/// the post has it, and nobody else does — which is how a channel's attachment
+/// is authorised without the server ever learning who is reading what.
+///
+/// A leaked token is not a leaked picture. It buys the ciphertext, and opening
+/// that still needs the channel key.
+@immutable
+class ChannelAttachment {
+  const ChannelAttachment({
+    required this.mediaId,
+    required this.token,
+    required this.mimeType,
+    required this.bytes,
+    this.name,
+  });
+
+  static ChannelAttachment? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final mediaId = raw['id'];
+    final token = raw['token'];
+    if (mediaId is! String || token is! String) return null;
+    return ChannelAttachment(
+      mediaId: mediaId,
+      token: token,
+      mimeType: raw['type'] as String? ?? 'application/octet-stream',
+      bytes: raw['bytes'] as int? ?? 0,
+      name: raw['name'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': mediaId,
+        'token': token,
+        'type': mimeType,
+        'bytes': bytes,
+        if (name != null) 'name': name,
+      };
+
+  final String mediaId;
+  final String token;
+  final String mimeType;
+
+  /// Size of the original file, for showing before anything is downloaded.
+  final int bytes;
+  final String? name;
+
+  bool get isImage => mimeType.startsWith('image/');
+}
+
 class ChannelPost {
   const ChannelPost({
     required this.id,
@@ -144,6 +217,7 @@ class ChannelPost {
     this.pinned = false,
     this.opened = true,
     this.keyEpoch = 1,
+    this.attachment,
   });
 
   final int id;
@@ -159,6 +233,11 @@ class ChannelPost {
   /// decrypt. Shown as a locked placeholder rather than hidden, so the reader
   /// knows something is there.
   final bool opened;
+
+  /// The file on this post, once the post has been opened. Null when there is
+  /// none, and also when the post could not be opened — a locked post shows a
+  /// padlock, not a download button for something nobody can read.
+  final ChannelAttachment? attachment;
 
   /// Which version of the channel key sealed this post.
   ///

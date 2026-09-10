@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../crypto/padding.dart';
 import '../crypto/privio_crypto.dart';
+import '../media/attachment.dart';
+import '../media/metadata_scrubber.dart';
 import '../models/channel.dart';
 import 'messaging_service.dart';
 
@@ -672,7 +674,7 @@ class ChannelService {
   /// Padding matters more here than in a chat: a channel's post lengths are
   /// visible to the server for every subscriber at once, and a run of exact
   /// lengths is a fingerprint of the text.
-  Future<int> publish(String channelId, String body) async {
+  Future<int> publish(String channelId, String body, {ChannelUpload? file}) async {
     // The epoch is read now rather than remembered from the last time this
     // screen was opened. A post composed before somebody was removed and sent
     // afterwards is the exact case this milestone exists for: sealing it with
@@ -690,10 +692,46 @@ class ChannelService {
       );
     }
 
+    // Sealed with the same key as the text, so the two share a fate: a member
+    // who cannot open the post cannot open its file either, and a rotation that
+    // locks one locks both.
+    ChannelAttachment? attachment;
+    if (file != null) {
+      // Sniffed rather than trusted: the name is what somebody typed, the first
+      // bytes are what the file is. Same call the scrubber makes to decide what
+      // it is scrubbing.
+      final type = MetadataScrubber.sniff(file.bytes)
+          ?? file.mimeType
+          ?? 'application/octet-stream';
+      final sealedFile = await AttachmentCipher.sealWithKey(
+        file.bytes,
+        key: key,
+        declaredType: type,
+      );
+      final blob = await _api.uploadMedia(sealedFile);
+      final token = blob.token;
+      if (token == null) {
+        throw StateError('The server accepted the file without a download token.');
+      }
+      attachment = ChannelAttachment(
+        mediaId: blob.id,
+        token: token,
+        mimeType: type,
+        bytes: file.bytes.length,
+        name: file.name,
+      );
+    }
+
     try {
       final result = await _api.publishPost(
         channelId: channelId,
-        content: base64Encode(await _seal(body, key)),
+        content: base64Encode(
+          await _seal(
+            attachment == null ? body : _wrapWithAttachment(body, attachment),
+            key,
+          ),
+        ),
+        mediaId: attachment?.mediaId,
         keyEpoch: state.epoch,
       );
       return result['id'] as int;
@@ -736,12 +774,14 @@ class ChannelService {
       final epoch = (entry['keyEpoch'] as num?)?.toInt() ?? 1;
       final key = keys.putIfAbsent(epoch, () => null) ?? await keyFor(channelId, epoch);
       keys[epoch] = key;
-      final body = key == null ? null : await _openSealed(entry['content'] as String, key);
+      final opened = key == null ? null : await _openSealed(entry['content'] as String, key);
+      final (body, attachment) = opened == null ? ('', null) : _unwrap(opened);
       posts.add(
         ChannelPost(
           id: entry['id'] as int,
-          body: body ?? '',
-          opened: body != null,
+          body: body,
+          attachment: attachment,
+          opened: opened != null,
           keyEpoch: epoch,
           createdAt:
               DateTime.tryParse(entry['createdAt'] as String? ?? '')?.toLocal() ??
@@ -761,6 +801,73 @@ class ChannelService {
       _api.deletePost(channelId, postId);
 
   // --- Sealing --------------------------------------------------------------
+
+  /// Downloads and opens a post's file.
+  ///
+  /// Two things are needed and the caller has both: the token, which came
+  /// sealed inside the post, and the channel key of the epoch that sealed it.
+  /// A device that lost the key to a rotation cannot open the file either,
+  /// which is the same answer it gets for the text.
+  Future<Uint8List> openAttachment(
+    String channelId,
+    ChannelPost post,
+  ) async {
+    final attachment = post.attachment;
+    if (attachment == null) throw StateError('That post has no file.');
+    final key = await keyFor(channelId, post.keyEpoch);
+    if (key == null) {
+      throw ChannelKeyPending(
+        channelId: channelId,
+        epoch: post.keyEpoch,
+        // The post exists, so its key was generated; this device just has
+        // not got it.
+        awaitingGeneration: false,
+      );
+    }
+    final sealed = await _api.downloadMedia(attachment.mediaId, token: attachment.token);
+    return AttachmentCipher.open(Uint8List.fromList(sealed), key);
+  }
+
+  /// What a sealed post contains when it carries a file.
+  ///
+  /// A post used to be sealed text and nothing else, and posts sealed that way
+  /// are still out there — so an attachment does not change the shape of every
+  /// post, it adds a second shape. Plain text stays plain text; a post with a
+  /// file becomes a small JSON document under a marker key that no ordinary
+  /// message would carry.
+  ///
+  /// The download token lives in here, which is the whole design: it is sealed
+  /// with the channel key, so having it means being able to open the post,
+  /// which means being a member. The server authorises the download against the
+  /// token alone and never learns who asked.
+  static const _envelopeMarker = 'privio';
+
+  String _wrapWithAttachment(String text, ChannelAttachment attachment) => jsonEncode({
+        _envelopeMarker: 1,
+        'text': text,
+        'media': attachment.toJson(),
+      });
+
+  /// Splits an opened post back into its text and its file.
+  ///
+  /// Anything that is not the envelope is a post from before attachments
+  /// existed, or one without a file, and is returned as it was.
+  (String, ChannelAttachment?) _unwrap(String opened) {
+    if (!opened.startsWith('{')) return (opened, null);
+    try {
+      final decoded = jsonDecode(opened);
+      if (decoded is! Map<String, dynamic> || decoded[_envelopeMarker] != 1) {
+        return (opened, null);
+      }
+      return (
+        decoded['text'] as String? ?? '',
+        ChannelAttachment.fromJson(decoded['media']),
+      );
+    } on FormatException {
+      // Text that merely starts with a brace.
+      return (opened, null);
+    }
+  }
 
   Future<Uint8List> _seal(String text, Uint8List key) async {
     final box = await _cipher.encrypt(
