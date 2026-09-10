@@ -10,10 +10,12 @@ name: iOS signed build
 # talks to Apple only for signing. Nothing here publishes to the App Store —
 # TestFlight is not the store, and no review is submitted.
 #
-# Cost, said plainly: this is a private repository, so every minute is billed
-# against the account's quota, and macOS bills at **ten times** the Linux rate.
-# A run of this workflow is roughly 20–35 minutes of wall clock, which is 200 to
-# 350 minutes of quota. Read `docs/ios-testflight.md` before starting one.
+# Cost, said plainly: this repository is public, and public repositories get
+# GitHub-hosted runners free, macOS included — so a run costs nothing today.
+# That changes the moment the repository is made private: macOS bills at **ten
+# times** the Linux rate, and a run of this workflow is roughly 20–35 minutes of
+# wall clock, which would be 200 to 350 minutes of quota. Read
+# `docs/ios-testflight.md` before starting one.
 
 on:
   workflow_dispatch:
@@ -221,7 +223,17 @@ jobs:
           BUILD_NUMBER="${REQUESTED_BUILD_NUMBER:-}"
           [ -n "$BUILD_NUMBER" ] || BUILD_NUMBER="${{ github.run_number }}"
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
-          flutter build ios --config-only --release \
+          # `--no-codesign` is not a weakening: this step compiles nothing and
+          # signs nothing, it writes `Generated.xcconfig` and runs CocoaPods.
+          # Without the flag, Flutter's tooling still runs its own signing check
+          # first, looks for an *Apple Development* identity, finds only the
+          # distribution certificate this workflow imported, and stops with "No
+          # valid code signing certificates were found" — advice about opening
+          # Xcode, on a runner where nobody can. The real signing happens in the
+          # Archive step below, with the manual profile and that same
+          # certificate. `build.yml` has always passed this flag on the same
+          # command; this workflow was missing it.
+          flutter build ios --config-only --release --no-codesign \
             --build-number="$BUILD_NUMBER" \
             --dart-define=PRIVIO_EDITION=appstore \
             --dart-define=PRIVIO_API_URL="$API_URL" \
