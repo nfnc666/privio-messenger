@@ -113,14 +113,36 @@ jobs:
             echo "::notice::Automatic signing creates a new distribution certificate per runner, and Apple allows only a few. Run the 'iOS signing setup' workflow once to make one certificate and keep it in the secrets — after that this build reuses it instead."
           fi
 
+      # Apple rejects an upload built with an SDK it considers too old, and the
+      # runner image's *default* Xcode is not its newest: this image defaults to
+      # 16.4 (iOS 18.5 SDK) while carrying 26.3 beside it, and the first upload
+      # that reached Apple came back "All iOS and iPadOS apps must be built with
+      # the iOS 26 SDK or later". So the newest installed Xcode is selected
+      # rather than inherited — which also survives the next time Apple raises
+      # the floor, without editing this file.
       - name: Select Xcode
-        if: inputs.xcode_version != ''
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_VERSION:-}" ]; then
+            DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+            [ -d "$DEVELOPER_DIR" ] || {
+              echo "::error::Xcode ${XCODE_VERSION} is not on this runner. Installed:"; ls -d /Applications/Xcode*.app; exit 1;
+            }
+          else
+            NEWEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+            [ -n "$NEWEST" ] || { echo "::error::no versioned Xcode found on this runner"; exit 1; }
+            DEVELOPER_DIR="$NEWEST/Contents/Developer"
+          fi
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          echo "Selected $DEVELOPER_DIR"
 
       - name: Say which Xcode this is
-        run: xcodebuild -version
+        run: |
+          xcodebuild -version
+          # The SDK version is what Apple validates the upload against.
+          xcodebuild -showsdks | grep -i "iOS" || true
 
       - uses: subosito/flutter-action@v2
         with:
