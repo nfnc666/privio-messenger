@@ -49,32 +49,28 @@ describe('render blueprint', () => {
     );
   });
 
-  it('takes the database URL from the managed database rather than a literal', () => {
-    assert.match(blueprint, /- key: DATABASE_URL\n\s+fromDatabase:\n\s+name: (\S+)\n\s+property: connectionString/);
-    // A reference to a database this file does not declare is how a Blueprint
-    // sync points a working service at something that no longer exists.
-    const referenced = blueprint.match(/fromDatabase:\n\s+name: (\S+)/)?.[1];
-    assert.ok(
-      new RegExp(`\\n  - name: ${referenced}\\n`).test(blueprint),
-      `DATABASE_URL points at "${referenced}", which no databases: entry defines`,
-    );
+  it('leaves the database connection to the dashboard', () => {
+    // The Blueprint must not own DATABASE_URL. When it did, a sync reset the
+    // variable to whatever this file declared — and after the real database had
+    // been replaced by hand, that meant pointing a running service at one that
+    // no longer existed. `sync: false` is what makes a dashboard value survive
+    // every later sync.
+    assert.ok(isPrompted('DATABASE_URL'), 'DATABASE_URL must be sync: false, not owned by this file');
     assert.equal(envValue('DATABASE_URL'), undefined, 'a connection string in this file would be a credential in the repository');
+    assert.doesNotMatch(blueprint, /fromDatabase:/, 'a fromDatabase reference puts the connection back under Blueprint control');
+    assert.doesNotMatch(blueprint, /^databases:/m, 'declaring the database here is what this file deliberately stopped doing');
   });
 
-  it('puts the database in the same region as the service', () => {
-    // Render creates a database with no `region` in its own default region, not
-    // in the region of the service that references it, and a private hostname
-    // does not resolve across regions. The first real deploy of this Blueprint
-    // died with ENOTFOUND for exactly that reason, and the file's comment had
-    // asserted the opposite. Both regions are read, so this catches a mismatch
-    // as well as an omission — and a region cannot be changed after the fact.
+  it('states the service region explicitly', () => {
+    // Render's internal hostnames resolve only within one region, so this value
+    // is also the region the database has to be created in. The first real
+    // deploy died with ENOTFOUND because the two did not match, and a region
+    // cannot be changed afterwards — for a service or for a database. The
+    // database is no longer declared here, so this file can only state the
+    // region it requires; `docs/deployment.md` carries the instruction.
     const regions = [...blueprint.matchAll(/^\s+region: (\S+)$/gm)].map((m) => m[1]);
-    assert.equal(regions.length, 2, `expected a region on both the service and the database, found ${regions.length}`);
-    assert.equal(
-      regions[0],
-      regions[1],
-      `service is in ${regions[0]}, database in ${regions[1]} — the private hostname will not resolve`,
-    );
+    assert.equal(regions.length, 1, `expected exactly one region, found ${regions.length}: ${regions.join(', ')}`);
+    assert.ok(regions[0], 'the service must name its region rather than take a default');
   });
 
   it('runs in production mode, which is what makes the config guards apply', () => {

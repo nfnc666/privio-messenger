@@ -12,6 +12,22 @@
 # — a merge to the default branch does not ship anything, a deploy is always a
 # deliberate act.
 #
+# The database is deliberately NOT declared here, and that is a change from the
+# first version of this file. It used to carry a `databases:` entry, which put
+# the connection under the Blueprint's control — so a sync would reset
+# DATABASE_URL to whatever this file said, and if the real database had been
+# created or replaced by hand in the meantime, it would point a working service
+# at something that no longer exists. That is not hypothetical: the first
+# deploy's database had to be replaced by hand, because a `databases:` entry
+# without a `region` is created in Render's default region rather than beside
+# the service, and a private hostname does not resolve across regions. The
+# service came up and died with ENOTFOUND.
+#
+# So the database is created once, in the dashboard, in the same region as the
+# service below, and DATABASE_URL is entered there. `docs/deployment.md` §2.2
+# is the walkthrough. The cost is one manual step on a fresh setup; what it buys
+# is that no Blueprint sync can ever take a running server off its database.
+#
 # Costs are not stated here on purpose. Plans and prices change, and this file
 # would be quietly wrong; the dashboard shows the current figures before the
 # confirm button. What is structural, and worth knowing before you start:
@@ -31,12 +47,12 @@ services:
     # Frankfurt: closest to the people this is being built for, and it keeps
     # message metadata and attachments inside the EU.
     #
-    # The database below carries the same region explicitly, and has to. Render
-    # does not place a database with the service that references it: a
-    # `databases:` entry without a `region` is created in Render's default
-    # region, Oregon, and the internal hostname a Frankfurt service resolves
-    # only answers inside Frankfurt. This file said otherwise, and the first
-    # real deploy died with ENOTFOUND because of it.
+    # This region also decides where the database has to live. Render's internal
+    # hostnames resolve only within one region, so a database created anywhere
+    # else is unreachable from here — and the failure arrives as a DNS error at
+    # the first connection, not as anything Render objects to while a service is
+    # being created. A region cannot be changed afterwards, for a service or for
+    # a database.
     region: frankfurt
     # `starter` rather than `free` because of the disk below. A free instance
     # also sleeps when idle, which for a messenger means push notifications stop
@@ -53,11 +69,13 @@ services:
       mountPath: /data
       sizeGB: 10
     envVars:
-      # The one value the server refuses to guess in production.
+      # The one value the server refuses to guess in production, and the one
+      # this file must not own: `sync: false` means Render asks for it once and
+      # then leaves it alone, so what is set in the dashboard survives every
+      # later sync. Paste the internal connection string of a database in the
+      # same region as this service.
       - key: DATABASE_URL
-        fromDatabase:
-          name: privio-db-frankfurt
-          property: connectionString
+        sync: false
       # Must stay inside the mounted disk above, or attachments do not survive a
       # redeploy.
       - key: MEDIA_DIR
@@ -119,22 +137,3 @@ services:
       # instance and this variable before running a second one, or the two will
       # not see each other's deliveries and revocations.
 
-databases:
-  # Named for its region because the region is the part that cannot be changed
-  # later: a database is created in one and stays there, so moving means a new
-  # database and a migration of its contents. The first one this Blueprint made
-  # landed in Oregon and had to be replaced.
-  - name: privio-db-frankfurt
-    databaseName: privio
-    user: privio
-    # Must equal the service's region above. Not a preference: a database in
-    # another region is unreachable over the private network, and the failure
-    # arrives as a DNS error at connect time rather than as anything Render
-    # objects to while the Blueprint is being applied.
-    region: frankfurt
-    # Migrations run inside the server at start-up, so there is no release step
-    # to configure here.
-    postgresMajorVersion: "16"
-    # Empty means the database accepts connections only from inside Render's
-    # private network — the web service above reaches it, the internet does not.
-    ipAllowList: []
