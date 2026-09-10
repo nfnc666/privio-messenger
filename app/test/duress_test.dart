@@ -204,6 +204,41 @@ void main() {
     expect(await device.store.readToken(), isNull);
   });
 
+  test('the lock screen a wipe leaves behind is not a dead end', () async {
+    final device = await armedDevice();
+    await device.state.unlockWithPasscode('9119');
+    await pumpEventQueue();
+
+    expect(
+      device.state.stage,
+      AppStage.locked,
+      reason: 'the wipe itself still passes for a typo to whoever is watching',
+    );
+
+    // The passcode was destroyed with everything else, so nothing opens this
+    // screen any more — including what its owner knows. One entry later the app
+    // is where a fresh install is, instead of a lock nobody can pass until
+    // somebody thinks to kill the app.
+    expect(await device.state.unlockWithPasscode('1234'), isFalse);
+    expect(device.state.stage, AppStage.welcome);
+  });
+
+  test('and a restart lands in the same place', () async {
+    final device = await armedDevice();
+    await device.state.unlockWithPasscode('9119');
+    await pumpEventQueue();
+
+    final restarted = Device(
+      server: device.server,
+      store: device.store,
+      archive: device.archive,
+    );
+    await restarted.boot();
+
+    expect(restarted.state.stage, AppStage.welcome);
+    expect(restarted.state.screenLockSet, isFalse);
+  });
+
   group('text size', () {
     test('is remembered, and comes back at the size it was left', () async {
       final store = InMemorySecureStore();

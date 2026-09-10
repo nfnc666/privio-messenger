@@ -1073,6 +1073,16 @@ phone sees what a typo looks like.
 **It cannot be the password.** The server refuses to store one that is, because
 an ordinary sign-in would then destroy the account.
 
+**The screen it leaves behind is not a dead end.** At the lock screen the wipe
+destroys the passcode along with everything else, so what it leaves is a lock
+with no input that opens it — the owner's included. The wipe itself still
+passes unremarked, which is what makes it survivable to trigger; it is the
+entry after it that leaves for the sign-in screen. That is where a restart
+already landed, and where a fresh install starts, so nothing is disclosed by
+going there a few seconds earlier. It is the same reasoning that has the wipe
+clear the disguise: an app its own owner cannot get back into is not a safer
+app.
+
 **It is hashed on the device, not stored.** Once the passcode moved behind
 Argon2id, the duress code was the last thing in the local store still written as
 itself — which defeated the feature outright rather than weakening it: whoever
