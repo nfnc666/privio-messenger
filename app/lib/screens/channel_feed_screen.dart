@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -591,9 +590,9 @@ class _AttachmentTileState extends State<_AttachmentTile> {
       borderRadius: const BorderRadius.all(PrivioRadius.card),
       child: Container(
         padding: const EdgeInsets.all(PrivioSpacing.md),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: PrivioColors.surfaceRaised,
-          borderRadius: const BorderRadius.all(PrivioRadius.card),
+          borderRadius: BorderRadius.all(PrivioRadius.card),
         ),
         child: Row(
           children: [
