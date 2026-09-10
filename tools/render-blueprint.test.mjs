@@ -50,8 +50,31 @@ describe('render blueprint', () => {
   });
 
   it('takes the database URL from the managed database rather than a literal', () => {
-    assert.match(blueprint, /- key: DATABASE_URL\n\s+fromDatabase:\n\s+name: privio-db\n\s+property: connectionString/);
+    assert.match(blueprint, /- key: DATABASE_URL\n\s+fromDatabase:\n\s+name: (\S+)\n\s+property: connectionString/);
+    // A reference to a database this file does not declare is how a Blueprint
+    // sync points a working service at something that no longer exists.
+    const referenced = blueprint.match(/fromDatabase:\n\s+name: (\S+)/)?.[1];
+    assert.ok(
+      new RegExp(`\\n  - name: ${referenced}\\n`).test(blueprint),
+      `DATABASE_URL points at "${referenced}", which no databases: entry defines`,
+    );
     assert.equal(envValue('DATABASE_URL'), undefined, 'a connection string in this file would be a credential in the repository');
+  });
+
+  it('puts the database in the same region as the service', () => {
+    // Render creates a database with no `region` in its own default region, not
+    // in the region of the service that references it, and a private hostname
+    // does not resolve across regions. The first real deploy of this Blueprint
+    // died with ENOTFOUND for exactly that reason, and the file's comment had
+    // asserted the opposite. Both regions are read, so this catches a mismatch
+    // as well as an omission — and a region cannot be changed after the fact.
+    const regions = [...blueprint.matchAll(/^\s+region: (\S+)$/gm)].map((m) => m[1]);
+    assert.equal(regions.length, 2, `expected a region on both the service and the database, found ${regions.length}`);
+    assert.equal(
+      regions[0],
+      regions[1],
+      `service is in ${regions[0]}, database in ${regions[1]} — the private hostname will not resolve`,
+    );
   });
 
   it('runs in production mode, which is what makes the config guards apply', () => {

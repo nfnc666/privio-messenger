@@ -29,8 +29,14 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     # Frankfurt: closest to the people this is being built for, and it keeps
-    # message metadata and attachments inside the EU. The database below has no
-    # region of its own in this file — Render places it with the service.
+    # message metadata and attachments inside the EU.
+    #
+    # The database below carries the same region explicitly, and has to. Render
+    # does not place a database with the service that references it: a
+    # `databases:` entry without a `region` is created in Render's default
+    # region, Oregon, and the internal hostname a Frankfurt service resolves
+    # only answers inside Frankfurt. This file said otherwise, and the first
+    # real deploy died with ENOTFOUND because of it.
     region: frankfurt
     # `starter` rather than `free` because of the disk below. A free instance
     # also sleeps when idle, which for a messenger means push notifications stop
@@ -50,7 +56,7 @@ services:
       # The one value the server refuses to guess in production.
       - key: DATABASE_URL
         fromDatabase:
-          name: privio-db
+          name: privio-db-frankfurt
           property: connectionString
       # Must stay inside the mounted disk above, or attachments do not survive a
       # redeploy.
@@ -114,9 +120,18 @@ services:
       # not see each other's deliveries and revocations.
 
 databases:
-  - name: privio-db
+  # Named for its region because the region is the part that cannot be changed
+  # later: a database is created in one and stays there, so moving means a new
+  # database and a migration of its contents. The first one this Blueprint made
+  # landed in Oregon and had to be replaced.
+  - name: privio-db-frankfurt
     databaseName: privio
     user: privio
+    # Must equal the service's region above. Not a preference: a database in
+    # another region is unreachable over the private network, and the failure
+    # arrives as a DNS error at connect time rather than as anything Render
+    # objects to while the Blueprint is being applied.
+    region: frankfurt
     # Migrations run inside the server at start-up, so there is no release step
     # to configure here.
     postgresMajorVersion: "16"
