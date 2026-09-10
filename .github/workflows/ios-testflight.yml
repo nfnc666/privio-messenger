@@ -240,6 +240,40 @@ jobs:
             --dart-define=PRIVIO_COMMIT=${{ github.sha }}
           [ -d ios/Pods ] || (cd ios && pod install)
 
+      # Manual signing, applied to the one target it can apply to.
+      #
+      # `xcodeproj` is the gem CocoaPods is built on, so it is already present
+      # wherever `pod install` runs. Editing the project on the runner keeps
+      # the team id and the profile name out of the repository, which is where
+      # they would otherwise have to live to be set per-target.
+      #
+      # Release only: that is what the archive builds, and Debug's "iPhone
+      # Developer" default stays correct for anyone running on a cabled device.
+      - name: Point the Runner target at the distribution identity
+        if: env.signing == 'manual'
+        working-directory: app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          ruby -e '
+            require "xcodeproj"
+            project = Xcodeproj::Project.open("ios/Runner.xcodeproj")
+            target = project.targets.find { |t| t.name == "Runner" } or abort "no Runner target"
+            target.build_configurations.each do |config|
+              next unless config.name == "Release"
+              config.build_settings["CODE_SIGN_STYLE"] = "Manual"
+              config.build_settings["DEVELOPMENT_TEAM"] = ENV.fetch("APPLE_TEAM_ID")
+              config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_NAME")
+              # Both forms: the project pins the SDK-conditional one, and a
+              # plain value does not replace it.
+              config.build_settings["CODE_SIGN_IDENTITY"] = "iPhone Distribution"
+              config.build_settings["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "iPhone Distribution"
+              puts "Release signing: Manual, iPhone Distribution, profile #{ENV.fetch("PROFILE_NAME")}"
+            end
+            project.save
+          '
+
       - name: Archive
         working-directory: app
         env:
@@ -257,28 +291,16 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
           )
           if [ "$signing" = "manual" ]; then
+            # Only the keychain flag goes on the command line. Everything else
+            # about manual signing was applied to the Runner target in the step
+            # above, because an xcodebuild command-line setting applies to every
+            # target in the workspace — all 22 of them. Specifying a
+            # provisioning profile that way made CocoaPods' `Pods-Runner` and
+            # the plugins' resource bundles fail with "does not support
+            # provisioning profiles", which is true: a resource bundle has
+            # nothing to provision.
             ARGS+=(
-              CODE_SIGN_STYLE=Manual
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
               OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN"
-              # The identity has to be named, and named twice.
-              #
-              # `Runner.xcodeproj` pins
-              # `CODE_SIGN_IDENTITY[sdk=iphoneos*] = "iPhone Developer"` in every
-              # configuration — Flutter's template does, and it is right for
-              # running on a cabled device. An archive signed for the App Store
-              # needs the distribution identity instead, and this workflow has
-              # exactly one: the IOS_DISTRIBUTION certificate the setup run
-              # created, whose common name begins "iPhone Distribution:".
-              # Without this the archive failed with `No signing certificate
-              # "iOS Development" found` after building all 22 targets.
-              #
-              # Both forms are passed because the project's assignment is
-              # conditional on the SDK, and a plain command-line value does not
-              # reliably win against a conditional one. The conditional form is
-              # the one that decides; the plain one keeps them consistent.
-              CODE_SIGN_IDENTITY="iPhone Distribution"
-              "CODE_SIGN_IDENTITY[sdk=iphoneos*]=iPhone Distribution"
             )
           else
             # `-allowProvisioningUpdates` is what lets Xcode register the bundle
