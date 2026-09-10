@@ -1,0 +1,43 @@
+name: iOS build status
+
+# What Apple actually thinks of the builds that were uploaded.
+#
+# `UPLOAD SUCCEEDED` means Apple accepted the delivery and nothing more.
+# Processing happens afterwards and can end in a build that never appears in
+# TestFlight, with the only notice an email. This workflow asks App Store
+# Connect directly, so "it is not there yet" stops being a guess.
+#
+# Read-only. It makes GET requests, changes nothing, and needs only the three
+# App Store Connect secrets the signed build already uses. Linux runner, so a
+# run costs seconds.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "Bundle identifier to look up"
+        required: true
+        default: "app.privio.privio"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Ask App Store Connect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Builds Apple holds
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: node tools/asc-build-status.mjs --bundle-id "$BUNDLE_ID"
