@@ -113,14 +113,36 @@ jobs:
             echo "::notice::Automatic signing creates a new distribution certificate per runner, and Apple allows only a few. Run the 'iOS signing setup' workflow once to make one certificate and keep it in the secrets — after that this build reuses it instead."
           fi
 
+      # Apple rejects an upload built with an SDK it considers too old, and the
+      # runner image's *default* Xcode is not its newest: this image defaults to
+      # 16.4 (iOS 18.5 SDK) while carrying 26.3 beside it, and the first upload
+      # that reached Apple came back "All iOS and iPadOS apps must be built with
+      # the iOS 26 SDK or later". So the newest installed Xcode is selected
+      # rather than inherited — which also survives the next time Apple raises
+      # the floor, without editing this file.
       - name: Select Xcode
-        if: inputs.xcode_version != ''
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+        run: |
+          set -euo pipefail
+          if [ -n "${XCODE_VERSION:-}" ]; then
+            DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+            [ -d "$DEVELOPER_DIR" ] || {
+              echo "::error::Xcode ${XCODE_VERSION} is not on this runner. Installed:"; ls -d /Applications/Xcode*.app; exit 1;
+            }
+          else
+            NEWEST="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+            [ -n "$NEWEST" ] || { echo "::error::no versioned Xcode found on this runner"; exit 1; }
+            DEVELOPER_DIR="$NEWEST/Contents/Developer"
+          fi
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          echo "Selected $DEVELOPER_DIR"
 
       - name: Say which Xcode this is
-        run: xcodebuild -version
+        run: |
+          xcodebuild -version
+          # The SDK version is what Apple validates the upload against.
+          xcodebuild -showsdks | grep -i "iOS" || true
 
       - uses: subosito/flutter-action@v2
         with:
@@ -240,6 +262,40 @@ jobs:
             --dart-define=PRIVIO_COMMIT=${{ github.sha }}
           [ -d ios/Pods ] || (cd ios && pod install)
 
+      # Manual signing, applied to the one target it can apply to.
+      #
+      # `xcodeproj` is the gem CocoaPods is built on, so it is already present
+      # wherever `pod install` runs. Editing the project on the runner keeps
+      # the team id and the profile name out of the repository, which is where
+      # they would otherwise have to live to be set per-target.
+      #
+      # Release only: that is what the archive builds, and Debug's "iPhone
+      # Developer" default stays correct for anyone running on a cabled device.
+      - name: Point the Runner target at the distribution identity
+        if: env.signing == 'manual'
+        working-directory: app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          ruby -e '
+            require "xcodeproj"
+            project = Xcodeproj::Project.open("ios/Runner.xcodeproj")
+            target = project.targets.find { |t| t.name == "Runner" } or abort "no Runner target"
+            target.build_configurations.each do |config|
+              next unless config.name == "Release"
+              config.build_settings["CODE_SIGN_STYLE"] = "Manual"
+              config.build_settings["DEVELOPMENT_TEAM"] = ENV.fetch("APPLE_TEAM_ID")
+              config.build_settings["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_NAME")
+              # Both forms: the project pins the SDK-conditional one, and a
+              # plain value does not replace it.
+              config.build_settings["CODE_SIGN_IDENTITY"] = "iPhone Distribution"
+              config.build_settings["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "iPhone Distribution"
+              puts "Release signing: Manual, iPhone Distribution, profile #{ENV.fetch("PROFILE_NAME")}"
+            end
+            project.save
+          '
+
       - name: Archive
         working-directory: app
         env:
@@ -257,9 +313,15 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
           )
           if [ "$signing" = "manual" ]; then
+            # Only the keychain flag goes on the command line. Everything else
+            # about manual signing was applied to the Runner target in the step
+            # above, because an xcodebuild command-line setting applies to every
+            # target in the workspace — all 22 of them. Specifying a
+            # provisioning profile that way made CocoaPods' `Pods-Runner` and
+            # the plugins' resource bundles fail with "does not support
+            # provisioning profiles", which is true: a resource bundle has
+            # nothing to provision.
             ARGS+=(
-              CODE_SIGN_STYLE=Manual
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
               OTHER_CODE_SIGN_FLAGS="--keychain $SIGNING_KEYCHAIN"
             )
           else
