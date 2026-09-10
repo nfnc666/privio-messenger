@@ -327,12 +327,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Privio'),
+            // No refresh button. Messages arrive on their own — over the open
+            // socket, on a push wake, and on a two-minute fallback poll — so a
+            // button that says "check for messages" invites the reading that
+            // they might not otherwise arrive. `drain()` is still called from
+            // all three of those places; nothing about delivery changed.
             actions: [
-              IconButton(
-                onPressed: () => state.conversations.drain(),
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Check for messages',
-              ),
               IconButton(
                 onPressed: () => _joinByLink(context, state),
                 icon: const Icon(Icons.link_rounded),
