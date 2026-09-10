@@ -6,12 +6,17 @@ no terminal, no Docker on a laptop, and no SSH key.
 
 ```
   Safari, on the iPhone
+    ├─ render.com ▸ New ▸ Postgres, in the region you will use
+    │        │
+    │        │   Created by hand, on purpose. Copy its internal
+    │        │   connection string.
+    │        ▼
     └─ render.com ▸ New ▸ Blueprint ▸ this repository
              │
              │   render.yaml is read from the repo: one web service (built
-             │   from the Dockerfile), one Postgres, one 10 GB disk.
+             │   from the Dockerfile) and one 10 GB disk.
              ▼
-     Paste in the secrets Render asks for      ← the only typing
+     Paste in DATABASE_URL and any secrets      ← the only typing
              │
              ▼
      Deploy. Migrations run inside the container at start-up.
@@ -32,7 +37,13 @@ matter of preference:
   saying exactly that at start-up. Prices are in the dashboard, not in this
   file; anything written here would be out of date.
 * **A free Postgres on Render is time-limited.** When it lapses, so does the
-  data. §5 has the alternatives.
+  data. The expiry is on the database's own page in the dashboard — read it the
+  day you create it, not the day it stops. §5 has the alternatives.
+
+  *For this deployment:* `privio-db-frankfurt` was created on 10 September 2026
+  on the free plan and **expires on 10 October 2026**. Deciding what happens
+  before then — a paid plan, or a fresh free database and a dump restored into
+  it — is an open item, not a settled one.
 
 Nothing in this repository deploys anything. `render.yaml` is an offer that
 takes effect when you click, and `autoDeploy: false` in it means a later merge
@@ -66,16 +77,35 @@ Everything below is Safari on the phone.
 **2.1 — Sign in to `render.com`** and connect the GitHub account that owns this
 repository. Render asks for read access to it; that is enough.
 
-**2.2 — New ▸ Blueprint**, pick this repository, branch `main`. Render finds
-`render.yaml` and shows what it will create: `privio-server`, `privio-db`, and
-the `privio-media` disk. If it shows nothing, the branch is wrong or the file
-did not parse — Render says which.
+**2.2 — New ▸ Postgres.** The database is created by hand, before the
+Blueprint, and this is deliberate — see the note at the top of `render.yaml`
+for why. Two things matter and neither can be changed later:
 
-**2.3 — Fill in the values it asks for.** Render prompts for every variable
-marked `sync: false`, and every one of them may be left empty. What each does:
+* **The region must be the one the service will use.** `render.yaml` puts the
+  service in `frankfurt`, so the database goes in `frankfurt`. Render's
+  internal hostnames resolve only within one region; a database anywhere else
+  is unreachable, and the failure arrives as `ENOTFOUND` at the first
+  connection rather than as anything Render warns about while it is being
+  created.
+* **The plan.** A free database on Render carries an expiry date, shown on its
+  own page. When it lapses, the data goes with it.
+
+Then open the database's page and copy its **internal** connection string —
+the one that only works from inside Render's network, not the external one.
+
+**2.3 — New ▸ Blueprint**, pick this repository, branch `main`. Render finds
+`render.yaml` and shows what it will create: `privio-server` and the
+`privio-media` disk — no database, because this file no longer declares one. If
+it shows nothing, the branch is wrong or the file did not parse — Render says
+which.
+
+**2.4 — Fill in the values it asks for.** Render prompts for every variable
+marked `sync: false`. `DATABASE_URL` is the one that must be filled; the rest
+may be left empty. What each does:
 
 | Prompt | Leave empty unless | Where the value comes from |
 | --- | --- | --- |
+| `DATABASE_URL` | **required** | the internal connection string from §2.2 |
 | `LICENSE_HASH_SECRET` | you set `LICENSE_REQUIRED=true` | 32+ random characters, permanent — rotating it invalidates every licence ever issued |
 | `LICENSE_ISSUER_TOKEN` | a website issues licences | 32+ random characters |
 | `ICE_SERVERS` | you run STUN/TURN | `stun:…,turns:…`, comma-separated |
@@ -87,18 +117,23 @@ Empty is a working configuration. Without APNs and FCM the server delivers over
 an open WebSocket and says so at start-up instead of pretending; without TURN,
 calls connect on friendly networks and fail behind strict NATs.
 
-`DATABASE_URL` is **not** among the prompts: it comes from the managed database
-Render creates, over its private network. `TOTP_SECRET_KEY` is not either —
-Render generates a base64-encoded 256-bit value, which is exactly the 32 bytes
-the TOTP sealing key requires. Both are deliberate: neither ever passes through
-the phone, and neither can end up in this repository.
+`TOTP_SECRET_KEY` is not among the prompts: Render generates a base64-encoded
+256-bit value, which is exactly the 32 bytes the TOTP sealing key requires. It
+is never typed and never printed into this repository.
+
+`DATABASE_URL` is a prompt rather than something this file derives, and that is
+the point: a value entered in the dashboard survives every later Blueprint
+sync. When the Blueprint owned it, a sync would have reset it to whatever the
+file said — which, after the first database had been replaced by hand, meant a
+running service pointed at one that no longer existed.
 
 Render shows what a Blueprint will create before it creates it. Read that
-preview: it names the region of every resource, and a database in the wrong one
-is cheap to fix at this point and expensive afterwards, because a region is
-fixed for the life of a database.
+preview rather than confirming it: it lists every resource the sync will add,
+change or remove. It should name the service and its disk and nothing else — a
+database appearing in it means this file has grown a `databases:` entry again,
+and applying that would put the connection back under the Blueprint's control.
 
-**2.4 — Apply.** The first build takes several minutes: it compiles TypeScript
+**2.5 — Apply.** The first build takes several minutes: it compiles TypeScript
 in the image, prunes the dev dependencies, and starts. Then:
 
 * The service log shows `database migrations applied` with the list.
@@ -110,7 +145,7 @@ in the image, prunes the dev dependencies, and starts. Then:
 
 If the deploy fails instead, §6 has the three failures worth recognising.
 
-**2.5 — Point the app at it.** GitHub ▸ Actions ▸ **iOS signed build** ▸ Run
+**2.6 — Point the app at it.** GitHub ▸ Actions ▸ **iOS signed build** ▸ Run
 workflow, and put the URL (`https://…onrender.com`, no trailing slash) into
 `api_url`. That value is compiled into the build as `PRIVIO_API_URL`; there is
 no server field in the app's UI, and deliberately so — a messenger that can be
@@ -249,20 +284,26 @@ the variables in §3, mount a volume, health-check `/health`.
 
 **The service starts and immediately exits, with `DATABASE_URL` in the log.**
 The production guard, working as intended: nothing set the variable. On Render
-this means the Blueprint's database was not created or was renamed — the
-service takes it from `fromDatabase: privio-db`.
+this means the prompt in §2.4 was left empty, or the value was entered on the
+wrong service. Set it in the service's Environment tab and redeploy.
 
 **The log shows `ENOTFOUND` on the database host.** The database and the
 service are in different regions. Render's internal hostnames resolve only
-within one region, and nothing objects while the Blueprint is being applied —
-the failure arrives at the first connection attempt. This is not hypothetical:
-the first real deploy of this file hit it, because the `databases:` entry
-carried no `region` and Render created it in its own default region rather than
-in the service's. Both now say `frankfurt`, and a test keeps them equal.
+within one region, and nothing objects while either is being created — the
+failure arrives at the first connection attempt. This is not hypothetical: the
+first real deploy hit it, because `render.yaml` then declared the database
+without a `region` and Render created it in its own default region rather than
+beside the service. That is why §2.2 creates the database by hand, region
+first.
 
 A region cannot be changed after the fact. Fixing it means creating a new
-database in the service's region, pointing `DATABASE_URL` at it, and moving the
-contents if there are any worth moving.
+database in the service's region, updating `DATABASE_URL` on the service, and
+moving the contents if there are any worth moving.
+
+**`DATABASE_URL` changed back on its own after a Blueprint sync.** It should
+not be possible any more — the variable is `sync: false` and this file declares
+no database. If it happens, `render.yaml` has regained a `databases:` entry or
+a `fromDatabase` reference; `tools/render-blueprint.test.mjs` fails on both.
 
 **The deploy hangs and is marked unhealthy.** `/health` is answering 503, so
 the database is not reachable from the service. On Render, check that the
