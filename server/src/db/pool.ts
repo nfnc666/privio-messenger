@@ -14,6 +14,37 @@ export const pool: Pool = new pg.Pool({
   idleTimeoutMillis: 30_000,
 });
 
+/**
+ * Where a connection-level failure is reported.
+ *
+ * `pg` raises `error` on the pool when a *idle* client's connection breaks —
+ * Postgres restarting, a failover, a network drop — and Node throws on an
+ * `error` event that nobody listens to. Without this listener the whole process
+ * died the moment Postgres went away, which CI caught: the container stopped
+ * answering entirely instead of reporting itself unhealthy, and a platform
+ * would have restarted it in a loop through every routine database maintenance
+ * window.
+ *
+ * The pool recovers on its own — the broken client is discarded and the next
+ * request opens a new one — so the right response is to say what happened and
+ * keep serving. It is a settable sink rather than a direct call to a logger
+ * because the pool is constructed at import time, before the application and
+ * its logger exist.
+ */
+let reportPoolError: (err: Error) => void = (err) => {
+  // Before the app is up there is no logger; stderr is better than silence.
+  console.error('postgres pool error', err);
+};
+
+/** Routes pool-level failures into the application logger. */
+export function onPoolError(report: (err: Error) => void): void {
+  reportPoolError = report;
+}
+
+pool.on('error', (err: unknown) => {
+  reportPoolError(err instanceof Error ? err : new Error(String(err)));
+});
+
 export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {

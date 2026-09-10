@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { configWarnings, loadConfig } from '../src/config.js';
+import { onPoolError, pool } from '../src/db/pool.js';
 import { closePool, createHarness, type TestHarness } from './helpers.js';
 
 /**
@@ -66,6 +67,30 @@ describe('deployment safety', () => {
 
     it('warns about nothing outside production', () => {
       assert.deepEqual(configWarnings(loadConfig({} as NodeJS.ProcessEnv), {} as NodeJS.ProcessEnv), []);
+    });
+  });
+
+  describe('a database that goes away', () => {
+    it('does not take the process down with it', () => {
+      // `pg` raises `error` on the pool when an idle client's connection breaks,
+      // and Node throws on an `error` event with no listener. Without the
+      // listener this call is an uncaught exception — which is exactly how the
+      // container died in CI when Postgres was stopped: not unhealthy, gone.
+      assert.doesNotThrow(() => {
+        pool.emit('error', new Error('terminating connection due to administrator command'));
+      });
+    });
+
+    it('reports the failure rather than swallowing it', () => {
+      const seen: Error[] = [];
+      onPoolError((err) => seen.push(err));
+      try {
+        pool.emit('error', new Error('connection terminated unexpectedly'));
+        assert.equal(seen.length, 1);
+        assert.equal(seen[0]?.message, 'connection terminated unexpectedly');
+      } finally {
+        onPoolError(() => {});
+      }
     });
   });
 

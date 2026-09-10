@@ -1,7 +1,7 @@
 import { config, configWarnings } from './config.js';
 import { buildApp } from './app.js';
 import { migrate } from './db/migrate.js';
-import { pool } from './db/pool.js';
+import { onPoolError, pool } from './db/pool.js';
 import { createBus } from './services/bus.js';
 import { LocalFileStorage } from './services/storage.js';
 import { startRetentionSweeper } from './services/cleanup.js';
@@ -17,6 +17,11 @@ if (applied.length > 0) app.log.info({ applied }, 'database migrations applied')
 // These are configurations that run and lose something — attachments across a
 // redeploy, two-factor enrolment, a second instance — not ones worth refusing.
 for (const warning of configWarnings(config)) app.log.warn(warning);
+
+// A dropped connection is survivable and must not be fatal: the pool discards
+// the broken client and the next request opens a new one. `/health` is what
+// reports the outage while it lasts.
+onPoolError((err) => app.log.error({ err }, 'postgres connection lost; the pool will reconnect'));
 
 const stopSweeper = startRetentionSweeper(storage, (err) => app.log.error({ err }, 'retention sweep failed'));
 

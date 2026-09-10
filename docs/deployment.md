@@ -192,6 +192,15 @@ without it, and failing health on a degradation would remove a serving instance
 for no gain. The failure detail stays in the logs — the body says `unreachable`
 and nothing more, because this endpoint is reachable without authentication.
 
+Reporting 503 requires surviving the outage, and the server did not: `pg` raises
+an `error` event on the pool when an idle client's connection breaks, Node
+throws on an `error` event nobody listens to, and the process died. The CI job
+below is what found it — the container stopped answering entirely instead of
+answering 503. A database restart, a failover, or a managed-database maintenance
+window would have crash-looped the service. The pool now reports the failure and
+keeps serving; the broken client is discarded and the next request opens a new
+one, so the server recovers by itself when Postgres comes back.
+
 ---
 
 ## 5. Somewhere other than Render
@@ -261,11 +270,13 @@ Being precise about this is the point of the milestone, so:
 **Verified in CI, on every pull request** (`.github/workflows/ci.yml`, job
 *Server — image builds and serves*): the image builds; a container without
 `DATABASE_URL` refuses to start; a container with one applies migrations and
-answers `/health` with 200; stopping Postgres turns that same endpoint into a
-503.
+answers `/health` with 200; stopping Postgres leaves the process running and
+turns that same endpoint into a 503.
 
 **Verified by the test suite**: the production configuration guard, the
-warnings, and both health responses (`server/test/deployment.test.ts`); the
+warnings, both health responses, and that a pool-level connection failure is
+reported instead of terminating the process
+(`server/test/deployment.test.ts`); the
 consistency of `render.yaml` with the `Dockerfile` (`tools/render-blueprint.test.mjs`).
 
 **Not verified, and not claimable until somebody does it:** that a Render

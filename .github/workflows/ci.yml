@@ -157,6 +157,14 @@ jobs:
           # Postgres anything, this still answered 200 and a platform kept the
           # instance in rotation while every real request failed.
           docker stop "$(docker ps --format '{{.ID}} {{.Image}}' | awk '/postgres/ {print $1; exit}')"
+          # Distinguish the two failures. A process that died when Postgres went
+          # away cannot report anything, and curl's "connection refused" would
+          # otherwise read as an unrelated networking problem.
+          if [ "$(docker inspect -f '{{.State.Running}}' privio)" != "true" ]; then
+            echo "::error::the server exited when the database went away instead of reporting itself unhealthy"
+            docker logs privio 2>&1 | tail -30
+            exit 1
+          fi
           code=$(curl -s -o unhealthy.json -w '%{http_code}' http://localhost:8080/health)
           cat unhealthy.json
           test "$code" = "503"
