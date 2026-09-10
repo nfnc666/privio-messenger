@@ -174,7 +174,60 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 
+/**
+ * Defaults that are useful on a laptop and wrong on a server.
+ *
+ * Every value in the schema above has a default so that `npm run dev` works
+ * with an empty environment. That convenience has a failure mode: a production
+ * deployment that forgets `DATABASE_URL` does not fail to start, it starts
+ * against `localhost`, creates an empty schema in whatever database happens to
+ * be there — or none — and looks healthy while it serves nobody. Refusing to
+ * boot is the cheaper outcome, and it is checked against the raw environment
+ * rather than the parsed config because after parsing there is no way to tell
+ * "unset" from "deliberately localhost", which is a legitimate answer when the
+ * database runs beside the server.
+ */
+function assertProductionEnv(env: NodeJS.ProcessEnv): void {
+  if (env.NODE_ENV !== 'production') return;
+  if (!env.DATABASE_URL) {
+    throw new Error(
+      'Invalid environment configuration — DATABASE_URL: must be set explicitly when NODE_ENV=production; '
+        + 'the built-in localhost default is a development convenience and would silently point production at the wrong database',
+    );
+  }
+}
+
+/**
+ * Configuration that starts but will lose data or capability, as human-readable
+ * lines. The caller logs them; nothing here prevents a boot.
+ */
+export function configWarnings(cfg: Config, env: NodeJS.ProcessEnv = process.env): string[] {
+  const warnings: string[] = [];
+  if (cfg.NODE_ENV !== 'production') return warnings;
+
+  if (!env.MEDIA_DIR) {
+    warnings.push(
+      `MEDIA_DIR is unset, so attachments are written to ${cfg.MEDIA_DIR} inside the container. `
+        + 'On a platform with an ephemeral filesystem every redeploy discards them. '
+        + 'Point it at a persistent volume.',
+    );
+  }
+  if (!cfg.TOTP_SECRET_KEY) {
+    warnings.push(
+      'TOTP_SECRET_KEY is unset: the server runs but refuses to enrol anyone in two-factor authentication.',
+    );
+  }
+  if (!cfg.REDIS_URL) {
+    warnings.push(
+      'REDIS_URL is unset: this process runs as a single node with an in-process event bus. '
+        + 'Correct for one instance, wrong the moment a second one is started.',
+    );
+  }
+  return warnings;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  assertProductionEnv(env);
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');

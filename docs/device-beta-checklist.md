@@ -42,7 +42,7 @@ useful than an optimistic tick.
 | Two Android handsets (one with Play services, one without) | `play` and `libre`/`direct` are different push paths, not a setting | Not available |
 | Working CI | The builds are made on GitHub's runners | **Yes, since 2026-09-07** — the repository is public, so Actions minutes are free |
 | One iPhone, physical | A simulator has no APNs at all | Held by the maintainer |
-| A reachable server with a real TLS certificate | The client pins and refuses plain HTTP | Not set up |
+| A reachable server with a real TLS certificate | The client pins and refuses plain HTTP | Not set up — the deployment path exists and is CI-verified ([`docs/deployment.md`](deployment.md)), but nobody has deployed it |
 | APNs key (`.p8`, key id, team id, topic) | Otherwise iOS pushes are `skipped`, not sent | Not held |
 | FCM service-account key | Otherwise Play-edition pushes are `skipped`, not sent | Not held |
 | A UnifiedPush distributor (ntfy, NextPush, Sunup) | The `libre`/`direct` path has no push without one | Not installed |

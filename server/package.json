@@ -6,7 +6,7 @@
   "description": "Privio backend: zero-plaintext relay for E2EE messaging",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
