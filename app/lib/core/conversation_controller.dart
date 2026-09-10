@@ -341,6 +341,10 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> refreshContacts() async {
+    // Not inside the try below, and not conditional on it: the own picture has
+    // nothing to do with the contact list, and a failed contacts read should
+    // not also cost the user their avatar.
+    unawaited(_restoreOwnAvatar());
     try {
       final response = await _services.api.contacts();
       final entries = response['contacts'] as List<dynamic>? ?? const [];
@@ -2049,6 +2053,46 @@ class ConversationController extends ChangeNotifier {
   /// This account's own picture, once it has been set or loaded.
   Uint8List? ownAvatar;
 
+  /// Whether this run has already found out what the server holds for us.
+  ///
+  /// Guarded because `refreshContacts` runs whenever a contacts screen opens,
+  /// and this costs a request against a rate-limited budget. Left false again
+  /// when the attempt failed, so a later refresh retries.
+  bool _ownAvatarKnown = false;
+
+  /// Puts this account's own picture back after a restart.
+  ///
+  /// Avatars are deliberately not written to disk — see `_avatarCache` — so
+  /// after a relaunch `ownAvatar` is null while the server still holds the
+  /// picture, and the account screen falls back to initials. That reads as
+  /// "the picture was lost". It was not: the pointer is on the account and the
+  /// key is in the keystore, and this is what asks for both.
+  ///
+  /// `_loadAvatars` cannot do it — it walks conversations, and this account is
+  /// not one of its own contacts.
+  Future<void> _restoreOwnAvatar() async {
+    if (_ownAvatarKnown) return;
+    _ownAvatarKnown = true;
+    try {
+      final me = await _services.api.me();
+      final mediaId = me['avatarMediaId'] as String?;
+      if (mediaId == null) {
+        // Answered: there is none. Not a failure, and not worth asking again.
+        ownAvatar = null;
+        return;
+      }
+      ownAvatar = await _services.messaging.openAvatar(
+        mediaId,
+        await _services.crypto.profileKey(),
+      );
+      notifyListeners();
+    } on Object {
+      // Offline, or a blob that is not there any more. The initials stand in,
+      // and the next refresh tries again rather than leaving it decided.
+      _ownAvatarKnown = false;
+    }
+  }
+
   Uint8List? avatarFor(String accountId) => _avatarCache[accountId];
 
   /// Downloads and opens the pictures of everyone we have both a pointer and a
@@ -2086,6 +2130,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.messaging.uploadAvatar(prepared);
       ownAvatar = prepared;
+      _ownAvatarKnown = true;
       _error = null;
       notifyListeners();
       return true;
@@ -2100,6 +2145,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.api.clearAvatar();
       ownAvatar = null;
+      _ownAvatarKnown = true;
       _error = null;
     } on ApiException catch (failure) {
       _error = failure.message;
