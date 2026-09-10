@@ -24,6 +24,13 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
   final _confirm = TextEditingController();
   String? _localError;
 
+  /// Whether what has been typed into the password field is too short to be an
+  /// account password. Sign-up has required ten characters since before this
+  /// screen existed, so anything shorter is far more likely to be the app-lock
+  /// PIN — which is the mistake this screen invites by asking for "a password"
+  /// on a device that is unlocked with four digits.
+  bool get _looksLikeAPin => _password.text.isNotEmpty && _password.text.length < 10;
+
   @override
   void initState() {
     super.initState();
@@ -233,13 +240,33 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
             // Editing clears the last complaint. Leaving it up would also leave
             // the button moved down the screen, under wherever the finger that
             // pressed it last is expecting it.
+            // "Your password" is ambiguous on a phone that unlocks with a
+            // four-digit PIN, and the app-lock PIN is the wrong answer here.
+            // Naming the account is what tells the two apart.
             TextField(
               controller: _password,
               obscureText: true,
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
-              decoration: const InputDecoration(hintText: 'Your password'),
+              decoration: const InputDecoration(hintText: 'Your Privio account password'),
             ),
+            // Said before the request rather than after it. The server's answer
+            // to a PIN typed here is "That password is not right", which is true
+            // and unhelpful — and it costs one of ten attempts in five minutes,
+            // so a few confused tries end in a rate limit on top.
+            //
+            // A note, not a block: sign-up has required ten characters for a
+            // while, but an account made before that can have a shorter one and
+            // must still be able to set a duress code.
+            if (_looksLikeAPin) ...[
+              const SizedBox(height: PrivioSpacing.xs),
+              Text(
+                'That is shorter than an account password. This field wants the '
+                'password you chose when you created the account — not the PIN '
+                'that unlocks the app.',
+                style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
+              ),
+            ],
             const SizedBox(height: PrivioSpacing.md),
             TextField(
               controller: _code,
