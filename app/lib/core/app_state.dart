@@ -542,6 +542,26 @@ class AppState extends ChangeNotifier {
   // --- Lock -----------------------------------------------------------------
 
   Future<bool> unlockWithPasscode(String passcode) async {
+    // Nothing to unlock. The only way to be locked with no passcode set is a
+    // duress wipe that has already happened: it destroyed the passcode along
+    // with everything else, so the lock screen it left behind has no input
+    // that opens it — not the attacker's, and not the owner's either. Until
+    // now that was a dead end for as long as the app kept running, and the way
+    // out was to kill it and start it again, which nothing says.
+    //
+    // The wipe still passes unremarked at the moment it happens; this is the
+    // entry after it. Leaving here rather than there is what keeps a wipe
+    // looking like a typo to whoever is watching the screen, and what it
+    // leaves is where a fresh install starts: nothing signed in, nothing on
+    // disk, no lock to get past. It is the same decision the wipe already made
+    // about the disguise, which it clears for the same reason — an app its own
+    // owner cannot get back into is not a safer app.
+    if (!_screenLockSet) {
+      _stage = AppStage.welcome;
+      notifyListeners();
+      return false;
+    }
+
     // Both checks below derive an Argon2id key, which is the point of them and
     // costs about a tenth of a second each. Something that cannot be either
     // code must not pay that: in the calculator disguise this runs on every
@@ -597,6 +617,9 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _pushWake?.stop();
+    _wakeUp?.dispose();
+    _wakeUp = null;
     _screenLockSet = false;
     _passcodeKind = null;
     // In memory as well as on disk. A disguise left set after a wipe would send
@@ -605,6 +628,9 @@ class AppState extends ChangeNotifier {
     _sessionToken = null;
     _username = null;
     _accountId = null;
+    // Deliberately not `_stage` and not `notifyListeners()`: the screen must not
+    // move while somebody is watching it. What happens instead is one entry
+    // later, in [unlockWithPasscode] — see the note there.
   }
 
   /// Best effort, and deliberately not awaited by the caller: a phone with no
@@ -615,6 +641,12 @@ class AppState extends ChangeNotifier {
     } on Object {
       // The local wipe has already happened. There is nothing to report to a
       // screen that is about to be showing a wrong-PIN error.
+    } finally {
+      // Here and not with the rest of the teardown: this request is the last
+      // thing the session token is for, and it is the request that authorises
+      // it. Clearing the token first would leave the server holding the
+      // account the wipe was supposed to empty.
+      services.api.useToken(null);
     }
   }
 
