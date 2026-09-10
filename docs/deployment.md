@@ -93,6 +93,11 @@ Render generates a base64-encoded 256-bit value, which is exactly the 32 bytes
 the TOTP sealing key requires. Both are deliberate: neither ever passes through
 the phone, and neither can end up in this repository.
 
+Render shows what a Blueprint will create before it creates it. Read that
+preview: it names the region of every resource, and a database in the wrong one
+is cheap to fix at this point and expensive afterwards, because a region is
+fixed for the life of a database.
+
 **2.4 — Apply.** The first build takes several minutes: it compiles TypeScript
 in the image, prunes the dev dependencies, and starts. Then:
 
@@ -247,10 +252,23 @@ The production guard, working as intended: nothing set the variable. On Render
 this means the Blueprint's database was not created or was renamed — the
 service takes it from `fromDatabase: privio-db`.
 
+**The log shows `ENOTFOUND` on the database host.** The database and the
+service are in different regions. Render's internal hostnames resolve only
+within one region, and nothing objects while the Blueprint is being applied —
+the failure arrives at the first connection attempt. This is not hypothetical:
+the first real deploy of this file hit it, because the `databases:` entry
+carried no `region` and Render created it in its own default region rather than
+in the service's. Both now say `frankfurt`, and a test keeps them equal.
+
+A region cannot be changed after the fact. Fixing it means creating a new
+database in the service's region, pointing `DATABASE_URL` at it, and moving the
+contents if there are any worth moving.
+
 **The deploy hangs and is marked unhealthy.** `/health` is answering 503, so
 the database is not reachable from the service. On Render, check that the
-database is in the same region and finished provisioning; elsewhere, that the
-connection string is right and the host reachable from inside the container.
+database finished provisioning and is in the same region as the service;
+elsewhere, that the connection string is right and the host reachable from
+inside the container.
 
 **It comes up, and attachments vanish after the next deploy.** The start-up
 warning about `MEDIA_DIR` was correct: the disk is not mounted, or `MEDIA_DIR`
