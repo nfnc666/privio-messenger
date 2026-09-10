@@ -24,8 +24,19 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- Purpose strings. Apple scans the binary for the frameworks it links and
+	     rejects an upload that reaches one without a declared reason:
+	     "ITMS-90683 – Missing purpose string in Info.plist". Build 13 was
+	     rejected for exactly that, having no camera string while linking
+	     AVFoundation's capture APIs through flutter_webrtc.
+
+	     Each string says what the app really does with the hardware and what
+	     happens to what it captures. They are shown to the person being asked,
+	     so they are written for that person rather than for review. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Privio uses the camera for video calls. The picture goes directly to the person you are calling, end-to-end encrypted; it is never recorded, and Privio's servers cannot see it.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Privio uses the microphone to record voice messages. Recordings are encrypted on this device before they are sent; Privio's servers cannot listen to them.</string>
+	<string>Privio uses the microphone for voice messages and for calls. Both are encrypted on this device before they leave it; Privio's servers cannot listen to them.</string>
 	<key>CFBundleName</key>
 	<string>privio</string>
 	<key>CFBundlePackageType</key>
