@@ -46,6 +46,31 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (fresh != null && mounted) setState(() => _channel = fresh);
   }
 
+  /// Presses the key delivery again, and says what happened.
+  ///
+  /// Silence would be the worst answer here: the state this fixes already looks
+  /// like nothing is happening, so a retry that also looks like nothing is
+  /// indistinguishable from a broken button.
+  Future<void> _retryKey(String channelId) async {
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.retryKey(channelId);
+    if (!mounted) return;
+    final fresh = controller.channelById(channelId);
+    if (fresh != null) setState(() => _channel = fresh);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          !ok
+              ? controller.error ?? 'Could not ask for the key.'
+              : fresh?.hasCurrentKey ?? false
+                  ? 'The key arrived. You can post again.'
+                  : 'Asked again. The key is delivered by another member, so it '
+                      'arrives when one of them is online.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _join() async {
     final controller = PrivioScope.of(context).channels;
     final ok = await controller.join(_channel);
@@ -222,6 +247,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   // rotation somebody set off by leaving or being removed.
                   rotating: channel.hasKey,
                   epoch: channel.keyEpoch,
+                  onRetry: () => _retryKey(channel.id),
                 ),
               Expanded(
                 child: !channel.isMember
@@ -459,7 +485,10 @@ class _InviteDialog extends StatelessWidget {
 }
 
 class _MissingKeyBanner extends StatelessWidget {
-  const _MissingKeyBanner({this.rotating = false, this.epoch = 1});
+  const _MissingKeyBanner({this.rotating = false, this.epoch = 1, this.onRetry});
+
+  /// Tries the key delivery again. Null leaves the banner as an explanation.
+  final VoidCallback? onRetry;
 
   /// True when this device already reads some of the channel and is waiting for
   /// a new version, rather than waiting for its first key ever.
@@ -497,6 +526,13 @@ class _MissingKeyBanner extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+          if (onRetry != null) ...[
+            const SizedBox(width: PrivioSpacing.sm),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Try again'),
+            ),
+          ],
         ],
       ),
     );
