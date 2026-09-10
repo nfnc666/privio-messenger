@@ -309,6 +309,29 @@ class ChannelController extends ChangeNotifier {
 
   // --- Plumbing -------------------------------------------------------------
 
+  /// Asks again for the key this device is missing, for one channel.
+  ///
+  /// The same two moves `deliverPendingKeys` makes on start-up — finish the
+  /// rotation when this account may manage members, otherwise ask a member who
+  /// holds the key — but for one channel and because somebody pressed a button.
+  ///
+  /// The automatic attempts are invisible and can fail quietly: a rotation that
+  /// needs a member who is offline, a request nobody has answered yet. Until
+  /// now a channel stuck without its key showed an explanation and offered
+  /// nothing to do about it, which is a dead end wearing a paragraph.
+  Future<bool> retryKey(String channelId) async {
+    final channel = channelById(channelId);
+    if (channel == null) return false;
+    return _run(() async {
+      if (channel.permissions.canManageMembers) {
+        await _channels.completeRotation(channelId);
+      } else {
+        await _channels.requestKey(channelId);
+      }
+      await _refreshKeyState(channelId);
+    });
+  }
+
   Future<bool> _run(Future<void> Function() action) async {
     _loading = true;
     _error = null;
