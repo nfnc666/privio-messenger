@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -86,18 +90,53 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     await _load();
   }
 
+  /// The file waiting to go with the next post, if any.
+  ChannelUpload? _pending;
+
+  /// Picks a file for the next post.
+  ///
+  /// Nothing is uploaded here. The bytes wait in memory until the post is
+  /// published, because that is when the channel key is read — and reading it
+  /// any earlier would risk sealing under a key that has since been rotated.
+  Future<void> _attach() async {
+    PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile().timeout(const Duration(minutes: 2));
+    } on Object catch (failure) {
+      if (mounted) _say('Could not open the picker: $failure');
+      return;
+    }
+    if (picked == null || !mounted) return;
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object catch (failure) {
+      if (mounted) _say('Could not read ${picked.name}: $failure');
+      return;
+    }
+    if (!mounted) return;
+    setState(
+      () => _pending = ChannelUpload(bytes: bytes, name: picked!.name),
+    );
+  }
+
+  void _say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+
   Future<void> _publish() async {
     final text = _composer.text.trim();
-    if (text.isEmpty) return;
+    // A picture with no caption is a post; an empty box is not.
+    if (text.isEmpty && _pending == null) return;
 
     setState(() => _sending = true);
     final controller = PrivioScope.of(context).channels;
-    final ok = await controller.publish(_channel.id, text);
+    final ok = await controller.publish(_channel.id, text, file: _pending);
     if (!mounted) return;
     setState(() => _sending = false);
 
     if (ok) {
       _composer.clear();
+      setState(() => _pending = null);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(controller.error ?? 'Could not publish')),
@@ -279,6 +318,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                 _Composer(
                   controller: _composer,
                   sending: _sending,
+                  pending: _pending,
+                  onAttach: _attach,
+                  onDropAttachment: () => setState(() => _pending = null),
                   // Never the old key. Posting under a superseded version is
                   // exactly what a rotation exists to prevent, and the server
                   // would refuse it anyway — so the composer says why instead
@@ -358,9 +400,13 @@ class _PostCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: PrivioSpacing.sm),
-          if (post.opened)
-            Text(post.body, style: theme.textTheme.bodyMedium)
-          else
+          if (post.opened) ...[
+            if (post.body.isNotEmpty) Text(post.body, style: theme.textTheme.bodyMedium),
+            if (post.attachment != null) ...[
+              if (post.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+              _AttachmentTile(channelId: channel.id, post: post),
+            ],
+          ] else
             Row(
               children: [
                 const Icon(Icons.lock_rounded, size: 16, color: PrivioColors.textTertiary),
@@ -394,12 +440,20 @@ class _Composer extends StatelessWidget {
     required this.sending,
     required this.enabled,
     required this.onSend,
+    this.pending,
+    this.onAttach,
+    this.onDropAttachment,
   });
 
   final TextEditingController controller;
   final bool sending;
   final bool enabled;
   final VoidCallback onSend;
+
+  /// The file that will go with the next post, before it is sealed.
+  final ChannelUpload? pending;
+  final VoidCallback? onAttach;
+  final VoidCallback? onDropAttachment;
 
   @override
   Widget build(BuildContext context) {
@@ -410,10 +464,44 @@ class _Composer extends StatelessWidget {
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: PrivioColors.border)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
+            // What is about to be sent, so nobody publishes a file they picked
+            // and forgot about.
+            if (pending != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: PrivioSpacing.sm),
+                child: Row(
+                  children: [
+                    const Icon(Icons.attach_file_rounded, size: 16, color: PrivioColors.accent),
+                    const SizedBox(width: PrivioSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        '${pending!.name ?? 'File'} · ${_readableSize(pending!.bytes.length)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: sending ? null : onDropAttachment,
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      tooltip: 'Remove the file',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                IconButton(
+                  onPressed: enabled && !sending ? onAttach : null,
+                  icon: const Icon(Icons.attach_file_rounded),
+                  tooltip: 'Attach a picture or a file',
+                ),
+                Expanded(
               child: TextField(
                 controller: controller,
                 enabled: enabled,
@@ -438,11 +526,110 @@ class _Composer extends StatelessWidget {
                     )
                   : const Icon(Icons.send_rounded, color: PrivioColors.background, size: 18),
             ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+/// A post's file: what it is, and a way to open it.
+///
+/// Nothing is downloaded until it is asked for. A channel feed that fetched
+/// every picture on the way past would spend a stranger's data allowance on a
+/// channel they are only glancing at — and on a metered connection that is a
+/// cost, not a convenience.
+class _AttachmentTile extends StatefulWidget {
+  const _AttachmentTile({required this.channelId, required this.post});
+
+  final String channelId;
+  final ChannelPost post;
+
+  @override
+  State<_AttachmentTile> createState() => _AttachmentTileState();
+}
+
+class _AttachmentTileState extends State<_AttachmentTile> {
+  bool _busy = false;
+  Uint8List? _opened;
+
+  Future<void> _open() async {
+    final attachment = widget.post.attachment;
+    if (attachment == null || _busy) return;
+    setState(() => _busy = true);
+    final controller = PrivioScope.of(context).channels;
+    final bytes = await controller.openAttachment(widget.channelId, widget.post);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _opened = bytes;
+    });
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.error ?? 'Could not open that file.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attachment = widget.post.attachment!;
+    final opened = _opened;
+
+    // Once an image is open it is the point, so it replaces its own row.
+    if (opened != null && attachment.isImage) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Image.memory(opened, fit: BoxFit.cover),
+      );
+    }
+
+    return InkWell(
+      onTap: _busy ? null : _open,
+      borderRadius: const BorderRadius.all(PrivioRadius.card),
+      child: Container(
+        padding: const EdgeInsets.all(PrivioSpacing.md),
+        decoration: BoxDecoration(
+          color: PrivioColors.surfaceRaised,
+          borderRadius: const BorderRadius.all(PrivioRadius.card),
+        ),
+        child: Row(
+          children: [
+            if (_busy)
+              const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              Icon(
+                attachment.isImage ? Icons.image_outlined : Icons.insert_drive_file_outlined,
+                size: 18,
+                color: PrivioColors.accent,
+              ),
+            const SizedBox(width: PrivioSpacing.md),
+            Expanded(
+              child: Text(
+                attachment.name ?? (attachment.isImage ? 'Picture' : 'File'),
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(width: PrivioSpacing.sm),
+            Text(
+              opened != null ? 'Opened' : _readableSize(attachment.bytes),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bytes as something a person reads without counting zeros.
+String _readableSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} kB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
 class _InviteDialog extends StatelessWidget {

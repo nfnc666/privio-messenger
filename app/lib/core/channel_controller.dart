@@ -139,15 +139,32 @@ class ChannelController extends ChangeNotifier {
     return created;
   }
 
-  Future<bool> publish(String channelId, String body) async {
+  /// Publishes a post, with a file on it or without.
+  ///
+  /// An empty message is still a post when it carries a file — a picture with
+  /// no caption is a thing people send.
+  Future<bool> publish(String channelId, String body, {ChannelUpload? file}) async {
     final text = body.trim();
-    if (text.isEmpty) return false;
+    if (text.isEmpty && file == null) return false;
     return _run(() async {
-      await _channels.publish(channelId, text);
+      await _channels.publish(channelId, text, file: file);
       // Re-read rather than append locally: the server assigns the id and the
       // timestamp, and a feed that disagrees with them is worse than a wait.
       _posts[channelId] = await _channels.posts(channelId);
     });
+  }
+
+  /// Downloads and opens a post's file, or returns null and sets [error].
+  Future<Uint8List?> openAttachment(String channelId, ChannelPost post) async {
+    try {
+      return await _channels.openAttachment(channelId, post);
+    } on ApiException catch (failure) {
+      _error = _explain(failure);
+    } on Object {
+      _error = 'Could not open that file.';
+    }
+    notifyListeners();
+    return null;
   }
 
   Future<bool> join(ChannelInfo channel, {String? inviteCode}) => _run(() async {
