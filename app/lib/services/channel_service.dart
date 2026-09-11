@@ -753,6 +753,13 @@ class ChannelService {
     );
   }
 
+  /// Marks a channel read up to [postId]. Answers where the server ended up,
+  /// which is never behind where it was.
+  Future<int> markRead(String channelId, int postId) async {
+    final response = await _api.markChannelRead(channelId, postId);
+    return (response['lastReadPostId'] as num?)?.toInt() ?? postId;
+  }
+
   Future<({bool muted, DateTime? until})> mute(String channelId, {DateTime? until}) async {
     final response = await _api.muteChannel(channelId, until: until);
     return (
@@ -1706,5 +1713,7 @@ class ChannelService {
         // them false, which is why the listing is what the screens read from.
         muted: raw['muted'] as bool? ?? false,
         mutedUntil: DateTime.tryParse(raw['mutedUntil'] as String? ?? '')?.toLocal(),
+        unreadCount: (raw['unreadCount'] as num?)?.toInt() ?? 0,
+        lastReadPostId: (raw['lastReadPostId'] as num?)?.toInt() ?? 0,
       );
 }

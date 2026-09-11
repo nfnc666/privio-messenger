@@ -107,10 +107,108 @@ class ChannelController extends ChangeNotifier {
   }
 
   Future<void> loadPosts(String channelId) async {
-    await _run(() async => _posts[channelId] = await _channels.posts(channelId));
+    final fetched = await _run(() async {
+      _posts[channelId] = await _channels.posts(channelId);
+      // Kept, so opening this channel without a network shows what was here
+      // last time rather than an empty feed. Sealed with everything else, and
+      // only when something actually changed.
+      _cachePosts(channelId);
+    });
+    // Nothing came back and nothing is held: the channel is genuinely empty as
+    // far as this device knows. Nothing came back but something *is* held: the
+    // cache stands, which is the whole point of having one.
+    if (!fetched && _posts[channelId] == null) _posts[channelId] = const [];
     // Someone reading a channel is someone who holds its key, which makes this
     // the best moment to answer whoever joined by a link and is still waiting.
     detached(_deliverFor(channelId));
+  }
+
+  /// Marks a channel read up to its newest visible post.
+  ///
+  /// Called when somebody opens it. The number goes to the server rather than
+  /// staying here, so reading a channel on a phone clears its badge on a
+  /// laptop — and the server refuses to move it backwards, so a device that was
+  /// offline cannot un-read what has already been read somewhere else.
+  Future<void> markRead(String channelId) async {
+    final posts = postsIn(channelId);
+    if (posts.isEmpty) return;
+    final newest = posts.map((p) => p.id).reduce((a, b) => a > b ? a : b);
+    final channel = channelById(channelId);
+    // Nothing to say: the server already has this, or something further on.
+    if (channel != null && channel.lastReadPostId >= newest) return;
+
+    // The badge clears now rather than after a round trip. Reading something
+    // is the kind of act whose effect should be immediate, and the worst case
+    // is a number that corrects itself on the next listing.
+    if (channel != null) {
+      _replace(channel.copyWith(unreadCount: 0, lastReadPostId: newest));
+      notifyListeners();
+    }
+    await _run(() async {
+      final at = await _channels.markRead(channelId, newest);
+      final current = channelById(channelId);
+      if (current != null) _replace(current.copyWith(lastReadPostId: at));
+    });
+  }
+
+  /// Hands the cached posts to whoever persists them.
+  ///
+  /// A callback rather than a direct dependency on the archive: the controller
+  /// has no business knowing how a history is sealed, and the one place that
+  /// does already seals the conversations.
+  void Function(Map<String, List<ChannelPost>>)? onPostsChanged;
+
+  /// What each channel's posts looked like the last time they were cached.
+  ///
+  /// Compared before asking for a write, because the archive holds *every*
+  /// conversation and re-sealing all of it because somebody opened a channel
+  /// and nothing had changed is a real cost for nothing. Folding a few numbers
+  /// per post is orders of magnitude cheaper than the write it avoids.
+  final Map<String, String> _cachedFingerprint = {};
+
+  static String _fingerprint(List<ChannelPost> posts) {
+    final buffer = StringBuffer()..write(posts.length);
+    for (final post in posts) {
+      buffer
+        ..write(';')
+        ..write(post.id)
+        ..write(',')
+        ..write(post.editedAt?.millisecondsSinceEpoch ?? 0)
+        ..write(',')
+        ..write(post.commentCount)
+        ..write(',')
+        // The totals, not who reacted — the server never says who, and the
+        // cache has nothing more to go on than the feed does.
+        ..write(post.reactions.values.fold<int>(0, (a, b) => a + b));
+    }
+    return buffer.toString();
+  }
+
+  void _cachePosts(String channelId) {
+    final posts = _posts[channelId] ?? const <ChannelPost>[];
+    final now = _fingerprint(posts);
+    // Nothing here and nothing was: there is nothing to write down.
+    if (posts.isEmpty && !_cachedFingerprint.containsKey(channelId)) return;
+    if (_cachedFingerprint[channelId] == now) return;
+    _cachedFingerprint[channelId] = now;
+    onPostsChanged?.call(_posts);
+  }
+
+  /// Takes posts back from a restored archive.
+  ///
+  /// Only where nothing has been fetched for that channel in this run: a cache
+  /// must never overwrite what the server has just said.
+  void restorePosts(Map<String, List<ChannelPost>> cached) {
+    var changed = false;
+    for (final entry in cached.entries) {
+      if (_posts.containsKey(entry.key)) continue;
+      _posts[entry.key] = entry.value;
+      // Recorded as already written, or the next load would re-seal an archive
+      // that already holds exactly this.
+      _cachedFingerprint[entry.key] = _fingerprint(entry.value);
+      changed = true;
+    }
+    if (changed) notifyListeners();
   }
 
   Future<void> _deliverFor(String channelId) async {

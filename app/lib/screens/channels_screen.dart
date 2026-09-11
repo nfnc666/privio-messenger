@@ -253,12 +253,25 @@ class ChannelListRow extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             const Icon(Icons.key_off_rounded, size: 14, color: PrivioColors.warning),
           ],
+          if (channel.muted) ...[
+            const SizedBox(width: PrivioSpacing.xs),
+            const Icon(
+              Icons.notifications_off_rounded,
+              size: 13,
+              color: PrivioColors.textTertiary,
+            ),
+          ],
         ],
       ),
       subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
-      trailing: channel.isMember
-          ? null
-          : const Icon(Icons.add_circle_outline_rounded, color: PrivioColors.accent, size: 20),
+      trailing: !channel.isMember
+          ? const Icon(Icons.add_circle_outline_rounded, color: PrivioColors.accent, size: 20)
+          // A muted channel still counts what it has, and still shows it — it
+          // just does not buzz. The badge goes grey rather than away: "there is
+          // something here" and "tell me about it" are different questions.
+          : channel.hasUnread
+              ? _UnreadBadge(label: channel.unreadLabel, muted: channel.muted)
+              : null,
     );
   }
 }
@@ -364,4 +377,31 @@ class _Empty extends StatelessWidget {
       ),
     );
   }
+}
+
+/// How many posts have arrived since this account last read the channel.
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.label, required this.muted});
+
+  final String label;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minWidth: 22),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: muted ? PrivioColors.surfaceHigh : PrivioColors.accent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: muted ? PrivioColors.textSecondary : Colors.black,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
 }

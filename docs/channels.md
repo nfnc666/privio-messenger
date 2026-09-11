@@ -100,11 +100,69 @@ their phone did not mean "until I pick up my laptop". A row with `until` null is
 muted with no end; a row whose `until` has passed is not muted and is left for
 the sweep rather than deleted on read, so a read path never writes.
 
-**What it governs today is the app, not a push.** Channel posts do not generate
-server push notifications at all yet — the bus is used for key requests and
-nothing else — so there is no fan-out for the mute to suppress. The setting is
-stored, synced across devices, and honoured by the app; wiring it into a push
-path is part of the unread/notification work that is still outstanding.
+**And it now suppresses an actual notification.** Until channel posts raised a
+push there was nothing for a mute to stop; that is no longer true — see below.
+
+## Unread, and notifications
+
+**Unread is counted by the server**, not the device, because a device only holds
+the posts it has fetched and the badge has to be right *before* anything is
+fetched. `channel_reads` holds one row per account and channel; the count is
+posts newer than that marker, capped at 100 (past which the exact number stops
+being information and starts being a cost on every listing). Your own posts
+never count as unread to you, and neither does a post that is not visible yet.
+
+The marker **only ever moves forward**. A device that has been offline holds a
+stale idea of where the reader got to, and honouring that would mark as unread
+what somebody has already read somewhere else. Reading a channel on a phone
+clears its badge on a laptop, which is the whole reason it is not a local
+number.
+
+**A published post now wakes the channel.** It is contentless, like every other
+push here: the server holds ciphertext and no key, so what goes out is "come and
+look" and the device decrypts what it finds. Four groups are skipped, each for
+its own reason — the author (publishing is not news to you), anyone whose mute
+is still running, anyone the channel has silenced (it stopped them speaking; it
+does not also buzz their phone), and any device with no push token.
+
+`notified_at` is set in the same statement that selects the post, so a retry, a
+restart or the sweeper passing over the same row cannot send twice.
+
+### What this did to migration 018
+
+Migration 018 made scheduled posts work with **no queue and no worker**: a post
+becomes visible because time passed, not because a process woke up, so nothing
+can fall over at three in the morning and leave a channel silent. It said, in as
+many words, that this held *only* while publishing raised no push — and that if
+one ever did, the decision would have to be revisited.
+
+It is revisited in 026, and the good property is kept. Visibility still needs no
+worker. Only the **notification** needs something to happen at a moment, so a
+sweeper runs each minute and sends what came due. If that sweeper dies, a
+scheduled post still publishes on time and the only thing lost is its push —
+which is the right thing to lose, and is the same failure 018 was protecting
+against, one notch smaller.
+
+## The offline cache
+
+A channel opened with no network shows what was in it last time, rather than a
+blank screen that is indistinguishable from a channel nobody has posted to.
+
+Posts are sealed into the **same archive as the chats**, written by the one
+object that knows how sealing works — so one write carries both instead of two
+writers racing over the same blob. A fetch that fails leaves the cache standing;
+a fetch that succeeds replaces it, and a restore never overwrites what has just
+been fetched.
+
+**No decrypted file bytes.** An attachment is cached as what it already is — a
+media id, a capability token, a type and a size — never as content. The archive
+is sealed, but a decrypted photo written to disk is a decrypted photo on disk,
+and this app is careful about that everywhere else. A post this device could not
+open is cached as unopened, so a padlock stays a padlock.
+
+The archive is only rewritten when a channel's posts have actually changed. It
+holds *every* conversation, and re-sealing all of it because somebody opened a
+channel where nothing had happened is a real cost for nothing.
 
 ## Adding subscribers
 
@@ -218,4 +276,9 @@ the sensible default and is the default.
   app is its own project.
 - **Media and Links are built from the posts already loaded**, so they cover the
   history this device has fetched rather than the channel's whole archive.
-- **The mute has no push to suppress yet**, as above.
+- **The unread count is capped at 100.** Past that the badge reads "99+".
+- **The offline cache keeps whatever was last fetched**, which is the most
+  recent page rather than a channel's whole history. Opening an old channel
+  offline shows what you last saw in it, not everything that was ever in it.
+- **A scheduled post's notification can be up to a minute late**, which is the
+  sweeper's interval. Its *visibility* is not affected.

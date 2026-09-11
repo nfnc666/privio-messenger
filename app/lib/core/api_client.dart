@@ -471,6 +471,13 @@ class PrivioApiClient {
   ) =>
       _send('POST', '/v1/channels/$channelId/members', body: {'accountIds': accountIds});
 
+  /// Records how far this account has read a channel.
+  ///
+  /// The server only ever moves it forward, so a device that was offline cannot
+  /// mark as unread what somebody has already seen on another one.
+  Future<Map<String, dynamic>> markChannelRead(String channelId, int postId) =>
+      _send('PUT', '/v1/channels/$channelId/read', body: {'postId': postId});
+
   /// Silence a channel for this account, everywhere it is signed in.
   Future<Map<String, dynamic>> muteChannel(String channelId, {DateTime? until}) =>
       _send('PUT', '/v1/channels/$channelId/mute', body: {
