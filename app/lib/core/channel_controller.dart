@@ -443,6 +443,17 @@ class ChannelController extends ChangeNotifier {
   /// succeeded on the server, `channelById` went on answering null, and the
   /// screen kept showing the copy it was built with. A picture set that way
   /// never appeared, with nothing anywhere saying why.
+  /// Puts a channel into this controller's lists without a round trip.
+  ///
+  /// For a screen that already holds one — opened from a link, or handed over
+  /// by whatever pushed it — so it is answerable by [channelById] straight
+  /// away rather than only after the next refresh. The same door [_replace]
+  /// uses, so there is one way a channel gets into these lists.
+  void adopt(ChannelInfo channel) {
+    _replace(channel);
+    notifyListeners();
+  }
+
   void _replace(ChannelInfo channel) {
     final inMine = _mine.any((c) => c.id == channel.id);
     final inDiscovered = _discovered.any((c) => c.id == channel.id);

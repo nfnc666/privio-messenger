@@ -632,11 +632,15 @@ class _Card extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: PrivioColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(PrivioSpacing.md),
-        ),
+  Widget build(BuildContext context) => Material(
+        // A Material rather than a decorated Container. A ListTile paints its
+        // background and its ink splash on the nearest Material ancestor, so a
+        // coloured DecoratedBox in between hides both — the row still works and
+        // gives no feedback at all when it is tapped. Flutter asserts about it,
+        // which is how this was found.
+        color: PrivioColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(PrivioSpacing.md),
+        clipBehavior: Clip.antiAlias,
         child: Column(children: children),
       );
 }
