@@ -266,10 +266,8 @@ class FakeChannelServer {
             // The rule the real server enforces, and the one worth having here:
             // a private channel pointing at the unsealed kind would publish a
             // picture its owner believes is sealed.
-            final wanted = channels[id]!['visibility'] == 'public'
-                ? 'channel_avatar'
-                : 'attachment';
-            if (mediaKinds[mediaId] != wanted) {
+            // One kind for every channel: a picture is not sealed.
+            if (mediaKinds[mediaId] != 'channel_avatar') {
               return _json(
                 {'error': 'wrong_media_kind', 'message': 'that is the other kind'},
                 400,
@@ -1440,7 +1438,7 @@ void main() {
       expect(updated.hasAvatar, isTrue);
     });
 
-    test('a private one is sealed, and the server holds bytes it cannot read', () async {
+    test('a private one goes up the same way, unsealed', () async {
       final server = FakeChannelServer();
       final service = await _serviceOn(server);
       final channel = await service.create(
@@ -1451,16 +1449,19 @@ void main() {
       final updated = await service.setAvatar(channel, picture());
       final mediaId = updated.avatarMediaId!;
 
-      expect(server.mediaKinds[mediaId], 'attachment');
-      // The bytes are ciphertext: they are not a decodable image to anybody
-      // holding only what the server holds.
-      expect(img.decodeImage(Uint8List.fromList(server.media[mediaId]!)), isNull);
-      // And the capability travels inside the sealed metadata, never beside it.
-      expect(updated.avatarToken, isNotNull);
-      final stored = server.channels[channel.id]!['encryptedMetadata'] as String;
-      expect(stored, isNot(contains(updated.avatarToken!)));
-      expect(utf8.decode(base64Decode(stored), allowMalformed: true),
-          isNot(contains('Nur fuer uns')));
+      // The same kind a public channel uses, and readable as an image: a
+      // picture is a label on a door, not a post. What keeps a private
+      // channel's from strangers is the server withholding it from non-members,
+      // which is an authorisation rule and a weaker promise than encryption —
+      // stated plainly rather than implied.
+      expect(server.mediaKinds[mediaId], 'channel_avatar');
+      expect(img.decodeImage(Uint8List.fromList(server.media[mediaId]!)), isNotNull);
+      expect(updated.avatarToken, isNull, reason: 'nothing carries a capability any more');
+
+      // And the channel's name is untouched: setting a picture no longer
+      // rewrites the sealed metadata, so it cannot cost the channel its title.
+      expect(server.metadataWrites[channel.id] ?? 0, 0);
+      expect((await service.byId(channel.id)).title, 'Nur fuer uns');
     });
 
     test('and it comes back as the picture it was', () async {
@@ -1477,12 +1478,11 @@ void main() {
         expect(bytes, isNotNull, reason: '${channel.visibility} round trip');
         // Not byte-identical: prepare() crops, resizes and re-encodes. What
         // matters is that what comes back is an image of the right size.
-        final decoded = img.decodeImage(bytes!)!;
-        expect(decoded.width, 512);
+        expect(img.decodeImage(bytes!)!.width, 512);
       }
     });
 
-    test('a key rotation carries the picture with the name', () async {
+    test('a key rotation leaves the picture alone', () async {
       final server = FakeChannelServer();
       final service = await _serviceOn(server);
       final channel = await service.create(
@@ -1490,22 +1490,36 @@ void main() {
         title: 'Bleibt',
       );
       final withPicture = await service.setAvatar(channel, picture());
-      final token = withPicture.avatarToken;
-      expect(token, isNotNull);
+      final mediaId = withPicture.avatarMediaId;
 
-      // Somebody is removed. The name is re-sealed under the new key, and the
-      // picture has to come with it — the metadata is the only place its
-      // capability lives, so a re-seal that rebuilt the envelope from the
-      // fields a screen happens to need would drop the picture here, silently,
-      // with nothing left to restore it from.
+      // This used to be the dangerous case: the picture's capability lived in
+      // the sealed metadata, so a re-seal that rebuilt the envelope dropped it.
+      // Now the rotation and the picture have nothing to do with each other.
       server.rotate(channel.id);
       await service.completeRotation(channel.id);
-      expect(server.metadataEpochs[channel.id], 2, reason: 're-sealed');
 
       final reopened = await service.byId(channel.id);
       expect(reopened.title, 'Bleibt');
-      expect(reopened.avatarToken, token);
+      expect(reopened.avatarMediaId, mediaId);
       expect(await service.avatarBytes(reopened), isNotNull);
+    });
+
+    test('removing one clears it without touching the name', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Weg damit',
+      );
+      final withPicture = await service.setAvatar(channel, picture());
+
+      final cleared = await service.clearAvatar(withPicture);
+      expect(cleared.avatarMediaId, isNull);
+      expect(cleared.hasAvatar, isFalse);
+
+      final reopened = await service.byId(channel.id);
+      expect(reopened.avatarMediaId, isNull);
+      expect(reopened.title, 'Weg damit', reason: 'the name survived');
     });
 
     test('a channel from before pictures existed still opens', () async {

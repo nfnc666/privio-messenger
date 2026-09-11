@@ -175,61 +175,37 @@ and roughly how large it is. Rotating the profile key after removing a contact
 is not implemented; today a former contact keeps the key they were given, which
 matters when the picture changes rather than when it does not.
 
-### A channel's picture takes the same split its name already takes
+### A channel's picture is not encrypted, and that is deliberate
 
-A channel picture is **two different things**, and which one it is follows from
-what the channel is rather than from a setting anybody can get wrong.
+A channel picture is a label on a door, not a message. It is **not** sealed —
+for any channel, public or private — and the app does not claim otherwise.
 
-A **private** channel's picture is sealed with the channel key, exactly like its
-name and its posts. The capability that downloads it travels inside
-`encrypted_metadata` beside the title — so it arrives with the key that opens
-it, never without, and a key rotation re-seals both in one write. The server
-holds ciphertext and a length.
+It was sealed for private channels once. That cost more than it bought: the
+picture could not be shown until the channel key had reached the device, and
+because its download capability lived inside the sealed metadata, a key rotation
+that raced the upload could drop it with nothing left to restore it from. The
+posts are what the encryption is for.
 
-A **public** channel's picture is stored **unsealed**, and that is a deliberate
-disclosure rather than an oversight. It is drawn on the channel's invite page
-and inside whatever messenger its link was pasted into, and neither of those
-holds a key; a sealed one would be a public channel with no picture in any of
-the places a picture is actually looked for. Its title, description and handle
-are already plaintext for exactly the same reason — discovery cannot search
-ciphertext. The app says so, in those words, before the upload happens.
+What a private channel's picture gets instead is an **authorisation** rule:
 
-Its posts are sealed either way. What the visibility choice decides is what the
-channel *looks like* from outside, and the picture is part of that.
+- A **public** channel's picture is served to anyone, including the invite page
+  and whatever messenger draws its link preview. Its title, description and
+  handle are already plaintext for the same reason — discovery cannot search
+  ciphertext.
+- A **private** channel's picture is served **only to its members**. The server
+  can read it; a stranger with the media id gets a 404.
+- A `channel_avatar` object **no channel points at** is nobody's picture, and
+  only its uploader may fetch it — so an id is not a download before it has
+  been attached to anything.
 
-Three things make the split hold rather than merely being described:
+This is a weaker promise than encryption and it is stated rather than implied:
+**the operator of a Privio server can see channel pictures.** Messages, message
+attachments, a channel's posts and a private channel's *name* remain
+end-to-end encrypted and are not affected.
 
-- **The server enforces the pairing.** An unsealed `channel_avatar` object is
-  readable by anyone who asks, so a private channel is refused one — accepting
-  it would publish a picture whose owner believes it is sealed, with nothing in
-  the app saying otherwise. A public channel is likewise refused a sealed
-  object, which would be a picture missing from everywhere it matters.
-- **Every picture is re-encoded** to a 512×512 JPEG before it goes anywhere,
-  which strips metadata a second time on top of the scrubber and stops a
-  full-resolution photograph from becoming a channel avatar.
-- **The public web route serves by magic number**, never by a declared type.
-  Uploads are opaque bytes; handing them back under a content type taken on
-  trust is how a "picture" becomes an HTML document hosted on the same origin as
-  the invite pages. PNG, JPEG, WebP and GIF are served; SVG deliberately is not,
-  because it is a document that can carry script. Anything else is a 404 and the
-  page draws the Privio mark.
-
-What the server learns either way: that a channel has a picture, when it last
-changed, and roughly how large it is.
-
-### Two accounts on one phone
-
-A device is shared, handed on, or simply used by somebody with a second account,
-and **whatever an account sees must be its own**. That is a client-side
-guarantee more than a server one: the server has always derived identity from
-the session and never from an id the client supplied, but the app was carrying
-one account's state across a sign-out into the next.
-
-The rule and its four failures — a controller that was stopped instead of taken
-down, a Signal identity that outlived the account it belonged to, a slow reply
-landing in the next account's screen, and a push token registered to two
-accounts at once — are written up in full in `docs/account-separation.md`,
-together with the repair path for data that was already mis-assigned.
+Every picture is still re-encoded to a 512×512 JPEG before upload, which strips
+camera metadata — a picture is the one file people upload without thinking about
+where it was taken.
 
 ### Groups
 

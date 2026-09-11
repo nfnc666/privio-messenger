@@ -396,7 +396,7 @@ void main() {
   test('a profile picture reaches a contact and nobody else', () async {
     // What a phone would hand over: a wide photo with camera tags.
     final source = img.encodeJpg(img.Image(width: 900, height: 600), quality: 90);
-    final prepared = AvatarImage.prepare(Uint8List.fromList(source))!;
+    final prepared = (await AvatarImage.prepare(Uint8List.fromList(source)))!;
 
     final mediaId = await alice.messaging.uploadAvatar(prepared);
     expect(server.avatars[alice.deviceId], mediaId);

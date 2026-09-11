@@ -554,113 +554,59 @@ class ChannelService {
   /// Returns the channel with its new picture, so a screen does not have to
   /// re-fetch to draw it.
   Future<ChannelInfo> setAvatar(ChannelInfo channel, Uint8List picked) async {
-    // The same preparation a profile picture gets, and for more reasons here.
-    // It scrubs, crops to a square, resizes and **re-encodes** — so the bytes
-    // that go up are a real JPEG by construction rather than by inspection, any
-    // camera metadata is gone rather than merely stripped, and 512² is a size
-    // an invite page can be asked to load. A public channel's picture is served
-    // to strangers by magic number; bytes that are not an image would become a
-    // channel whose picture is missing everywhere it matters, with nothing
-    // saying why.
-    final prepared = AvatarImage.prepare(picked);
+    // Scrubbed, cropped square, resized and re-encoded as JPEG. That is what
+    // strips the camera metadata — a picture is the one file people upload
+    // without thinking about where it was taken — and it is what guarantees the
+    // bytes are a real image, which the invite page relies on because it serves
+    // a public channel's picture by magic number.
+    final prepared = await AvatarImage.prepare(picked);
     if (prepared == null) {
       throw const ChannelAvatarRejected('That file is not an image Privio can use.');
     }
 
-    if (channel.isPublic) {
-      final blob = await _api.uploadMedia(prepared, channelAvatar: true);
-      await _api.setChannelAvatar(channel.id, blob.id);
-      return channel.copyWith(avatarMediaId: blob.id, avatarUpdatedAt: DateTime.now());
-    }
-
-    // Sealed under the key that is current *now*, read fresh rather than
-    // remembered, for the same reason a post is: a picture sealed under the
-    // previous key would be unreadable to everybody who joined after the
-    // rotation, which is most of what re-sealing the name exists to avoid.
-    final state = await currentEpoch(channel.id);
-    final key = await keyFor(channel.id, state.epoch);
-    if (key == null) {
-      throw ChannelKeyPending(
-        channelId: channel.id,
-        epoch: state.epoch,
-        awaitingGeneration: state.keyId == null,
-      );
-    }
-
-    final avatar = await _sealFile(
-      ChannelUpload(bytes: prepared, mimeType: 'image/jpeg'),
-      key,
-    );
-    // The title has to go back up with it: the metadata is one sealed blob, so
-    // writing the picture into it means writing the whole envelope, and a
-    // channel that lost its name to gain a picture would be a poor trade.
-    await _api.updateChannel(
-      channel.id,
-      encryptedMetadata: base64Encode(await _seal(
-        _wrapMetadata(channel.title, avatar),
-        key,
-      )),
-      metadataKeyEpoch: state.epoch,
-    );
-    await _api.setChannelAvatar(channel.id, avatar.mediaId);
-    return channel.copyWith(
-      avatarMediaId: avatar.mediaId,
-      avatarUpdatedAt: DateTime.now(),
-      avatarToken: avatar.token,
-    );
+    // One path for every channel, sealed for none.
+    //
+    // A private channel's picture used to be encrypted with the channel key and
+    // its download token carried inside the sealed metadata. That is gone: a
+    // channel picture is a label on a door, not a message, and treating it like
+    // a post meant a picture could not be shown until the key had arrived —
+    // and could be lost to a rotation that raced the upload. The posts are
+    // still end-to-end encrypted; this is not.
+    //
+    // What replaces the encryption is an ownership check rather than nothing:
+    // the server hands a private channel's picture only to its members. See
+    // `mayDownload` in the media route.
+    final blob = await _api.uploadMedia(prepared, channelAvatar: true);
+    await _api.setChannelAvatar(channel.id, blob.id);
+    return channel
+        .withoutAvatar()
+        .copyWith(avatarMediaId: blob.id, avatarUpdatedAt: DateTime.now());
   }
 
   /// Takes a channel's picture away.
-  ///
-  /// For a private channel the metadata goes back up without it, so the
-  /// capability stops travelling to new members — and then the server is told,
-  /// which is what actually lets the bytes fall into the next retention sweep.
   Future<ChannelInfo> clearAvatar(ChannelInfo channel) async {
-    if (!channel.isPublic) {
-      final state = await currentEpoch(channel.id);
-      final key = await keyFor(channel.id, state.epoch);
-      if (key != null) {
-        await _api.updateChannel(
-          channel.id,
-          encryptedMetadata: base64Encode(await _seal(
-            _wrapMetadata(channel.title, null),
-            key,
-          )),
-          metadataKeyEpoch: state.epoch,
-        );
-      }
-    }
     await _api.clearChannelAvatar(channel.id);
     return channel.withoutAvatar();
   }
 
   /// The channel's picture as bytes, or null when there is not one to fetch.
   ///
-  /// The two paths meet here. A public channel's bytes come down as they went
-  /// up and are already an image; a private channel's come down sealed and are
-  /// opened with the channel key, which is the same key that opened the name
-  /// the token arrived with.
-  ///
-  /// Null rather than an exception for a picture this device cannot open yet:
-  /// a private channel whose metadata is still sealed has a picture and no way
-  /// to it, and that is a monogram on a screen, not an error.
+  /// Normally a plain download: the picture is not sealed. [ChannelInfo.
+  /// avatarToken] is only ever set for a channel whose picture was uploaded by
+  /// an older build, back when a private channel's was encrypted — those are
+  /// still opened with the channel key so nobody's existing picture disappears
+  /// on upgrade. Setting a new one writes the unsealed kind and clears the
+  /// token.
   Future<Uint8List?> avatarBytes(ChannelInfo channel) async {
     final mediaId = channel.avatarMediaId;
     if (mediaId == null) return null;
 
-    if (channel.isPublic) {
-      final bytes = await _api.downloadMedia(mediaId);
-      return Uint8List.fromList(bytes);
+    final token = channel.avatarToken;
+    if (token == null) {
+      return Uint8List.fromList(await _api.downloadMedia(mediaId));
     }
 
-    final token = channel.avatarToken;
-    if (token == null) return null;
     final sealed = await _api.downloadMedia(mediaId, token: token);
-
-    // Whichever held key opens it. A picture set before a rotation is sealed
-    // under the older key, and a member who was here then still holds it —
-    // trying only the current one would blank a picture that is perfectly
-    // readable.
     for (final epoch in (await heldEpochs(channel.id)).reversed) {
       final key = await keyFor(channel.id, epoch);
       if (key == null) continue;
@@ -1367,32 +1313,12 @@ class ChannelService {
     });
   }
 
-  /// Wraps a private channel's name with whatever travels sealed beside it.
+  /// Splits opened metadata back into the name and, for a channel whose
+  /// picture predates this change, that picture's capability.
   ///
-  /// The same trick as [_wrap], and for the same reason: a channel with no
-  /// picture stays the bare title string it has always been, so every private
-  /// channel that already exists keeps working with no migration and no
-  /// re-seal. Only a channel that has a picture becomes an envelope.
-  ///
-  /// This is also why the picture follows the name through a key rotation for
-  /// free — [_resealMetadata] re-seals whatever is in here, and the picture is
-  /// now in here.
-  String _wrapMetadata(String title, ChannelAttachment? avatar) {
-    if (avatar == null) return title;
-    return jsonEncode({
-      _envelopeMarker: 1,
-      'title': title,
-      // Not the bytes: the pointer and the capability. The bytes are sealed
-      // with the channel key and sitting in media storage, where the server
-      // holds them and cannot open them.
-      'avatar': avatar.toJson(),
-    });
-  }
-
-  /// Splits opened metadata back into the name and the picture's capability.
-  ///
-  /// Anything that is not the envelope is a channel from before pictures
-  /// existed, and is its own title.
+  /// Nothing writes the envelope any more — a channel picture is not sealed —
+  /// but channels that already carry one are still read, so an existing picture
+  /// survives the upgrade. Anything that is not the envelope is its own title.
   (String, String?) _unwrapMetadata(String opened) {
     if (!opened.startsWith('{')) return (opened, null);
     try {

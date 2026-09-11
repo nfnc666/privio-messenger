@@ -246,21 +246,20 @@ class ChannelInfo {
   /// replacing a picture leaves every device showing the old one.
   final DateTime? avatarUpdatedAt;
 
-  /// The capability that downloads a *private* channel's picture.
+  /// The download capability for a picture uploaded by an *older* build.
   ///
-  /// Null for a public channel, which needs none, and null for a private one
-  /// whose sealed metadata this device cannot open yet. It travels inside
-  /// `encryptedMetadata` beside the title — so it arrives with the key that
-  /// opens the picture, and never without it.
+  /// Channel pictures are no longer sealed, so nothing sets this any more. It
+  /// is still read out of `encryptedMetadata`, where those builds put it, so a
+  /// channel that already has a sealed picture keeps showing it instead of
+  /// losing it on upgrade. Setting a new picture clears it.
   final String? avatarToken;
 
-  /// Whether there is a picture this device can actually fetch.
+  /// Whether this channel has a picture to fetch.
   ///
-  /// A private channel whose metadata is still sealed has an id and no token,
-  /// which is a picture that exists and cannot be opened — the screen draws a
-  /// monogram rather than a broken image.
-  bool get hasAvatar =>
-      avatarMediaId != null && (isPublic || avatarToken != null);
+  /// No longer asks whether a key is in hand: channel pictures are not sealed.
+  /// A private one is withheld by the server from anyone who is not a member,
+  /// which is an authorisation rule rather than an encryption one.
+  bool get hasAvatar => avatarMediaId != null;
 
   /// Whether this device holds any version of the key.
   final bool hasKey;

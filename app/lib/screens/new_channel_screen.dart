@@ -85,7 +85,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     // Prepared here rather than at upload, so a file that is not a picture is
     // refused while the person is still looking at the picker they chose it
     // from — not a minute later, after a channel has already been created.
-    final prepared = AvatarImage.prepare(bytes);
+    final prepared = await AvatarImage.prepare(bytes);
     if (prepared == null) {
       _say('That file is not an image Privio can use.');
       return;

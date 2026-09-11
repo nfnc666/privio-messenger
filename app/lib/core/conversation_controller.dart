@@ -2133,7 +2133,7 @@ class ConversationController extends ChangeNotifier {
   ///
   /// Returns false when the file was not a decodable image.
   Future<bool> setOwnAvatar(Uint8List picked) async {
-    final prepared = AvatarImage.prepare(picked);
+    final prepared = await AvatarImage.prepare(picked);
     if (prepared == null) {
       _error = 'That file is not an image Privio can use.';
       notifyListeners();

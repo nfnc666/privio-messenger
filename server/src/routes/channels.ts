@@ -844,21 +844,15 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
    * The bytes went to `/v1/media` first, and **which kind they went up as is
    * the decision**, not a detail:
    *
-   *   - a *public* channel uploads `kind=channel_avatar`, unsealed. Its picture
-   *     is drawn on the invite page and inside whatever messenger the link was
-   *     pasted into, and neither holds a key. Sealing it would mean a public
-   *     channel with no picture in any of the places one is looked for — and
-   *     its title, description and handle are already plaintext for exactly the
-   *     same reason.
-   *   - a *private* channel uploads `kind=attachment`, sealed with the channel
-   *     key like its name and its posts. The download token travels inside
-   *     `encrypted_metadata`, which key rotation already re-seals, so the
-   *     picture follows the name without a second mechanism.
+   * The bytes went to `/v1/media` first as `kind=channel_avatar`, unsealed.
+   * A picture is a label on a door rather than a message: a public channel's is
+   * drawn on the invite page and inside whatever messenger its link was pasted
+   * into, where nobody holds a key, and a private channel's was encrypted until
+   * this change — which meant it could not be shown until the key arrived and
+   * could be lost to a rotation that raced the upload.
    *
-   * The server enforces the pairing rather than trusting it: an unsealed
-   * `channel_avatar` is readable by anyone who asks (see `mayDownload`), so
-   * letting a private channel point at one would quietly publish a picture its
-   * owner believes is sealed.
+   * What replaces the encryption for a private channel is an authorisation
+   * rule, not nothing: `mayDownload` hands its picture only to members.
    *
    * The upload has to belong to the caller. Without that check anyone could
    * adopt anyone else's object id and learn, from which error came back,
@@ -887,13 +881,15 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       const channel = old[0];
       if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
 
-      const wanted = channel.visibility === 'public' ? 'channel_avatar' : 'attachment';
-      if (media[0]!.kind !== wanted) {
+      // One kind for every channel now. A picture used to be sealed for a
+      // private channel and carried inside its encrypted metadata; that meant
+      // it could not be shown until the key arrived and could be lost to a
+      // rotation that raced the upload. It is a label on a door, not a post.
+      // The posts stay end-to-end encrypted; this does not.
+      if (media[0]!.kind !== 'channel_avatar') {
         throw ApiError.badRequest(
           'wrong_media_kind',
-          channel.visibility === 'public'
-            ? "A public channel's picture is uploaded as kind=channel_avatar"
-            : "A private channel's picture is sealed and uploaded as kind=attachment",
+          "A channel's picture is uploaded as kind=channel_avatar",
         );
       }
 

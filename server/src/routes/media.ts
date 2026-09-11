@@ -30,6 +30,7 @@ import { parse, uuidSchema } from '../util/validate.js';
  * nothing. They are authorised by the contact list instead.
  */
 interface MediaRow {
+  id: string;
   storage_key: string;
   byte_size: string | number;
   kind: string;
@@ -58,14 +59,33 @@ async function mayDownload(
 ): Promise<boolean> {
   if (object.owner_account_id === accountId) return true;
 
-  // A public channel's picture is meant to be seen by people who are not in
-  // it: it is on the invite page, it is the image a messenger draws in a link
-  // preview, and it is how somebody picks the channel out of search results.
-  // Sealing it would mean a public channel with no picture anywhere it is
-  // actually being looked for. A private channel's picture is not this kind —
-  // it is sealed and travels as an ordinary attachment, authorised by the token
-  // inside the channel's own sealed metadata.
-  if (object.kind === 'channel_avatar') return true;
+  // A channel's picture, which is not sealed.
+  //
+  // A **public** channel's is meant to be seen by people who are not in it: it
+  // is on the invite page, it is what a messenger draws in a link preview, and
+  // it is how somebody picks the channel out of search results. Its title,
+  // description and handle are already plaintext for the same reason.
+  //
+  // A **private** channel's is not published. It used to be encrypted; now it
+  // is withheld instead — only members get it. That is a weaker promise than
+  // encryption and it is the one being made: the posts stay end-to-end
+  // encrypted, the picture on the door does not.
+  //
+  // An object of this kind that no channel points at is nobody's picture, so
+  // nobody but its uploader may have it — that is the `false` at the end, and
+  // it stops an id from being a download before it has been attached.
+  if (object.kind === 'channel_avatar') {
+    const { rows } = await pool.query<{ visibility: string }>(
+      `SELECT c.visibility FROM channels c
+        WHERE c.avatar_media_id = $1 AND c.deleted_at IS NULL
+          AND (c.visibility = 'public'
+               OR EXISTS (SELECT 1 FROM channel_members m
+                           WHERE m.channel_id = c.id AND m.account_id = $2))
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return rows.length > 0;
+  }
 
   if (object.kind === 'avatar') {
     const { rows } = await pool.query(
@@ -131,7 +151,7 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
       const { accountId } = auth(request);
       const params = parse(z.object({ id: uuidSchema }), request.params);
       const { rows } = await pool.query<MediaRow>(
-        `SELECT storage_key, byte_size, kind, owner_account_id, download_token_hash
+        `SELECT id, storage_key, byte_size, kind, owner_account_id, download_token_hash
            FROM media_objects WHERE id = $1 AND expires_at > now()`,
         [params.id],
       );
