@@ -57,6 +57,10 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.1
+  # Opening a link somebody put in a channel post. Only ever called after the
+  # reader has confirmed the address in a dialog — see `widgets/linked_text.dart`
+  # for why a silent hand-off to the browser is the wrong default here.
+  url_launcher: ^6.3.1
   # Jumping to a message a search found. A plain ListView can only be told an
   # offset, and the offset of a message hundreds of lines up is not knowable
   # until it has been laid out. Pure Dart, from the Flutter team's own widgets
