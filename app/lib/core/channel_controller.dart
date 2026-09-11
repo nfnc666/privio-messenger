@@ -296,6 +296,64 @@ class ChannelController extends ChangeNotifier {
         _scheduled[channelId] = await _channels.posts(channelId, scheduled: true);
       });
 
+  /// Open threads, keyed by post id. Only the ones being looked at.
+  final Map<int, List<ChannelComment>> _comments = {};
+
+  List<ChannelComment> commentsOn(int postId) => _comments[postId] ?? const [];
+
+  Future<bool> loadComments(String channelId, int postId) => _run(() async {
+        _comments[postId] = await _channels.comments(channelId, postId);
+      });
+
+  /// Adds a comment and re-reads the thread.
+  ///
+  /// Re-read rather than appended locally, for the same reason a post is: the
+  /// server assigns the id and the timestamp, and a thread that disagrees with
+  /// them is worse than a short wait. The feed is reloaded too, so the count
+  /// under the post moves with it.
+  Future<bool> comment(String channelId, int postId, String body) async {
+    final text = body.trim();
+    if (text.isEmpty) return false;
+    return _run(() async {
+      await _channels.comment(channelId, postId, text);
+      _comments[postId] = await _channels.comments(channelId, postId);
+      _posts[channelId] = await _channels.posts(channelId);
+    });
+  }
+
+  Future<bool> deleteComment(String channelId, int postId, int commentId) => _run(() async {
+        await _channels.deleteComment(channelId, postId, commentId);
+        _comments[postId] = [
+          for (final c in commentsOn(postId)) if (c.id != commentId) c,
+        ];
+        _posts[channelId] = await _channels.posts(channelId);
+      });
+
+  /// Turns threads under posts on or off for the whole channel.
+  Future<bool> setCommentsEnabled(String channelId, {required bool enabled}) => _run(() async {
+        await _channels.setCommentsEnabled(channelId, enabled: enabled);
+        _mine = await _channels.mine();
+      });
+
+  /// Stops somebody speaking in a channel, or lets them speak again.
+  ///
+  /// Not the same as removing them, and the screens say so: removal rotates the
+  /// key and takes their reading with it.
+  Future<bool> setBanned(
+    String channelId,
+    String accountId, {
+    required bool banned,
+  }) =>
+      _run(() async => _channels.setBanned(channelId, accountId, banned: banned));
+
+  final Map<String, List<ChannelBan>> _bans = {};
+
+  List<ChannelBan> bansIn(String channelId) => _bans[channelId] ?? const [];
+
+  Future<bool> loadBans(String channelId) => _run(() async {
+        _bans[channelId] = await _channels.bans(channelId);
+      });
+
   /// Changes the emojis this channel offers, then reloads it so the bar under
   /// every post redraws from the new set.
   Future<bool> setReactionEmojis(String channelId, List<String> emojis) => _run(() async {

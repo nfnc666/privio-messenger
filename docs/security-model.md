@@ -277,6 +277,27 @@ unconstrained column here would let an admin write captions into a readable
 column under every post. The server enforces that, not the screen that hides the
 field.
 
+**Comments are sealed; moderating them is therefore blunt on purpose.** A
+comment is encrypted with the same channel key as the post it hangs under, at
+the same epoch, and refused under a superseded one exactly as a post is. The
+server stores ciphertext and cannot read a word of it — which sets the limit on
+what moderation can be: removing a row, and stopping an account writing more.
+There is no filtering a server cannot read, and a channel that advertised one
+would be advertising something it would have to break encryption to deliver.
+Threads are off until a channel's owner turns them on, because a channel is a
+broadcast and threads change what the thing is.
+
+**Silencing is not removal, and the difference is the point.** Removing somebody
+rotates the channel key and cuts them off from reading as well — the right
+answer to "should not be here", and much too heavy an answer to "will not stop
+arguing under every post". A ban stops comments *and* reactions, since a
+reaction is a way of speaking too, and leaves the reading alone. The owner
+cannot be silenced, and only the owner can silence an admin: otherwise an admin
+could work around the permission system by muting the people who hold it. Who
+is silenced is a moderation record served to admins only — as a list it would
+name who else reads the channel, which is the thing the members endpoint
+already refuses to do.
+
 A group is different on purpose: it is a mutual construct, capped and
 invite-only, where every member is already known to every other. There the list
 is shared in full.

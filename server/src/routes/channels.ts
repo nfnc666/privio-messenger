@@ -73,6 +73,8 @@ function publicView(row: Record<string, unknown>) {
     restrictSaving: row.restrict_saving,
     // Which emojis this channel offers under a post.
     reactionEmojis: row.reaction_emojis ?? [],
+    // Whether its posts have threads under them at all.
+    commentsEnabled: row.comments_enabled ?? false,
     memberCount: row.member_count,
     // Which key version this channel is on. The server counts these and holds
     // no key for any of them; see migration 015.
@@ -112,9 +114,9 @@ async function lockChannel(
   client: Queryable,
   channelId: string,
   mode: 'share' | 'update',
-): Promise<{ key_epoch: number } | null> {
-  const { rows } = await client.query<{ key_epoch: number }>(
-    `SELECT key_epoch FROM channels
+): Promise<{ key_epoch: number; comments_enabled: boolean } | null> {
+  const { rows } = await client.query<{ key_epoch: number; comments_enabled: boolean }>(
+    `SELECT key_epoch, comments_enabled FROM channels
      WHERE id = $1 AND deleted_at IS NULL
      FOR ${mode === 'share' ? 'SHARE' : 'UPDATE'}`,
     [channelId],
@@ -691,6 +693,14 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          * reason to silently discard what people have already said with it.
          */
         reactionEmojis: reactionEmojisSchema.optional(),
+        /**
+         * Whether posts have threads under them.
+         *
+         * Off by default: a channel is a broadcast, and turning its posts into
+         * threads changes what the thing is. Turning it off later hides the
+         * threads rather than deleting them — see the comments routes.
+         */
+        commentsEnabled: z.boolean().optional(),
       }),
       request.body,
     );
@@ -712,7 +722,8 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
            ELSE metadata_key_epoch
          END,
          restrict_saving = COALESCE($6, restrict_saving),
-         reaction_emojis = COALESCE($8, reaction_emojis)
+         reaction_emojis = COALESCE($8, reaction_emojis),
+         comments_enabled = COALESCE($9, comments_enabled)
        WHERE id = $1 RETURNING *`,
       [
         params.id,
@@ -723,6 +734,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         body.restrictSaving ?? null,
         body.metadataKeyEpoch ?? null,
         body.reactionEmojis ?? null,
+        body.commentsEnabled ?? null,
       ],
     );
     return publicView(rows[0]);
@@ -1119,7 +1131,8 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
               p.content, p.media_id, p.pinned, p.created_at, p.key_epoch,
               p.edited_at, p.publish_at,
               COALESCE(r.counts, '{}'::jsonb) AS reactions,
-              COALESCE(m.mine, ARRAY[]::text[]) AS mine
+              COALESCE(m.mine, ARRAY[]::text[]) AS mine,
+              COALESCE(c.n, 0) AS comment_count
        FROM channel_posts p
        LEFT JOIN accounts a ON a.id = p.author_account_id
        LEFT JOIN LATERAL (
@@ -1136,6 +1149,13 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          FROM channel_post_reactions
          WHERE post_id = p.id AND account_id = $4
        ) AS m ON true
+       -- How many replies, so a post can say "3 comments" without the screen
+       -- fetching every thread it scrolls past.
+       LEFT JOIN LATERAL (
+         SELECT count(*)::int AS n
+         FROM channel_post_comments
+         WHERE post_id = p.id AND deleted_at IS NULL
+       ) AS c ON true
        WHERE p.channel_id = $1 AND p.deleted_at IS NULL
          AND ($2::bigint IS NULL OR p.id < $2)
          AND CASE WHEN $5::boolean
@@ -1157,6 +1177,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         reactions: r.reactions,
         myReactions: r.mine,
         // Null unless somebody changed it after people could already read it.
+        commentCount: r.comment_count,
         editedAt: (r.edited_at as Date | null)?.toISOString() ?? null,
         publishAt: (r.publish_at as Date | null)?.toISOString() ?? null,
         // So a reader knows which key a post needs, rather than inferring it
@@ -1264,6 +1285,268 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     };
   });
 
+  /**
+   * Whether this account is barred from speaking in a channel.
+   *
+   * Separate from membership on purpose: removing somebody rotates the key and
+   * cuts them off from everything, which is the right answer to "should not be
+   * here" and far too heavy an answer to "will not stop arguing under every
+   * post". A ban silences; it does not blind.
+   */
+  async function isBanned(
+    channelId: string,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<boolean> {
+    const { rowCount } = await client.query(
+      'SELECT 1 FROM channel_bans WHERE channel_id = $1 AND account_id = $2',
+      [channelId, accountId],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  /** Refuses a member who has been silenced, saying so rather than pretending. */
+  async function requireNotBanned(
+    channelId: string,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<void> {
+    if (await isBanned(channelId, accountId, client)) {
+      throw ApiError.forbidden('banned', 'An admin has stopped you posting in this channel');
+    }
+  }
+
+  /**
+   * A comment on a post.
+   *
+   * Sealed exactly like the post it hangs under: same channel key, same epoch,
+   * same refusal under a superseded one. The server stores ciphertext and
+   * cannot read a word of it, which is why moderation here can only ever be
+   * "remove this row" and "stop this account writing more" — there is no
+   * filtering a server cannot read.
+   *
+   * Any member may comment, not only those who may post. That is the point of
+   * turning threads on at all.
+   */
+  app.post('/v1/channels/:id/posts/:postId/comments', requireAuth, async (request, reply) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        content: base64Bytes(1, MAX_POST_BYTES),
+        keyEpoch: z.number().int().min(1).optional(),
+      }),
+      request.body,
+    );
+    const commentEpoch = body.keyEpoch ?? 1;
+
+    const created = await withTransaction(async (client) => {
+      const channel = await lockChannel(client, params.id, 'share');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+      if (!channel.comments_enabled) {
+        throw ApiError.conflict('comments_disabled', 'This channel has comments turned off');
+      }
+      await requireMember(params.id, accountId, client);
+      await requireNotBanned(params.id, accountId, client);
+
+      if (commentEpoch < channel.key_epoch) {
+        throw ApiError.conflict(
+          'stale_key_epoch',
+          `This channel has rotated its key. Seal the comment under epoch ${channel.key_epoch}.`,
+        );
+      }
+      if (commentEpoch > channel.key_epoch) {
+        throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
+      }
+
+      // Within the channel, and only a post that is actually out: a thread
+      // under something still scheduled would tell a subscriber it exists.
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM channel_posts
+         WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL
+           AND (publish_at IS NULL OR publish_at <= now())`,
+        [params.postId, params.id],
+      );
+      if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
+
+      const { rows } = await client.query(
+        `INSERT INTO channel_post_comments (post_id, author_account_id, content, key_epoch)
+         VALUES ($1, $2, $3, $4) RETURNING id, created_at, key_epoch`,
+        [params.postId, accountId, body.content, commentEpoch],
+      );
+      return rows[0];
+    });
+
+    reply.code(201);
+    return {
+      id: created.id,
+      keyEpoch: created.key_epoch,
+      createdAt: (created.created_at as Date).toISOString(),
+    };
+  });
+
+  /** The thread, oldest first — a conversation reads forwards. */
+  app.get('/v1/channels/:id/posts/:postId/comments', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const query = parse(
+      z.object({
+        after: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().min(1).max(200).default(100),
+      }),
+      request.query,
+    );
+    await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query(
+      `SELECT c.id, c.author_account_id, a.username AS author_username,
+              c.content, c.key_epoch, c.created_at
+       FROM channel_post_comments c
+       JOIN channel_posts p ON p.id = c.post_id AND p.channel_id = $1
+       LEFT JOIN accounts a ON a.id = c.author_account_id
+       WHERE c.post_id = $2 AND c.deleted_at IS NULL
+         AND ($3::bigint IS NULL OR c.id > $3)
+       ORDER BY c.id ASC LIMIT $4`,
+      [params.id, params.postId, query.after ?? null, query.limit],
+    );
+
+    return {
+      comments: rows.map((r) => ({
+        id: r.id,
+        authorAccountId: r.author_account_id,
+        authorUsername: r.author_username,
+        content: (r.content as Buffer).toString('base64'),
+        keyEpoch: r.key_epoch ?? 1,
+        createdAt: (r.created_at as Date).toISOString(),
+      })),
+      more: rows.length === query.limit,
+    };
+  });
+
+  /**
+   * Removing a comment: its author, or an admin who may delete posts.
+   *
+   * Overwritten rather than tombstoned, like a post, so a removed comment does
+   * not sit on disk waiting for a key to turn up.
+   */
+  app.delete(
+    '/v1/channels/:id/posts/:postId/comments/:commentId',
+    requireAuth,
+    async (request) => {
+      const { accountId } = auth(request);
+      const params = parse(
+        z.object({
+          id: uuidSchema,
+          postId: z.coerce.number().int().positive(),
+          commentId: z.coerce.number().int().positive(),
+        }),
+        request.params,
+      );
+      const member = await requireMember(params.id, accountId);
+
+      const { rows } = await pool.query<{ author_account_id: string | null }>(
+        `SELECT c.author_account_id
+         FROM channel_post_comments c
+         JOIN channel_posts p ON p.id = c.post_id AND p.channel_id = $1
+         WHERE c.id = $2 AND c.post_id = $3 AND c.deleted_at IS NULL`,
+        [params.id, params.commentId, params.postId],
+      );
+      const comment = rows[0];
+      if (!comment) throw ApiError.notFound('comment_not_found', 'No such comment');
+
+      const isAuthor = comment.author_account_id === accountId;
+      if (!isAuthor && !member.permissions.canDeletePosts) {
+        throw ApiError.forbidden('insufficient_permission', 'You need canDeletePosts for that');
+      }
+
+      await pool.query(
+        'UPDATE channel_post_comments SET deleted_at = now(), content = $2 WHERE id = $1',
+        [params.commentId, Buffer.alloc(0)],
+      );
+      return { deleted: true };
+    },
+  );
+
+  /**
+   * Silencing somebody, and letting them speak again.
+   *
+   * Needs `canManageMembers`, the same right that removes people, because it
+   * is the lighter half of the same decision. An owner cannot be silenced —
+   * there would be no way back — and neither can you silence yourself into a
+   * channel you run.
+   */
+  app.put('/v1/channels/:id/bans/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    const actor = await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const target = await membership(params.id, params.accountId);
+    if (!target) throw ApiError.notFound('not_a_member', 'They are not in this channel');
+    if (target.role === 'owner') {
+      throw ApiError.forbidden('cannot_ban_owner', 'The owner cannot be silenced');
+    }
+    // An admin silencing another admin would be a way around the permission
+    // system: whoever may manage members may remove them, and that is the
+    // decision with a record.
+    if (target.role === 'admin' && actor.role !== 'owner') {
+      throw ApiError.forbidden('cannot_ban_admin', 'Only the owner can silence an admin');
+    }
+
+    await pool.query(
+      `INSERT INTO channel_bans (channel_id, account_id, banned_by)
+       VALUES ($1, $2, $3) ON CONFLICT (channel_id, account_id) DO NOTHING`,
+      [params.id, params.accountId, accountId],
+    );
+    return { banned: true };
+  });
+
+  app.delete('/v1/channels/:id/bans/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    await pool.query('DELETE FROM channel_bans WHERE channel_id = $1 AND account_id = $2', [
+      params.id,
+      params.accountId,
+    ]);
+    return { banned: false };
+  });
+
+  /** Who is silenced. Admins only — it is a moderation record, not a roster. */
+  app.get('/v1/channels/:id/bans', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `SELECT b.account_id, a.username, b.created_at
+       FROM channel_bans b
+       LEFT JOIN accounts a ON a.id = b.account_id
+       WHERE b.channel_id = $1
+       ORDER BY b.created_at DESC`,
+      [params.id],
+    );
+    return {
+      banned: rows.map((r) => ({
+        accountId: r.account_id,
+        username: r.username,
+        since: (r.created_at as Date).toISOString(),
+      })),
+    };
+  });
+
   app.put('/v1/channels/:id/posts/:postId/pin', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(
@@ -1331,6 +1614,9 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     );
     const body = parse(z.object({ emoji: reactionEmojiSchema }), request.body);
     await requireMember(params.id, accountId);
+    // A reaction is a way of speaking too. An admin who silenced somebody
+    // would not expect them to go on stamping emojis on every post.
+    await requireNotBanned(params.id, accountId);
 
     const { rows: channels } = await pool.query<{ reaction_emojis: string[] }>(
       'SELECT reaction_emojis FROM channels WHERE id = $1 AND deleted_at IS NULL',
@@ -1402,6 +1688,14 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       // thing it was about.
       if (deleted) {
         await client.query('DELETE FROM channel_post_reactions WHERE post_id = $1', [
+          params.postId,
+        ]);
+        // And the thread under it, for the same reason and then one more: a
+        // comment is ciphertext, and a removed post must not leave a pile of
+        // it on disk waiting for a key. Hard-deleted rather than tombstoned,
+        // because the post they hang under is gone and nothing will ever ask
+        // for them again.
+        await client.query('DELETE FROM channel_post_comments WHERE post_id = $1', [
           params.postId,
         ]);
       }

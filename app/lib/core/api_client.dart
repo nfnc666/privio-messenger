@@ -385,6 +385,7 @@ class PrivioApiClient {
     int? metadataKeyEpoch,
     bool? restrictSaving,
     List<String>? reactionEmojis,
+    bool? commentsEnabled,
   }) =>
       _send('PATCH', '/v1/channels/$channelId', body: {
         if (title != null) 'title': title,
@@ -399,6 +400,8 @@ class PrivioApiClient {
         // The menu under a post. Changing it leaves what is already there
         // alone — see migration 017.
         if (reactionEmojis != null) 'reactionEmojis': reactionEmojis,
+        // Whether posts have threads under them at all.
+        if (commentsEnabled != null) 'commentsEnabled': commentsEnabled,
       },);
 
   /// Moves a channel past a key version whose key nobody holds.
@@ -503,6 +506,53 @@ class PrivioApiClient {
 
   Future<void> deletePost(String channelId, int postId) async =>
       _send('DELETE', '/v1/channels/$channelId/posts/$postId');
+
+  // --- Comments -------------------------------------------------------------
+
+  /// The thread under a post, oldest first — a conversation reads forwards.
+  Future<Map<String, dynamic>> channelComments(
+    String channelId,
+    int postId, {
+    int? after,
+    int limit = 100,
+  }) =>
+      _send('GET', '/v1/channels/$channelId/posts/$postId/comments', query: {
+        if (after != null) 'after': '$after',
+        'limit': '$limit',
+      },);
+
+  /// Adds one. Sealed with the channel key before it gets here, like a post.
+  Future<Map<String, dynamic>> postComment({
+    required String channelId,
+    required int postId,
+    required String content,
+    int? keyEpoch,
+  }) =>
+      _send('POST', '/v1/channels/$channelId/posts/$postId/comments', body: {
+        'content': content,
+        if (keyEpoch != null) 'keyEpoch': keyEpoch,
+      },);
+
+  /// Removes one: your own, or anyone's if you may delete posts.
+  Future<void> deleteComment(String channelId, int postId, int commentId) async =>
+      _send('DELETE', '/v1/channels/$channelId/posts/$postId/comments/$commentId');
+
+  // --- Silencing ------------------------------------------------------------
+
+  /// Stops somebody commenting and reacting, without removing them.
+  ///
+  /// Deliberately lighter than removal, which rotates the key and cuts them off
+  /// from reading as well.
+  Future<void> banFromChannel(String channelId, String accountId) async =>
+      _send('PUT', '/v1/channels/$channelId/bans/$accountId');
+
+  Future<void> unbanFromChannel(String channelId, String accountId) async =>
+      _send('DELETE', '/v1/channels/$channelId/bans/$accountId');
+
+  /// Who is silenced. Admins only — the server refuses everybody else, because
+  /// the list would name who else reads the channel.
+  Future<Map<String, dynamic>> channelBans(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/bans');
 
   // --- Devices --------------------------------------------------------------
 
