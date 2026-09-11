@@ -143,67 +143,64 @@ describe('a channel picture', () => {
     assert.ok(page.body.includes('privio-mark.png'));
   });
 
-  it('a private channel refuses the unsealed kind', async () => {
+  it('a private channel takes the unsealed kind too, and keeps it to its members',
+    async () => {
     const channel = await createChannel({
       visibility: 'private',
       encryptedMetadata: Buffer.from('sealed name').toString('base64'),
     });
-    const unsealed = await upload(png('would-have-been-public'), owner, 'channel_avatar');
+    const media = await upload(png('private-channel-picture'), owner, 'channel_avatar');
+    assert.equal((await setAvatar(channel.id, media.id)).statusCode, 200);
 
-    const refused = await setAvatar(channel.id, unsealed.id);
-    // The unsealed kind is readable by anyone who asks. Accepting one here
-    // would publish a picture whose owner believes it is sealed with the
-    // channel key, and nothing in the app would say otherwise.
-    assert.equal(refused.statusCode, 400);
-    assert.equal(refused.json().error, 'wrong_media_kind');
+    // Not sealed — the owner gets the bytes straight back.
+    const mine = await h.app.inject({
+      method: 'GET', url: `/v1/media/${media.id}`, headers: bearer(owner),
+    });
+    assert.equal(mine.statusCode, 200);
+    assert.deepEqual(mine.rawPayload, png('private-channel-picture'));
 
-    const { rows } = await pool.query('SELECT avatar_media_id FROM channels WHERE id = $1', [
-      channel.id,
-    ]);
-    assert.equal(rows[0].avatar_media_id, null, 'and nothing was written');
+    // But a stranger does not. This is the whole of what replaced the
+    // encryption: the picture is withheld rather than unreadable, and that is
+    // a weaker promise stated plainly rather than a stronger one implied.
+    const theirs = await h.app.inject({
+      method: 'GET', url: `/v1/media/${media.id}`, headers: bearer(stranger),
+    });
+    assert.equal(theirs.statusCode, 404);
+
+    // A member does.
+    await h.app.inject({
+      method: 'POST', url: `/v1/channels/${channel.id}/join`, headers: bearer(stranger),
+      payload: { inviteCode: channel.inviteCode },
+    });
+    const asMember = await h.app.inject({
+      method: 'GET', url: `/v1/media/${media.id}`, headers: bearer(stranger),
+    });
+    assert.equal(asMember.statusCode, 200);
   });
 
-  it('a private channel takes a sealed one, which stays behind its token', async () => {
-    const channel = await createChannel({
-      visibility: 'private',
-      encryptedMetadata: Buffer.from('sealed name').toString('base64'),
+  it('a picture no channel points at is nobody\'s', async () => {
+    // Uploaded and never attached: the uploader may still have it, and an id
+    // on its own must not be a download for anybody else.
+    const orphan = await upload(png('never-attached'), owner, 'channel_avatar');
+    const peek = await h.app.inject({
+      method: 'GET', url: `/v1/media/${orphan.id}`, headers: bearer(stranger),
     });
-    const sealed = await upload(png('sealed-with-the-channel-key'), owner, 'attachment');
-    assert.ok(sealed.token, 'an attachment is a capability');
-
-    assert.equal((await setAvatar(channel.id, sealed.id)).statusCode, 200);
-
-    // The token lives inside `encrypted_metadata` beside the title, which the
-    // server cannot read. Without it, nobody else gets the bytes.
-    const withoutToken = await h.app.inject({
-      method: 'GET',
-      url: `/v1/media/${sealed.id}`,
-      headers: bearer(stranger),
-    });
-    assert.equal(withoutToken.statusCode, 404);
-
-    const withToken = await h.app.inject({
-      method: 'GET',
-      url: `/v1/media/${sealed.id}`,
-      headers: { ...bearer(stranger), 'x-privio-media-token': sealed.token! },
-    });
-    assert.equal(withToken.statusCode, 200);
+    assert.equal(peek.statusCode, 404);
   });
 
-  it('a public channel refuses a sealed one', async () => {
-    const channel = await createChannel({
-      visibility: 'public',
-      handle: 'falschherum',
-      title: 'Falsch herum',
-    });
-    const sealed = await upload(png('sealed'), owner, 'attachment');
-
-    const refused = await setAvatar(channel.id, sealed.id);
-    // Not symmetry for its own sake: the web page has no token, so a public
-    // channel pointing at a sealed object is a channel whose picture is
-    // missing from every place it is actually looked for.
-    assert.equal(refused.statusCode, 400);
-    assert.equal(refused.json().error, 'wrong_media_kind');
+  it('every channel refuses a sealed upload as its picture', async () => {
+    for (const payload of [
+      { visibility: 'public', handle: 'falschherum', title: 'Falsch herum' },
+      { visibility: 'private', encryptedMetadata: Buffer.from('x').toString('base64') },
+    ]) {
+      const channel = await createChannel(payload);
+      const sealed = await upload(png('sealed'), owner, 'attachment');
+      const refused = await setAvatar(channel.id, sealed.id);
+      // One kind for every channel, so the wrong one is an answer about the
+      // upload rather than about the channel.
+      assert.equal(refused.statusCode, 400, `${payload.visibility}`);
+      assert.equal(refused.json().error, 'wrong_media_kind');
+    }
   });
 
   it('only somebody who may edit the channel may change it', async () => {

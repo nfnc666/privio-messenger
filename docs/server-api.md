@@ -136,7 +136,7 @@ decides that, never the client.
 | `PUT /v1/accounts/me/recovery` | |
 | `PUT /v1/backup` | |
 | `PUT /v1/channels/:id/members/:accountId/role` | |
-| `PUT /v1/channels/:id/avatar` | `{mediaId}`; needs `canEditChannel`. The media **kind** must match the visibility: `channel_avatar` for a public channel, `attachment` for a private one |
+| `PUT /v1/channels/:id/avatar` | `{mediaId}`; needs `canEditChannel`. Always `kind=channel_avatar` — a channel picture is not sealed. A private channel's is served only to its members |
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
 | `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
 | `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |
