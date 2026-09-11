@@ -7,6 +7,7 @@ import 'package:privio/core/api_client.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:privio/data/message_store.dart';
+import 'package:privio/media/attachment.dart';
 import 'package:privio/media/avatar.dart';
 import 'package:privio/media/voice.dart';
 
@@ -198,6 +199,29 @@ void main() {
       expect(
         sent.any((e) => e['recipientDeviceId'] == alice.deviceId),
         isFalse,
+      );
+    });
+
+    test('and a copy of every message, not only the first one ever sent', () async {
+      // Each with a client id, which is what the chat screen sends: the id is
+      // the send's idempotency key, and the copy's key is derived from it.
+      await alice.messaging
+          .sendPayload('bob', const MessagePayload.text('eins', clientId: 'c1'));
+      await alice.messaging
+          .sendPayload('bob', const MessagePayload.text('zwei', clientId: 'c2'));
+      await alice.messaging
+          .sendPayload('bob', const MessagePayload.text('drei', clientId: 'c3'));
+
+      final forLaptop = await laptop.messaging.receive();
+
+      expect(
+        forLaptop.messages.map((m) => m.payload.sync!.inner.body).toList(),
+        ['eins', 'zwei', 'drei'],
+        reason: 'the sync idempotency key was a constant string — a backslash '
+            'before the interpolation, so it never interpolated — and every '
+            'copy after the very first claimed a key the server had already '
+            'seen and was answered as a duplicate. The laptop saw one message '
+            'and then silence, for the life of the install.',
       );
     });
 
@@ -701,7 +725,7 @@ void main() {
       expect(received.messages, hasLength(1));
     });
 
-    test('a disappearing timer travels with the message, not with the server', () async {
+    test('a disappearing timer travels inside the message, and only its bound is told to the server', () async {
       final recorder = FakeVoiceRecorder();
       await recorder.start();
       final recording = await recorder.stop();
@@ -713,14 +737,20 @@ void main() {
         expiresInSeconds: 30,
       );
 
-      // Nothing about the timer is visible from outside the envelope: it is
-      // not a column on the row, and the row's bytes do not read as the
-      // payload. Searching that ciphertext for "30" would be the wrong test —
-      // two given characters turn up in a few hundred random bytes often
-      // enough to fail a run for no reason.
+      // The number the devices act on is inside the ciphertext, and the
+      // ciphertext does not read as the payload. Searching those bytes for
+      // "30" would be the wrong test — two given characters turn up in a few
+      // hundred random bytes often enough to fail a run for no reason.
+      //
+      // The server *is* told the same number, in the clear, as a bound on how
+      // long it keeps an envelope it could not deliver. That is a deliberate
+      // disclosure and migration 024 says so: without it a message set to
+      // vanish in thirty seconds sits as ciphertext for the full retention
+      // period, waiting for a device that may never come back. What the server
+      // learns is a retention hint on one envelope, not what the chat's timer
+      // is for anything it did not carry.
       final row = server.envelopes.single;
-      expect(row.keys, isNot(contains('expiresAt')));
-      expect(row.keys, isNot(contains('expiresInSeconds')));
+      expect(row['expiresInSeconds'], 30);
       final envelope = utf8.decode(
         base64Decode(row['content'] as String),
         allowMalformed: true,
@@ -764,5 +794,83 @@ void main() {
     // The second reuses the session rather than draining the pool.
     await alice.messaging.sendToGroup(group.groupId, 'zwei', groupKey: group.groupKey);
     expect(server.accounts['bob']!.devices.single.preKeys.length, afterFirst);
+  });
+
+  group('a timer that changes with nothing else to say', () {
+    test('goes out on its own rather than waiting for the next message', () async {
+      await alice.messaging.sendPayload('bob', const MessagePayload.timerChange(30));
+
+      final forBob = await bob.messaging.receive();
+      final payload = forBob.messages.single.payload;
+      expect(payload.isTimerChange, isTrue);
+      expect(payload.expiresInSeconds, 30);
+      expect(
+        payload.isControl,
+        isTrue,
+        reason: 'a setting must never be filed as an empty message',
+      );
+    });
+
+    test('and survives the round trip when it is being turned off', () async {
+      // The case a bare `expiresInSeconds` could not express: off carries no
+      // number, so without a tag of its own it is indistinguishable from an
+      // ordinary message that happens to have no timer.
+      await alice.messaging.sendPayload('bob', const MessagePayload.timerChange(null));
+
+      final payload = (await bob.messaging.receive()).messages.single.payload;
+      expect(payload.isTimerChange, isTrue);
+      expect(payload.expiresInSeconds, isNull);
+    });
+
+    test('is not itself bounded by the timer it announces', () async {
+      await alice.messaging.sendPayload('bob', const MessagePayload.timerChange(30));
+
+      expect(
+        server.envelopes.single['expiresInSeconds'],
+        isNull,
+        reason: 'otherwise the server drops the announcement after thirty '
+            'seconds, and a device that was asleep for half a minute keeps '
+            'writing into a chat it still believes is permanent',
+      );
+    });
+
+    test('an ordinary message still bounds its own stay on the server', () async {
+      await alice.messaging.sendPayload(
+        'bob',
+        const MessagePayload.text('kurz', expiresInSeconds: 30),
+      );
+
+      expect(server.envelopes.single['expiresInSeconds'], 30);
+    });
+  });
+
+  group('a file sent into a chat that deletes itself', () {
+    test('is not left on the server under the ordinary retention', () async {
+      await alice.messaging.sendAttachment(
+        'bob',
+        file: Uint8List.fromList(List.filled(64, 7)),
+        fileName: 'note.bin',
+        expiresInSeconds: 60,
+      );
+
+      final id = server.media.keys.single;
+      expect(
+        server.mediaTtlSeconds[id],
+        // Twice the timer, because the two clocks run one after the other: the
+        // sender's from the send, the recipient's from whenever their device
+        // actually picks it up. Plus a day for a queue drained late.
+        60 * 2 + 86400,
+      );
+    });
+
+    test('and a file sent into an ordinary chat keeps the default', () async {
+      await alice.messaging.sendAttachment(
+        'bob',
+        file: Uint8List.fromList(List.filled(64, 7)),
+        fileName: 'note.bin',
+      );
+
+      expect(server.mediaTtlSeconds[server.media.keys.single], isNull);
+    });
   });
 }

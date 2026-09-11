@@ -261,4 +261,61 @@ describe('media and backup', () => {
     assert.equal(profile.json().avatarMediaId, upload.id);
     assert.ok(profile.json().avatarUpdatedAt);
   });
+
+  it("keeps a disappearing message's file only as long as it can be of use", async () => {
+    // The point of doing this server-side at all: a timer that runs only on a
+    // screen leaves the ciphertext sitting here for the full retention period.
+    const short = (
+      await octet(Buffer.from('sealed'), alice, '/v1/media?expiresInSeconds=7200', 'POST')
+    ).json();
+    const ordinary = (await octet(Buffer.from('sealed'), alice, '/v1/media', 'POST')).json();
+
+    assert.ok(
+      new Date(short.expiresAt) < new Date(ordinary.expiresAt),
+      'a file attached to a message set to vanish must not outlive the default',
+    );
+    const twoHours = Date.now() + 7200 * 1000;
+    assert.ok(Math.abs(new Date(short.expiresAt).getTime() - twoHours) < 60_000);
+  });
+
+  it('never lengthens the retention because an uploader asked for more', async () => {
+    const greedy = (
+      await octet(Buffer.from('sealed'), alice, '/v1/media?expiresInSeconds=99999999', 'POST')
+    ).json();
+    const ordinary = (await octet(Buffer.from('sealed'), alice, '/v1/media', 'POST')).json();
+
+    // Within a second of each other: the clamp gave it the ordinary retention.
+    assert.ok(
+      Math.abs(new Date(greedy.expiresAt).getTime() - new Date(ordinary.expiresAt).getTime()) <
+        1000,
+    );
+  });
+
+  it('refuses a retention short enough to lose the file before it is fetched', async () => {
+    const tooShort = await octet(
+      Buffer.from('sealed'),
+      alice,
+      '/v1/media?expiresInSeconds=5',
+      'POST',
+    );
+    assert.equal(tooShort.statusCode, 400);
+  });
+
+  it('shortens nothing for an avatar, which is not a message attachment', async () => {
+    const avatar = (
+      await octet(
+        Buffer.from('sealed'),
+        alice,
+        '/v1/media?kind=avatar&expiresInSeconds=7200',
+        'POST',
+      )
+    ).json();
+    const ordinary = (await octet(Buffer.from('sealed'), alice, '/v1/media', 'POST')).json();
+
+    assert.ok(
+      Math.abs(new Date(avatar.expiresAt).getTime() - new Date(ordinary.expiresAt).getTime()) <
+        1000,
+      'a profile picture stays as long as it is somebody\'s picture',
+    );
+  });
 });

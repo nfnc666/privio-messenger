@@ -857,12 +857,37 @@ device, and says nothing about the message. Without it the honest choice would
 be between losing recordings and delivering them twice.
 
 **Disappearing messages.** The timer is carried inside the sealed payload and
-applied by both devices from their own clocks. The server is not asked to delete
-anything on a schedule, because a server asked to forget is a server trusted to.
-There is no separate "the timer changed" packet, either: a change reaches the
-other side on the next message, and inventing a packet for it would tell the
-server that something about this conversation changed at this moment, for
-nothing.
+applied by every device from its own clock. The deletion that matters is the one
+the devices do: the server is never trusted to forget on request.
+
+A change is also sent in a payload of its own (`t: "timer"`), end-to-end
+encrypted like everything else. It used to ride only on the back of the next
+real message, which is fine when there is one and wrong in the case that matters
+most — somebody turns disappearing messages on, says nothing further, and the
+other side keeps writing into a chat it still believes is permanent. What the
+server learns from the announcement is what it learns from any message: that one
+went to this conversation at this moment. It is a control payload, so it never
+becomes a bubble, and it is deliberately *not* given the retention bound below —
+a thirty-second bound on the message announcing a thirty-second timer would
+delete the announcement off a device that happened to be asleep.
+
+**What the server is told, and why.** Alongside the ciphertext, a send may carry
+`expiresInSeconds` in the clear, which becomes `envelopes.expires_at`. It bounds
+how long the server keeps an envelope it could not deliver, and the retention
+sweep removes it when the time is up. This is a deliberate metadata disclosure,
+named in migration 024: without it, a message set to vanish in thirty seconds
+sits on the server as ciphertext for the full retention period, waiting for a
+device that may never come back. The server learns a retention hint on one
+envelope; it does not learn what any chat's timer is, and nothing it holds is
+readable either way.
+
+The same applies to an attachment's blob: `POST /v1/media?expiresInSeconds=…`
+shortens `media_objects.expires_at`, and the sweep deletes the bytes with it.
+The value is clamped — never longer than the ordinary retention, never shorter
+than an hour — and ignored for avatars, which are not message attachments. The
+client asks for twice the timer plus a day, because the two clocks run one after
+the other: the sender's from the send, the recipient's from whenever their device
+actually picks the message up.
 
 **The clock starts when the message reaches the server, not when it was
 written.** On the receiving side it starts on arrival, which is the same moment
@@ -888,11 +913,27 @@ An expired message takes its decrypted attachment with it. The bubble
 disappearing while the photo stays in the session's plaintext cache is the
 version of this that does not work.
 
-In a group, any member can set it, not only an admin: the mechanism is the
-sender's own number riding inside their own payloads, so a member who wants
-their messages to go can already make that happen. A permission the protocol
-cannot enforce would be a lock drawn on the screen with nothing behind it; the
-announcement is the honest version of the same protection.
+**In a group, only an admin can set it**, and that is enforced where it can be
+rather than only drawn on a screen. The role is the server's — what
+`GET /v1/groups` and `GET /v1/groups/:id` say, never something a device decided
+for itself — and it is checked twice: once on the device making the change, and
+again on *every device that receives one*, which asks the server for the group's
+members before applying it. A patched client can send the payload; nobody acts
+on it.
+
+For the same reason a group's timer is no longer read back off ordinary
+messages. Doing that handed the setting to every member one message at a time,
+and checking a role per message would be a request to the server for each one.
+A group message still lives under the group's timer — that is read from the
+conversation, not from what arrived.
+
+In a one-to-one chat both sides may change it. It is their conversation, and
+there is nobody else's expectation to break.
+
+**Restores and backups.** A restored history is pruned before it is adopted, and
+again on every launch. A backup is a snapshot of a moment; a message that has run
+out since is still gone, and restoring one would undo the feature with a single
+tap on a copy its sender never agreed to.
 
 What none of this buys: a recipient who wants to keep a message can keep it —
 by recording the screen, by holding a second phone up to the speaker, by

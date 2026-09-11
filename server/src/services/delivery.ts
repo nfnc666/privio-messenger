@@ -20,6 +20,15 @@ export interface OutgoingEnvelope {
   groupId?: string | null;
   type: EnvelopeType;
   content: Buffer;
+  /**
+   * When this envelope stops being worth keeping, for a disappearing message.
+   *
+   * Undelivered envelopes otherwise sit until the ordinary retention sweep —
+   * thirty days by default — so a message set to vanish in thirty seconds could
+   * outlive its own timer by a month as ciphertext nobody will ever open.
+   * Null for a message with no timer, which is most of them.
+   */
+  expiresAt?: Date | null;
 }
 
 export interface StoredEnvelope {
@@ -79,12 +88,17 @@ export class DeliveryService {
       // One multi-row INSERT keeps group fan-out to a single round trip.
       const values: unknown[] = [];
       const tuples = durable.map((e, i) => {
-        const o = i * 6;
-        values.push(e.recipientDeviceId, e.senderAccountId, e.senderDeviceId, e.groupId ?? null, e.type, e.content);
-        return `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6})`;
+        const o = i * 7;
+        values.push(
+          e.recipientDeviceId, e.senderAccountId, e.senderDeviceId,
+          e.groupId ?? null, e.type, e.content, e.expiresAt ?? null,
+        );
+        return `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6}, $${o + 7})`;
       });
       await db.query(
-        `INSERT INTO envelopes (recipient_device_id, sender_account_id, sender_device_id, group_id, envelope_type, content)
+        `INSERT INTO envelopes
+           (recipient_device_id, sender_account_id, sender_device_id, group_id,
+            envelope_type, content, expires_at)
          VALUES ${tuples.join(', ')}`,
         values,
       );
@@ -179,7 +193,9 @@ export class DeliveryService {
               s.device_index AS sender_device_index, e.group_id, e.content, e.created_at
        FROM envelopes e
        LEFT JOIN devices s ON s.id = e.sender_device_id
-       WHERE e.recipient_device_id = $1 ORDER BY e.id ASC LIMIT $2`,
+       WHERE e.recipient_device_id = $1
+         AND (e.expires_at IS NULL OR e.expires_at > now())
+       ORDER BY e.id ASC LIMIT $2`,
       [deviceId, limit],
     );
     return rows.map((r) => ({

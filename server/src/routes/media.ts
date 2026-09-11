@@ -40,6 +40,16 @@ interface MediaRow {
 
 const TOKEN_HEADER = 'x-privio-media-token';
 
+/**
+ * The shortest life a caller may ask for a blob, whatever its message's timer.
+ *
+ * An hour, because the deletion that matters is the one the devices do and this
+ * is only about not keeping ciphertext longer than it can be of use. A
+ * recipient whose phone was off for the last five minutes still has to be able
+ * to fetch the photo before their own copy of the timer starts.
+ */
+const MIN_MEDIA_TTL_SECONDS = 3600;
+
 function hash(token: string): Buffer {
   return createHash('sha256').update(token).digest();
 }
@@ -116,14 +126,43 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
         if (!Buffer.isBuffer(body) || body.length === 0) {
           throw ApiError.badRequest('empty_body', 'Send the encrypted bytes as application/octet-stream');
         }
-        const { kind } = parse(
+        const { kind, expiresInSeconds } = parse(
           z.object({
             kind: z.enum(['attachment', 'avatar', 'channel_avatar']).default('attachment'),
+            /**
+             * How long this blob is worth keeping, for an attachment to a
+             * message that is set to disappear.
+             *
+             * A shorter life than the default, asked for by the uploader and
+             * never longer than it: the picture in a message that vanishes in
+             * a minute should not sit in storage for the ordinary retention
+             * period. The screen timer alone does not delete anything here,
+             * which is the whole point of this parameter.
+             *
+             * It is a duration, not the message's timer: the client sends
+             * enough for the recipient's own clock to run too — see
+             * `MEDIA_GRACE_SECONDS` in the app. The floor stops a rounding
+             * error or a hostile client from expiring a blob before the
+             * message carrying its key has even been fetched.
+             */
+            expiresInSeconds: z.coerce
+              .number()
+              .int()
+              .min(MIN_MEDIA_TTL_SECONDS)
+              .optional(),
           }),
           request.query,
         );
         const storageKey = await storage.put(body);
-        const expiresAt = new Date(Date.now() + config.MEDIA_TTL_DAYS * 86_400_000);
+        const defaultTtl = config.MEDIA_TTL_DAYS * 86_400_000;
+        // Only ever shorter. An uploader asking for longer is asking for the
+        // retention it would have had anyway, and an avatar is not a message
+        // attachment: it stays as long as it is somebody's picture.
+        const ttl =
+          kind === 'attachment' && expiresInSeconds
+            ? Math.min(expiresInSeconds * 1000, defaultTtl)
+            : defaultTtl;
+        const expiresAt = new Date(Date.now() + ttl);
 
         // Handed back once and never stored. Losing it means losing the blob,
         // which is the point: the server keeps nothing that opens it.

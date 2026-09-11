@@ -15,11 +15,23 @@ abstract final class DisappearingTimerSheet {
   static const Map<String, Duration?> options = <String, Duration?>{
     'Off': null,
     '30 seconds': Duration(seconds: 30),
+    '1 minute': Duration(minutes: 1),
     '5 minutes': Duration(minutes: 5),
     '1 hour': Duration(hours: 1),
-    '1 day': Duration(days: 1),
-    '1 week': Duration(days: 7),
+    '24 hours': Duration(hours: 24),
+    '7 days': Duration(days: 7),
   };
+
+  /// The short form the composer's button wears beside its icon.
+  ///
+  /// Not the same strings as [options]: a button has room for "30s", not for
+  /// "30 seconds", and a label that wraps or elides is worse than a shorter one.
+  static String badge(Duration timer) {
+    if (timer.inDays >= 1) return '${timer.inDays}d';
+    if (timer.inHours >= 1) return '${timer.inHours}h';
+    if (timer.inMinutes >= 1) return '${timer.inMinutes}m';
+    return '${timer.inSeconds}s';
+  }
 
   /// Asks for a new timer. Returns null when the sheet was dismissed, which is
   /// not the same as choosing `Off` — hence the wrapper.
@@ -47,15 +59,21 @@ abstract final class DisappearingTimerSheet {
                     ),
                     const SizedBox(height: PrivioSpacing.xs),
                     Text(
+                      'New messages are deleted automatically after this long. '
+                      'The timer starts when the message is sent.',
+                      style: Theme.of(sheetContext).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: PrivioSpacing.xs),
+                    Text(
                       isGroup
-                          ? 'New messages, voice messages included, delete '
-                              'themselves on every member’s device after this '
-                              'long. Anyone in the group can change it, and '
-                              'everyone is told when it changes.'
-                          : 'New messages, voice messages included, delete '
-                              'themselves on both devices after this long. '
-                              'Privio’s servers are not asked and are not '
-                              'trusted with it.',
+                          ? 'It covers text, photos, files and voice messages, '
+                              'and applies to this group only. Messages already '
+                              'sent are not affected, everyone is told when it '
+                              'changes, and only an admin can change it.'
+                          : 'It covers text, photos, files and voice messages, '
+                              'and applies to this chat only. Messages already '
+                              'sent are not affected, and both of you are told '
+                              'when it changes.',
                       style: Theme.of(sheetContext).textTheme.bodySmall,
                     ),
                     const SizedBox(height: PrivioSpacing.sm),

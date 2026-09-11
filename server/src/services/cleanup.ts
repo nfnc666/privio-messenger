@@ -25,9 +25,14 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
   );
   await Promise.all(rows.map((r) => storage.delete(r.storage_key).catch(() => {})));
 
-  // An envelope this old belongs to a device that is never coming back.
+  // An envelope this old belongs to a device that is never coming back — or
+  // one whose message was set to disappear and whose time is simply up. The
+  // second clause is what keeps a thirty-second message from sitting here for
+  // thirty days as ciphertext nobody will ever open.
   const { rowCount } = await pool.query(
-    `DELETE FROM envelopes WHERE created_at < now() - ($1 || ' days')::interval`,
+    `DELETE FROM envelopes
+      WHERE created_at < now() - ($1 || ' days')::interval
+         OR (expires_at IS NOT NULL AND expires_at <= now())`,
     [config.ENVELOPE_TTL_DAYS],
   );
 

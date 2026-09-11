@@ -62,6 +62,24 @@ class ScriptedMessaging extends MessagingService {
     return 1;
   }
 
+  /// What went out to a group, and who the server says is in one.
+  ///
+  /// [members] is the answer to `GET /v1/groups/:id`, which is where a role
+  /// comes from: a test that wants to know whether a non-admin can move a
+  /// group's timer has to be able to say what the server would have replied.
+  final List<MessagePayload> sentToGroup = [];
+  List<GroupMember> members = const [];
+
+  @override
+  Future<int> sendPayloadToGroup(String groupId, MessagePayload payload) async {
+    if (failSends) throw ApiException(503, 'unavailable', 'no route to host');
+    sentToGroup.add(payload);
+    return 1;
+  }
+
+  @override
+  Future<List<GroupMember>> groupMembers(String groupId) async => members;
+
   @override
   Future<ReceiveResult> receive({int limit = 100}) async {
     final batch = [...inbox];

@@ -717,13 +717,17 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null) return null;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
+    final timer = conversation.disappearAfter;
     final placeholder = Message(
       id: messageId,
+      clientId: messageId,
       body: caption,
       sentAt: DateTime.now(),
       isMine: true,
       kind: MessageKind.file,
       state: DeliveryState.sending,
+      // No expiry yet, as for text and voice: a file queued with no signal must
+      // not run its clock down while it waits to go anywhere.
     );
     _services.store.append(conversationId, placeholder);
     notifyListeners();
@@ -737,11 +741,15 @@ class ConversationController extends ChangeNotifier {
               file: file,
               fileName: fileName,
               groupKey: conversation.group?.groupKey,
+              expiresInSeconds: timer?.inSeconds,
+              clientId: messageId,
             )
           : await _services.messaging.sendAttachment(
               conversation.user!.username,
               file: file,
               fileName: fileName,
+              expiresInSeconds: timer?.inSeconds,
+              clientId: messageId,
             );
       // The placeholder was drawn before the file had a name on the server.
       // Now it has one: replace it with the message the recipient will see, so
@@ -751,11 +759,17 @@ class ConversationController extends ChangeNotifier {
         messageId,
         Message(
           id: messageId,
+          clientId: messageId,
           body: caption,
           sentAt: placeholder.sentAt,
           isMine: true,
           kind: _kindFor(report.mediaType),
           state: DeliveryState.sent,
+          // The clock starts now, when the server took it — the same moment the
+          // recipient's starts, from their own side of it. Without this a photo
+          // sent into a disappearing chat stayed on the sender's device
+          // forever: the bubble vanished from theirs and nowhere else.
+          expiresAt: timer == null ? null : DateTime.now().add(timer),
           attachment: Attachment(
             mediaId: report.mediaId,
             mediaKey: report.mediaKey,
@@ -1483,18 +1497,116 @@ class ConversationController extends ChangeNotifier {
   Duration? disappearAfter(String conversationId) =>
       _services.store.conversationWith(conversationId)?.disappearAfter;
 
-  /// Sets the timer for a chat. It takes effect on messages sent from now on:
-  /// the number rides inside each sealed payload, so the other side adopts it
-  /// without the server being told anything.
+  /// Whether this account is allowed to change a chat's timer.
   ///
-  /// The other side learns of it from the next message, not from this call —
-  /// there is no separate "timer changed" packet to send, and inventing one
-  /// would tell the server that something about this conversation changed at
-  /// this moment for no gain.
-  void setDisappearAfter(String conversationId, Duration? timer) {
-    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return;
+  /// In a one-to-one chat, both sides are: it is their conversation and there
+  /// is nobody else's expectation to break.
+  ///
+  /// In a group it is the group's rights that decide, and they are the
+  /// server's: [GroupInfo.role] is what `GET /v1/groups` last said, never
+  /// something this device chose for itself. The same role is checked again on
+  /// every device that *receives* a change — see [_senderMayChangeTimer] —
+  /// which is what makes this an actual restriction rather than a disabled
+  /// button. A patched client can still send the payload; nobody will apply it.
+  bool mayChangeDisappearAfter(String conversationId) {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final group = conversation.group;
+    return group == null || group.isAdmin;
+  }
+
+  /// Sets the timer for a chat. It takes effect on messages sent from now on:
+  /// the number rides inside each sealed payload, so both sides delete on their
+  /// own clocks without the server being told what the setting is.
+  ///
+  /// The change is also announced in its own right, rather than waiting to ride
+  /// on the next real message. Waiting was the old behaviour and it was wrong
+  /// in the case that matters most: someone turns disappearing messages on,
+  /// says nothing further, and the other side keeps writing into a chat it
+  /// still believes is permanent. The announcement is end-to-end encrypted like
+  /// everything else, so what the server learns from it is what it learns from
+  /// any message — that one went to this conversation at this moment.
+  ///
+  /// Returns false when the group's rights do not allow it, so the screen can
+  /// say so instead of appearing to have worked.
+  Future<bool> setDisappearAfter(String conversationId, Duration? timer) async {
+    if (!mayChangeDisappearAfter(conversationId)) return false;
+    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return true;
     _services.store.setDisappearAfter(conversationId, timer);
     _noteTimerChange(conversationId, timer, by: null);
+    _persist();
+    notifyListeners();
+    await _announceTimer(conversationId, timer);
+    return true;
+  }
+
+  /// Tells the other side — and this account's own other devices — about a
+  /// timer that just changed.
+  ///
+  /// A failure is swallowed. The setting is already true here and rides on the
+  /// next message anyway, so a lost announcement costs the other side a notice,
+  /// not the protection: what they receive from now on still carries the
+  /// number. Throwing would leave the screen showing a change that had been
+  /// made and reporting that it had not.
+  Future<void> _announceTimer(String conversationId, Duration? timer) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    final payload = MessagePayload.timerChange(timer?.inSeconds);
+    try {
+      if (conversation.group != null) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+        return;
+      }
+      final username = conversation.user?.username;
+      if (username == null || username == 'unknown') return;
+      await _services.messaging.sendPayload(username, payload);
+    } on Object {
+      // See above: the setting stands either way.
+    }
+  }
+
+  /// Whether [senderAccountId] was allowed to change [groupId]'s timer.
+  ///
+  /// Asked of the server rather than answered from anything the message
+  /// carried: a payload claiming its sender is an admin is a payload written by
+  /// whoever wanted the timer changed. Timer changes are rare enough that one
+  /// request each is cheap, and a request that fails means *not* applying the
+  /// change — an unverified change is the one this check exists to stop.
+  Future<bool> _senderMayChangeTimer(String groupId, String senderAccountId) async {
+    try {
+      final members = await _services.messaging.groupMembers(groupId);
+      return members.any((m) => m.accountId == senderAccountId && m.isAdmin);
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Applies a timer change that arrived on its own.
+  ///
+  /// [byOwnDevice] marks the copy that came from another of this account's
+  /// devices, which reads as this account having changed it — and skips the
+  /// group check, because the device that sent it already made it.
+  Future<void> _applyTimerChange(
+    String conversationId,
+    MessagePayload payload, {
+    required String senderAccountId,
+    bool byOwnDevice = false,
+  }) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    if (conversation.group != null &&
+        !byOwnDevice &&
+        !await _senderMayChangeTimer(conversationId, senderAccountId)) {
+      return;
+    }
+    if (_services.store.conversationWith(conversationId) == null) return;
+    _adoptTimer(
+      conversationId,
+      payload,
+      by: byOwnDevice
+          ? null
+          : _services.store.conversationWith(senderAccountId)?.user?.label ?? 'They',
+    );
     _persist();
     notifyListeners();
   }
@@ -1787,6 +1899,20 @@ class ConversationController extends ChangeNotifier {
       if (_typingIndicators) _applyTyping(incoming.senderAccountId, incoming.payload);
       return;
     }
+    if (incoming.payload.isTimerChange) {
+      // A setting, not a sentence: it moves the chat's clock and writes the
+      // notice that says so, and must never appear as an empty bubble.
+      final where = incoming.groupId ?? incoming.senderAccountId;
+      if (_services.store.conversationWith(incoming.senderAccountId)?.user == null) {
+        await _resolveSender(incoming.senderAccountId);
+      }
+      await _applyTimerChange(
+        where,
+        incoming.payload,
+        senderAccountId: incoming.senderAccountId,
+      );
+      return;
+    }
 
     final groupId = incoming.groupId;
     if (groupId != null) {
@@ -1840,6 +1966,19 @@ class ConversationController extends ChangeNotifier {
         payload,
         byAccountId: incoming.senderAccountId,
         fromOwnDevice: true,
+      );
+      return;
+    }
+    // A timer this account changed on its other device. Applied here so a
+    // phone and a laptop cannot disagree about when things vanish — and
+    // without the group check, because the device that sent it is this
+    // account, which already passed it.
+    if (payload.isTimerChange) {
+      await _applyTimerChange(
+        sync.conversationId,
+        payload,
+        senderAccountId: incoming.senderAccountId,
+        byOwnDevice: true,
       );
       return;
     }
@@ -2022,7 +2161,14 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
-    _adoptTimer(groupId, incoming.payload, by: senderName ?? 'Someone');
+    // No `_adoptTimer` here, deliberately. In a group the timer is the group's
+    // setting and only someone the server calls an admin may move it, which is
+    // checked once per change on the announcement payload. Reading it back off
+    // every ordinary message would hand that same power to every member, one
+    // message at a time — and checking the sender's role per message would be
+    // a request to the server for each one. The message itself still lives
+    // under the group's timer: `_incomingMessage` reads it from the
+    // conversation, not from what arrived.
     _services.store.append(
       groupId,
       _incomingMessage(groupId, incoming, senderName: senderName ?? 'Someone'),
