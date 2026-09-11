@@ -7,14 +7,31 @@ truth; this document is the machine-readable version of them, and
 
 ## Brand assets
 
-| File | Use |
-| --- | --- |
-| `design/logo/privio-logo-wordmark.png` | Splash screen, About screen, store listings |
-| `design/logo/privio-mark-transparent.png` | App icon, in-app mark, notification icon |
+Two files are the artwork as delivered. Everything else is cut from them by
+`tools/generate_brand_assets.py`, which is the only thing that writes a brand
+asset anywhere in this repository — re-run it after a re-delivery rather than
+editing a size by hand.
 
-The mark is a white speech bubble enclosing a white padlock. It is always solid
-white — never tinted green. The green in the product comes from the accent
-colour, never from the logo.
+| File | What it is |
+| --- | --- |
+| `design/logo/privio-icon-master.png` | **Delivered.** The app icon: the mark on true black, full bleed, square |
+| `design/logo/privio-wordmark-master.png` | **Delivered.** The horizontal lock-up on white |
+| `design/logo/privio-mark.png` | Derived. The mark alone, transparent |
+| `design/logo/privio-wordmark-light.png` | Derived. Transparent, black wordmark — for light surfaces |
+| `design/logo/privio-wordmark-dark.png` | Derived. Transparent, white wordmark — for dark surfaces |
+
+The mark is a green **P** whose counter is a speech bubble. The green is the
+logo's own and is never recoloured — not for a dark surface, not for a light
+one. What may change is the *wordmark*: black on light grounds, white on dark
+ones. Since every surface in the app is black, the app ships the dark cut.
+
+**Neither delivered file has an alpha channel.** The icon is green on solid
+black, the wordmark green-and-black on solid white. Transparency is derived by
+inverting the compositing equation, not by thresholding a background colour
+away — a "white becomes transparent" pass eats the antialiasing and leaves a
+pale fringe on every curve. The generator also floors coverage below 4/255,
+because the flat fields in both masters carry compression noise that would
+otherwise become a faint wash across the whole canvas.
 
 ## Colour tokens
 

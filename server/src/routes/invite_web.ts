@@ -48,16 +48,18 @@ import {
 
 const HANDLE = '^[a-z0-9_.]{3,32}$';
 
-/** The logo, read once. 200 KB in memory beats a disk read per request. */
-let markBytes: Buffer | null = null;
+/** The brand artwork, read once each. A disk read per request buys nothing. */
+const artwork = new Map<string, Buffer>();
 
-async function readMark(): Promise<Buffer> {
-  if (markBytes) return markBytes;
+async function readArtwork(name: string): Promise<Buffer> {
+  const cached = artwork.get(name);
+  if (cached) return cached;
   // `dist/` mirrors `src/`, so this resolves from either, and `assets/` sits
   // beside both after the Docker build copies it.
   const here = dirname(fileURLToPath(import.meta.url));
-  markBytes = await readFile(join(here, '..', '..', 'assets', 'privio-mark.png'));
-  return markBytes;
+  const bytes = await readFile(join(here, '..', '..', 'assets', name));
+  artwork.set(name, bytes);
+  return bytes;
 }
 
 /** Reads the opening bytes of a blob without pulling the whole thing in. */
@@ -207,11 +209,24 @@ interface ChannelRow {
 export const inviteWebRoutes =
   (storage: BlobStorage): FastifyPluginAsync =>
   async (app) => {
-  /** The mark, for the page and for every link preview. */
+  /** The mark, transparent, as this page draws it on its own dark ground. */
   app.get('/assets/privio-mark.png', async (_request, reply) => {
     reply.header('content-type', 'image/png');
     reply.header('cache-control', 'public, max-age=86400, immutable');
-    return reply.send(await readMark());
+    return reply.send(await readArtwork('privio-mark.png'));
+  });
+
+  /**
+   * The app icon, opaque, for link previews.
+   *
+   * Separate from the mark because the two have different jobs: this one is
+   * composited by somebody else's messenger onto a colour we do not choose, so
+   * it brings its own background.
+   */
+  app.get('/assets/privio-icon.png', async (_request, reply) => {
+    reply.header('content-type', 'image/png');
+    reply.header('cache-control', 'public, max-age=86400, immutable');
+    return reply.send(await readArtwork('privio-icon.png'));
   });
 
   /**

@@ -47,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(),
-                const PrivioWordmark(markSize: 104),
+                const PrivioWordmark(markSize: 64),
                 const SizedBox(height: PrivioSpacing.lg),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 350),
