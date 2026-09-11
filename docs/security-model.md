@@ -175,6 +175,48 @@ and roughly how large it is. Rotating the profile key after removing a contact
 is not implemented; today a former contact keeps the key they were given, which
 matters when the picture changes rather than when it does not.
 
+### A channel's picture takes the same split its name already takes
+
+A channel picture is **two different things**, and which one it is follows from
+what the channel is rather than from a setting anybody can get wrong.
+
+A **private** channel's picture is sealed with the channel key, exactly like its
+name and its posts. The capability that downloads it travels inside
+`encrypted_metadata` beside the title — so it arrives with the key that opens
+it, never without, and a key rotation re-seals both in one write. The server
+holds ciphertext and a length.
+
+A **public** channel's picture is stored **unsealed**, and that is a deliberate
+disclosure rather than an oversight. It is drawn on the channel's invite page
+and inside whatever messenger its link was pasted into, and neither of those
+holds a key; a sealed one would be a public channel with no picture in any of
+the places a picture is actually looked for. Its title, description and handle
+are already plaintext for exactly the same reason — discovery cannot search
+ciphertext. The app says so, in those words, before the upload happens.
+
+Its posts are sealed either way. What the visibility choice decides is what the
+channel *looks like* from outside, and the picture is part of that.
+
+Three things make the split hold rather than merely being described:
+
+- **The server enforces the pairing.** An unsealed `channel_avatar` object is
+  readable by anyone who asks, so a private channel is refused one — accepting
+  it would publish a picture whose owner believes it is sealed, with nothing in
+  the app saying otherwise. A public channel is likewise refused a sealed
+  object, which would be a picture missing from everywhere it matters.
+- **Every picture is re-encoded** to a 512×512 JPEG before it goes anywhere,
+  which strips metadata a second time on top of the scrubber and stops a
+  full-resolution photograph from becoming a channel avatar.
+- **The public web route serves by magic number**, never by a declared type.
+  Uploads are opaque bytes; handing them back under a content type taken on
+  trust is how a "picture" becomes an HTML document hosted on the same origin as
+  the invite pages. PNG, JPEG, WebP and GIF are served; SVG deliberately is not,
+  because it is a document that can carry script. Anything else is a 404 and the
+  page draws the Privio mark.
+
+What the server learns either way: that a channel has a picture, when it last
+changed, and roughly how large it is.
+
 ### Groups
 
 The server keeps a membership list, because it has to fan messages out. It does
@@ -924,6 +966,13 @@ any future weakness in the cipher.
 to contacts on purpose, so a token would be published with it and buy nothing.
 They are authorised by the contact list instead: the owner, or an account that
 has the owner as a contact. A stranger with the id is refused.
+
+**A public channel's picture is the third kind, and is authorised by nothing.**
+`channel_avatar` is served to any caller, and to the web page with no caller at
+all. That is what the kind means: these are the bytes a link preview draws. A
+*private* channel's picture is not this kind — it is an ordinary sealed
+attachment behind its token, and the server refuses to let a private channel
+point at the published kind at all.
 
 **"Not yours" and "no such thing" are the same answer.** Telling them apart
 would say whether an id exists.

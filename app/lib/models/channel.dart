@@ -186,6 +186,9 @@ class ChannelInfo {
     this.reactionEmojis = defaultReactionEmojis,
     this.commentsEnabled = false,
     this.invite = const ChannelInviteSettings(),
+    this.avatarMediaId,
+    this.avatarUpdatedAt,
+    this.avatarToken,
   });
 
   /// What a channel offers until an admin changes it. Mirrors the server's
@@ -228,6 +231,37 @@ class ChannelInfo {
   /// change what the thing is, so it is a decision rather than a default.
   final bool commentsEnabled;
 
+  /// The channel's picture, as a media object id, or null for none.
+  ///
+  /// What the bytes behind it are depends on the channel, and the two are not
+  /// interchangeable. A **public** channel's picture is stored unsealed,
+  /// because it is drawn on the invite page and inside whatever messenger the
+  /// link was pasted into, where nobody holds a key — its title, description
+  /// and handle are already plaintext for exactly that reason. A **private**
+  /// channel's is sealed with the channel key like its name, and needs both
+  /// [avatarToken] and the key before it is a picture.
+  final String? avatarMediaId;
+
+  /// When it last changed, which is what a cache keys off. Without it,
+  /// replacing a picture leaves every device showing the old one.
+  final DateTime? avatarUpdatedAt;
+
+  /// The capability that downloads a *private* channel's picture.
+  ///
+  /// Null for a public channel, which needs none, and null for a private one
+  /// whose sealed metadata this device cannot open yet. It travels inside
+  /// `encryptedMetadata` beside the title — so it arrives with the key that
+  /// opens the picture, and never without it.
+  final String? avatarToken;
+
+  /// Whether there is a picture this device can actually fetch.
+  ///
+  /// A private channel whose metadata is still sealed has an id and no token,
+  /// which is a picture that exists and cannot be opened — the screen draws a
+  /// monogram rather than a broken image.
+  bool get hasAvatar =>
+      avatarMediaId != null && (isPublic || avatarToken != null);
+
   /// Whether this device holds any version of the key.
   final bool hasKey;
 
@@ -264,6 +298,9 @@ class ChannelInfo {
     int? memberCount,
     int? keyEpoch,
     bool? hasCurrentKey,
+    String? avatarMediaId,
+    DateTime? avatarUpdatedAt,
+    String? avatarToken,
   }) =>
       ChannelInfo(
         id: id,
@@ -283,6 +320,36 @@ class ChannelInfo {
         commentsEnabled: commentsEnabled,
         invite: invite,
         hasKey: hasKey ?? this.hasKey,
+        avatarMediaId: avatarMediaId ?? this.avatarMediaId,
+        avatarUpdatedAt: avatarUpdatedAt ?? this.avatarUpdatedAt,
+        avatarToken: avatarToken ?? this.avatarToken,
+      );
+
+  /// The same channel with no picture.
+  ///
+  /// Its own method because [copyWith] cannot express it: every parameter
+  /// there falls back to the current value when it is null, which is what makes
+  /// a partial update readable and also what makes "set this to null"
+  /// unsayable.
+  ChannelInfo withoutAvatar() => ChannelInfo(
+        id: id,
+        visibility: visibility,
+        keyEpoch: keyEpoch,
+        hasCurrentKey: hasCurrentKey,
+        title: title,
+        handle: handle,
+        description: description,
+        category: category,
+        memberCount: memberCount,
+        role: role,
+        permissions: permissions,
+        inviteCode: inviteCode,
+        restrictSaving: restrictSaving,
+        reactionEmojis: reactionEmojis,
+        commentsEnabled: commentsEnabled,
+        invite: invite,
+        hasKey: hasKey,
+        avatarUpdatedAt: DateTime.now(),
       );
 }
 

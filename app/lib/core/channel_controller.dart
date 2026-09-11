@@ -83,12 +83,16 @@ class ChannelController extends ChangeNotifier {
     // Anyone who joined by a link is waiting on a member with the key. This
     // device may be that member.
     unawaited(deliverPendingKeys());
+    // Pictures are fetched after the list is already on screen, not before:
+    // a channel list should not wait on an image.
+    unawaited(loadAvatars(_mine));
   }
 
   Future<void> search({String? query, String? category}) async {
     await _run(
       () async => _discovered = await _channels.discover(query: query, category: category),
     );
+    unawaited(loadAvatars(_discovered));
   }
 
   Future<void> loadPosts(String channelId) async {
@@ -245,6 +249,81 @@ class ChannelController extends ChangeNotifier {
     return channel;
   }
 
+  // --- Pictures -------------------------------------------------------------
+
+  /// Opened channel pictures, keyed by media id.
+  ///
+  /// By media id rather than by channel: replacing a picture gives it a new id,
+  /// so the new one cannot be served out of the old one's slot, and nothing has
+  /// to be invalidated by hand.
+  ///
+  /// In memory only, like contact pictures. A private channel's picture is
+  /// ciphertext everywhere but here, and writing the opened bytes to disk would
+  /// undo that for the sake of a cache that a relaunch rebuilds in one request.
+  final Map<String, Uint8List> _avatars = {};
+
+  /// Media ids already tried and not worth trying again this run.
+  ///
+  /// Without it a channel whose picture cannot be opened — the bytes are gone,
+  /// the key has not arrived — is re-fetched on every rebuild of every list it
+  /// appears in.
+  final Set<String> _avatarMisses = {};
+
+  /// The channel's picture, if it has been fetched. Null draws a monogram.
+  Uint8List? avatarFor(ChannelInfo channel) =>
+      channel.avatarMediaId == null ? null : _avatars[channel.avatarMediaId!];
+
+  /// Fetches the pictures of channels that have one and have not been fetched.
+  ///
+  /// Quiet on failure: a missing picture is a cosmetic problem, and a channel
+  /// list that fails to load because one image was unreachable would be a much
+  /// worse one.
+  Future<void> loadAvatars(Iterable<ChannelInfo> channels) async {
+    var loaded = false;
+    for (final channel in channels) {
+      final id = channel.avatarMediaId;
+      if (id == null || !channel.hasAvatar) continue;
+      if (_avatars.containsKey(id) || _avatarMisses.contains(id)) continue;
+      try {
+        final bytes = await _channels.avatarBytes(channel);
+        if (bytes == null) {
+          _avatarMisses.add(id);
+          continue;
+        }
+        _avatars[id] = bytes;
+        loaded = true;
+      } on Object {
+        _avatarMisses.add(id);
+      }
+    }
+    if (loaded) notifyListeners();
+  }
+
+  /// Gives a channel a picture, or replaces the one it has.
+  ///
+  /// The service decides how it is stored — unsealed for a public channel,
+  /// sealed with the channel key for a private one — because that follows from
+  /// what the channel is and must not be a choice a screen can get wrong.
+  Future<bool> setAvatar(ChannelInfo channel, Uint8List picked) => _run(() async {
+        final updated = await _channels.setAvatar(channel, picked);
+        _replace(updated);
+        final bytes = await _channels.avatarBytes(updated);
+        if (bytes != null) _avatars[updated.avatarMediaId!] = bytes;
+      });
+
+  Future<bool> clearAvatar(ChannelInfo channel) => _run(() async {
+        final updated = await _channels.clearAvatar(channel);
+        _avatars.remove(channel.avatarMediaId);
+        _avatarMisses.remove(channel.avatarMediaId);
+        _replace(updated);
+      });
+
+  /// Puts a changed channel back into whichever list it was in.
+  void _replace(ChannelInfo channel) {
+    _mine = [for (final c in _mine) if (c.id == channel.id) channel else c];
+    _discovered = [for (final c in _discovered) if (c.id == channel.id) channel else c];
+  }
+
   Future<bool> leave(String channelId) => _run(() async {
         await _channels.leave(channelId);
         _mine = [for (final c in _mine) if (c.id != channelId) c];
@@ -254,7 +333,9 @@ class ChannelController extends ChangeNotifier {
       });
 
   Future<bool> delete(String channelId) => _run(() async {
+        final gone = channelById(channelId)?.avatarMediaId;
         await _channels.delete(channelId);
+        if (gone != null) _avatars.remove(gone);
         _mine = [for (final c in _mine) if (c.id != channelId) c];
         _posts.remove(channelId);
         _members.remove(channelId);
@@ -660,6 +741,15 @@ class ChannelController extends ChangeNotifier {
       _error = _explain(failure);
       return false;
     } on StateError catch (failure) {
+      _error = failure.message;
+      return false;
+    } on ChannelAvatarRejected catch (failure) {
+      // Somebody picked a PDF. That is not a connection problem, and saying it
+      // is one sends them to check their wifi over a file they can simply
+      // choose again.
+      _error = failure.message;
+      return false;
+    } on ChannelKeyPending catch (failure) {
       _error = failure.message;
       return false;
     } on Object {

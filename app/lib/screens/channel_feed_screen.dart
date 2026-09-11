@@ -11,6 +11,7 @@ import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
 import 'channel_thread_screen.dart';
+import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -112,6 +113,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (_channel.isMember) await controller.loadPosts(_channel.id);
     final fresh = controller.channelById(_channel.id);
     if (fresh != null && mounted) setState(() => _channel = fresh);
+    // A channel reached by a link is in neither list, so nothing has fetched
+    // its picture yet. Unawaited: the feed should not wait on an image.
+    unawaited(controller.loadAvatars([fresh ?? _channel]));
   }
 
   /// Presses the key delivery again, and says what happened.
@@ -524,6 +528,111 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     _say(ok ? 'Reported. Thank you.' : controller.error ?? 'Could not send that.');
   }
 
+  /// Gives the channel a picture, or takes the one it has away.
+  ///
+  /// Which of the two is offered depends on whether there is one, so a channel
+  /// with no picture is not asked whether to remove it.
+  Future<void> _editPicture() async {
+    final channel = PrivioScope.of(context).channels.channelById(_channel.id) ?? _channel;
+    if (!channel.hasAvatar) {
+      await _pickPicture();
+      return;
+    }
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surfaceRaised,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Change picture'),
+              onTap: () => Navigator.of(sheetContext).pop('change'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: PrivioColors.danger),
+              title: const Text(
+                'Remove picture',
+                style: TextStyle(color: PrivioColors.danger),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('remove'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'change') {
+      await _pickPicture();
+      return;
+    }
+
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.clearAvatar(channel);
+    if (!mounted) return;
+    _say(ok ? 'Picture removed.' : controller.error ?? 'Could not remove the picture.');
+  }
+
+  Future<void> _pickPicture() async {
+    PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile(
+        type: FileType.image,
+      ).timeout(const Duration(minutes: 2));
+    } on Object catch (failure) {
+      if (mounted) _say('Could not open the picker: $failure');
+      return;
+    }
+    if (picked == null || !mounted) return;
+
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object catch (failure) {
+      if (mounted) _say('Could not read ${picked.name}: $failure');
+      return;
+    }
+    if (!mounted) return;
+
+    final controller = PrivioScope.of(context).channels;
+    final channel = controller.channelById(_channel.id) ?? _channel;
+    // A public channel's picture is not sealed — it is drawn on the invite page
+    // and inside whatever messenger the link was pasted into, where nobody
+    // holds a key. That is a real difference from everything else in this app
+    // and it is said once, here, before it happens rather than after.
+    if (channel.isPublic) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: PrivioColors.surfaceRaised,
+          title: const Text('This picture will be public'),
+          content: const Text(
+            'A public channel\'s picture is shown on its web page and in link '
+            'previews, so it is stored unencrypted — the same as its name, '
+            'handle and description. Posts stay end-to-end encrypted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Use it'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    final ok = await controller.setAvatar(channel, bytes);
+    if (!mounted) return;
+    if (!ok) _say(controller.error ?? 'Could not set the picture.');
+  }
+
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -584,6 +693,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     switch (action) {
       case 'invite':
         _share();
+      case 'picture':
+        _editPicture();
       case 'reactions':
         _editReactions();
       case 'comments':
@@ -624,14 +735,38 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            titleSpacing: 0,
+            title: Row(
               children: [
-                Text(channel.title, style: Theme.of(context).textTheme.titleSmall),
-                Text(
-                  '${channel.isPublic ? 'Public' : 'Private'} · '
-                  '${channel.memberLabel}',
-                  style: Theme.of(context).textTheme.bodySmall,
+                // Tapping it is the same as the menu entry, because that is
+                // where people look for it first.
+                GestureDetector(
+                  onTap: channel.permissions.canEditChannel ? _editPicture : null,
+                  child: ChannelAvatar(
+                    channel: channel,
+                    imageBytes: controller.avatarFor(channel),
+                    size: 36,
+                  ),
+                ),
+                const SizedBox(width: PrivioSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        channel.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        '${channel.isPublic ? 'Public' : 'Private'} · '
+                        '${channel.memberLabel}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -655,6 +790,13 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                       const PopupMenuItem(
                         value: 'requests',
                         child: Text('Requests to join'),
+                      ),
+                    if (channel.permissions.canEditChannel)
+                      PopupMenuItem(
+                        value: 'picture',
+                        child: Text(
+                          channel.hasAvatar ? 'Channel picture' : 'Add a picture',
+                        ),
                       ),
                     if (channel.permissions.canEditChannel)
                       const PopupMenuItem(value: 'reactions', child: Text('Reactions')),

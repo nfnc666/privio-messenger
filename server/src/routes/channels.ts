@@ -84,6 +84,20 @@ function publicView(row: Record<string, unknown>) {
     },
     // Whether its posts have threads under them at all.
     commentsEnabled: row.comments_enabled ?? false,
+    /**
+     * The channel's picture, as a media object id.
+     *
+     * What the bytes behind it are depends on the channel, and the client has
+     * to know which: a **public** channel's picture is stored unsealed, because
+     * it is drawn on the invite page and in a messenger's link preview, where
+     * nobody holds a key. A **private** channel's is an ordinary sealed
+     * attachment whose download token lives inside `encrypted_metadata` beside
+     * the title — so the server holds the reference and can open neither.
+     */
+    avatarMediaId: row.avatar_media_id ?? null,
+    // What a cache keys off, so replacing a picture is visible without waiting
+    // for something else to evict the old one.
+    avatarUpdatedAt: (row.avatar_updated_at as Date | null)?.toISOString() ?? null,
     memberCount: row.member_count,
     // Which key version this channel is on. The server counts these and holds
     // no key for any of them; see migration 015.
@@ -824,13 +838,131 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     return publicView(rows[0]);
   });
 
+  /**
+   * Point the channel at a picture.
+   *
+   * The bytes went to `/v1/media` first, and **which kind they went up as is
+   * the decision**, not a detail:
+   *
+   *   - a *public* channel uploads `kind=channel_avatar`, unsealed. Its picture
+   *     is drawn on the invite page and inside whatever messenger the link was
+   *     pasted into, and neither holds a key. Sealing it would mean a public
+   *     channel with no picture in any of the places one is looked for — and
+   *     its title, description and handle are already plaintext for exactly the
+   *     same reason.
+   *   - a *private* channel uploads `kind=attachment`, sealed with the channel
+   *     key like its name and its posts. The download token travels inside
+   *     `encrypted_metadata`, which key rotation already re-seals, so the
+   *     picture follows the name without a second mechanism.
+   *
+   * The server enforces the pairing rather than trusting it: an unsealed
+   * `channel_avatar` is readable by anyone who asks (see `mayDownload`), so
+   * letting a private channel point at one would quietly publish a picture its
+   * owner believes is sealed.
+   *
+   * The upload has to belong to the caller. Without that check anyone could
+   * adopt anyone else's object id and learn, from which error came back,
+   * whether it exists.
+   */
+  app.put('/v1/channels/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(z.object({ mediaId: uuidSchema }), request.body);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows: media } = await pool.query<{ kind: string }>(
+      'SELECT kind FROM media_objects WHERE id = $1 AND owner_account_id = $2',
+      [body.mediaId, accountId],
+    );
+    if (!media[0]) throw ApiError.notFound('media_not_found', 'No such upload of yours');
+
+    const previous = await withTransaction(async (client) => {
+      const { rows: old } = await client.query<{
+        visibility: string;
+        avatar_media_id: string | null;
+      }>(
+        'SELECT visibility, avatar_media_id FROM channels WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+        [params.id],
+      );
+      const channel = old[0];
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+      const wanted = channel.visibility === 'public' ? 'channel_avatar' : 'attachment';
+      if (media[0]!.kind !== wanted) {
+        throw ApiError.badRequest(
+          'wrong_media_kind',
+          channel.visibility === 'public'
+            ? "A public channel's picture is uploaded as kind=channel_avatar"
+            : "A private channel's picture is sealed and uploaded as kind=attachment",
+        );
+      }
+
+      await client.query(
+        'UPDATE channels SET avatar_media_id = $2, avatar_updated_at = now() WHERE id = $1',
+        [params.id, body.mediaId],
+      );
+      // A picture outlives the attachment retention window. The sweep skips
+      // referenced objects too; this keeps the expiry itself honest rather than
+      // relying on one of the two.
+      await client.query(
+        `UPDATE media_objects SET expires_at = now() + interval '100 years' WHERE id = $1`,
+        [body.mediaId],
+      );
+      return channel.avatar_media_id;
+    });
+
+    // The old picture is nobody's now: let it fall into the next sweep.
+    if (previous && previous !== body.mediaId) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [previous]);
+    }
+    return { avatarMediaId: body.mediaId };
+  });
+
+  app.delete('/v1/channels/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+    // The CTE is not decoration: `UPDATE ... RETURNING avatar_media_id` hands
+    // back the *new* value, which this statement has just set to NULL — so the
+    // picture being removed would never be named and would sit in storage
+    // until the hundred years ran out. Reading the row first is the only way to
+    // learn what was there.
+    const { rows } = await pool.query<{ previous: string | null }>(
+      `WITH prev AS (
+         SELECT id, avatar_media_id FROM channels
+          WHERE id = $1 AND deleted_at IS NULL
+          FOR UPDATE
+       )
+       UPDATE channels SET avatar_media_id = NULL, avatar_updated_at = now()
+         FROM prev WHERE channels.id = prev.id
+       RETURNING prev.avatar_media_id AS previous`,
+      [params.id],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    const removed = rows[0].previous;
+    if (removed) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [removed]);
+    }
+    return { avatarMediaId: null };
+  });
+
   app.delete('/v1/channels/:id', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     // The one action nothing undoes. The owner always may; an admin only with
     // the permission deliberately granted for it.
     await requirePermission(params.id, accountId, 'canDeleteChannel');
-    await pool.query('UPDATE channels SET deleted_at = now() WHERE id = $1', [params.id]);
+    const { rows } = await pool.query<{ avatar_media_id: string | null }>(
+      'UPDATE channels SET deleted_at = now() WHERE id = $1 RETURNING avatar_media_id',
+      [params.id],
+    );
+    // The picture was kept alive by being somebody's channel picture, and this
+    // is the moment it stops being one. Without this it would sit in storage
+    // for a hundred years because nothing was ever going to ask for it again.
+    const orphan = rows[0]?.avatar_media_id;
+    if (orphan) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [orphan]);
+    }
     return { deleted: true };
   });
 

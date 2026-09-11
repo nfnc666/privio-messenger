@@ -159,10 +159,24 @@ carry a link through an install, and the page says so rather than pretending.
 
 ## What the page discloses
 
-A **public** channel's page shows its title, description and subscriber count,
-and carries Open Graph tags so a messenger can draw a preview. All three are
-already plaintext in the database because discovery needs them; the page
+A **public** channel's page shows its title, description, subscriber count and
+picture, and carries Open Graph tags so a messenger can draw a preview. All four
+are already plaintext in the database because discovery needs them; the page
 discloses nothing that search does not.
+
+The picture is served from `/assets/channel/<handle>` on this same server —
+keyed by handle, never by media id, and never from the authenticated media
+route. Three conditions gate it, and each is load-bearing: the channel must be
+public and not deleted; the object served is the one
+`channels.avatar_media_id` points at, never one named in the URL, so the route
+cannot be turned into an unauthenticated reader for any id somebody guesses; and
+the bytes must begin with a PNG, JPEG, WebP or GIF magic number, because an
+upload is opaque and serving it under a content type taken on trust is how a
+picture becomes an HTML page on this origin. Anything else is a 404 and the page
+draws the Privio mark instead.
+
+A **private** channel has no handle, so there is no path to ask for. Its picture
+is sealed with the channel key and reached only through the app.
 
 A **private** invitation's page shows nothing about the channel — not its name,
 not its size, not a word of it. The server does not have the name: it is sealed

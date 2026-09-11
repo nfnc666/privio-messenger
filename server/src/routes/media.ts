@@ -58,6 +58,15 @@ async function mayDownload(
 ): Promise<boolean> {
   if (object.owner_account_id === accountId) return true;
 
+  // A public channel's picture is meant to be seen by people who are not in
+  // it: it is on the invite page, it is the image a messenger draws in a link
+  // preview, and it is how somebody picks the channel out of search results.
+  // Sealing it would mean a public channel with no picture anywhere it is
+  // actually being looked for. A private channel's picture is not this kind —
+  // it is sealed and travels as an ordinary attachment, authorised by the token
+  // inside the channel's own sealed metadata.
+  if (object.kind === 'channel_avatar') return true;
+
   if (object.kind === 'avatar') {
     const { rows } = await pool.query(
       'SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2',
@@ -88,7 +97,9 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
           throw ApiError.badRequest('empty_body', 'Send the encrypted bytes as application/octet-stream');
         }
         const { kind } = parse(
-          z.object({ kind: z.enum(['attachment', 'avatar']).default('attachment') }),
+          z.object({
+            kind: z.enum(['attachment', 'avatar', 'channel_avatar']).default('attachment'),
+          }),
           request.query,
         );
         const storageKey = await storage.put(body);
@@ -96,6 +107,9 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
 
         // Handed back once and never stored. Losing it means losing the blob,
         // which is the point: the server keeps nothing that opens it.
+        // Only an attachment gets one. The two avatar kinds are authorised by
+        // who is asking rather than by what they hold, so a token would be
+        // published alongside the id and buy nothing.
         const token = kind === 'attachment' ? randomBytes(32).toString('base64url') : null;
         const { rows } = await pool.query<{ id: string }>(
           `INSERT INTO media_objects

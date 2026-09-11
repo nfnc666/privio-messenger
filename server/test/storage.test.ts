@@ -203,6 +203,31 @@ describe('media and backup', () => {
     assert.equal(current.statusCode, 200);
   });
 
+  it('removing an avatar lets the picture go', async () => {
+    const media = (await octet(Buffer.from('to-be-removed'), alice, '/v1/media', 'POST')).json();
+    await h.app.inject({
+      method: 'PUT',
+      url: '/v1/accounts/me/avatar',
+      headers: bearer(alice),
+      payload: { mediaId: media.id },
+    });
+
+    const removed = await h.app.inject({
+      method: 'DELETE',
+      url: '/v1/accounts/me/avatar',
+      headers: bearer(alice),
+    });
+    assert.equal(removed.statusCode, 200);
+
+    // Setting an avatar pushes its expiry a hundred years out. Taking it away
+    // has to push it back, or the blob stays in storage forever — and the
+    // route could not name it: `UPDATE ... RETURNING avatar_media_id` returns
+    // the NULL the same statement has just written, not what was there.
+    await runRetentionSweep(h.storage);
+    const gone = await pool.query('SELECT id FROM media_objects WHERE id = $1', [media.id]);
+    assert.equal(gone.rowCount, 0, 'a picture nobody points at is not kept for a century');
+  });
+
   it('refuses an avatar that is not the caller\'s own upload', async () => {
     const mallory = await registerUser(h.app, 'mallory');
     const upload = (await octet(Buffer.from('someone-elses'), alice, '/v1/media', 'POST')).json();

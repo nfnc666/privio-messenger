@@ -27,7 +27,7 @@ const READABLE: Record<string, string> = {
   // Capabilities and pointers. None of them says anything about content.
   'backups.storage_key': 'where the sealed blob is, not what is in it',
   'media_objects.storage_key': 'same',
-  'media_objects.kind': 'attachment or avatar, which decides who may download it',
+  'media_objects.kind': 'attachment, avatar or channel_avatar, which decides who may download it',
   'channels.invite_code': 'the capability in a link, meant to be shared',
   'groups.invite_code': 'the same',
   'sent_message_keys.idempotency_key': 'opaque to the server; it is compared, never read',
