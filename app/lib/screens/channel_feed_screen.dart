@@ -109,6 +109,16 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     });
   }
 
+  /// Marks the channel read, once its posts are on screen.
+  ///
+  /// Sent to the server rather than kept here, so reading a channel on a phone
+  /// clears its badge on a laptop. The server refuses to move the marker
+  /// backwards, so a device that has been offline cannot un-read something.
+  Future<void> _markRead() async {
+    if (!mounted) return;
+    await PrivioScope.of(context).channels.markRead(_channel.id);
+  }
+
   Future<void> _load() async {
     final controller = PrivioScope.of(context).channels;
     if (_channel.isMember) await controller.loadPosts(_channel.id);
@@ -117,6 +127,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     // A channel reached by a link is in neither list, so nothing has fetched
     // its picture yet. Unawaited: the feed should not wait on an image.
     unawaited(controller.loadAvatars([fresh ?? _channel]));
+    // Opening a channel is reading it. Unawaited for the same reason: the badge
+    // clearing is not something the feed should wait on.
+    if (_channel.isMember) unawaited(_markRead());
   }
 
   /// Presses the key delivery again, and says what happened.

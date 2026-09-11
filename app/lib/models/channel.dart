@@ -368,6 +368,8 @@ class ChannelInfo {
     this.directMessagesEnabled = false,
     this.muted = false,
     this.mutedUntil,
+    this.unreadCount = 0,
+    this.lastReadPostId = 0,
   });
 
   /// What a channel offers until an admin changes it. Mirrors the server's
@@ -482,6 +484,22 @@ class ChannelInfo {
   final bool muted;
   final DateTime? mutedUntil;
 
+  /// How many posts have arrived since this account last read it.
+  ///
+  /// Counted by the server, not here, because a device only holds the posts it
+  /// has fetched — and the badge has to be right *before* anything is fetched.
+  /// Capped at 100 there; [unreadLabel] is what a badge shows.
+  final int unreadCount;
+
+  /// The last post this account has read, per the server. Shared across their
+  /// devices, which is the point of it not being a local number.
+  final int lastReadPostId;
+
+  bool get hasUnread => unreadCount > 0;
+
+  /// "99+" past the cap, because the exact number stops being information.
+  String get unreadLabel => unreadCount > 99 ? '99+' : '$unreadCount';
+
   /// True when this device is behind the channel and has to wait.
   bool get isAwaitingKey => isMember && !hasCurrentKey;
 
@@ -512,6 +530,8 @@ class ChannelInfo {
     bool? directMessagesEnabled,
     bool? muted,
     DateTime? mutedUntil,
+    int? unreadCount,
+    int? lastReadPostId,
     // `mutedUntil` null means "unchanged" like every other parameter here, so
     // unmuting needs a way to say null and mean it.
     bool clearMutedUntil = false,
@@ -544,6 +564,8 @@ class ChannelInfo {
         directMessagesEnabled: directMessagesEnabled ?? this.directMessagesEnabled,
         muted: muted ?? this.muted,
         mutedUntil: clearMutedUntil ? null : (mutedUntil ?? this.mutedUntil),
+        unreadCount: unreadCount ?? this.unreadCount,
+        lastReadPostId: lastReadPostId ?? this.lastReadPostId,
       );
 
   /// The same channel with no picture.
@@ -578,6 +600,8 @@ class ChannelInfo {
         directMessagesEnabled: directMessagesEnabled,
         muted: muted,
         mutedUntil: mutedUntil,
+        unreadCount: unreadCount,
+        lastReadPostId: lastReadPostId,
       );
 }
 
@@ -710,6 +734,70 @@ class ChannelPost {
 
   bool get isEdited => editedAt != null;
   bool get isScheduled => publishAt != null;
+
+  /// What goes into the local cache, so a channel opened without a network is
+  /// not an empty screen.
+  ///
+  /// **No file bytes.** The attachment is kept as the pointer and capability it
+  /// already is — a media id, a token, a type and a size — never as decrypted
+  /// content. The archive is sealed, but a decrypted photo written to disk is a
+  /// decrypted photo on disk, and this app has been careful about that
+  /// everywhere else.
+  ///
+  /// A post that this device could not open is cached as unopened, so a
+  /// padlock stays a padlock rather than becoming an empty message.
+  Map<String, dynamic> toCacheJson() => {
+        'id': id,
+        'body': body,
+        'createdAt': createdAt.toIso8601String(),
+        if (authorUsername != null) 'authorUsername': authorUsername,
+        if (pinned) 'pinned': true,
+        if (!opened) 'opened': false,
+        'keyEpoch': keyEpoch,
+        if (attachment != null)
+          'attachment': {
+            'id': attachment!.mediaId,
+            'token': attachment!.token,
+            'type': attachment!.mimeType,
+            'bytes': attachment!.bytes,
+            if (attachment!.name != null) 'name': attachment!.name,
+          },
+        if (reactions.isNotEmpty) 'reactions': reactions,
+        if (myReactions.isNotEmpty) 'myReactions': myReactions.toList(),
+        if (editedAt != null) 'editedAt': editedAt!.toIso8601String(),
+        if (publishAt != null) 'publishAt': publishAt!.toIso8601String(),
+        if (commentCount > 0) 'commentCount': commentCount,
+      };
+
+  /// Reads one back. Returns null for anything malformed rather than throwing:
+  /// a cache is a convenience, and one bad row must not cost the whole history.
+  static ChannelPost? fromCacheJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final id = (raw['id'] as num?)?.toInt();
+    final createdAt = DateTime.tryParse(raw['createdAt'] as String? ?? '');
+    if (id == null || createdAt == null) return null;
+    return ChannelPost(
+      id: id,
+      body: raw['body'] as String? ?? '',
+      createdAt: createdAt.toLocal(),
+      authorUsername: raw['authorUsername'] as String?,
+      pinned: raw['pinned'] as bool? ?? false,
+      opened: raw['opened'] as bool? ?? true,
+      keyEpoch: (raw['keyEpoch'] as num?)?.toInt() ?? 1,
+      attachment: ChannelAttachment.fromJson(raw['attachment']),
+      reactions: {
+        for (final entry in (raw['reactions'] as Map<String, dynamic>? ?? const {}).entries)
+          entry.key: (entry.value as num).toInt(),
+      },
+      myReactions: {
+        for (final emoji in raw['myReactions'] as List<dynamic>? ?? const [])
+          emoji as String,
+      },
+      editedAt: DateTime.tryParse(raw['editedAt'] as String? ?? '')?.toLocal(),
+      publishAt: DateTime.tryParse(raw['publishAt'] as String? ?? '')?.toLocal(),
+      commentCount: (raw['commentCount'] as num?)?.toInt() ?? 0,
+    );
+  }
 
   /// How many of each emoji are on this post.
   ///

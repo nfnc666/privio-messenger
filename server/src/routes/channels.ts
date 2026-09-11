@@ -6,6 +6,7 @@ import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { lastSeenFor } from '../services/presence.js';
+import type { ChannelNotifier } from '../services/channel_notifications.js';
 import * as livestreams from '../services/livestreams.js';
 import { ApiError } from '../util/errors.js';
 import { verifySecret } from '../util/crypto.js';
@@ -286,8 +287,11 @@ function resolvePermissions(
   return { ...base, ...requested };
 }
 
-/// Takes the bus so a key request can wake the devices that could answer it.
-const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
+/// Takes the bus so a key request can wake the devices that could answer it,
+/// and the notifier so a published post wakes the people it was published to.
+const channelRoutes =
+  (bus: DeliveryBus, notifier: ChannelNotifier): FastifyPluginAsync =>
+  async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
   // Creating something new is gated on a license where the deployment sells
   // access; reading and joining are not.
@@ -397,7 +401,28 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
                 WHERE mu.channel_id = c.id AND mu.account_id = $1) AS muted_until,
               EXISTS (SELECT 1 FROM channel_mutes mu
                        WHERE mu.channel_id = c.id AND mu.account_id = $1
-                         AND (mu.until IS NULL OR mu.until > now())) AS muted
+                         AND (mu.until IS NULL OR mu.until > now())) AS muted,
+              COALESCE(
+                (SELECT r.last_read_post_id FROM channel_reads r
+                  WHERE r.channel_id = c.id AND r.account_id = $1), 0
+              ) AS last_read_post_id,
+              -- Counted here rather than on the device, because a device only
+              -- holds the posts it has fetched — and the badge has to be right
+              -- before anything is fetched at all. Capped: past a hundred the
+              -- number stops being information and starts being a cost on
+              -- every listing.
+              (SELECT count(*) FROM (
+                 SELECT 1 FROM channel_posts p
+                  WHERE p.channel_id = c.id
+                    AND p.deleted_at IS NULL
+                    AND (p.publish_at IS NULL OR p.publish_at <= now())
+                    AND p.id > COALESCE(
+                      (SELECT r.last_read_post_id FROM channel_reads r
+                        WHERE r.channel_id = c.id AND r.account_id = $1), 0)
+                    -- Your own posts are not unread to you.
+                    AND (p.author_account_id IS NULL OR p.author_account_id <> $1)
+                  LIMIT 100
+               ) capped) AS unread_count
        FROM channel_members m
        JOIN channels c ON c.id = m.channel_id
        WHERE m.account_id = $1 AND c.deleted_at IS NULL
@@ -416,6 +441,8 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         // did not mean "until I pick up my laptop".
         muted: row.muted === true,
         mutedUntil: (row.muted_until as Date | null)?.toISOString() ?? null,
+        unreadCount: Number(row.unread_count ?? 0),
+        lastReadPostId: Number(row.last_read_post_id ?? 0),
         // Anyone may pass the link on; it carries no key.
         inviteCode: row.invite_code,
       })),
@@ -1571,6 +1598,19 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       return created;
     });
 
+    // Wake the channel — but only for a post that is visible now. A scheduled
+    // one is notified by the sweeper when its time comes, because a
+    // notification has to be sent at a moment and this is not that moment.
+    //
+    // Detached: a wake-up that fails is somebody else's endpoint being wrong,
+    // and the post is already published. It must never turn a successful
+    // publish into an error the author sees and retries.
+    if (!created.publish_at || (created.publish_at as Date).getTime() <= Date.now()) {
+      void notifier.notifyPost(Number(created.id)).catch((err: unknown) => {
+        app.log.debug({ err, postId: created.id }, 'channel notification failed');
+      });
+    }
+
     reply.code(201);
     return {
       id: created.id,
@@ -1578,6 +1618,38 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       createdAt: (created.created_at as Date).toISOString(),
       publishAt: (created.publish_at as Date | null)?.toISOString() ?? null,
     };
+  });
+
+  /**
+   * How far this account has read.
+   *
+   * Stored per account rather than per device, so reading a channel on a phone
+   * clears its badge on a laptop — which is the whole reason it is not a local
+   * number.
+   *
+   * It only ever moves forward. A device that has been offline holds a stale
+   * idea of where the reader got to, and letting it write that back would mark
+   * things unread that somebody has already seen.
+   */
+  app.put('/v1/channels/:id/read', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ postId: z.coerce.number().int().min(0) }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query<{ last_read_post_id: string }>(
+      `INSERT INTO channel_reads (account_id, channel_id, last_read_post_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id, channel_id) DO UPDATE
+         SET last_read_post_id = GREATEST(channel_reads.last_read_post_id, EXCLUDED.last_read_post_id),
+             updated_at = now()
+       RETURNING last_read_post_id`,
+      [accountId, params.id, body.postId],
+    );
+    return { lastReadPostId: Number(rows[0]!.last_read_post_id) };
   });
 
   /** The feed, newest first. Members only — including for a public channel. */

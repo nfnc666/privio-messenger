@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../core/secure_store.dart';
+import '../models/channel.dart';
 import '../models/models.dart';
 import 'message_store.dart';
 import 'outbox.dart';
@@ -99,10 +100,21 @@ class KeystoreArchiveStorage implements ArchiveStorage {
 /// Everything the archive holds: the history, and what has not gone out yet.
 @immutable
 class ArchiveContents {
-  const ArchiveContents({this.conversations = const [], this.outbox = const []});
+  const ArchiveContents({
+    this.conversations = const [],
+    this.outbox = const [],
+    this.channelPosts = const {},
+  });
 
   final List<Conversation> conversations;
   final List<PendingSend> outbox;
+
+  /// Channel posts, by channel id, so a channel opened with no network shows
+  /// what was there last time instead of an empty feed.
+  ///
+  /// Pointers only — a post's attachment is kept as its media id, token, type
+  /// and size, never as decrypted bytes. See [ChannelPost.toCacheJson].
+  final Map<String, List<ChannelPost>> channelPosts;
 }
 
 /// The decrypted conversation history, at rest.
@@ -121,6 +133,7 @@ abstract interface class MessageArchive {
     List<Conversation> conversations, {
     List<PendingSend> outbox,
     String? accountId,
+    Map<String, List<ChannelPost>> channelPosts,
   });
 
   Future<void> clear();
@@ -141,6 +154,7 @@ class NoArchive implements MessageArchive {
     List<Conversation> conversations, {
     List<PendingSend> outbox = const [],
     String? accountId,
+    Map<String, List<ChannelPost>> channelPosts = const {},
   }) async {}
 
   @override
@@ -238,6 +252,14 @@ class EncryptedMessageArchive implements MessageArchive {
       }
       return ArchiveContents(
         conversations: ArchiveCodec.decode(map['conversations'] as List<dynamic>? ?? const []),
+        channelPosts: {
+          for (final entry
+              in (map['channelPosts'] as Map<String, dynamic>? ?? const {}).entries)
+            entry.key: [
+              for (final raw in entry.value as List<dynamic>? ?? const [])
+                if (ChannelPost.fromCacheJson(raw) case final post?) post,
+            ],
+        },
         outbox: [
           for (final raw in map['outbox'] as List<dynamic>? ?? const [])
             PendingSend.fromJson(raw as Map<String, dynamic>),
@@ -255,6 +277,7 @@ class EncryptedMessageArchive implements MessageArchive {
     List<Conversation> conversations, {
     List<PendingSend> outbox = const [],
     String? accountId,
+    Map<String, List<ChannelPost>> channelPosts = const {},
   }) async {
     final plain = utf8.encode(
       jsonEncode({
@@ -265,6 +288,13 @@ class EncryptedMessageArchive implements MessageArchive {
         // Already-sealed recordings, so nothing plaintext reaches storage even
         // while a send is waiting for a network.
         'outbox': [for (final pending in outbox) pending.toJson()],
+        // What a channel looked like last time it was fetched. Inside the same
+        // sealed payload as everything else, and holding no file bytes.
+        if (channelPosts.isNotEmpty)
+          'channelPosts': {
+            for (final entry in channelPosts.entries)
+              entry.key: [for (final post in entry.value) post.toCacheJson()],
+          },
       }),
     );
     final box = await _cipher.encrypt(plain, secretKey: await _key());

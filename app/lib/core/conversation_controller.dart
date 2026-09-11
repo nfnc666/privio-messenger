@@ -225,6 +225,9 @@ class ConversationController extends ChangeNotifier {
     return '${when.day.toString().padLeft(2, '0')}.${when.month.toString().padLeft(2, '0')}.';
   }
 
+  /// Called with whatever channel posts the archive held, on restore.
+  void Function(Map<String, List<ChannelPost>>)? onChannelPostsRestored;
+
   /// Reads the sealed history back so a relaunch does not start blank.
   Future<void> restore() async {
     // The account is named, so an archive belonging to somebody else is refused
@@ -232,6 +235,11 @@ class ConversationController extends ChangeNotifier {
     // interrupted: the history is still on disk and the session that owned it
     // is not.
     final contents = await _services.archive.load(accountId: accountId);
+    // Handed straight back out, so a channel opened before any network call
+    // shows what was there last time. Kept even when there is no conversation
+    // history at all — somebody may be in channels and in no chats.
+    _channelPosts = contents.channelPosts;
+    onChannelPostsRestored?.call(contents.channelPosts);
     if (contents.conversations.isEmpty && contents.outbox.isEmpty) return;
     _services.store.restore(contents.conversations);
     _outbox
@@ -254,6 +262,19 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Channel posts to seal alongside the conversations.
+  ///
+  /// Handed over by the channel controller rather than fetched, because this is
+  /// the only place that knows how a history is sealed and that is the only
+  /// place that knows what a channel holds. Kept here so one archive write
+  /// carries both, instead of two writers racing over the same blob.
+  Map<String, List<ChannelPost>> _channelPosts = const {};
+
+  void cacheChannelPosts(Map<String, List<ChannelPost>> posts) {
+    _channelPosts = {for (final entry in posts.entries) entry.key: entry.value};
+    _persist();
+  }
+
   /// Writes the history back, coalescing bursts: a fast exchange should not
   /// re-seal and rewrite the whole archive once per keystroke.
   void _persist() {
@@ -264,6 +285,7 @@ class ConversationController extends ChangeNotifier {
           _services.store.conversations(),
           outbox: _outbox,
           accountId: accountId,
+          channelPosts: _channelPosts,
         ),
       );
     });
@@ -277,6 +299,7 @@ class ConversationController extends ChangeNotifier {
       _services.store.conversations(),
       outbox: _outbox,
       accountId: accountId,
+      channelPosts: _channelPosts,
     );
   }
 

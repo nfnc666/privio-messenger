@@ -119,6 +119,7 @@ decides that, never the client.
 | `POST /v1/channels/:id/owner` | `{accountId, currentPassword}` — the password, not the session |
 | `POST /v1/channels/:id/report` | `{reason}` from a fixed set; never free text |
 | `POST /v1/channels/:id/members` | direct-add; answers `{added, invite}` — only where their own `whoCanAddMeToGroups` allows it |
+| `PUT /v1/channels/:id/read` | `{postId}`; only ever moves forward, so a stale device cannot un-read |
 | `PUT /v1/channels/:id/mute` | per account, not per device; `{until}` or nothing for no end |
 | `DELETE /v1/channels/:id/mute` | |
 | `GET /v1/channels/:id/live` | `available: false` where no media server is configured — see docs/channels.md |

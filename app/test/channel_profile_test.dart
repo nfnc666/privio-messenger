@@ -136,6 +136,11 @@ Future<AppState> stateWith(FakeServer server, ChannelInfo channel) async {
     store: secure,
   );
   await state.initialise();
+  // Disposed when the test ends, which cancels the archive's debounce timer.
+  // Loading a channel's posts now caches them, and caching schedules a sealed
+  // write 400ms later — a real timer that outlives a widget tree nobody tore
+  // down, and the test framework is right to complain about it.
+  addTearDown(state.dispose);
   // Seeded through the public door, so the channel is in the controller's own
   // lists exactly as a refresh would have put it there.
   state.channels.adopt(channel);

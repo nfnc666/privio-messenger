@@ -207,10 +207,16 @@ class AppState extends ChangeNotifier {
   }
 
   ConversationController get conversations {
-    return _conversations ??= ConversationController(services);
+    return _conversations ??= ConversationController(services)
+      // Channel posts are sealed into the same archive as the chats, by the
+      // one object that knows how sealing works. Joined here because this is
+      // where both controllers exist and neither should reach for the other.
+      ..onChannelPostsRestored = (posts) => channels.restorePosts(posts);
   }
 
-  ChannelController get channels => _channels ??= ChannelController(services);
+  ChannelController get channels =>
+      _channels ??= ChannelController(services)
+        ..onPostsChanged = (posts) => conversations.cacheChannelPosts(posts);
 
   /// Activation state. Created lazily like the others, and refreshed on sign-in
   /// so the settings entry knows whether it has anything to say.
