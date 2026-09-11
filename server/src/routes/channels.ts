@@ -33,6 +33,26 @@ const handleSchema = z
   .regex(/^[a-z0-9_.]{3,32}$/, 'must be 3-32 characters of a-z, 0-9, underscore or dot');
 
 /**
+ * One reaction emoji.
+ *
+ * Deliberately not "is this a real emoji": that question needs a Unicode
+ * table, the table moves every year, and getting it wrong rejects somebody's
+ * flag. What it does instead is refuse anything that could be used as *text* —
+ * ASCII letters, digits and whitespace — so the reaction bar under a post
+ * cannot be turned into a row of captions in somebody else's channel.
+ */
+const reactionEmojiSchema = z
+  .string()
+  .min(1)
+  .max(16)
+  .refine((value) => !/[A-Za-z0-9\s]/.test(value), {
+    message: 'must be a symbol, not text',
+  });
+
+/** At most a barful. Twelve already does not fit on a phone. */
+const reactionEmojisSchema = z.array(reactionEmojiSchema).min(1).max(12);
+
+/**
  * What a channel looks like from outside.
  *
  * A public channel's title and description are plaintext because discovery
@@ -51,6 +71,8 @@ function publicView(row: Record<string, unknown>) {
       ? (row.encrypted_metadata as Buffer).toString('base64')
       : null,
     restrictSaving: row.restrict_saving,
+    // Which emojis this channel offers under a post.
+    reactionEmojis: row.reaction_emojis ?? [],
     memberCount: row.member_count,
     // Which key version this channel is on. The server counts these and holds
     // no key for any of them; see migration 015.
@@ -663,6 +685,12 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          */
         metadataKeyEpoch: z.number().int().min(1).optional(),
         restrictSaving: z.boolean().optional(),
+        /**
+         * The emojis offered under a post. Changing the menu does not touch
+         * what is already on a post: taking an emoji off the list is not a
+         * reason to silently discard what people have already said with it.
+         */
+        reactionEmojis: reactionEmojisSchema.optional(),
       }),
       request.body,
     );
@@ -683,7 +711,8 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
            WHEN COALESCE($7::int, 1) > metadata_key_epoch THEN COALESCE($7::int, 1)
            ELSE metadata_key_epoch
          END,
-         restrict_saving = COALESCE($6, restrict_saving)
+         restrict_saving = COALESCE($6, restrict_saving),
+         reaction_emojis = COALESCE($8, reaction_emojis)
        WHERE id = $1 RETURNING *`,
       [
         params.id,
@@ -693,6 +722,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         body.encryptedMetadata ?? null,
         body.restrictSaving ?? null,
         body.metadataKeyEpoch ?? null,
+        body.reactionEmojis ?? null,
       ],
     );
     return publicView(rows[0]);
@@ -1045,15 +1075,42 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     );
     await requireMember(params.id, accountId);
 
+    /*
+     * The counts come back with the feed rather than from a second call: fifty
+     * posts would otherwise be fifty round trips, and a reaction bar that
+     * appears a second after the post it belongs to is worse than none.
+     *
+     * Two aggregates, and the difference between them matters. `reactions` is
+     * a total per emoji and says nothing about who; `mine` is this reader's
+     * own, which they are entitled to because they put it there. Nobody is
+     * ever served the list of who reacted — see migration 017 for what the
+     * server does and does not hold here.
+     */
     const { rows } = await pool.query(
       `SELECT p.id, p.author_account_id, a.username AS author_username,
-              p.content, p.media_id, p.pinned, p.created_at, p.key_epoch
+              p.content, p.media_id, p.pinned, p.created_at, p.key_epoch,
+              COALESCE(r.counts, '{}'::jsonb) AS reactions,
+              COALESCE(m.mine, ARRAY[]::text[]) AS mine
        FROM channel_posts p
        LEFT JOIN accounts a ON a.id = p.author_account_id
+       LEFT JOIN LATERAL (
+         SELECT jsonb_object_agg(emoji, n) AS counts
+         FROM (
+           SELECT emoji, count(*) AS n
+           FROM channel_post_reactions
+           WHERE post_id = p.id
+           GROUP BY emoji
+         ) AS per_emoji
+       ) AS r ON true
+       LEFT JOIN LATERAL (
+         SELECT array_agg(emoji) AS mine
+         FROM channel_post_reactions
+         WHERE post_id = p.id AND account_id = $4
+       ) AS m ON true
        WHERE p.channel_id = $1 AND p.deleted_at IS NULL
          AND ($2::bigint IS NULL OR p.id < $2)
        ORDER BY p.id DESC LIMIT $3`,
-      [params.id, query.before ?? null, query.limit],
+      [params.id, query.before ?? null, query.limit, accountId],
     );
 
     return {
@@ -1064,6 +1121,8 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         content: (r.content as Buffer).toString('base64'),
         mediaId: r.media_id,
         pinned: r.pinned,
+        reactions: r.reactions,
+        myReactions: r.mine,
         // So a reader knows which key a post needs, rather than inferring it
         // from a decryption that failed. A padlock that can say "waiting for
         // the key from 12 March" is a different thing from one that cannot.
@@ -1091,6 +1150,104 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     return { pinned: body.pinned };
   });
 
+  /**
+   * The counts on one post, for the reply to a reaction that just changed.
+   *
+   * Returned rather than leaving the client to reload the feed: a tap that
+   * needs fifty posts fetched again to show a number going up is a tap that
+   * looks broken on a slow connection.
+   */
+  async function reactionsOn(
+    postId: number,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<{ reactions: Record<string, number>; myReactions: string[] }> {
+    const { rows } = await client.query(
+      `SELECT emoji, count(*)::int AS n,
+              bool_or(account_id = $2) AS mine
+       FROM channel_post_reactions
+       WHERE post_id = $1
+       GROUP BY emoji`,
+      [postId, accountId],
+    );
+    const reactions: Record<string, number> = {};
+    const myReactions: string[] = [];
+    for (const row of rows as { emoji: string; n: number; mine: boolean }[]) {
+      reactions[row.emoji] = row.n;
+      if (row.mine) myReactions.push(row.emoji);
+    }
+    return { reactions, myReactions };
+  }
+
+  /**
+   * Reacting to a post.
+   *
+   * Any member may, including one who cannot publish — that is the point of a
+   * channel's audience having a voice at all. The emoji has to be one the
+   * channel offers: an unchecked value here is a way to write arbitrary text
+   * under somebody else's post.
+   *
+   * The post is looked up **within the channel** rather than by id alone, so a
+   * member of one channel cannot react to a post in another by guessing a
+   * number. Post ids are a global sequence; they are not a secret and are not
+   * treated as one.
+   */
+  app.put('/v1/channels/:id/posts/:postId/reactions', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(z.object({ emoji: reactionEmojiSchema }), request.body);
+    await requireMember(params.id, accountId);
+
+    const { rows: channels } = await pool.query<{ reaction_emojis: string[] }>(
+      'SELECT reaction_emojis FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    const offered = channels[0]?.reaction_emojis ?? [];
+    if (!offered.includes(body.emoji)) {
+      throw ApiError.badRequest('emoji_not_offered', 'That is not one of this channel\'s reactions');
+    }
+
+    const { rowCount } = await pool.query(
+      'SELECT 1 FROM channel_posts WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL',
+      [params.postId, params.id],
+    );
+    if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
+
+    // Idempotent: a double tap on a slow connection is one reaction, not an
+    // error the screen has to explain.
+    await pool.query(
+      `INSERT INTO channel_post_reactions (post_id, account_id, emoji)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [params.postId, accountId, body.emoji],
+    );
+    return reactionsOn(params.postId, accountId);
+  });
+
+  /** Taking one back. Only ever your own — there is no route to remove anyone else's. */
+  app.delete('/v1/channels/:id/posts/:postId/reactions', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const query = parse(z.object({ emoji: reactionEmojiSchema }), request.query);
+    await requireMember(params.id, accountId);
+
+    await pool.query(
+      `DELETE FROM channel_post_reactions r
+       USING channel_posts p
+       WHERE r.post_id = p.id AND p.channel_id = $1
+         AND r.post_id = $2 AND r.account_id = $3 AND r.emoji = $4`,
+      [params.id, params.postId, accountId, query.emoji],
+    );
+    // No 404 for a reaction that was not there: the end state is the same, and
+    // saying which it was tells a caller what somebody else's row contains.
+    return reactionsOn(params.postId, accountId);
+  });
+
   app.delete('/v1/channels/:id/posts/:postId', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(
@@ -1099,12 +1256,26 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     );
     await requirePermission(params.id, accountId, 'canDeletePosts');
 
-    const { rowCount } = await pool.query(
-      'UPDATE channel_posts SET deleted_at = now(), content = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
-      // Overwrite rather than tombstone the ciphertext: a deleted post should
-      // not sit on disk waiting for a key to turn up.
-      [params.id, params.postId, Buffer.alloc(0)],
-    );
+    const rowCount = await withTransaction(async (client) => {
+      const { rowCount: deleted } = await client.query(
+        'UPDATE channel_posts SET deleted_at = now(), content = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
+        // Overwrite rather than tombstone the ciphertext: a deleted post should
+        // not sit on disk waiting for a key to turn up.
+        [params.id, params.postId, Buffer.alloc(0)],
+      );
+      // And the reactions with it. The row stays — the id is a foreign key
+      // several things point at — so the `ON DELETE CASCADE` on those rows
+      // never fires, and without this the record of who responded to a post
+      // outlives the post itself. That is the one piece of metadata a channel
+      // holds in the clear (migration 017); it has no business surviving the
+      // thing it was about.
+      if (deleted) {
+        await client.query('DELETE FROM channel_post_reactions WHERE post_id = $1', [
+          params.postId,
+        ]);
+      }
+      return deleted;
+    });
     if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
     return { deleted: true };
   });

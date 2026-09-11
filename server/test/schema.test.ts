@@ -61,6 +61,16 @@ const READABLE: Record<string, string> = {
   'devices.voip_token': 'the second address iOS needs, for the same reason',
   'sessions.user_agent': 'shown beside the session in the device list',
 
+  // Reactions. The one place in a channel where the server holds something a
+  // member chose, and it is held knowingly: a count has to be counted
+  // somewhere, and the account id beside it is what stops one person counting
+  // ten times and what lets them take it back. Anonymous counters give up
+  // both. The emoji is not free text — it has to be one of the channel's own
+  // configured set — and nobody is ever served the list of who reacted. See
+  // migration 017 and docs/security-model.md.
+  'channel_post_reactions.emoji': 'one of the channel s offered emojis, counted by the server',
+  'channels.reaction_emojis': 'the menu an admin offers, not anything a member wrote',
+
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
   'licenses.status': 'active or revoked',
@@ -81,11 +91,16 @@ describe('what the server can read', () => {
   });
 
   it('has no free-text column that nobody argued for', async () => {
+    // Arrays of text as well as text. A `text[]` reports its data_type as
+    // 'ARRAY' and slipped straight past this check — which is exactly the way
+    // a readable column gets added without anybody arguing for it, and it was
+    // found by adding one.
     const { rows } = await pool.query<{ name: string }>(
       `SELECT table_name || '.' || column_name AS name
          FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND data_type IN ('text', 'character varying', 'json', 'jsonb')
+          AND (data_type IN ('text', 'character varying', 'json', 'jsonb')
+               OR udt_name IN ('_text', '_varchar', '_json', '_jsonb'))
         ORDER BY table_name, ordinal_position`,
     );
     const unexplained = rows.map((r) => r.name).filter((name) => !(name in READABLE));

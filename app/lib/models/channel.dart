@@ -55,7 +55,13 @@ class ChannelInfo {
     this.hasKey = false,
     this.keyEpoch = 1,
     this.hasCurrentKey = true,
+    this.reactionEmojis = defaultReactionEmojis,
   });
+
+  /// What a channel offers until an admin changes it. Mirrors the server's
+  /// column default, so a channel from before reactions existed still draws a
+  /// bar rather than nothing.
+  static const List<String> defaultReactionEmojis = ['👍', '❤️', '🔥', '👏', '😂', '😮'];
 
   final String id;
   final ChannelVisibility visibility;
@@ -77,6 +83,10 @@ class ChannelInfo {
   final String? inviteCode;
 
   final bool restrictSaving;
+
+  /// The emojis this channel offers under a post. Set by an admin; the server
+  /// refuses a reaction that is not one of them.
+  final List<String> reactionEmojis;
 
   /// Whether this device holds any version of the key.
   final bool hasKey;
@@ -129,6 +139,7 @@ class ChannelInfo {
         permissions: permissions ?? this.permissions,
         inviteCode: inviteCode,
         restrictSaving: restrictSaving,
+        reactionEmojis: reactionEmojis,
         hasKey: hasKey ?? this.hasKey,
       );
 }
@@ -216,6 +227,8 @@ class ChannelPost {
     this.opened = true,
     this.keyEpoch = 1,
     this.attachment,
+    this.reactions = const {},
+    this.myReactions = const {},
   });
 
   final int id;
@@ -236,6 +249,31 @@ class ChannelPost {
   /// none, and also when the post could not be opened — a locked post shows a
   /// padlock, not a download button for something nobody can read.
   final ChannelAttachment? attachment;
+
+  /// How many of each emoji are on this post.
+  ///
+  /// A total, and only a total: the server is never asked who reacted and
+  /// never answers it. What it does hold is in migration 017, stated there
+  /// rather than implied here.
+  final Map<String, int> reactions;
+
+  /// Which of them this device's account put there, so they can be taken back.
+  final Set<String> myReactions;
+
+  /// The same post with one reaction added or removed, for the answer the
+  /// server gives a tap. Nothing else about the post changes.
+  ChannelPost withReactions(Map<String, int> counts, Set<String> mine) => ChannelPost(
+        id: id,
+        body: body,
+        createdAt: createdAt,
+        authorUsername: authorUsername,
+        pinned: pinned,
+        opened: opened,
+        keyEpoch: keyEpoch,
+        attachment: attachment,
+        reactions: counts,
+        myReactions: mine,
+      );
 
   /// Which version of the channel key sealed this post.
   ///

@@ -470,6 +470,229 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('reactions', () => {
+    const react = (user: TestUser, channelId: string, postId: number, emoji: string) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/posts/${postId}/reactions`,
+        headers: bearer(user),
+        payload: { emoji },
+      });
+
+    const unreact = (user: TestUser, channelId: string, postId: number, emoji: string) =>
+      h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/posts/${postId}/reactions?emoji=${encodeURIComponent(emoji)}`,
+        headers: bearer(user),
+      });
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const feed = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(user),
+      });
+
+    it('a subscriber who cannot publish can still react', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'reagieren',
+        title: 'Reagieren',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      // The point of an audience having a voice at all: posting is the
+      // admins', reacting is everybody's.
+      const cannotPost = await post(reader, channel.id, 'nicht erlaubt');
+      assert.equal(cannotPost.statusCode, 403);
+
+      const reacted = await react(reader, channel.id, published.id, '👍');
+      assert.equal(reacted.statusCode, 200);
+      assert.deepEqual(reacted.json().reactions, { '👍': 1 });
+      assert.deepEqual(reacted.json().myReactions, ['👍']);
+    });
+
+    it('counts come with the feed, and say which are the reader’s own', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zaehlenreaktionen',
+        title: 'Zaehlen',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      await react(owner, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '🔥');
+
+      const mine = (await feed(reader, channel.id)).json().posts[0];
+      assert.deepEqual(mine.reactions, { '👍': 2, '🔥': 1 });
+      assert.deepEqual(mine.myReactions.sort(), ['🔥', '👍'].sort());
+
+      const theirs = (await feed(owner, channel.id)).json().posts[0];
+      assert.deepEqual(theirs.reactions, { '👍': 2, '🔥': 1 }, 'the totals are the same');
+      assert.deepEqual(theirs.myReactions, ['👍'], 'but only their own are named');
+    });
+
+    it('the same reaction twice is still one', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'doppelt',
+        title: 'Doppelt',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      await react(owner, channel.id, published.id, '👍');
+      const again = await react(owner, channel.id, published.id, '👍');
+
+      // A double tap on a slow connection is one reaction, not an error the
+      // screen has to explain.
+      assert.equal(again.statusCode, 200);
+      assert.deepEqual(again.json().reactions, { '👍': 1 });
+    });
+
+    it('a reaction can be taken back, and only your own', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zurueck',
+        title: 'Zurueck',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+      await react(owner, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '👍');
+
+      const removed = await unreact(reader, channel.id, published.id, '👍');
+      assert.equal(removed.statusCode, 200);
+      assert.deepEqual(removed.json().reactions, { '👍': 1 }, 'the owner’s is untouched');
+      assert.deepEqual(removed.json().myReactions, []);
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_reactions WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 1, 'there is no route that removes somebody else’s');
+    });
+
+    it('only the emojis the channel offers', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'auswahl',
+        title: 'Auswahl',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      const notOffered = await react(owner, channel.id, published.id, '🦆');
+      assert.equal(notOffered.statusCode, 400);
+      assert.equal(notOffered.json().error, 'emoji_not_offered');
+
+      // An admin changes the menu, and then it is allowed.
+      const changed = await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { reactionEmojis: ['🦆', '👍'] },
+      });
+      assert.equal(changed.statusCode, 200);
+      assert.deepEqual(changed.json().reactionEmojis, ['🦆', '👍']);
+      assert.equal((await react(owner, channel.id, published.id, '🦆')).statusCode, 200);
+    });
+
+    it('the reaction bar cannot be turned into a row of captions', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'keintext',
+        title: 'Kein Text',
+      })).json();
+
+      for (const attempt of ['SALE', 'call 0800', 'a', '  ']) {
+        const refused = await h.app.inject({
+          method: 'PATCH',
+          url: `/v1/channels/${channel.id}`,
+          headers: bearer(owner),
+          payload: { reactionEmojis: [attempt] },
+        });
+        assert.equal(refused.statusCode, 400, `"${attempt}" is text, not a symbol`);
+      }
+    });
+
+    it('a stranger cannot react, and neither can a member of another channel', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'fremde',
+        title: 'Fremde',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      assert.equal((await react(stranger, channel.id, published.id, '👍')).statusCode, 403);
+
+      // Post ids are a global sequence, so being in *a* channel must not be
+      // enough to reach a post in another one by guessing a number.
+      const elsewhere = (await createChannel(stranger, {
+        visibility: 'public',
+        handle: 'anderswo',
+        title: 'Anderswo',
+      })).json();
+      const crossed = await react(stranger, elsewhere.id, published.id, '👍');
+      assert.equal(crossed.statusCode, 404);
+    });
+
+    it('changing the menu does not discard what is already on a post', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'menue',
+        title: 'Menue',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await react(owner, channel.id, published.id, '👍');
+
+      await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { reactionEmojis: ['🔥'] },
+      });
+
+      const shown = (await feed(owner, channel.id)).json().posts[0];
+      assert.deepEqual(
+        shown.reactions,
+        { '👍': 1 },
+        'taking an emoji off the menu is not a reason to delete what people said with it',
+      );
+    });
+
+    it('deleting a post takes its reactions with it', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'mitloeschen',
+        title: 'Mitloeschen',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await react(owner, channel.id, published.id, '👍');
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_reactions WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0);
+    });
+  });
+
   it('the owner cannot simply walk out of their own channel', async () => {
     const channel = (await createChannel(owner, {
       visibility: 'public',

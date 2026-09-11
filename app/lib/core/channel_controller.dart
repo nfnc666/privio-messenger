@@ -250,6 +250,48 @@ class ChannelController extends ChangeNotifier {
         _posts[channelId] = await _channels.posts(channelId);
       });
 
+  /// Changes the emojis this channel offers, then reloads it so the bar under
+  /// every post redraws from the new set.
+  Future<bool> setReactionEmojis(String channelId, List<String> emojis) => _run(() async {
+        await _channels.setReactionEmojis(channelId, emojis);
+        // The list, not `refresh()`: that one runs inside `_run` already and
+        // would nest the loading flag inside itself.
+        _mine = await _channels.mine();
+      });
+
+  /// Puts a reaction on a post, or takes this account's own back.
+  ///
+  /// Deliberately not through [_run]: that one raises the whole screen's
+  /// loading flag, and a spinner over a feed because somebody tapped a heart is
+  /// a worse answer than the heart simply not moving. The count that comes back
+  /// is the server's, not an optimistic guess — a reaction that failed must not
+  /// leave a number on screen that nobody else can see.
+  Future<bool> react(
+    String channelId,
+    int postId,
+    String emoji, {
+    required bool on,
+  }) async {
+    try {
+      final (counts, mine) = await _channels.react(channelId, postId, emoji, on: on);
+      _posts[channelId] = [
+        for (final post in postsIn(channelId))
+          if (post.id == postId) post.withReactions(counts, mine) else post,
+      ];
+      _error = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (failure) {
+      _error = _explain(failure);
+      notifyListeners();
+      return false;
+    } on Object {
+      _error = 'Could not reach Privio. Check your connection.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> deletePost(String channelId, int postId) => _run(() async {
         await _channels.deletePost(channelId, postId);
         _posts[channelId] = [
