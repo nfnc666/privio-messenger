@@ -107,8 +107,22 @@ class ArchiveContents {
 
 /// The decrypted conversation history, at rest.
 abstract interface class MessageArchive {
-  Future<ArchiveContents> load();
-  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox});
+  /// Reads the history back, but only if it belongs to [accountId].
+  ///
+  /// The owner is checked rather than assumed. A sign-out clears this and the
+  /// keystore in two separate writes, and a phone that is killed between them
+  /// leaves a history behind with no session — which the next account to sign
+  /// in on that device would otherwise load as its own. Passing null means
+  /// "whoever wrote it", which is only right before an account is known.
+  Future<ArchiveContents> load({String? accountId});
+
+  /// Seals the history, stamped with the account it belongs to.
+  Future<void> save(
+    List<Conversation> conversations, {
+    List<PendingSend> outbox,
+    String? accountId,
+  });
+
   Future<void> clear();
 
   /// The size of the sealed history on this device.
@@ -120,10 +134,14 @@ class NoArchive implements MessageArchive {
   const NoArchive();
 
   @override
-  Future<ArchiveContents> load() async => const ArchiveContents();
+  Future<ArchiveContents> load({String? accountId}) async => const ArchiveContents();
 
   @override
-  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox = const []}) async {}
+  Future<void> save(
+    List<Conversation> conversations, {
+    List<PendingSend> outbox = const [],
+    String? accountId,
+  }) async {}
 
   @override
   Future<void> clear() async {}
@@ -179,7 +197,7 @@ class EncryptedMessageArchive implements MessageArchive {
   }
 
   @override
-  Future<ArchiveContents> load() async {
+  Future<ArchiveContents> load({String? accountId}) async {
     final sealed = await _storage.read();
     if (sealed == null || sealed.length < 1 + _nonceLength + _macLength) {
       return const ArchiveContents();
@@ -209,6 +227,15 @@ class EncryptedMessageArchive implements MessageArchive {
         return ArchiveContents(conversations: ArchiveCodec.decode(decoded));
       }
       final map = decoded as Map<String, dynamic>;
+      // Whose history this is. An archive written before this field existed
+      // carries no owner and is accepted — it predates multi-account and there
+      // is nobody it could wrongly belong to. One that names a *different*
+      // account is refused outright: it is the previous user's history, and
+      // handing it to whoever signed in next is the whole bug this guards.
+      final owner = map['accountId'] as String?;
+      if (accountId != null && owner != null && owner != accountId) {
+        return const ArchiveContents();
+      }
       return ArchiveContents(
         conversations: ArchiveCodec.decode(map['conversations'] as List<dynamic>? ?? const []),
         outbox: [
@@ -227,9 +254,13 @@ class EncryptedMessageArchive implements MessageArchive {
   Future<void> save(
     List<Conversation> conversations, {
     List<PendingSend> outbox = const [],
+    String? accountId,
   }) async {
     final plain = utf8.encode(
       jsonEncode({
+        // Inside the sealed payload, not beside it: an owner a thief could
+        // rewrite would be worse than no owner at all.
+        if (accountId != null) 'accountId': accountId,
         'conversations': ArchiveCodec.encode(conversations),
         // Already-sealed recordings, so nothing plaintext reaches storage even
         // while a send is waiting for a network.

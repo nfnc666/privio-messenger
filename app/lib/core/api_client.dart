@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -18,6 +19,40 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode, $code): $message';
 }
 
+/// A reply that belongs to a session which has since ended.
+///
+/// Thrown rather than returned, and thrown from the transport rather than
+/// checked at each call site, because the number of call sites only ever grows
+/// and one that forgets is a cross-account data leak.
+///
+/// The situation is ordinary: a request goes out, the network is slow, and by
+/// the time the answer arrives the person has signed out and somebody else has
+/// signed in on the same phone. Applying that answer would write one account's
+/// contacts, messages or profile into another account's screen. Callers are
+/// expected to swallow this silently — there is nobody left to tell, because
+/// the person who asked the question is gone.
+class StaleSessionException implements Exception {
+  const StaleSessionException();
+
+  @override
+  String toString() => 'The session that made this request has ended';
+}
+
+/// Starts work whose answer belongs to this session and may outlive it.
+///
+/// A sign-out makes every request still in flight stale, and the transport
+/// refuses those answers by throwing [StaleSessionException]. There is nobody
+/// left to tell — the person who asked the question has gone — so the throw is
+/// dropped here rather than surfacing as an unhandled async error on every
+/// account switch. Anything else still escapes: a real failure in detached
+/// work should be as loud as it ever was.
+void detached(Future<void> work) => unawaited(
+      work.catchError(
+        (Object _) {},
+        test: (error) => error is StaleSessionException,
+      ),
+    );
+
 /// Thin transport over the Privio API.
 ///
 /// Everything this class sends is already sealed by the crypto layer: message
@@ -34,9 +69,29 @@ class PrivioApiClient {
 
   String? _token;
 
+  /// Which session the client is on.
+  ///
+  /// Bumped by every [useToken], so a reply can be matched against the session
+  /// that asked for it. An id rather than comparing the token itself: signing
+  /// back into the same account issues a *new* token but so does a rotation,
+  /// and what matters is only whether the session changed between the question
+  /// and the answer.
+  int _session = 0;
+
   bool get isAuthenticated => _token != null;
 
-  void useToken(String? token) => _token = token;
+  void useToken(String? token) {
+    _token = token;
+    _session += 1;
+  }
+
+  /// Refuses a reply whose session has ended.
+  ///
+  /// Called after every await on a response, so a slow request that lands
+  /// after a sign-out cannot be applied to whoever signed in next.
+  void _requireSameSession(int issuedOn) {
+    if (_session != issuedOn) throw const StaleSessionException();
+  }
 
   /// Auth only. A content-type is added by the caller when there is a body:
   /// declaring JSON on a bodiless GET or DELETE makes the server reject it.
@@ -69,6 +124,7 @@ class PrivioApiClient {
     Object? body,
     Map<String, String>? query,
   }) async {
+    final issuedOn = _session;
     final request = http.Request(method, _url(path, query))
       ..headers.addAll(_headers);
     if (body != null) {
@@ -76,7 +132,9 @@ class PrivioApiClient {
       request.body = jsonEncode(body);
     }
     final streamed = await _client.send(request);
-    return _decode(await http.Response.fromStream(streamed));
+    final response = await http.Response.fromStream(streamed);
+    _requireSameSession(issuedOn);
+    return _decode(response);
   }
 
   // --- Accounts -------------------------------------------------------------
@@ -736,16 +794,19 @@ class PrivioApiClient {
         : avatar
             ? const {'kind': 'avatar'}
             : null;
+    final issuedOn = _session;
     final response = await _client.post(
       _url('/v1/media', kind),
       headers: {..._headers, 'content-type': 'application/octet-stream'},
       body: sealedBytes,
     );
+    _requireSameSession(issuedOn);
     final body = await _decode(response);
     return (id: body['id'] as String, token: body['token'] as String?);
   }
 
   Future<List<int>> downloadMedia(String id, {String? token}) async {
+    final issuedOn = _session;
     final response = await _client.get(
       _url('/v1/media/$id'),
       headers: {
@@ -753,16 +814,19 @@ class PrivioApiClient {
         if (token != null) 'x-privio-media-token': token,
       },
     );
+    _requireSameSession(issuedOn);
     if (response.statusCode >= 400) await _decode(response);
     return response.bodyBytes;
   }
 
   Future<Map<String, dynamic>> uploadBackup(List<int> sealedBytes) async {
+    final issuedOn = _session;
     final response = await _client.put(
       _url('/v1/backup'),
       headers: {..._headers, 'content-type': 'application/octet-stream'},
       body: sealedBytes,
     );
+    _requireSameSession(issuedOn);
     return _decode(response);
   }
 
@@ -771,7 +835,9 @@ class PrivioApiClient {
   /// The sealed backup itself. Ciphertext on the way down, exactly as it went
   /// up: the server has never been able to read a byte of it.
   Future<List<int>> downloadBackup() async {
+    final issuedOn = _session;
     final response = await _client.get(_url('/v1/backup/content'), headers: _headers);
+    _requireSameSession(issuedOn);
     if (response.statusCode >= 400) await _decode(response);
     return response.bodyBytes;
   }

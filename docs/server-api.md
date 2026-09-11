@@ -142,7 +142,7 @@ decides that, never the client.
 | `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |
 | `PUT /v1/channels/:id/invite` | expiry, use limit, ask-first; needs `canManageMembers` |
 | `PUT /v1/channels/:id/posts/:postId/votes` | `{options}` is the whole answer; empty takes it back |
-| `PUT /v1/devices/current/push` | |
+| `PUT /v1/devices/current/push` | registering a token **takes** it: any other device holding the same one is cleared, because a vendor token is one app install |
 | `PUT /v1/groups/:id/members/:accountId/role` | |
 | `PUT /v1/keys/signed-prekey` | |
 
