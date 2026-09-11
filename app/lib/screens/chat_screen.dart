@@ -410,10 +410,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   /// Sets how long messages in this chat live.
   ///
-  /// The timer is agreed end to end: it rides inside each sealed payload, so
-  /// the other side adopts it without the server being told. Both devices then
-  /// delete on their own clocks — which is the only way this can work, because
-  /// a server asked to forget something is a server being trusted.
+  /// The timer is agreed end to end: it rides inside each sealed payload, and
+  /// a change is announced in one of its own, so the other side adopts it
+  /// without the server being told what it is. Both devices then delete on
+  /// their own clocks — which is the only way this can work, because a server
+  /// asked to forget something is a server being trusted.
   Future<void> _chooseTimer(AppState state) async {
     final chosen = await DisappearingTimerSheet.choose(
       context,
@@ -421,7 +422,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       isGroup: false,
     );
     if (chosen == null || !mounted) return;
-    state.conversations.setDisappearAfter(widget.accountId, chosen.value);
+    await state.conversations.setDisappearAfter(widget.accountId, chosen.value);
   }
 
   /// Blocks the other side of a 1:1 chat.
@@ -776,6 +777,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     _voiceChanged();
                   },
                   onTyping: (_) => state.conversations.typing(widget.accountId),
+                  disappearAfter: state.conversations.disappearAfter(widget.accountId),
+                  onChooseTimer: () => unawaited(_chooseTimer(state)),
                   voiceStage: _voiceKey.currentState?.stage ?? VoiceComposerStage.idle,
                   voice: VoiceComposer(
                     key: _voiceKey,
@@ -848,6 +851,8 @@ class _Composer extends StatelessWidget {
     required this.onTyping,
     required this.voiceStage,
     required this.voice,
+    required this.disappearAfter,
+    required this.onChooseTimer,
   });
 
   final TextEditingController controller;
@@ -871,6 +876,10 @@ class _Composer extends StatelessWidget {
 
   /// The recording or preview strip. Rendered where the text field would be.
   final Widget voice;
+
+  /// How long a message sent from here lives, or null when the timer is off.
+  final Duration? disappearAfter;
+  final VoidCallback onChooseTimer;
 
   @override
   Widget build(BuildContext context) {
@@ -899,6 +908,7 @@ class _Composer extends StatelessWidget {
                 icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
                 tooltip: 'Attach a file',
               ),
+              _TimerButton(timer: disappearAfter, onPressed: onChooseTimer),
               Expanded(
                 child: TextField(
                   controller: controller,
@@ -928,6 +938,67 @@ class _Composer extends StatelessWidget {
               onHoldEnd: onHoldEnd,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The disappearing-message timer, in the composer where it is decided.
+///
+/// It used to live only in the overflow menu, which is the wrong place for it:
+/// the timer governs the message you are *about to write*, so it belongs beside
+/// the field you write it in, showing its state before you type rather than
+/// after you go looking.
+///
+/// Off it is an outline, the same weight as the attachment button next to it.
+/// On it turns green and wears the duration, because a chat that silently
+/// deletes itself is the one way this feature can hurt somebody — they keep
+/// writing, and what they wrote is gone. The state has to be visible without
+/// being asked for.
+class _TimerButton extends StatelessWidget {
+  const _TimerButton({required this.timer, required this.onPressed});
+
+  final Duration? timer;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = timer != null;
+    // Sized to match the 48-point touch target of the IconButton beside it, so
+    // the two sit on the same baseline and neither crowds the text field.
+    return Tooltip(
+      message: on
+          ? 'Messages disappear after ${DisappearingTimerSheet.badge(timer!)}'
+          : 'Disappearing messages are off',
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: SizedBox(
+          height: 48,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.sm),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  on ? Icons.timer_rounded : Icons.timer_outlined,
+                  size: 22,
+                  color: on ? PrivioColors.accent : PrivioColors.textSecondary,
+                ),
+                if (on) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    DisappearingTimerSheet.badge(timer!),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: PrivioColors.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

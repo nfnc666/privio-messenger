@@ -67,19 +67,35 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
 
   /// Sets the group's disappearing-message timer.
   ///
-  /// Any member, not only an admin: the machinery is the sender's number riding
-  /// inside each sealed payload, so a member who wants their own messages to go
-  /// can already make that happen — and a permission the protocol cannot
-  /// enforce is a lock drawn on the screen with nothing behind it. Everyone is
-  /// told when it changes, which is the honest version of the same protection.
+  /// Admins only, and this is a real restriction rather than a greyed-out row:
+  /// a change is announced in its own payload, and every device that receives
+  /// one asks the server for the group's member list before applying it. A
+  /// member who patched their client can send the payload; nobody acts on it.
+  ///
+  /// It has to be enforced that way round, because the timer is the group's
+  /// setting: it decides when everybody else's messages vanish, not only the
+  /// sender's own.
   Future<void> _chooseTimer(AppState state) async {
+    if (!state.conversations.mayChangeDisappearAfter(widget.groupId)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only an admin can change this')),
+      );
+      return;
+    }
     final chosen = await DisappearingTimerSheet.choose(
       context,
       current: state.conversations.disappearAfter(widget.groupId),
       isGroup: true,
     );
     if (chosen == null || !mounted) return;
-    state.conversations.setDisappearAfter(widget.groupId, chosen.value);
+    final changed =
+        await state.conversations.setDisappearAfter(widget.groupId, chosen.value);
+    if (!changed && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only an admin can change this')),
+      );
+    }
   }
 
   Future<void> _rename(AppState state) async {
@@ -288,6 +304,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         final timer? => ConversationController.describeTimer(timer),
                         null => 'Off',
                       },
+                      // Still tappable for a member, and it says why rather
+                      // than doing nothing: a row that ignores a tap reads as
+                      // a bug, and the reason is worth one line.
                       onTap: () => unawaited(_chooseTimer(state)),
                     ),
                   ],

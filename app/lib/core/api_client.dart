@@ -258,14 +258,22 @@ class PrivioApiClient {
   ///
   /// [idempotencyKey] makes a retry safe: the server answers the second attempt
   /// with the first one's result rather than delivering the message twice.
+  /// [expiresInSeconds] bounds how long the *server* keeps an envelope this
+  /// device could not deliver. It is the chat's disappearing-message timer in
+  /// the clear; the deletion that matters still happens on the devices, from
+  /// the number sealed inside the payload. Without it an undelivered message
+  /// set to vanish in thirty seconds sits on the server for the full retention
+  /// window waiting for a device that may never come back.
   Future<Map<String, dynamic>> sendMessage({
     required String username,
     required List<Map<String, dynamic>> messages,
     String? idempotencyKey,
+    int? expiresInSeconds,
   }) =>
       _send('POST', '/v1/messages', body: {
         'username': username,
         if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
+        if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
         'messages': messages,
       },);
 
@@ -273,9 +281,11 @@ class PrivioApiClient {
     required String groupId,
     required List<Map<String, dynamic>> messages,
     String? idempotencyKey,
+    int? expiresInSeconds,
   }) =>
       _send('POST', '/v1/messages/group/$groupId', body: {
         if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
+        if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
         'messages': messages,
       },);
 
@@ -784,6 +794,7 @@ class PrivioApiClient {
     List<int> sealedBytes, {
     bool avatar = false,
     bool channelAvatar = false,
+    int? expiresInSeconds,
   }) async {
     // Three kinds, and the kind decides who may download. `channel_avatar` is
     // the one that is served to anyone — a public channel's picture is drawn on
@@ -794,9 +805,16 @@ class PrivioApiClient {
         : avatar
             ? const {'kind': 'avatar'}
             : null;
+    // An attachment to a message that is set to disappear is worth keeping only
+    // as long as the message can still be fetched and read. Passed to the
+    // server because a timer that only runs on a screen leaves the ciphertext
+    // where it was; the server clamps it, and never lengthens the default.
+    final query = expiresInSeconds == null
+        ? kind
+        : {...?kind, 'expiresInSeconds': '$expiresInSeconds'};
     final issuedOn = _session;
     final response = await _client.post(
-      _url('/v1/media', kind),
+      _url('/v1/media', query),
       headers: {..._headers, 'content-type': 'application/octet-stream'},
       body: sealedBytes,
     );

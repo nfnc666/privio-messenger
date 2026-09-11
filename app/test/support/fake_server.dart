@@ -15,6 +15,10 @@ class FakeServer {
   final Map<String, FakeAccount> accounts = {};
   final List<Map<String, dynamic>> envelopes = [];
   final Map<String, List<int>> media = {};
+
+  /// Per upload, the shortened retention the client asked for, or null for the
+  /// server's ordinary one.
+  final Map<String, int?> mediaTtlSeconds = {};
   final Map<String, String> avatars = {};
   final Map<String, Map<String, dynamic>> groups = {};
   int _nextGroupId = 1;
@@ -144,6 +148,12 @@ class FakeServer {
         if (method == 'POST' && path == '/v1/media') {
           final id = 'media-${_nextMediaId++}';
           media[id] = request.bodyBytes;
+          // What the uploader asked the server to keep the blob for. The real
+          // server clamps this and stores an `expires_at`; here it is recorded
+          // so a test can check that a disappearing message's file is not left
+          // sitting under the ordinary retention.
+          mediaTtlSeconds[id] =
+              int.tryParse(request.url.queryParameters['expiresInSeconds'] ?? '');
           // The real server mints a download capability here and keeps only
           // its hash; an avatar gets none, because its id is published.
           final avatar = request.url.queryParameters['kind'] == 'avatar';
@@ -275,6 +285,10 @@ class FakeServer {
               'senderDeviceIndex': sender.deviceIndex,
               'groupId': null,
               'content': message['content'],
+              // The retention bound the sender asked for, in the clear. Kept
+              // here so a test can see what the server was told — which is
+              // exactly the metadata this design is careful about.
+              'expiresInSeconds': body['expiresInSeconds'],
               'createdAt': DateTime.now().toUtc().toIso8601String(),
             });
           }

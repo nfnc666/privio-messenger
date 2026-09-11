@@ -133,18 +133,37 @@ class MessagingService {
     // retry of the same message is the same message, however it got retried.
     final key = payload.clientId;
     ({int delivered, String accountId}) result;
+    // The chat's timer, in the clear, bounding how long the server keeps a copy
+    // it could not deliver. The deletion that matters is still the one each
+    // device does from the number sealed inside `encoded`.
+    //
+    // Never for the payload that *announces* a timer. Its number is the new
+    // setting, not its own lifetime, and using it as both would have a
+    // thirty-second timer delete the very message saying the timer is now
+    // thirty seconds — off a device that happened to be asleep for half a
+    // minute, which then keeps writing into a chat it thinks is permanent.
+    final bound = payload.isTimerChange ? null : payload.expiresInSeconds;
     try {
-      result = await _sealAndSend(username, encoded, idempotencyKey: key);
+      result = await _sealAndSend(
+        username, encoded, idempotencyKey: key, expiresInSeconds: bound,
+      );
     } on ApiException catch (error) {
       if (error.code != 'device_mismatch') rethrow;
-      result = await _sealAndSend(username, encoded, idempotencyKey: key);
+      result = await _sealAndSend(
+        username, encoded, idempotencyKey: key, expiresInSeconds: bound,
+      );
     }
 
     // Control payloads are machinery, not conversation: a receipt or a typing
     // notice on the other device would be filed as a message that was never
     // written. A deletion is the exception — it has to reach this account's
     // own devices or the message stays on half of them.
-    if (!payload.isControl || payload.isDeletion) {
+    // Control payloads are machinery, not conversation: a receipt or a typing
+    // notice on the other device would be filed as a message that was never
+    // written. Two are exceptions — a deletion has to reach this account's own
+    // devices or the message stays on half of them, and a timer change has to
+    // or this account's phone and laptop disagree about when things vanish.
+    if (!payload.isControl || payload.isDeletion || payload.isTimerChange) {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,
@@ -167,15 +186,35 @@ class MessagingService {
   /// knows more about it than the placeholder it drew a moment ago — and a
   /// bubble that stays empty until the message comes back from somewhere is a
   /// bubble that never fills in, since one's own messages do not come back.
+  /// How long the server should keep an attachment's ciphertext, for a message
+  /// under a timer of [expiresInSeconds].
+  ///
+  /// Twice the timer plus a day, because the two clocks do not overlap: the
+  /// sender's starts when the server takes the message, and the recipient's
+  /// starts again when their device actually receives it — a phone that was off
+  /// for an hour gets its full timer from the moment it comes back. So the blob
+  /// has to outlive both runs, and the extra day covers a device that drains its
+  /// queue late.
+  ///
+  /// Null for a chat with no timer, which means the ordinary retention. The
+  /// server clamps this and will never keep anything *longer* because of it.
+  static int? _mediaTtlFor(int? expiresInSeconds) =>
+      expiresInSeconds == null ? null : expiresInSeconds * 2 + 86400;
+
   Future<SentAttachment> sendAttachment(
     String username, {
     required Uint8List file,
     String? fileName,
     String? declaredType,
     String caption = '',
+    int? expiresInSeconds,
+    String? clientId,
   }) async {
     final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
-    final blob = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(
+      sealed.bytes,
+      expiresInSeconds: _mediaTtlFor(expiresInSeconds),
+    );
 
     await sendPayload(
       username,
@@ -187,6 +226,8 @@ class MessagingService {
         byteSize: sealed.plainLength,
         fileName: fileName,
         body: caption,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
       ),
     );
     return (
@@ -219,7 +260,10 @@ class MessagingService {
       recording.bytes,
       declaredType: recording.mediaType,
     );
-    final blob = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(
+      sealed.bytes,
+      expiresInSeconds: _mediaTtlFor(expiresInSeconds),
+    );
 
     await sendPayload(
       username,
@@ -249,7 +293,10 @@ class MessagingService {
       recording.bytes,
       declaredType: recording.mediaType,
     );
-    final blob = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(
+      sealed.bytes,
+      expiresInSeconds: _mediaTtlFor(expiresInSeconds),
+    );
 
     await sendPayloadToGroup(
       groupId,
@@ -353,6 +400,7 @@ class MessagingService {
     String username,
     String plaintext, {
     String? idempotencyKey,
+    int? expiresInSeconds,
   }) async {
     final response = await _api.preKeyBundles(username);
     final accountId = response['accountId'] as String;
@@ -374,6 +422,7 @@ class MessagingService {
     final result = await _api.sendMessage(
       username: username,
       idempotencyKey: idempotencyKey,
+      expiresInSeconds: expiresInSeconds,
       messages: [for (final copy in sealed) copy.toJson()],
     );
     return (
@@ -420,7 +469,15 @@ class MessagingService {
         // A distinct key from the original send: it is a different message to
         // a different set of devices, and sharing one would have the server
         // treat the second as a retry of the first.
-        idempotencyKey: idempotencyKey == null ? null : 'sync:\$idempotencyKey',
+        //
+        // Interpolated, and that backslash is not a typo waiting to happen —
+        // it was one. `'sync:\$idempotencyKey'` is a *constant* string in
+        // Dart, so every sync this device ever sent claimed the same key, and
+        // the server answered the second one and all that came after it with
+        // `duplicate: true`. The copy was never delivered: a second device saw
+        // exactly one of this account's outgoing messages and then nothing,
+        // for the lifetime of the install.
+        idempotencyKey: idempotencyKey == null ? null : 'sync:$idempotencyKey',
       );
     } on ApiException {
       // Swallowed on purpose, and this is the trade: the message reached the
@@ -746,9 +803,14 @@ class MessagingService {
     String? declaredType,
     String caption = '',
     String? groupKey,
+    int? expiresInSeconds,
+    String? clientId,
   }) async {
     final sealed = await AttachmentCipher.seal(file, declaredType: declaredType);
-    final blob = await _api.uploadMedia(sealed.bytes);
+    final blob = await _api.uploadMedia(
+      sealed.bytes,
+      expiresInSeconds: _mediaTtlFor(expiresInSeconds),
+    );
 
     await sendPayloadToGroup(
       groupId,
@@ -761,6 +823,8 @@ class MessagingService {
         fileName: fileName,
         body: caption,
         groupKey: groupKey,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
       ),
     );
     return (
@@ -822,6 +886,12 @@ class MessagingService {
     final result = await _api.sendGroupMessage(
       groupId: groupId,
       idempotencyKey: payload.clientId,
+      // The chat's timer, in the clear, bounding how long the server keeps a
+      // copy it could not deliver. The deletion that matters is still the one
+      // each device does from the number sealed inside the payload — and never
+      // the announcement of a timer, whose number is the setting rather than
+      // its own lifetime. See `sendPayload`.
+      expiresInSeconds: payload.isTimerChange ? null : payload.expiresInSeconds,
       messages: sealed,
     );
     return result['deliveredTo'] as int? ?? sealed.length;

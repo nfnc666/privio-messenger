@@ -108,7 +108,7 @@ decides that, never the client.
 | `POST /v1/accounts/me/totp/enable` | |
 | `POST /v1/accounts/me/wipe` | |
 | `POST /v1/licenses/redeem` | The one client-facing way to become licensed |
-| `POST /v1/media` | |
+| `POST /v1/media` | `?expiresInSeconds` only shortens the retention, never lengthens it; ignored for avatars |
 | `POST /v1/blocks` | |
 | `POST /v1/channels/:id/join` | |
 | `POST /v1/channels/:id/key-epochs` | |
@@ -128,8 +128,8 @@ decides that, never the client.
 | `POST /v1/internal/licenses/revoke` | |
 | `POST /v1/internal/licenses` | |
 | `POST /v1/keys/one-time` | |
-| `POST /v1/messages/group/:groupId` | |
-| `POST /v1/messages` | |
+| `POST /v1/messages/group/:groupId` | `{expiresInSeconds}` bounds how long an undelivered envelope is kept |
+| `POST /v1/messages` | same; clamped to 30 days, and it is a retention hint, not the chat's timer |
 | `POST /v1/sessions/revoke-all` | |
 | `POST /v1/sessions` | |
 | `PUT /v1/accounts/me/avatar` | |
