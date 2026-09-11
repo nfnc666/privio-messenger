@@ -346,6 +346,10 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> channelByInvite(String code) =>
       _send('GET', '/v1/channels/invite/$code');
 
+  /// A public channel by handle — exact, because a link names one channel.
+  Future<Map<String, dynamic>> channelByHandle(String handle) =>
+      _send('GET', '/v1/channels/by-handle/$handle');
+
   Future<Map<String, dynamic>> channel(String channelId) =>
       _send('GET', '/v1/channels/$channelId');
 

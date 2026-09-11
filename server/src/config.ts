@@ -39,6 +39,49 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   /**
+   * Where the invite pages live, as an absolute origin
+   * (`https://privio.channel`). Empty means "wherever this request arrived",
+   * which is the right default for a deployment that has no domain of its own
+   * yet — the pages then work on the server's own hostname.
+   *
+   * This is the one constant a registered domain changes. The app's
+   * `ChannelService.channelLinkHost` is its twin on the client side, and the
+   * two have to agree or a link built by one will not be recognised by the
+   * other.
+   */
+  PUBLIC_WEB_URL: z.string().default(''),
+
+  /**
+   * Where to send somebody who does not have the app.
+   *
+   * All three are empty by default and the page shows only what is set. That
+   * is deliberate: a download button that leads to a store listing which does
+   * not exist is worse than no button, and this project currently ships
+   * through TestFlight and CI artifacts rather than either store.
+   */
+  APP_STORE_URL: z.string().default(''),
+  PLAY_STORE_URL: z.string().default(''),
+  APK_DOWNLOAD_URL: z.string().default(''),
+
+  /**
+   * What the domain-verification files say, for iOS Universal Links and
+   * Android App Links.
+   *
+   * Unset means the files are not served at all rather than served empty: a
+   * malformed `apple-app-site-association` is cached by Apple's CDN for days,
+   * and a 404 is the state Apple and Google both handle correctly.
+   *
+   * `IOS_APP_ID` is `<team id>.<bundle id>`. `ANDROID_CERT_FINGERPRINTS` is a
+   * comma-separated list of SHA-256 signing-certificate fingerprints — plural
+   * because an app signed by Play App Signing has both an upload certificate
+   * and the one Google re-signs with, and a link verified against only one of
+   * them fails for half the installs.
+   */
+  IOS_APP_ID: z.string().default(''),
+  ANDROID_PACKAGE: z.string().default(''),
+  ANDROID_CERT_FINGERPRINTS: z.string().default(''),
+
+  /**
    * STUN and TURN servers this deployment offers its clients, comma-separated
    * (`stun:stun.example.org:3478,turns:turn.example.org:5349`).
    *

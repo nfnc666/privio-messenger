@@ -11,6 +11,7 @@ import 'passcode.dart';
 import 'edition.dart';
 import 'license_controller.dart';
 import '../services/push_wake.dart';
+import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
@@ -43,9 +44,11 @@ class AppState extends ChangeNotifier {
     PrivioEdition? edition,
     LauncherDisguise? launcher,
     PushWakeListener? pushWake,
+    IncomingLinks? links,
     bool? supportsDisguise,
   })  : _injectedServices = services,
         _pushWake = pushWake,
+        deepLinks = DeepLinkController(source: links ?? const NoIncomingLinks()),
         _store = store ?? KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
@@ -89,6 +92,13 @@ class AppState extends ChangeNotifier {
   LicenseController? _license;
   SecurityController? _security;
   WakeUpController? _wakeUp;
+
+  /// Channel links that arrived from outside the app.
+  ///
+  /// Owned here rather than created per screen because a link can arrive at any
+  /// stage — cold start, lock screen, halfway through signing up — and has to
+  /// outlive whatever is on screen when it does.
+  final DeepLinkController deepLinks;
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -218,6 +228,13 @@ class AppState extends ChangeNotifier {
   Future<void> initialise() async {
     _stage = AppStage.initialising;
     notifyListeners();
+
+    // Before anything that can fail or take a while. A link the app was
+    // launched by is already waiting at this point, and picking it up first
+    // means it survives whatever the rest of start-up decides to do — a lock
+    // screen, an activation step, or a welcome screen with no account behind
+    // it.
+    unawaited(deepLinks.start());
 
     _setProgress(0.15);
     // The store goes in rather than being made again inside: it holds the
@@ -776,6 +793,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    deepLinks.dispose();
     _security?.dispose();
     _license?.dispose();
     _channels?.dispose();

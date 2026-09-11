@@ -675,3 +675,32 @@ class ChannelInvite {
   final String code;
   final InviteKind kind;
 }
+
+/// What an incoming link resolves to before anything has been fetched.
+///
+/// Two shapes, because a link names a channel in two different ways and the
+/// difference matters. A **code** is a capability: holding it is what lets
+/// somebody into a private channel. A **handle** is a name: it is how a public
+/// channel is searched for, and a link that carries one grants nothing at all.
+///
+/// That is why a public channel's link is its handle. The old form put an
+/// invite code into every public link, which meant a link printed on a poster
+/// was a capability anybody could read off it.
+sealed class ChannelLinkTarget {
+  const ChannelLinkTarget();
+}
+
+/// A private invitation, or an older link of any kind.
+class ChannelLinkByCode extends ChannelLinkTarget {
+  const ChannelLinkByCode({required this.code, required this.kind});
+
+  final String code;
+  final InviteKind kind;
+}
+
+/// A public channel, named.
+class ChannelLinkByHandle extends ChannelLinkTarget {
+  const ChannelLinkByHandle(this.handle);
+
+  final String handle;
+}

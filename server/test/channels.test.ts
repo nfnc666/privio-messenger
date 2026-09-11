@@ -680,6 +680,50 @@ describe('channels', () => {
     });
   });
 
+  describe('a channel named by a link', () => {
+    it('a public channel is found by its handle, exactly', async () => {
+      await createChannel(owner, {
+        visibility: 'public',
+        handle: 'houseoftrading',
+        title: 'House of Trading',
+      });
+
+      const found = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/houseoftrading',
+        headers: bearer(reader),
+      });
+      assert.equal(found.statusCode, 200);
+      assert.equal(found.json().title, 'House of Trading');
+
+      // Exact, not a search: a link names one channel and has to find that one.
+      const near = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/houseoftradin',
+        headers: bearer(reader),
+      });
+      assert.equal(near.statusCode, 404);
+    });
+
+    it('and a private channel is never reachable that way', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'private',
+        encryptedMetadata: Buffer.from('x').toString('base64'),
+      })).json();
+      // A private channel has no handle, but the route says public explicitly
+      // rather than relying on that: a lookup that could return one would make
+      // the handle column a way to find private channels by guessing names.
+      await pool.query("UPDATE channels SET handle = 'geheimkanal' WHERE id = $1", [channel.id]);
+
+      const found = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/geheimkanal',
+        headers: bearer(stranger),
+      });
+      assert.equal(found.statusCode, 404);
+    });
+  });
+
   describe('invite links', () => {
     const setInvite = (user: TestUser, channelId: string, payload: Record<string, unknown>) =>
       h.app.inject({

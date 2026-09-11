@@ -367,6 +367,28 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   });
 
   /** Look a channel up by its invite code, which is how a private one is found. */
+  /**
+   * A public channel by its handle, which is what a link like
+   * `https://privio.channel/houseoftrading` names.
+   *
+   * Exact rather than a search: discovery ranks by member count and is meant
+   * for somebody browsing, while a link names one channel and has to find that
+   * one. Public only — a private channel has no handle, and a lookup that
+   * could return one would make the handle column a way to find private
+   * channels by guessing names.
+   */
+  app.get('/v1/channels/by-handle/:handle', requireAuth, async (request) => {
+    auth(request);
+    const params = parse(z.object({ handle: handleSchema }), request.params);
+    const { rows } = await pool.query(
+      `SELECT * FROM channels
+       WHERE handle = $1 AND visibility = 'public' AND deleted_at IS NULL`,
+      [params.handle],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return publicView(rows[0]);
+  });
+
   app.get('/v1/channels/invite/:code', requireAuth, async (request) => {
     auth(request);
     const params = parse(z.object({ code: z.string().min(4).max(64) }), request.params);
