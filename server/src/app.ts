@@ -15,6 +15,7 @@ import licenseRoutes from './routes/licenses.js';
 import { mediaRoutes } from './routes/media.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
+import { inviteWebRoutes } from './routes/invite_web.js';
 import type { DeliveryBus } from './services/bus.js';
 import { DeliveryService } from './services/delivery.js';
 import type { PushSender } from './services/push.js';
@@ -152,6 +153,11 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));
+  // Last, because it owns the shape `/:handle` — a single path segment, which
+  // would shadow anything registered after it. Fastify prefers a static route
+  // over a parametric one, so `/health` and `/v1/...` still win; registering
+  // this at the end makes that ordering a decision rather than a coincidence.
+  await app.register(inviteWebRoutes);
 
   /**
    * Liveness *and* readiness, because the platforms this runs on offer one hook.

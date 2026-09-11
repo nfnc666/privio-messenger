@@ -46,6 +46,9 @@ COPY --from=build /app/server/node_modules server/node_modules/
 COPY --from=build /app/server/dist server/dist/
 COPY --from=build /app/server/package.json server/
 COPY --from=build /app/server/migrations server/migrations/
+# The Privio mark, served on the invite pages and used as the link preview
+# image. Not bundled by `tsc`, so it is copied beside `dist/` explicitly.
+COPY --from=build /app/server/assets server/assets/
 
 # `node` exists in the image already, and root is not needed to listen on 8080.
 RUN mkdir -p /data/media && chown -R node:node /data
