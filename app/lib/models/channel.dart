@@ -36,6 +36,75 @@ class ChannelPermissions {
       };
 }
 
+/// What a channel's invite link is allowed to do.
+///
+/// One link per channel, with three limits on it. Revoking is rotating: a new
+/// code takes effect at once and every copy of the old one stops resolving,
+/// wherever it was pasted. There is no list of past codes and no grace period.
+@immutable
+class ChannelInviteSettings {
+  const ChannelInviteSettings({
+    this.expiresAt,
+    this.maxUses,
+    this.uses = 0,
+    this.needsApproval = false,
+  });
+
+  factory ChannelInviteSettings.fromJson(Map<String, dynamic>? json) => json == null
+      ? const ChannelInviteSettings()
+      : ChannelInviteSettings(
+          expiresAt: DateTime.tryParse(json['expiresAt'] as String? ?? '')?.toLocal(),
+          maxUses: (json['maxUses'] as num?)?.toInt(),
+          uses: (json['uses'] as num?)?.toInt() ?? 0,
+          needsApproval: json['needsApproval'] as bool? ?? false,
+        );
+
+  /// Null means it does not expire.
+  final DateTime? expiresAt;
+
+  /// Null means no limit.
+  final int? maxUses;
+
+  /// Joins through the link, not taps on it: somebody who opened it, looked at
+  /// the preview and walked away has not used it up.
+  final int uses;
+
+  /// When on, the link puts people in a queue instead of in the channel.
+  final bool needsApproval;
+
+  bool get hasExpired => expiresAt != null && !expiresAt!.isAfter(DateTime.now());
+  bool get isUsedUp => maxUses != null && uses >= maxUses!;
+
+  /// Whether the link would let anybody in right now.
+  bool get isSpent => hasExpired || isUsedUp;
+}
+
+/// Somebody waiting at the door of a channel that asks first.
+@immutable
+class ChannelJoinRequest {
+  const ChannelJoinRequest({
+    required this.accountId,
+    required this.username,
+    required this.requestedAt,
+    this.displayName,
+  });
+
+  factory ChannelJoinRequest.fromJson(Map<String, dynamic> json) => ChannelJoinRequest(
+        accountId: json['accountId'] as String? ?? '',
+        username: json['username'] as String? ?? 'Deleted account',
+        displayName: json['displayName'] as String?,
+        requestedAt:
+            DateTime.tryParse(json['requestedAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      );
+
+  final String accountId;
+  final String username;
+  final String? displayName;
+  final DateTime requestedAt;
+
+  String get label => displayName?.isNotEmpty == true ? displayName! : username;
+}
+
 enum ChannelVisibility { public, private }
 
 @immutable
@@ -57,6 +126,7 @@ class ChannelInfo {
     this.hasCurrentKey = true,
     this.reactionEmojis = defaultReactionEmojis,
     this.commentsEnabled = false,
+    this.invite = const ChannelInviteSettings(),
   });
 
   /// What a channel offers until an admin changes it. Mirrors the server's
@@ -88,6 +158,10 @@ class ChannelInfo {
   /// The emojis this channel offers under a post. Set by an admin; the server
   /// refuses a reaction that is not one of them.
   final List<String> reactionEmojis;
+
+  /// What the invite link is allowed to do. Not the code itself — that is
+  /// [inviteCode], handed to members only.
+  final ChannelInviteSettings invite;
 
   /// Whether posts have threads under them.
   ///
@@ -148,6 +222,7 @@ class ChannelInfo {
         restrictSaving: restrictSaving,
         reactionEmojis: reactionEmojis,
         commentsEnabled: commentsEnabled,
+        invite: invite,
         hasKey: hasKey ?? this.hasKey,
       );
 }

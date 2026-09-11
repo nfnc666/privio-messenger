@@ -73,6 +73,14 @@ function publicView(row: Record<string, unknown>) {
     restrictSaving: row.restrict_saving,
     // Which emojis this channel offers under a post.
     reactionEmojis: row.reaction_emojis ?? [],
+    // What the invite link is set to. Not the code — that is handed out
+    // separately, to members only.
+    invite: {
+      expiresAt: (row.invite_expires_at as Date | null)?.toISOString() ?? null,
+      maxUses: row.invite_max_uses ?? null,
+      uses: row.invite_uses ?? 0,
+      needsApproval: row.invite_needs_approval ?? false,
+    },
     // Whether its posts have threads under them at all.
     commentsEnabled: row.comments_enabled ?? false,
     memberCount: row.member_count,
@@ -413,9 +421,55 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const channel = rows[0];
     if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
 
-    if (channel.visibility === 'private' && body.inviteCode !== channel.invite_code) {
+    const usedTheLink = body.inviteCode === channel.invite_code;
+    if (channel.visibility === 'private' && !usedTheLink) {
       // Same answer as a channel that does not exist.
       throw ApiError.notFound('channel_not_found', 'No such channel');
+    }
+
+    // Already in, and nothing below should run again for them — not the
+    // counter, not the queue.
+    const existing = await membership(params.id, accountId);
+    if (existing) {
+      return { joined: false, role: existing.role, permissions: existing.permissions };
+    }
+
+    /*
+     * The link's own limits, checked only for somebody who arrived on it. A
+     * public channel is joinable without one, and an expired link is not a
+     * reason to close a public channel to everybody.
+     *
+     * The checks answer `invite_expired` rather than "no such channel": the
+     * person holding the link already knows the channel exists — they are
+     * looking at its preview — so hiding it now would only be confusing. For a
+     * private channel a wrong code still answers 404 above, which is the case
+     * where the existence is the secret.
+     */
+    if (usedTheLink) {
+      if (channel.invite_expires_at && channel.invite_expires_at.getTime() <= Date.now()) {
+        throw ApiError.conflict('invite_expired', 'That invite link has expired');
+      }
+      if (
+        channel.invite_max_uses !== null &&
+        channel.invite_uses >= channel.invite_max_uses
+      ) {
+        throw ApiError.conflict('invite_used_up', 'That invite link has been used up');
+      }
+    }
+
+    // A channel that asks first puts them in a queue instead of in the room.
+    // Only for somebody who came on the link: a public channel's front door is
+    // not governed by the link's settings.
+    if (usedTheLink && channel.invite_needs_approval) {
+      await pool.query(
+        `INSERT INTO channel_join_requests (channel_id, account_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [params.id, accountId],
+      );
+      // No key request and no wake: they are not a member, hold no key, and
+      // asking key-holders to seal one to them now would hand the channel to
+      // somebody an admin has not let in.
+      return { joined: false, pending: true, role: null, permissions: null };
     }
 
     const joined = await withTransaction(async (client) => {
@@ -428,6 +482,13 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         await client.query('UPDATE channels SET member_count = member_count + 1 WHERE id = $1', [
           params.id,
         ]);
+        // Counted inside the same transaction as the join, so a link with one
+        // use left cannot let two people through at once.
+        if (usedTheLink) {
+          await client.query('UPDATE channels SET invite_uses = invite_uses + 1 WHERE id = $1', [
+            params.id,
+          ]);
+        }
       }
       return (rowCount ?? 0) > 0;
     });
@@ -1357,6 +1418,158 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       editedAt: (updated.edited_at as Date | null)?.toISOString() ?? null,
       publishAt: (updated.publish_at as Date | null)?.toISOString() ?? null,
     };
+  });
+
+  /**
+   * What the invite link is allowed to do.
+   *
+   * `canManageMembers`, because that is the right that decides who is in the
+   * channel, and a link is a standing offer of membership. Every field is
+   * optional and absent means "leave it"; null clears a limit.
+   */
+  app.put('/v1/channels/:id/invite', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        expiresAt: z.coerce.date().nullable().optional(),
+        maxUses: z.number().int().min(1).max(100_000).nullable().optional(),
+        needsApproval: z.boolean().optional(),
+      }),
+      request.body ?? {},
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    // A time already gone is not a setting, it is a revocation with extra
+    // steps — and rotating the code is the honest way to do that.
+    if (body.expiresAt && body.expiresAt.getTime() <= Date.now()) {
+      throw ApiError.badRequest('expiry_in_the_past', 'Pick a time that has not gone yet');
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE channels SET
+         invite_expires_at = CASE WHEN $2::boolean THEN $3 ELSE invite_expires_at END,
+         invite_max_uses   = CASE WHEN $4::boolean THEN $5 ELSE invite_max_uses END,
+         invite_needs_approval = COALESCE($6, invite_needs_approval)
+       WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [
+        params.id,
+        body.expiresAt !== undefined,
+        body.expiresAt ?? null,
+        body.maxUses !== undefined,
+        body.maxUses ?? null,
+        body.needsApproval ?? null,
+      ],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return { ...publicView(rows[0]), inviteCode: rows[0].invite_code };
+  });
+
+  /**
+   * Revoking the link, which is rotating it.
+   *
+   * There is no list of past codes and no grace period: the old one stops
+   * resolving the moment this returns, wherever it was pasted. The counter
+   * goes back to zero with it, because a use limit belongs to the link that
+   * was handed out and not to the channel.
+   */
+  app.post('/v1/channels/:id/invite/rotate', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `UPDATE channels SET invite_code = $2, invite_uses = 0
+       WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [params.id, randomBytes(9).toString('base64url')],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return { ...publicView(rows[0]), inviteCode: rows[0].invite_code };
+  });
+
+  /**
+   * Who is waiting at the door.
+   *
+   * `canManageMembers` — and it is a queue of people who are *not* in the
+   * channel, so unlike the members list there is no version of this for
+   * everybody else.
+   */
+  app.get('/v1/channels/:id/join-requests', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `SELECT r.account_id, a.username, a.display_name, r.requested_at
+       FROM channel_join_requests r
+       LEFT JOIN accounts a ON a.id = r.account_id
+       WHERE r.channel_id = $1
+       ORDER BY r.requested_at ASC`,
+      [params.id],
+    );
+    return {
+      requests: rows.map((r) => ({
+        accountId: r.account_id,
+        username: r.username,
+        displayName: r.display_name,
+        requestedAt: (r.requested_at as Date).toISOString(),
+      })),
+    };
+  });
+
+  /** Letting somebody in. The link's use counter moves here, not at the knock. */
+  app.post('/v1/channels/:id/join-requests/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const admitted = await withTransaction(async (client) => {
+      const { rowCount: knocked } = await client.query(
+        'DELETE FROM channel_join_requests WHERE channel_id = $1 AND account_id = $2',
+        [params.id, params.accountId],
+      );
+      if (!knocked) return false;
+
+      const { rowCount } = await client.query(
+        `INSERT INTO channel_members (channel_id, account_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [params.id, params.accountId],
+      );
+      if (rowCount) {
+        await client.query(
+          `UPDATE channels SET member_count = member_count + 1, invite_uses = invite_uses + 1
+           WHERE id = $1`,
+          [params.id],
+        );
+      }
+      return true;
+    });
+    if (!admitted) throw ApiError.notFound('no_such_request', 'Nobody is waiting under that name');
+
+    // No key request recorded here, and no wake. A key is sealed to a *device*,
+    // and the admin approving this is not at the new member's — so the asking
+    // is theirs to do, which their client already does for every channel it is
+    // in without a key.
+    return { admitted: true };
+  });
+
+  /** Turning somebody away. They are told nothing; the queue simply empties. */
+  app.delete('/v1/channels/:id/join-requests/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    await pool.query(
+      'DELETE FROM channel_join_requests WHERE channel_id = $1 AND account_id = $2',
+      [params.id, params.accountId],
+    );
+    return { admitted: false };
   });
 
   /** One poll's tallies, for the answer a vote gets. */

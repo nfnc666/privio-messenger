@@ -366,6 +366,58 @@ class ChannelController extends ChangeNotifier {
         _posts[channelId] = await _channels.posts(channelId);
       });
 
+  /// Changes what the invite link is allowed to do, then re-reads the channel
+  /// so the sheet shows what actually took.
+  Future<bool> setInviteSettings(
+    String channelId, {
+    DateTime? expiresAt,
+    bool clearExpiry = false,
+    int? maxUses,
+    bool clearMaxUses = false,
+    bool? needsApproval,
+  }) =>
+      _run(() async {
+        await _channels.setInviteSettings(
+          channelId,
+          expiresAt: expiresAt,
+          clearExpiry: clearExpiry,
+          maxUses: maxUses,
+          clearMaxUses: clearMaxUses,
+          needsApproval: needsApproval,
+        );
+        _mine = await _channels.mine();
+      });
+
+  /// Revokes the link by replacing it.
+  Future<bool> rotateInvite(String channelId) => _run(() async {
+        await _channels.rotateInvite(channelId);
+        _mine = await _channels.mine();
+      });
+
+  final Map<String, List<ChannelJoinRequest>> _knocking = {};
+
+  List<ChannelJoinRequest> knockingAt(String channelId) => _knocking[channelId] ?? const [];
+
+  Future<bool> loadJoinRequests(String channelId) => _run(() async {
+        _knocking[channelId] = await _channels.joinRequests(channelId);
+      });
+
+  /// Lets somebody in, or turns them away. Either way they leave the queue.
+  Future<bool> answerJoinRequest(
+    String channelId,
+    String accountId, {
+    required bool admit,
+  }) =>
+      _run(() async {
+        await _channels.answerJoinRequest(channelId, accountId, admit: admit);
+        _knocking[channelId] = [
+          for (final request in knockingAt(channelId))
+            if (request.accountId != accountId) request,
+        ];
+        // Admitting somebody moves the member count, which the list shows.
+        if (admit) _mine = await _channels.mine();
+      });
+
   /// Turns threads under posts on or off for the whole channel.
   Future<bool> setCommentsEnabled(String channelId, {required bool enabled}) => _run(() async {
         await _channels.setCommentsEnabled(channelId, enabled: enabled);

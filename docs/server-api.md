@@ -47,6 +47,7 @@ decides that, never the client.
 | `DELETE /v1/channels/:id/members/me` | |
 | `DELETE /v1/channels/:id/posts/:postId` | |
 | `DELETE /v1/channels/:id/bans/:accountId` | lets them speak again |
+| `DELETE /v1/channels/:id/join-requests/:accountId` | turns them away |
 | `DELETE /v1/channels/:id/posts/:postId/reactions` | `?emoji=` — removes only the caller's own |
 | `DELETE /v1/channels/:id/posts/:postId/comments/:commentId` | the author, or `canDeletePosts` |
 | `DELETE /v1/channels/:id` | |
@@ -70,6 +71,7 @@ decides that, never the client.
 | `GET /v1/channels/:id/posts` | `?scheduled=true` for the author's own queue |
 | `GET /v1/channels/:id/posts/:postId/comments` | members only |
 | `GET /v1/channels/:id/bans` | admins only — as a list it would name the audience |
+| `GET /v1/channels/:id/join-requests` | admins only; people who are not members |
 | `GET /v1/channels/:id` | |
 | `GET /v1/channels/discover` | |
 | `GET /v1/channels/invite/:code` | |
@@ -110,6 +112,8 @@ decides that, never the client.
 | `POST /v1/channels/:id/key-requests` | |
 | `POST /v1/channels/:id/posts` | `{publishAt}` schedules it; `{poll}` is its *shape* only |
 | `POST /v1/channels/:id/posts/:postId/comments` | needs the channel to have comments on |
+| `POST /v1/channels/:id/invite/rotate` | revoking is replacing; the old code dies at once |
+| `POST /v1/channels/:id/join-requests/:accountId` | lets them in |
 | `POST /v1/channels` | |
 | `POST /v1/contacts` | |
 | `POST /v1/groups/:id/join` | |
@@ -130,6 +134,7 @@ decides that, never the client.
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
 | `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
 | `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |
+| `PUT /v1/channels/:id/invite` | expiry, use limit, ask-first; needs `canManageMembers` |
 | `PUT /v1/channels/:id/posts/:postId/votes` | `{options}` is the whole answer; empty takes it back |
 | `PUT /v1/devices/current/push` | |
 | `PUT /v1/groups/:id/members/:accountId/role` | |
