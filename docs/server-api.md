@@ -18,6 +18,12 @@ bytes it cannot read, and the routes below never carry a key: the one place a
 key travels is inside an ordinary end-to-end encrypted message, relayed by
 `POST /v1/messages` like any other.
 
+One exception, named here rather than buried: a **reaction** on a channel post
+is not sealed. The server holds `(post_id, account_id, emoji)` in the clear,
+because a count has to be counted somewhere and an anonymous one could neither
+be taken back nor stopped from being cast ten times. It says nothing about what
+the post contains. `docs/security-model.md` sets out what follows from that.
+
 See [`security-model.md`](security-model.md) for what that does and does not
 buy, stated honestly.
 
@@ -40,6 +46,7 @@ decides that, never the client.
 | `DELETE /v1/channels/:id/members/:accountId` | |
 | `DELETE /v1/channels/:id/members/me` | |
 | `DELETE /v1/channels/:id/posts/:postId` | |
+| `DELETE /v1/channels/:id/posts/:postId/reactions` | `?emoji=` — removes only the caller's own |
 | `DELETE /v1/channels/:id` | |
 | `DELETE /v1/contacts/:id` | |
 | `DELETE /v1/devices/:id` | |
@@ -115,6 +122,7 @@ decides that, never the client.
 | `PUT /v1/backup` | |
 | `PUT /v1/channels/:id/members/:accountId/role` | |
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
+| `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
 | `PUT /v1/devices/current/push` | |
 | `PUT /v1/groups/:id/members/:accountId/role` | |
 | `PUT /v1/keys/signed-prekey` | |
