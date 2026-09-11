@@ -102,6 +102,24 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
 
     final state = PrivioScope.of(context);
     final code = _code.text;
+
+    // The lock screen checks the duress code before the passcode, on purpose.
+    // So a duress code equal to the unlock code makes every unlock a wipe — and
+    // the wipe is silent by design, which leaves "my code stopped working" as
+    // the only sign that an account has just been destroyed. Refused here, at
+    // the one moment it can still be refused.
+    if (state.screenLockSet && await state.isScreenLockPasscode(code)) {
+      if (!mounted) return;
+      setState(
+        () => _localError = 'That is the code that unlocks this device. A duress '
+            'code has to be different: the lock screen checks it first, so the '
+            'two being the same would destroy the account every time you '
+            'unlocked — without saying so.',
+      );
+      return;
+    }
+    if (!mounted) return;
+
     final ok = await security.setDuressCode(
       currentPassword: _password.text,
       duressCode: code,

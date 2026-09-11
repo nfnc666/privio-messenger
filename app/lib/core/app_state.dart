@@ -533,6 +533,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether [code] is this device's app-lock passcode.
+  ///
+  /// Exists so a duress code that *is* the unlock code can be refused before it
+  /// is set. The lock screen checks duress first, on purpose, so the two being
+  /// equal turns every unlock into a wipe — and the wipe is deliberately silent,
+  /// which leaves "my code stopped working" as the only visible symptom of an
+  /// account being destroyed.
+  ///
+  /// Deliberately not routed through `unlockWithPasscode`: that one wipes.
+  Future<bool> isScreenLockPasscode(String code) => _store.verifyPasscode(code);
+
   /// Stores the duress code locally so the lock screen can recognise it with no
   /// network. Only ever called with what the server has just accepted.
   Future<void> rememberDuressCode(String? code) => _store.setDuressCode(code);
