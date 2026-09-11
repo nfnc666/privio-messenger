@@ -13,6 +13,14 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
        -- An avatar is not a message attachment: it stays as long as it is
        -- someone's picture, and the sweep must not quietly blank profiles.
        AND NOT EXISTS (SELECT 1 FROM accounts a WHERE a.avatar_media_id = media_objects.id)
+       -- The same for a channel's picture — but only while the channel is
+       -- still there. A soft-deleted channel keeps its row forever, so without
+       -- the deleted_at test its picture would be held in storage by a
+       -- reference from something nobody can ever open again.
+       AND NOT EXISTS (
+         SELECT 1 FROM channels c
+          WHERE c.avatar_media_id = media_objects.id AND c.deleted_at IS NULL
+       )
      RETURNING storage_key`,
   );
   await Promise.all(rows.map((r) => storage.delete(r.storage_key).catch(() => {})));

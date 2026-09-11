@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../media/avatar.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -35,6 +39,14 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   bool _restrictSaving = false;
   bool _creating = false;
 
+  /// The picture, already prepared, waiting for the channel to exist.
+  ///
+  /// It cannot be uploaded before creation: a private channel's picture is
+  /// sealed with the channel key, and there is no channel and no key until the
+  /// Create button has been pressed. So it is held here and set immediately
+  /// afterwards — and shown here so what is being held is visible.
+  Uint8List? _picture;
+
   bool get _ready {
     if (_title.text.trim().isEmpty) return false;
     if (_visibility == ChannelVisibility.public && _handle.text.trim().length < 3) return false;
@@ -48,6 +60,41 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     _description.dispose();
     super.dispose();
   }
+
+  Future<void> _pickPicture() async {
+    PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile(
+        type: FileType.image,
+      ).timeout(const Duration(minutes: 2));
+    } on Object catch (failure) {
+      if (mounted) _say('Could not open the picker: $failure');
+      return;
+    }
+    if (picked == null || !mounted) return;
+
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object catch (failure) {
+      if (mounted) _say('Could not read ${picked.name}: $failure');
+      return;
+    }
+    if (!mounted) return;
+
+    // Prepared here rather than at upload, so a file that is not a picture is
+    // refused while the person is still looking at the picker they chose it
+    // from — not a minute later, after a channel has already been created.
+    final prepared = AvatarImage.prepare(bytes);
+    if (prepared == null) {
+      _say('That file is not an image Privio can use.');
+      return;
+    }
+    setState(() => _picture = prepared);
+  }
+
+  void _say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _create() async {
     setState(() => _creating = true);
@@ -69,6 +116,18 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
       );
       return;
     }
+
+    // The channel exists now, so the picture can be sealed with its key and
+    // uploaded. A failure here does not undo the channel: it is a channel
+    // without a picture, which is a thing somebody can fix from the menu, and
+    // throwing away a created channel over an image would be much worse.
+    final picture = _picture;
+    if (picture != null) {
+      final ok = await controller.setAvatar(created, picture);
+      if (!mounted) return;
+      if (!ok) _say(controller.error ?? 'The channel was created without the picture.');
+    }
+    if (!mounted) return;
     Navigator.of(context).pop(created);
   }
 
@@ -98,12 +157,34 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
       body: ListView(
         padding: const EdgeInsets.all(PrivioSpacing.gutter),
         children: [
-          TextField(
-            controller: _title,
-            onChanged: (_) => setState(() {}),
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(labelText: 'Channel name'),
+          Row(
+            children: [
+              _PicturePicker(
+                picture: _picture,
+                isPublic: isPublic,
+                onTap: _pickPicture,
+                onClear: _picture == null ? null : () => setState(() => _picture = null),
+              ),
+              const SizedBox(width: PrivioSpacing.md),
+              Expanded(
+                child: TextField(
+                  controller: _title,
+                  onChanged: (_) => setState(() {}),
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Channel name'),
+                ),
+              ),
+            ],
           ),
+          if (_picture != null && isPublic) ...[
+            const SizedBox(height: PrivioSpacing.sm),
+            Text(
+              'A public channel\'s picture is shown on its web page and in link '
+              'previews, so it is stored unencrypted — the same as its name, '
+              'handle and description.',
+              style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
+            ),
+          ],
           const SizedBox(height: PrivioSpacing.lg),
 
           _VisibilityCard(
@@ -245,6 +326,53 @@ class _Option extends StatelessWidget {
               const Icon(Icons.check_circle_rounded, size: 20, color: PrivioColors.accent),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The square that shows the chosen picture, or invites one.
+///
+/// A rounded square rather than a circle, matching every other place a channel
+/// is drawn: a circle is a person in this app, and a channel wearing one reads
+/// as somebody messaging you.
+class _PicturePicker extends StatelessWidget {
+  const _PicturePicker({
+    required this.picture,
+    required this.isPublic,
+    required this.onTap,
+    this.onClear,
+  });
+
+  final Uint8List? picture;
+  final bool isPublic;
+  final VoidCallback onTap;
+
+  /// Null until there is something to clear.
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    const side = 64.0;
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onClear,
+      child: Container(
+        width: side,
+        height: side,
+        alignment: Alignment.center,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: PrivioColors.accentSurface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: picture == null
+            ? Icon(
+                isPublic ? Icons.campaign_rounded : Icons.lock_rounded,
+                color: PrivioColors.accentBright,
+                size: 26,
+              )
+            : Image.memory(picture!, width: side, height: side, fit: BoxFit.cover),
       ),
     );
   }

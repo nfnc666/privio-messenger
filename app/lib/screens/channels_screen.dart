@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/channel_avatar.dart';
 import '../widgets/search_field.dart';
 import 'channel_feed_screen.dart';
 import 'new_channel_screen.dart';
@@ -138,6 +141,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
                       channels: _filterMine(controller.mine),
                       onRefresh: controller.refresh,
                       onTap: _open,
+                      pictureOf: controller.avatarFor,
                       empty: const _Empty(
                         icon: Icons.campaign_outlined,
                         title: 'No channels yet',
@@ -148,6 +152,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
                       channels: controller.discovered,
                       onRefresh: () => controller.search(query: _query),
                       onTap: _open,
+                      pictureOf: controller.avatarFor,
                       empty: const _Empty(
                         icon: Icons.search_rounded,
                         title: 'Nothing found',
@@ -172,12 +177,18 @@ class _ChannelList extends StatelessWidget {
     required this.onRefresh,
     required this.onTap,
     required this.empty,
+    required this.pictureOf,
   });
 
   final List<ChannelInfo> channels;
   final Future<void> Function() onRefresh;
   final void Function(ChannelInfo) onTap;
   final Widget empty;
+
+  /// Looked up per row rather than passed in as a map, so a picture that
+  /// arrives after the list is built shows up on the next notify without the
+  /// list having to be rebuilt from the controller's side.
+  final Uint8List? Function(ChannelInfo) pictureOf;
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +201,7 @@ class _ChannelList extends StatelessWidget {
         itemCount: channels.length,
         itemBuilder: (context, index) => ChannelListRow(
           channel: channels[index],
+          imageBytes: pictureOf(channels[index]),
           onTap: () => onTap(channels[index]),
         ),
       ),
@@ -200,10 +212,18 @@ class _ChannelList extends StatelessWidget {
 /// One channel in a list: what it is, how many are in it, and whether this
 /// device can actually read it.
 class ChannelListRow extends StatelessWidget {
-  const ChannelListRow({required this.channel, required this.onTap, super.key});
+  const ChannelListRow({
+    required this.channel,
+    required this.onTap,
+    super.key,
+    this.imageBytes,
+  });
 
   final ChannelInfo channel;
   final VoidCallback onTap;
+
+  /// The channel's picture, once it has been fetched. Null draws the mark.
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -218,20 +238,7 @@ class ChannelListRow extends StatelessWidget {
         horizontal: PrivioSpacing.gutter,
         vertical: PrivioSpacing.xs,
       ),
-      leading: Container(
-        width: 48,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: PrivioColors.accentSurface,
-          borderRadius: BorderRadius.all(PrivioRadius.card),
-        ),
-        child: Icon(
-          channel.isPublic ? Icons.campaign_rounded : Icons.lock_rounded,
-          color: PrivioColors.accentBright,
-          size: 22,
-        ),
-      ),
+      leading: ChannelAvatar(channel: channel, imageBytes: imageBytes),
       title: Row(
         children: [
           Flexible(

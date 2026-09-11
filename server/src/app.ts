@@ -157,7 +157,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // would shadow anything registered after it. Fastify prefers a static route
   // over a parametric one, so `/health` and `/v1/...` still win; registering
   // this at the end makes that ordering a decision rather than a coincidence.
-  await app.register(inviteWebRoutes);
+  await app.register(inviteWebRoutes(storage));
 
   /**
    * Liveness *and* readiness, because the platforms this runs on offer one hook.

@@ -5,6 +5,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
+import type { BlobStorage } from '../services/storage.js';
 import {
   appDidNotOpenPage,
   privateInvitePage,
@@ -57,6 +58,67 @@ async function readMark(): Promise<Buffer> {
   const here = dirname(fileURLToPath(import.meta.url));
   markBytes = await readFile(join(here, '..', '..', 'assets', 'privio-mark.png'));
   return markBytes;
+}
+
+/** Reads the opening bytes of a blob without pulling the whole thing in. */
+async function firstBytes(storage: BlobStorage, key: string, count: number): Promise<Buffer> {
+  const stream = storage.open(key);
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for await (const chunk of stream) {
+      const buf = chunk as Buffer;
+      chunks.push(buf);
+      total += buf.length;
+      if (total >= count) break;
+    }
+  } finally {
+    stream.destroy();
+  }
+  return Buffer.concat(chunks).subarray(0, count);
+}
+
+/**
+ * What these bytes are, by their magic number, or null.
+ *
+ * An allow-list rather than a sniff: the question is not "what might this be"
+ * but "is this one of the four things it is safe to hand a browser under a
+ * content type of our choosing". SVG is deliberately absent — it is a document
+ * that can carry script, and serving one from this origin would put that script
+ * on the same origin as the invite pages.
+ */
+function imageTypeOf(head: Buffer): string | null {
+  if (head.length >= 8 && head.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) {
+    return 'image/png';
+  }
+  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (head.length >= 12 && head.subarray(0, 4).toString('latin1') === 'RIFF'
+      && head.subarray(8, 12).toString('latin1') === 'WEBP') {
+    return 'image/webp';
+  }
+  if (head.length >= 6 && /^GIF8[79]a$/.test(head.subarray(0, 6).toString('latin1'))) {
+    return 'image/gif';
+  }
+  return null;
+}
+
+/**
+ * The URL of a channel's picture on this page, or null for the mark.
+ *
+ * Only a public channel ever has one. A private channel's picture is sealed
+ * with the channel key, so there is nothing here that could be drawn — and the
+ * page it would be drawn on is the one that deliberately says nothing about the
+ * channel at all.
+ *
+ * Keyed by handle rather than by media id: the id is a database identifier and
+ * putting it in a URL that gets crawled and cached serves no purpose the handle
+ * does not already serve.
+ */
+function avatarUrlFor(request: FastifyRequest, channel: ChannelRow): string | null {
+  if (channel.visibility !== 'public' || !channel.handle || !channel.avatar_media_id) return null;
+  return `${originOf(request)}/assets/channel/${channel.handle}`;
 }
 
 function downloads(): DownloadLinks {
@@ -129,6 +191,7 @@ function pageHeaders(reply: FastifyReply, indexable: boolean): void {
 
 interface ChannelRow {
   id: string;
+  avatar_media_id: string | null;
   visibility: string;
   handle: string | null;
   title: string | null;
@@ -141,13 +204,71 @@ interface ChannelRow {
   invite_needs_approval: boolean;
 }
 
-export const inviteWebRoutes: FastifyPluginAsync = async (app) => {
+export const inviteWebRoutes =
+  (storage: BlobStorage): FastifyPluginAsync =>
+  async (app) => {
   /** The mark, for the page and for every link preview. */
   app.get('/assets/privio-mark.png', async (_request, reply) => {
     reply.header('content-type', 'image/png');
     reply.header('cache-control', 'public, max-age=86400, immutable');
     return reply.send(await readMark());
   });
+
+  /**
+   * A public channel's picture, served to anybody.
+   *
+   * Three conditions, all of them load-bearing:
+   *
+   *   1. **Public only.** A private channel's picture is sealed and reached
+   *      through `/v1/media` with the token from its sealed metadata. It must
+   *      never come out of a route that asks for no credential.
+   *   2. **Only the object the channel actually points at.** The id is taken
+   *      from `channels.avatar_media_id`, never from the URL, so this route
+   *      cannot be turned into an unauthenticated reader for any media id
+   *      somebody guesses or reads out of a database dump.
+   *   3. **Only if the bytes are really an image.** Uploads arrive as opaque
+   *      `application/octet-stream` and the server does not know what it was
+   *      handed. Serving those bytes back under a content type taken on trust
+   *      is how a "picture" becomes an HTML page hosted on this origin, so the
+   *      type comes from the first few bytes and anything unrecognised is a
+   *      404 — the page then draws the mark, which is the same thing it does
+   *      for a channel with no picture at all.
+   */
+  app.get<{ Params: { handle: string } }>(
+    `/assets/channel/:handle(${HANDLE})`,
+    async (request, reply) => {
+      const { rows } = await pool.query<{ storage_key: string; byte_size: string | number }>(
+        `SELECT m.storage_key, m.byte_size
+           FROM channels c
+           JOIN media_objects m ON m.id = c.avatar_media_id
+          WHERE c.handle = $1
+            AND c.visibility = 'public'
+            AND c.deleted_at IS NULL
+            AND m.kind = 'channel_avatar'`,
+        [request.params.handle],
+      );
+      const object = rows[0];
+      if (!object) {
+        reply.code(404);
+        return { error: 'no_picture' };
+      }
+
+      const head = await firstBytes(storage, object.storage_key, 16);
+      const type = imageTypeOf(head);
+      if (!type) {
+        reply.code(404);
+        return { error: 'no_picture' };
+      }
+
+      reply.header('content-type', type);
+      reply.header('content-length', String(object.byte_size));
+      reply.header('x-content-type-options', 'nosniff');
+      // Short, because replacing a picture has to become visible. The page it
+      // sits on is cached for 60 seconds for the same reason.
+      reply.header('cache-control', 'public, max-age=300');
+      return reply.send(storage.open(object.storage_key));
+    },
+  );
 
   function options(request: FastifyRequest, path: string): InvitePageOptions {
     const origin = originOf(request);
@@ -180,7 +301,8 @@ export const inviteWebRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const path = `/${request.params.handle}`;
       const { rows } = await pool.query<ChannelRow>(
-        `SELECT id, visibility, handle, title, description, member_count, deleted_at
+        `SELECT id, visibility, handle, title, description, member_count, deleted_at,
+                avatar_media_id
          FROM channels WHERE handle = $1`,
         [request.params.handle],
       );
@@ -201,9 +323,7 @@ export const inviteWebRoutes: FastifyPluginAsync = async (app) => {
           handle: channel.handle,
           description: channel.description,
           memberCount: channel.member_count,
-          // Channels have no picture of their own yet; the page falls back to
-          // the Privio mark until they do.
-          avatarUrl: null,
+          avatarUrl: avatarUrlFor(request, channel),
         },
         options(request, path),
         await qrFor(`${originOf(request)}${path}`),
@@ -225,6 +345,7 @@ export const inviteWebRoutes: FastifyPluginAsync = async (app) => {
   ): Promise<string> {
     const { rows } = await pool.query<ChannelRow>(
       `SELECT id, visibility, handle, title, description, member_count, deleted_at,
+              avatar_media_id,
               invite_expires_at, invite_max_uses, invite_uses, invite_needs_approval
        FROM channels WHERE invite_code = $1`,
       [code],
@@ -250,7 +371,7 @@ export const inviteWebRoutes: FastifyPluginAsync = async (app) => {
           handle: channel.handle,
           description: channel.description,
           memberCount: channel.member_count,
-          avatarUrl: null,
+          avatarUrl: avatarUrlFor(request, channel),
         },
         options(request, path),
         await qrFor(`${originOf(request)}${path}`),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
 import 'package:privio/core/api_client.dart';
@@ -64,6 +65,11 @@ class FakeChannelServer {
   /// whoever presents the capability that was sealed inside the post.
   final Map<String, List<int>> media = {};
   final Map<String, String> mediaTokens = {};
+
+  /// What each blob went up as. The kind decides who may download it, so a
+  /// test that does not model it cannot tell a sealed picture from a published
+  /// one.
+  final Map<String, String> mediaKinds = {};
   int _nextMediaId = 1;
 
   /// Advances a channel to its next key version, as removal and leaving do.
@@ -78,8 +84,17 @@ class FakeChannelServer {
         if (method == 'POST' && path == '/v1/media') {
           final id = 'media-${_nextMediaId++}';
           media[id] = request.bodyBytes;
-          mediaTokens[id] = 'token-for-$id';
-          return _json({'id': id, 'token': mediaTokens[id]}, 201);
+          final kind = request.url.queryParameters['kind'] ?? 'attachment';
+          mediaKinds[id] = kind;
+          // Only an attachment gets a capability, exactly as the real server
+          // does: the avatar kinds are authorised by who is asking. A test that
+          // handed out a token for every kind would let a bug that seals
+          // nothing still look like it worked.
+          if (kind == 'attachment') mediaTokens[id] = 'token-for-$id';
+          return _json({
+            'id': id,
+            if (mediaTokens[id] != null) 'token': mediaTokens[id],
+          }, 201);
         }
 
         final blobMatch = RegExp(r'^/v1/media/([^/]+)$').firstMatch(path);
@@ -87,9 +102,13 @@ class FakeChannelServer {
           final id = blobMatch.group(1)!;
           final bytes = media[id];
           if (bytes == null) return _json({'error': 'not_found', 'message': id}, 404);
-          // The capability, checked the way the real server checks it.
-          if (request.headers['x-privio-media-token'] != mediaTokens[id]) {
-            return _json({'error': 'forbidden', 'message': 'no capability'}, 403);
+          // A public channel's picture is served to anybody — that is what the
+          // kind means, and the whole reason it is stored unsealed.
+          if (mediaKinds[id] != 'channel_avatar') {
+            // The capability, checked the way the real server checks it.
+            if (request.headers['x-privio-media-token'] != mediaTokens[id]) {
+              return _json({'error': 'forbidden', 'message': 'no capability'}, 403);
+            }
           }
           return http.Response.bytes(bytes, 200);
         }
@@ -237,6 +256,33 @@ class FakeChannelServer {
             ],
             'complete': true,
           });
+        }
+
+        final avatarMatch = RegExp(r'^/v1/channels/([^/]+)/avatar$').firstMatch(path);
+        if (avatarMatch != null) {
+          final id = avatarMatch.group(1)!;
+          if (method == 'PUT') {
+            final mediaId = body['mediaId'] as String;
+            // The rule the real server enforces, and the one worth having here:
+            // a private channel pointing at the unsealed kind would publish a
+            // picture its owner believes is sealed.
+            final wanted = channels[id]!['visibility'] == 'public'
+                ? 'channel_avatar'
+                : 'attachment';
+            if (mediaKinds[mediaId] != wanted) {
+              return _json(
+                {'error': 'wrong_media_kind', 'message': 'that is the other kind'},
+                400,
+              );
+            }
+            channels[id]!['avatarMediaId'] = mediaId;
+            channels[id]!['avatarUpdatedAt'] = DateTime.utc(2026, 2, 2).toIso8601String();
+            return _json({'avatarMediaId': mediaId});
+          }
+          if (method == 'DELETE') {
+            channels[id]!['avatarMediaId'] = null;
+            return _json({'avatarMediaId': null});
+          }
         }
 
         final removeMatch =
@@ -1357,6 +1403,164 @@ void main() {
       await admin.completeRotation(channel.id);
 
       expect(server.metadataEpochs[channel.id], 1, reason: 'nothing to re-seal');
+    });
+  });
+
+  group('a channel picture', () {
+    /// A real PNG header, so the bytes are a plausible picture rather than a
+    /// string that happens to be here. `AvatarImage.prepare` re-encodes it to
+    /// JPEG anyway, which is part of what is being relied on.
+    Uint8List picture() {
+      final image = img.Image(width: 8, height: 8);
+      img.fill(image, color: img.ColorRgb8(30, 160, 120));
+      return Uint8List.fromList(img.encodePng(image));
+    }
+
+    test('a public one goes up unsealed, because a web page holds no key', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.public,
+        handle: 'offen',
+        title: 'Offen',
+      );
+
+      final updated = await service.setAvatar(channel, picture());
+      final mediaId = updated.avatarMediaId!;
+
+      expect(server.mediaKinds[mediaId], 'channel_avatar');
+      // Not sealed, and this is the assertion that says so rather than trusting
+      // the label: the bytes the server holds decode as an image. A public
+      // channel's picture is drawn on its invite page and inside whatever
+      // messenger the link was pasted into, and neither holds a key.
+      expect(img.decodeImage(Uint8List.fromList(server.media[mediaId]!)), isNotNull);
+      // No capability was minted, because none would mean anything.
+      expect(server.mediaTokens[mediaId], isNull);
+      expect(updated.avatarToken, isNull);
+      expect(updated.hasAvatar, isTrue);
+    });
+
+    test('a private one is sealed, and the server holds bytes it cannot read', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Nur fuer uns',
+      );
+
+      final updated = await service.setAvatar(channel, picture());
+      final mediaId = updated.avatarMediaId!;
+
+      expect(server.mediaKinds[mediaId], 'attachment');
+      // The bytes are ciphertext: they are not a decodable image to anybody
+      // holding only what the server holds.
+      expect(img.decodeImage(Uint8List.fromList(server.media[mediaId]!)), isNull);
+      // And the capability travels inside the sealed metadata, never beside it.
+      expect(updated.avatarToken, isNotNull);
+      final stored = server.channels[channel.id]!['encryptedMetadata'] as String;
+      expect(stored, isNot(contains(updated.avatarToken!)));
+      expect(utf8.decode(base64Decode(stored), allowMalformed: true),
+          isNot(contains('Nur fuer uns')));
+    });
+
+    test('and it comes back as the picture it was', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final original = picture();
+
+      for (final channel in [
+        await service.create(visibility: ChannelVisibility.public, handle: 'a1', title: 'A'),
+        await service.create(visibility: ChannelVisibility.private, title: 'B'),
+      ]) {
+        final updated = await service.setAvatar(channel, original);
+        final bytes = await service.avatarBytes(updated);
+        expect(bytes, isNotNull, reason: '${channel.visibility} round trip');
+        // Not byte-identical: prepare() crops, resizes and re-encodes. What
+        // matters is that what comes back is an image of the right size.
+        final decoded = img.decodeImage(bytes!)!;
+        expect(decoded.width, 512);
+      }
+    });
+
+    test('a key rotation carries the picture with the name', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Bleibt',
+      );
+      final withPicture = await service.setAvatar(channel, picture());
+      final token = withPicture.avatarToken;
+      expect(token, isNotNull);
+
+      // Somebody is removed. The name is re-sealed under the new key, and the
+      // picture has to come with it — the metadata is the only place its
+      // capability lives, so a re-seal that rebuilt the envelope from the
+      // fields a screen happens to need would drop the picture here, silently,
+      // with nothing left to restore it from.
+      server.rotate(channel.id);
+      await service.completeRotation(channel.id);
+      expect(server.metadataEpochs[channel.id], 2, reason: 're-sealed');
+
+      final reopened = await service.byId(channel.id);
+      expect(reopened.title, 'Bleibt');
+      expect(reopened.avatarToken, token);
+      expect(await service.avatarBytes(reopened), isNotNull);
+    });
+
+    test('a channel from before pictures existed still opens', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      // Created the way every shipped build creates one: the sealed metadata is
+      // the bare title string, not an envelope. Nothing migrates it, so it has
+      // to keep working as it is.
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Alt',
+      );
+
+      final reopened = await service.byId(channel.id);
+      expect(reopened.title, 'Alt');
+      expect(reopened.avatarToken, isNull);
+      expect(reopened.hasAvatar, isFalse);
+    });
+
+    test('removing one takes the capability out of the metadata', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.private,
+        title: 'Weg damit',
+      );
+      final withPicture = await service.setAvatar(channel, picture());
+
+      final cleared = await service.clearAvatar(withPicture);
+      expect(cleared.avatarMediaId, isNull);
+      expect(cleared.avatarToken, isNull);
+      expect(cleared.hasAvatar, isFalse);
+
+      // And a member who fetches the channel fresh is not handed a capability
+      // for a picture that is no longer the channel's.
+      final reopened = await service.byId(channel.id);
+      expect(reopened.title, 'Weg damit', reason: 'the name survived');
+      expect(reopened.avatarToken, isNull);
+    });
+
+    test('a file that is not a picture is refused before anything is uploaded', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.public,
+        handle: 'keinbild',
+        title: 'Kein Bild',
+      );
+
+      await expectLater(
+        service.setAvatar(channel, Uint8List.fromList(utf8.encode('%PDF-1.7'))),
+        throwsA(isA<ChannelAvatarRejected>()),
+      );
+      expect(server.media, isEmpty, reason: 'nothing was uploaded');
+      expect(server.channels[channel.id]!['avatarMediaId'], isNull);
     });
   });
 }

@@ -42,6 +42,7 @@ decides that, never the client.
 | `DELETE /v1/accounts/me` | |
 | `DELETE /v1/backup` | |
 | `DELETE /v1/blocks/:id` | |
+| `DELETE /v1/channels/:id/avatar` | needs `canEditChannel` |
 | `DELETE /v1/channels/:id/key-requests/:deviceId` | |
 | `DELETE /v1/channels/:id/members/:accountId` | |
 | `DELETE /v1/channels/:id/members/me` | |
@@ -74,6 +75,7 @@ decides that, never the client.
 | `GET /v1/channels/:id/join-requests` | admins only; people who are not members |
 | `GET /v1/channels/:id/stats` | needs `canEditChannel`; deliberately carries no view count |
 | `GET /v1/channels/:id` | |
+| `GET /assets/channel/:handle` | **no auth** — a public channel's picture, for the invite page and its link preview. Served by magic number; anything that is not a PNG, JPEG, WebP or GIF is a 404 |
 | `GET /v1/channels/discover` | |
 | `GET /v1/channels/invite/:code` | |
 | `GET /v1/channels` | |
@@ -134,6 +136,7 @@ decides that, never the client.
 | `PUT /v1/accounts/me/recovery` | |
 | `PUT /v1/backup` | |
 | `PUT /v1/channels/:id/members/:accountId/role` | |
+| `PUT /v1/channels/:id/avatar` | `{mediaId}`; needs `canEditChannel`. The media **kind** must match the visibility: `channel_avatar` for a public channel, `attachment` for a private one |
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
 | `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
 | `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |

@@ -361,6 +361,18 @@ class PrivioApiClient {
   Future<void> leaveChannel(String channelId) async =>
       _send('DELETE', '/v1/channels/$channelId/members/me');
 
+  /// Points a channel at a picture that has already been uploaded.
+  ///
+  /// The server enforces which media kind goes with which visibility rather
+  /// than trusting the caller — a private channel pointing at the unsealed kind
+  /// would publish a picture its owner believes is sealed — so a 400 here is an
+  /// answer about the upload, not a bug.
+  Future<void> setChannelAvatar(String channelId, String mediaId) async =>
+      _send('PUT', '/v1/channels/$channelId/avatar', body: {'mediaId': mediaId});
+
+  Future<void> clearChannelAvatar(String channelId) async =>
+      _send('DELETE', '/v1/channels/$channelId/avatar');
+
   Future<Map<String, dynamic>> channelMembers(String channelId) =>
       _send('GET', '/v1/channels/$channelId/members');
 
@@ -713,9 +725,19 @@ class PrivioApiClient {
   Future<({String id, String? token})> uploadMedia(
     List<int> sealedBytes, {
     bool avatar = false,
+    bool channelAvatar = false,
   }) async {
+    // Three kinds, and the kind decides who may download. `channel_avatar` is
+    // the one that is served to anyone — a public channel's picture is drawn on
+    // a web page by people who hold no key — so it is only ever passed for
+    // bytes that were deliberately not sealed.
+    final kind = channelAvatar
+        ? const {'kind': 'channel_avatar'}
+        : avatar
+            ? const {'kind': 'avatar'}
+            : null;
     final response = await _client.post(
-      _url('/v1/media', avatar ? const {'kind': 'avatar'} : null),
+      _url('/v1/media', kind),
       headers: {..._headers, 'content-type': 'application/octet-stream'},
       body: sealedBytes,
     );

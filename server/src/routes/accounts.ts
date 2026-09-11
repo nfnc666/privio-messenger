@@ -417,11 +417,18 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
 
   app.delete('/v1/accounts/me/avatar', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { accountId } = auth(request);
-    const { rows } = await pool.query<{ avatar_media_id: string | null }>(
-      'UPDATE accounts SET avatar_media_id = NULL, avatar_updated_at = now() WHERE id = $1 RETURNING avatar_media_id',
+    // `RETURNING avatar_media_id` would hand back the value this statement has
+    // just set — NULL — so the picture being removed was never named and was
+    // left to sit in storage under the hundred-year expiry that making it an
+    // avatar gave it. Reading the row first is what learns the old id.
+    const { rows } = await pool.query<{ previous: string | null }>(
+      `WITH prev AS (SELECT id, avatar_media_id FROM accounts WHERE id = $1 FOR UPDATE)
+       UPDATE accounts SET avatar_media_id = NULL, avatar_updated_at = now()
+         FROM prev WHERE accounts.id = prev.id
+       RETURNING prev.avatar_media_id AS previous`,
       [accountId],
     );
-    const removed = rows[0]?.avatar_media_id ?? null;
+    const removed = rows[0]?.previous ?? null;
     if (removed) {
       await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [removed]);
     }
