@@ -10,6 +10,7 @@ import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
+import 'channel_profile_screen.dart';
 import 'channel_thread_screen.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
@@ -704,8 +705,53 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     );
   }
 
+  /// The channel's own page, and what it hands back.
+  ///
+  /// The profile screen does not duplicate the sheets that already live here —
+  /// invites, statistics, reporting, reactions — it pops with a name and this
+  /// opens the one that exists. Two copies of a confirmation dialog are two
+  /// chances for them to say different things, and the one that drifts is the
+  /// one nobody is looking at.
+  Future<void> _openProfile() async {
+    final asked = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ChannelProfileScreen(channel: _channel)),
+    );
+    if (!mounted) return;
+    switch (asked) {
+      case 'left':
+        Navigator.of(context).pop();
+      case 'search':
+        _toggleSearch();
+      case 'invite':
+        await _manageInvite();
+      case 'stats':
+        await _openStats();
+      case 'report':
+        await _report();
+      case 'reactions':
+        await _editReactions();
+      case 'transfer':
+        await _transfer();
+      case final jump? when jump.startsWith('post:'):
+        // A link opened from the profile, jumped to where it was written.
+        final id = int.tryParse(jump.substring(5));
+        if (id != null) _jumpToPost(id);
+      default:
+        await _load();
+    }
+  }
+
+  /// Scrolls the feed to one post, by id.
+  void _jumpToPost(int postId) {
+    final entries = _entries(PrivioScope.of(context).channels.postsIn(_channel.id));
+    final index = entries.indexWhere((entry) => entry.post?.id == postId);
+    if (index >= 0) _scroll.jumpTo(index: index);
+  }
+
   void _onMenu(String action) {
     switch (action) {
+      case 'profile':
+        unawaited(_openProfile());
       case 'invite':
         _share();
       case 'picture':

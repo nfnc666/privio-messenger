@@ -183,7 +183,49 @@ const schema = z.object({
   FCM_PROJECT_ID: z.string().optional(),
   FCM_CLIENT_EMAIL: z.string().optional(),
   FCM_PRIVATE_KEY: z.string().optional(),
+
+  /**
+   * A media server for channel livestreams.
+   *
+   * A livestream is the one thing in Privio that cannot be peer-to-peer. A 1:1
+   * call is two devices and a TURN relay; a channel broadcast is one publisher
+   * and potentially thousands of viewers, which needs a server that receives
+   * one stream and forwards it — an SFU. There is no way to fake that with the
+   * call code already here.
+   *
+   * Unset by default, and the server then reports livestreams as unavailable
+   * rather than handing out a room nobody can join. The client draws the
+   * control as unavailable and says why. See docs/channels.md.
+   *
+   * LiveKit because its token format is plain JWT and its API is small enough
+   * to speak to without a vendor SDK on the server. Another SFU with the same
+   * shape can be swapped in behind `livestreams.ts`.
+   */
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
+
+  /**
+   * A machine-translation endpoint for channel posts.
+   *
+   * Off unless configured, and it stays off per channel until somebody turns it
+   * on: translating means sending text to a third party, and a channel's posts
+   * are end-to-end encrypted. The server cannot read them and must never be the
+   * one to send them anywhere — so translation happens **on the device**, which
+   * is the only place the plaintext exists, and this URL is what the device is
+   * told to use. See docs/channels.md for what that costs and what it leaks.
+   */
+  TRANSLATION_URL: z.string().url().optional(),
 }).superRefine((env, ctx) => {
+  const livekit = [env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET];
+  if (livekit.some(Boolean) && !livekit.every(Boolean)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['LIVEKIT_URL'],
+      message:
+        'Livestreams need LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET together, or none of them',
+    });
+  }
   // Half-configured is worse than unconfigured: it looks like it works.
   const apns = [env.APNS_KEY_P8, env.APNS_KEY_ID, env.APNS_TEAM_ID, env.APNS_TOPIC];
   if (apns.some(Boolean) && !apns.every(Boolean)) {

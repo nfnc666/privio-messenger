@@ -714,16 +714,71 @@ class ChannelService {
   /// row, not the audience; only a member who may manage members gets the whole
   /// list. `complete` is the server saying which of the two this is, so the
   /// screen can say so too rather than passing a staff list off as everybody.
-  Future<({List<ChannelMember> members, bool complete})> members(String channelId) async {
-    final response = await _api.channelMembers(channelId);
+  Future<({List<ChannelMember> members, bool complete, String? nextCursor})> members(
+    String channelId, {
+    int? limit,
+    String? cursor,
+    String? query,
+    String? role,
+  }) async {
+    final response = await _api.channelMembers(
+      channelId,
+      limit: limit,
+      cursor: cursor,
+      query: query,
+      role: role,
+    );
     return (
       members: [
         for (final raw in response['members'] as List<dynamic>? ?? const [])
           ChannelMember.fromJson(raw as Map<String, dynamic>),
       ],
       complete: response['complete'] as bool? ?? false,
+      nextCursor: response['nextCursor'] as String?,
     );
   }
+
+  /// Puts people into the channel, where their own settings allow it.
+  ///
+  /// Two lists back, never a silent partial success: the screen has to be able
+  /// to say "these are in, these need a link".
+  Future<({List<String> added, List<String> invite})> addMembers(
+    String channelId,
+    List<String> accountIds,
+  ) async {
+    final response = await _api.addChannelMembers(channelId, accountIds);
+    return (
+      added: (response['added'] as List<dynamic>? ?? const []).cast<String>(),
+      invite: (response['invite'] as List<dynamic>? ?? const []).cast<String>(),
+    );
+  }
+
+  Future<({bool muted, DateTime? until})> mute(String channelId, {DateTime? until}) async {
+    final response = await _api.muteChannel(channelId, until: until);
+    return (
+      muted: response['muted'] as bool? ?? true,
+      until: DateTime.tryParse(response['until'] as String? ?? '')?.toLocal(),
+    );
+  }
+
+  Future<void> unmute(String channelId) => _api.unmuteChannel(channelId);
+
+  /// What can be done about a livestream, including "nothing, and here is why".
+  Future<ChannelLive> live(String channelId) async =>
+      ChannelLive.fromJson(await _api.channelLive(channelId));
+
+  /// Starts one, and hands back a token that may publish.
+  Future<ChannelLive> startLive(String channelId) async {
+    final response = await _api.startChannelLive(channelId);
+    return ChannelLive.fromJson({
+      'available': true,
+      'canStart': true,
+      'live': {'startedAt': DateTime.now().toUtc().toIso8601String()},
+      'access': response['access'],
+    });
+  }
+
+  Future<void> endLive(String channelId) => _api.endChannelLive(channelId);
 
   /// Appoints or demotes. The server rejects granting anything the caller does
   /// not hold, so a failure here is the rule working, not a bug to route around.
@@ -1164,6 +1219,111 @@ class ChannelService {
   Future<void> setCommentsEnabled(String channelId, {required bool enabled}) async =>
       _api.updateChannel(channelId, commentsEnabled: enabled);
 
+  /// Saves everything the edit screen can change, in one request.
+  ///
+  /// The title is the awkward one, and it is awkward for a good reason. A
+  /// **public** channel's name is a plaintext column, because a public channel
+  /// is searchable by name and search cannot run over ciphertext. A **private**
+  /// channel's is sealed with the channel key and lives in `encryptedMetadata`
+  /// beside its picture — so renaming one means re-sealing that whole envelope,
+  /// verbatim, under the current epoch.
+  ///
+  /// Rebuilding the envelope from the fields a screen happens to know is how a
+  /// picture set by an older build gets silently dropped on the first rename.
+  /// So the existing envelope is opened, its title replaced, and the rest of it
+  /// carried across untouched.
+  Future<void> saveSettings(
+    ChannelInfo channel, {
+    String? title,
+    String? description,
+    bool? showSenderName,
+    bool? welcomeEnabled,
+    String? welcomeMessage,
+    bool clearAccent = false,
+    String? accent,
+    bool clearBackground = false,
+    String? background,
+    bool clearDiscussionGroup = false,
+    String? discussionGroupId,
+    bool? directMessagesEnabled,
+    bool? commentsEnabled,
+  }) async {
+    String? encryptedMetadata;
+    int? metadataKeyEpoch;
+
+    final wantsRename = title != null && title.trim() != channel.title;
+    if (wantsRename && !channel.isPublic) {
+      final epoch = channel.keyEpoch;
+      final key = await keyFor(channel.id, epoch);
+      if (key == null) {
+        throw StateError('This device does not hold the key to rename it');
+      }
+      encryptedMetadata = base64Encode(
+        await _seal(await _renamedMetadata(channel, title.trim()), key),
+      );
+      metadataKeyEpoch = epoch;
+    }
+
+    await _api.updateChannel(
+      channel.id,
+      // Only for a public channel. Sending it for a private one would write the
+      // name the sealing exists to hide into a plaintext column.
+      title: wantsRename && channel.isPublic ? title.trim() : null,
+      description: description,
+      encryptedMetadata: encryptedMetadata,
+      metadataKeyEpoch: metadataKeyEpoch,
+      showSenderName: showSenderName,
+      welcomeEnabled: welcomeEnabled,
+      // Same rule: a private channel's welcome text rides in the sealed
+      // envelope, and the server refuses it in the clear anyway.
+      welcomeMessage: channel.isPublic ? welcomeMessage : null,
+      clearAccent: clearAccent,
+      accent: accent,
+      clearBackground: clearBackground,
+      background: background,
+      clearDiscussionGroup: clearDiscussionGroup,
+      discussionGroupId: discussionGroupId,
+      directMessagesEnabled: directMessagesEnabled,
+      commentsEnabled: commentsEnabled,
+    );
+  }
+
+  /// The channel's sealed envelope with a new title and everything else kept.
+  Future<String> _renamedMetadata(ChannelInfo channel, String title) async {
+    final sealed = await _currentMetadata(channel);
+    if (sealed == null) return title;
+    if (!sealed.startsWith('{')) return title;
+    try {
+      final decoded = jsonDecode(sealed);
+      if (decoded is! Map<String, dynamic> || decoded[_envelopeMarker] != 1) {
+        return title;
+      }
+      return jsonEncode({...decoded, 'title': title});
+    } on FormatException {
+      return title;
+    }
+  }
+
+  /// The opened metadata envelope as it currently stands, or null.
+  Future<String?> _currentMetadata(ChannelInfo channel) async {
+    try {
+      final raw = await _api.channel(channel.id);
+      final sealed = raw['encryptedMetadata'] as String?;
+      if (sealed == null) return null;
+      // Awaited inside the try on purpose: a failure to open is exactly what
+      // this catch is for, and returning the future unawaited would let it
+      // escape past the handler.
+      return await _openMetadata(
+        sealed,
+        channel.id,
+        (raw['metadataKeyEpoch'] as num?)?.toInt() ?? 1,
+        await heldEpochs(channel.id),
+      );
+    } on Object {
+      return null;
+    }
+  }
+
   /// Stops somebody speaking in a channel, or lets them speak again.
   Future<void> setBanned(
     String channelId,
@@ -1536,5 +1696,15 @@ class ChannelService {
         avatarUpdatedAt:
             DateTime.tryParse(raw['avatarUpdatedAt'] as String? ?? '')?.toLocal(),
         avatarToken: avatarToken,
+        showSenderName: raw['showSenderName'] as bool? ?? false,
+        welcome: ChannelWelcome.fromJson(raw['welcome'] as Map<String, dynamic>?),
+        appearance:
+            ChannelAppearance.fromJson(raw['appearance'] as Map<String, dynamic>?),
+        discussionGroupId: raw['discussionGroupId'] as String?,
+        directMessagesEnabled: raw['directMessagesEnabled'] as bool? ?? false,
+        // Only the channel listing carries these; a single-channel fetch leaves
+        // them false, which is why the listing is what the screens read from.
+        muted: raw['muted'] as bool? ?? false,
+        mutedUntil: DateTime.tryParse(raw['mutedUntil'] as String? ?? '')?.toLocal(),
       );
 }

@@ -3,30 +3,9 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import { findByUsername, publicProfile, type AccountRow } from '../services/accounts.js';
+import { lastSeenFor } from '../services/presence.js';
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
-
-/**
- * The one place the last-seen rule lives.
- *
- * `everyone` tells anyone who asks; `contacts` tells only people the target
- * has added themselves — which is not the same as people who have added the
- * target, and is the direction that matters: being in somebody's address book
- * must not entitle you to watch them; and `nobody` tells no one.
- *
- * Split from the lookup so the contacts list can decide the same way without a
- * query per row. Two implementations of a privacy rule drift, and the one that
- * drifts is the one nobody is looking at.
- */
-function lastSeenFor(
-  target: Pick<AccountRow, 'privacy' | 'last_seen_at'>,
-  viewerIsContactOfTarget: boolean,
-): string | null {
-  const setting = target.privacy?.lastSeen ?? 'contacts';
-  if (setting === 'nobody') return null;
-  if (setting === 'everyone') return target.last_seen_at.toISOString();
-  return viewerIsContactOfTarget ? target.last_seen_at.toISOString() : null;
-}
 
 /** Applies the target's last-seen privacy setting from the viewer's perspective. */
 async function visibleLastSeen(viewerId: string, target: AccountRow): Promise<string | null> {

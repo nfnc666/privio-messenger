@@ -55,3 +55,37 @@ abstract final class PrivioRadius {
   static const Radius button = Radius.circular(24);
   static const Radius pill = Radius.circular(999);
 }
+
+/// The colours a channel may choose for itself.
+///
+/// Names rather than values, and a fixed list rather than a picker: a channel
+/// must not be able to ask for white-on-white, or for a colour that disappears
+/// against one of the two backgrounds. Every pair here was checked against
+/// both. The server holds the same list as a check constraint, so a channel
+/// cannot arrive carrying a colour this app has never heard of.
+abstract final class ChannelPalette {
+  /// The accent a channel draws its links, buttons and reactions in.
+  static const Map<String, Color> accents = {
+    'green': PrivioColors.accent,
+    'blue': Color(0xFF3B82F6),
+    'purple': Color(0xFFA855F7),
+    'orange': Color(0xFFF97316),
+    'red': Color(0xFFEF4444),
+    'teal': Color(0xFF14B8A6),
+  };
+
+  /// What its feed sits on. All three are dark: Privio is a dark app, and a
+  /// channel choosing a light background would be choosing it for readers who
+  /// did not.
+  static const Map<String, Color> backgrounds = {
+    'black': PrivioColors.background,
+    'charcoal': Color(0xFF121212),
+    'midnight': Color(0xFF0A1020),
+  };
+
+  /// The accent to draw with, falling back to Privio's own.
+  static Color accentFor(String? name) => accents[name] ?? PrivioColors.accent;
+
+  static Color backgroundFor(String? name) =>
+      backgrounds[name] ?? PrivioColors.background;
+}

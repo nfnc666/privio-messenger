@@ -68,7 +68,7 @@ decides that, never the client.
 | `GET /v1/calls/ice` | |
 | `GET /v1/channels/:id/key-epochs/current` | |
 | `GET /v1/channels/:id/key-requests` | |
-| `GET /v1/channels/:id/members` | |
+| `GET /v1/channels/:id/members` | `?limit&cursor&q&role=admins`; `complete: false` means staff-and-self, not the audience |
 | `GET /v1/channels/:id/posts` | `?scheduled=true` for the author's own queue |
 | `GET /v1/channels/:id/posts/:postId/comments` | members only |
 | `GET /v1/channels/:id/bans` | admins only — as a list it would name the audience |
@@ -118,6 +118,15 @@ decides that, never the client.
 | `POST /v1/channels/:id/invite/rotate` | revoking is replacing; the old code dies at once |
 | `POST /v1/channels/:id/owner` | `{accountId, currentPassword}` — the password, not the session |
 | `POST /v1/channels/:id/report` | `{reason}` from a fixed set; never free text |
+| `POST /v1/channels/:id/members` | direct-add; answers `{added, invite}` — only where their own `whoCanAddMeToGroups` allows it |
+| `PUT /v1/channels/:id/mute` | per account, not per device; `{until}` or nothing for no end |
+| `DELETE /v1/channels/:id/mute` | |
+| `GET /v1/channels/:id/live` | `available: false` where no media server is configured — see docs/channels.md |
+| `POST /v1/channels/:id/live` | `canManageLivestreams`; 503 `livestream_unconfigured` with no SFU |
+| `DELETE /v1/channels/:id/live` | |
+| `POST /v1/channels/:id/inbox` | sealed by the sender; closed unless `directMessagesEnabled` |
+| `GET /v1/channels/:id/inbox` | `canManageMembers` only |
+| `PUT /v1/channels/:id/inbox/:messageId` | marks one handled |
 | `POST /v1/channels/:id/join-requests/:accountId` | lets them in |
 | `POST /v1/channels` | |
 | `POST /v1/contacts` | |
