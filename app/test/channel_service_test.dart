@@ -586,23 +586,53 @@ void main() {
       final key = (await service.keyFor(channel.id, 1))!;
       final link = ChannelService.linkForChannel(channel.inviteCode!);
 
-      expect(link, 'https://privio.channel/c/${channel.inviteCode}');
+      expect(link, 'https://privio.channel/+${channel.inviteCode}');
       expect(link, isNot(contains('#')));
       expect(link, isNot(contains(base64Url.encode(key))));
       expect(link, isNot(contains(base64Encode(key))));
+    });
+
+    test('a public channel shares its name instead of a capability', () async {
+      final server = FakeChannelServer();
+      final service = await _serviceOn(server);
+      final channel = await service.create(
+        visibility: ChannelVisibility.public,
+        handle: 'houseoftrading',
+        title: 'House of Trading',
+      );
+
+      // A handle is how a public channel is searched for, so a link to one
+      // grants nothing that search does not. The invite code is a capability
+      // and has no business on a poster.
+      expect(
+        ChannelService.shareLinkFor(channel),
+        'https://privio.channel/houseoftrading',
+      );
+      expect(
+        ChannelService.shareLinkFor(channel),
+        isNot(contains(channel.inviteCode!)),
+      );
     });
 
     test('round-trip through the parser, for a channel and for a group', () {
       final channelLink = ChannelService.linkForChannel('abc123');
       final groupLink = ChannelService.linkForGroup('xyz789');
 
-      expect(channelLink, 'https://privio.channel/c/abc123');
+      expect(channelLink, 'https://privio.channel/+abc123');
       expect(groupLink, 'https://privio.group/g/xyz789');
 
       expect(ChannelService.parseInviteLink(channelLink)!.code, 'abc123');
       expect(ChannelService.parseInviteLink(channelLink)!.kind, InviteKind.channel);
       expect(ChannelService.parseInviteLink(groupLink)!.code, 'xyz789');
       expect(ChannelService.parseInviteLink(groupLink)!.kind, InviteKind.group);
+    });
+
+    test('the shape every shipped build generated still parses', () {
+      // Links built by earlier builds are pasted in messages and on websites
+      // and cannot be rewritten. The form changed; what it names did not.
+      final old = ChannelService.parseInviteLink('https://privio.channel/c/abc123')!;
+      expect(old.code, 'abc123');
+      expect(old.kind, InviteKind.channel);
     });
 
     test('the path decides the kind, not the host', () {
