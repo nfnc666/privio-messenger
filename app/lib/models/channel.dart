@@ -56,6 +56,7 @@ class ChannelInfo {
     this.keyEpoch = 1,
     this.hasCurrentKey = true,
     this.reactionEmojis = defaultReactionEmojis,
+    this.commentsEnabled = false,
   });
 
   /// What a channel offers until an admin changes it. Mirrors the server's
@@ -87,6 +88,12 @@ class ChannelInfo {
   /// The emojis this channel offers under a post. Set by an admin; the server
   /// refuses a reaction that is not one of them.
   final List<String> reactionEmojis;
+
+  /// Whether posts have threads under them.
+  ///
+  /// Off unless the owner turned it on. A channel is a broadcast; threads
+  /// change what the thing is, so it is a decision rather than a default.
+  final bool commentsEnabled;
 
   /// Whether this device holds any version of the key.
   final bool hasKey;
@@ -140,6 +147,7 @@ class ChannelInfo {
         inviteCode: inviteCode,
         restrictSaving: restrictSaving,
         reactionEmojis: reactionEmojis,
+        commentsEnabled: commentsEnabled,
         hasKey: hasKey ?? this.hasKey,
       );
 }
@@ -231,6 +239,7 @@ class ChannelPost {
     this.myReactions = const {},
     this.editedAt,
     this.publishAt,
+    this.commentCount = 0,
   });
 
   final int id;
@@ -262,6 +271,10 @@ class ChannelPost {
   /// an ordinary feed.
   final DateTime? publishAt;
 
+  /// How many comments hang under it, so the feed can say so without
+  /// fetching a thread for every post it scrolls past.
+  final int commentCount;
+
   bool get isEdited => editedAt != null;
   bool get isScheduled => publishAt != null;
 
@@ -290,6 +303,7 @@ class ChannelPost {
         myReactions: mine,
         editedAt: editedAt,
         publishAt: publishAt,
+        commentCount: commentCount,
       );
 
   /// Which version of the channel key sealed this post.
@@ -299,6 +313,52 @@ class ChannelPost {
   /// simply still waiting for, and telling somebody to keep waiting for a key
   /// that is never coming is worse than saying so.
   final int keyEpoch;
+}
+
+/// One comment under a post, after it has been opened.
+///
+/// Sealed with the same channel key as the post it hangs under, so a device
+/// that cannot read the post cannot read the thread either — and a padlock in a
+/// thread means the same thing it means in the feed.
+@immutable
+class ChannelComment {
+  const ChannelComment({
+    required this.id,
+    required this.body,
+    required this.createdAt,
+    this.authorUsername,
+    this.authorAccountId,
+    this.opened = true,
+  });
+
+  final int id;
+  final String body;
+  final DateTime createdAt;
+  final String? authorUsername;
+
+  /// Needed to silence somebody from the thread they are speaking in, which is
+  /// where an admin actually notices they should be.
+  final String? authorAccountId;
+
+  /// False when this device has no key for it. Shown as a padlock rather than
+  /// hidden, so a gap in a conversation looks like a gap.
+  final bool opened;
+}
+
+/// Someone an admin has stopped speaking in a channel.
+@immutable
+class ChannelBan {
+  const ChannelBan({required this.accountId, required this.username, required this.since});
+
+  factory ChannelBan.fromJson(Map<String, dynamic> json) => ChannelBan(
+        accountId: json['accountId'] as String? ?? '',
+        username: json['username'] as String? ?? 'Deleted account',
+        since: DateTime.tryParse(json['since'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      );
+
+  final String accountId;
+  final String username;
+  final DateTime since;
 }
 
 /// Someone in a channel, with what they may do in it.

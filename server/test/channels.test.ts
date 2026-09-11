@@ -470,6 +470,283 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('comments and silencing', () => {
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    const enableComments = (channelId: string, on = true) =>
+      h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channelId}`,
+        headers: bearer(owner),
+        payload: { commentsEnabled: on },
+      });
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const comment = (user: TestUser, channelId: string, postId: number, text: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/posts/${postId}/comments`,
+        headers: bearer(user),
+        payload: { content: sealed(text) },
+      });
+
+    const thread = (user: TestUser, channelId: string, postId: number) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts/${postId}/comments`,
+        headers: bearer(user),
+      });
+
+    const silence = (user: TestUser, channelId: string, who: string) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/bans/${who}`,
+        headers: bearer(user),
+      });
+
+    /** A channel with comments on, a post in it, and [reader] subscribed. */
+    async function threaded(handle: string) {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle,
+        title: handle,
+      })).json();
+      await enableComments(channel.id);
+      const published = (await post(owner, channel.id, 'worueber geredet wird')).json();
+      await join(reader, channel.id);
+      return { channel, published };
+    }
+
+    it('are off until the owner turns them on', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'stumm',
+        title: 'Stumm',
+      })).json();
+      assert.equal(channel.commentsEnabled, false, 'a channel is a broadcast by default');
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      const refused = await comment(reader, channel.id, published.id, 'darf ich?');
+      assert.equal(refused.statusCode, 409);
+      assert.equal(refused.json().error, 'comments_disabled');
+
+      assert.equal((await enableComments(channel.id)).json().commentsEnabled, true);
+      assert.equal((await comment(reader, channel.id, published.id, 'jetzt')).statusCode, 201);
+    });
+
+    it('a subscriber who cannot publish can comment, and the thread reads forwards', async () => {
+      const { channel, published } = await threaded('unterhaltung');
+
+      await comment(reader, channel.id, published.id, 'erstens');
+      await comment(owner, channel.id, published.id, 'zweitens');
+      await comment(reader, channel.id, published.id, 'drittens');
+
+      const shown = (await thread(reader, channel.id, published.id)).json().comments;
+      assert.deepEqual(
+        shown.map((c: { content: string }) => Buffer.from(c.content, 'base64').toString()),
+        ['erstens', 'zweitens', 'drittens'],
+        'a conversation reads forwards, unlike a feed',
+      );
+      assert.deepEqual(
+        shown.map((c: { authorUsername: string }) => c.authorUsername),
+        ['reader', 'owner', 'reader'],
+      );
+    });
+
+    it('the feed says how many without fetching any of them', async () => {
+      const { channel, published } = await threaded('wieviele');
+      await comment(reader, channel.id, published.id, 'eins');
+      await comment(reader, channel.id, published.id, 'zwei');
+
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.json().posts[0].commentCount, 2);
+    });
+
+    it('an author can remove their own, and an admin anyone’s', async () => {
+      const { channel, published } = await threaded('kommentarentfernen');
+      const mine = (await comment(reader, channel.id, published.id, 'meins')).json();
+      const theirs = (await comment(owner, channel.id, published.id, 'ihrs')).json();
+
+      const removeTheirs = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${theirs.id}`,
+        headers: bearer(reader),
+      });
+      assert.equal(removeTheirs.statusCode, 403, 'a subscriber does not moderate');
+
+      assert.equal(
+        (await h.app.inject({
+          method: 'DELETE',
+          url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${mine.id}`,
+          headers: bearer(reader),
+        })).statusCode,
+        200,
+        'but they can take back their own',
+      );
+      assert.equal(
+        (await h.app.inject({
+          method: 'DELETE',
+          url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${theirs.id}`,
+          headers: bearer(owner),
+        })).statusCode,
+        200,
+      );
+
+      assert.deepEqual((await thread(reader, channel.id, published.id)).json().comments, []);
+
+      // Overwritten, not tombstoned: a removed comment must not sit on disk
+      // waiting for a key to turn up.
+      const { rows } = await pool.query(
+        'SELECT content FROM channel_post_comments WHERE id = $1',
+        [mine.id],
+      );
+      assert.equal(rows[0].content.length, 0);
+    });
+
+    it('silencing stops the comments and the reactions, and leaves the reading', async () => {
+      const { channel, published } = await threaded('schweigen');
+      await comment(reader, channel.id, published.id, 'noch erlaubt');
+
+      const silenced = await silence(owner, channel.id, reader.accountId);
+      assert.equal(silenced.statusCode, 200);
+
+      const refused = await comment(reader, channel.id, published.id, 'nicht mehr');
+      assert.equal(refused.statusCode, 403);
+      assert.equal(refused.json().error, 'banned');
+
+      // A reaction is a way of speaking too.
+      const stamped = await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/reactions`,
+        headers: bearer(reader),
+        payload: { emoji: '👍' },
+      });
+      assert.equal(stamped.statusCode, 403);
+
+      // But they are still a member and can still read. Silencing is not
+      // removal — removal rotates the key and cuts them off from everything.
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 200);
+      assert.equal(feed.json().posts.length, 1);
+      assert.equal((await thread(reader, channel.id, published.id)).statusCode, 200);
+    });
+
+    it('and can be undone', async () => {
+      const { channel, published } = await threaded('wiederreden');
+      await silence(owner, channel.id, reader.accountId);
+
+      const lifted = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/bans/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(lifted.statusCode, 200);
+      assert.equal((await comment(reader, channel.id, published.id, 'wieder da')).statusCode, 201);
+    });
+
+    it('the owner cannot be silenced, and a subscriber cannot silence anybody', async () => {
+      const { channel } = await threaded('nichtdenchef');
+
+      assert.equal((await silence(reader, channel.id, owner.accountId)).statusCode, 403);
+
+      // Even by themselves, through the right permission: there would be no
+      // way back.
+      const ownerBan = await silence(owner, channel.id, owner.accountId);
+      assert.equal(ownerBan.statusCode, 403);
+      assert.equal(ownerBan.json().error, 'cannot_ban_owner');
+    });
+
+    it('the ban list is a moderation record, not a roster', async () => {
+      const { channel } = await threaded('sperrliste');
+      await silence(owner, channel.id, reader.accountId);
+
+      const asSubscriber = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/bans`,
+        headers: bearer(reader),
+      });
+      assert.equal(asSubscriber.statusCode, 403, 'it would name who else reads the channel');
+
+      const asOwner = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/bans`,
+        headers: bearer(owner),
+      });
+      assert.equal(asOwner.json().banned.length, 1);
+      assert.equal(asOwner.json().banned[0].username, 'reader');
+    });
+
+    it('a comment under a superseded key is refused, like a post is', async () => {
+      const { channel, published } = await threaded('alterschluesselkommentar');
+      await pool.query('UPDATE channels SET key_epoch = 2 WHERE id = $1', [channel.id]);
+
+      const stale = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments`,
+        headers: bearer(reader),
+        payload: { content: sealed('unter epoche eins'), keyEpoch: 1 },
+      });
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'stale_key_epoch');
+    });
+
+    it('a scheduled post has no thread to find', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nochnichtda',
+        title: 'Noch nicht da',
+      })).json();
+      await enableComments(channel.id);
+      await join(reader, channel.id);
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: sealed('spaeter'),
+          publishAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+      })).json();
+
+      // Commenting on it would be a way for a subscriber to learn it exists.
+      const early = await comment(reader, channel.id, queued.id, 'ich sehe was');
+      assert.equal(early.statusCode, 404);
+    });
+
+    it('deleting a post takes its thread with it', async () => {
+      const { channel, published } = await threaded('mitsamtthread');
+      await comment(reader, channel.id, published.id, 'etwas');
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_comments WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0, 'a thread must not outlive the post it hangs under');
+    });
+  });
+
   describe('editing and scheduling', () => {
     const feed = (user: TestUser, channelId: string, scheduled = false) =>
       h.app.inject({

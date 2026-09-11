@@ -10,6 +10,7 @@ import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
+import 'channel_thread_screen.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -341,6 +342,35 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (mounted) await _load();
   }
 
+  /// Turns threads under posts on or off for the whole channel.
+  ///
+  /// Turning them off hides the threads rather than deleting them — somebody
+  /// who changes their mind twice should not have destroyed a conversation in
+  /// between.
+  Future<void> _toggleComments() async {
+    final controller = PrivioScope.of(context).channels;
+    final turningOn = !_channel.commentsEnabled;
+    final ok = await controller.setCommentsEnabled(_channel.id, enabled: turningOn);
+    if (!mounted) return;
+    final fresh = controller.channelById(_channel.id);
+    if (fresh != null) setState(() => _channel = fresh);
+    _say(
+      !ok
+          ? controller.error ?? 'Could not change that.'
+          : turningOn
+              ? 'Readers can comment on posts now.'
+              : 'Comments are off. Existing threads are hidden, not deleted.',
+    );
+  }
+
+  void _openThread(ChannelPost post) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChannelThreadScreen(channel: _channel, post: post),
+      ),
+    );
+  }
+
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -403,6 +433,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         _share();
       case 'reactions':
         _editReactions();
+      case 'comments':
+        _toggleComments();
       case 'scheduled':
         _openScheduled();
       case 'members':
@@ -460,6 +492,13 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                       const PopupMenuItem(value: 'scheduled', child: Text('Scheduled')),
                     if (channel.permissions.canEditChannel)
                       const PopupMenuItem(value: 'reactions', child: Text('Reactions')),
+                    if (channel.permissions.canEditChannel)
+                      PopupMenuItem(
+                        value: 'comments',
+                        child: Text(
+                          channel.commentsEnabled ? 'Turn comments off' : 'Turn comments on',
+                        ),
+                      ),
                     const PopupMenuItem(value: 'members', child: Text('Members')),
                     if (channel.role != 'owner')
                       const PopupMenuItem(value: 'leave', child: Text('Leave channel')),
@@ -535,6 +574,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                             mine: post.authorUsername != null &&
                                 post.authorUsername == state.username,
                             onEdit: () => _edit(post),
+                            onOpenThread: () => _openThread(post),
                             onReact: (emoji, {required bool on}) =>
                                 controller.react(channel.id, post.id, emoji, on: on),
                             onPin: () => controller.pin(
@@ -673,6 +713,7 @@ class _PostCard extends StatelessWidget {
     required this.onDelete,
     required this.onReact,
     required this.onEdit,
+    required this.onOpenThread,
     required this.mine,
   });
 
@@ -684,6 +725,9 @@ class _PostCard extends StatelessWidget {
   /// Rewrites it. Offered only on this account's own posts, because that is
   /// the only case the server will accept.
   final VoidCallback onEdit;
+
+  /// Opens the thread under it. Only reachable where the channel has threads.
+  final VoidCallback onOpenThread;
 
   /// Whether this account wrote it.
   final bool mine;
@@ -771,6 +815,37 @@ class _PostCard extends StatelessWidget {
             if (channel.isMember) ...[
               const SizedBox(height: PrivioSpacing.sm),
               _ReactionBar(post: post, channel: channel, onReact: onReact),
+            ],
+            if (channel.isMember && channel.commentsEnabled) ...[
+              const SizedBox(height: PrivioSpacing.xs),
+              InkWell(
+                onTap: onOpenThread,
+                borderRadius: const BorderRadius.all(PrivioRadius.pill),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: PrivioSpacing.sm,
+                    vertical: PrivioSpacing.xs,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.mode_comment_outlined,
+                        size: 15,
+                        color: PrivioColors.textSecondary,
+                      ),
+                      const SizedBox(width: PrivioSpacing.xs),
+                      Text(
+                        post.commentCount == 0
+                            ? 'Comment'
+                            : '${post.commentCount} '
+                                'comment${post.commentCount == 1 ? '' : 's'}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ] else
             Row(

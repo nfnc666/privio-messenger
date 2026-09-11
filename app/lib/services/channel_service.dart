@@ -843,6 +843,90 @@ class ChannelService {
   /// Unsealed on purpose and the only part of a channel that is: a count has to
   /// be counted somewhere. What the server learns by it is written down in
   /// migration 017 and in the security model, rather than glossed over here.
+  /// The thread under a post, opened with the channel key of each comment's
+  /// own epoch.
+  ///
+  /// A comment that will not open comes back as a padlock rather than being
+  /// dropped: a gap in a conversation should look like a gap.
+  Future<List<ChannelComment>> comments(String channelId, int postId) async {
+    final response = await _api.channelComments(channelId, postId);
+    final comments = <ChannelComment>[];
+    // One key read per epoch, not one per comment: a thread spans one or two
+    // key versions, not fifty.
+    final keys = <int, Uint8List?>{};
+
+    for (final raw in response['comments'] as List<dynamic>? ?? const []) {
+      final entry = raw as Map<String, dynamic>;
+      final epoch = (entry['keyEpoch'] as num?)?.toInt() ?? 1;
+      final key = keys.putIfAbsent(epoch, () => null) ?? await keyFor(channelId, epoch);
+      keys[epoch] = key;
+      final opened = key == null ? null : await _openSealed(entry['content'] as String, key);
+      comments.add(
+        ChannelComment(
+          id: entry['id'] as int,
+          // The envelope is the post's, so a comment goes through the same
+          // unwrapping — it carries no attachment, and the fallback is the
+          // plain text a client from before the envelope existed would send.
+          body: opened == null ? '' : _unwrap(opened).$1,
+          opened: opened != null,
+          authorUsername: entry['authorUsername'] as String?,
+          authorAccountId: entry['authorAccountId'] as String?,
+          createdAt: DateTime.tryParse(entry['createdAt'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+        ),
+      );
+    }
+    return comments;
+  }
+
+  /// Adds a comment, sealed under whatever key is current.
+  ///
+  /// Same rule as a post: read the epoch now rather than trusting the one this
+  /// screen was opened with, because a comment composed before somebody was
+  /// removed must not be readable by them.
+  Future<void> comment(String channelId, int postId, String body) async {
+    final state = await currentEpoch(channelId);
+    final key = await keyFor(channelId, state.epoch);
+    if (key == null) {
+      throw ChannelKeyPending(
+        channelId: channelId,
+        epoch: state.epoch,
+        awaitingGeneration: state.keyId == null,
+      );
+    }
+    await _api.postComment(
+      channelId: channelId,
+      postId: postId,
+      content: base64Encode(await _seal(body, key)),
+      keyEpoch: state.epoch,
+    );
+  }
+
+  Future<void> deleteComment(String channelId, int postId, int commentId) =>
+      _api.deleteComment(channelId, postId, commentId);
+
+  /// Turns threads under posts on or off. Admins only; the server checks.
+  Future<void> setCommentsEnabled(String channelId, {required bool enabled}) async =>
+      _api.updateChannel(channelId, commentsEnabled: enabled);
+
+  /// Stops somebody speaking in a channel, or lets them speak again.
+  Future<void> setBanned(
+    String channelId,
+    String accountId, {
+    required bool banned,
+  }) =>
+      banned
+          ? _api.banFromChannel(channelId, accountId)
+          : _api.unbanFromChannel(channelId, accountId);
+
+  Future<List<ChannelBan>> bans(String channelId) async {
+    final response = await _api.channelBans(channelId);
+    return [
+      for (final raw in response['banned'] as List<dynamic>? ?? const [])
+        ChannelBan.fromJson(raw as Map<String, dynamic>),
+    ];
+  }
+
   /// Sets the emojis a channel offers under a post. Admins only, and the
   /// server checks that rather than trusting the screen that hid the button.
   Future<void> setReactionEmojis(String channelId, List<String> emojis) async =>
@@ -898,6 +982,7 @@ class ChannelService {
           pinned: entry['pinned'] as bool? ?? false,
           reactions: readReactions(entry['reactions']),
           myReactions: readMyReactions(entry['myReactions']),
+          commentCount: (entry['commentCount'] as num?)?.toInt() ?? 0,
           editedAt: DateTime.tryParse(entry['editedAt'] as String? ?? '')?.toLocal(),
           publishAt: DateTime.tryParse(entry['publishAt'] as String? ?? '')?.toLocal(),
         ),
@@ -1077,6 +1162,7 @@ class ChannelService {
                 ?.whereType<String>()
                 .toList() ??
             ChannelInfo.defaultReactionEmojis,
+        commentsEnabled: raw['commentsEnabled'] as bool? ?? false,
         hasKey: hasKey,
         keyEpoch: keyEpoch,
         hasCurrentKey: hasCurrentKey ?? hasKey,

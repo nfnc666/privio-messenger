@@ -46,7 +46,9 @@ decides that, never the client.
 | `DELETE /v1/channels/:id/members/:accountId` | |
 | `DELETE /v1/channels/:id/members/me` | |
 | `DELETE /v1/channels/:id/posts/:postId` | |
+| `DELETE /v1/channels/:id/bans/:accountId` | lets them speak again |
 | `DELETE /v1/channels/:id/posts/:postId/reactions` | `?emoji=` — removes only the caller's own |
+| `DELETE /v1/channels/:id/posts/:postId/comments/:commentId` | the author, or `canDeletePosts` |
 | `DELETE /v1/channels/:id` | |
 | `DELETE /v1/contacts/:id` | |
 | `DELETE /v1/devices/:id` | |
@@ -65,7 +67,9 @@ decides that, never the client.
 | `GET /v1/channels/:id/key-epochs/current` | |
 | `GET /v1/channels/:id/key-requests` | |
 | `GET /v1/channels/:id/members` | |
-| `GET /v1/channels/:id/posts` | |
+| `GET /v1/channels/:id/posts` | `?scheduled=true` for the author's own queue |
+| `GET /v1/channels/:id/posts/:postId/comments` | members only |
+| `GET /v1/channels/:id/bans` | admins only — as a list it would name the audience |
 | `GET /v1/channels/:id` | |
 | `GET /v1/channels/discover` | |
 | `GET /v1/channels/invite/:code` | |
@@ -87,7 +91,8 @@ decides that, never the client.
 | `GET /v1/users/id/:accountId` | |
 | `GET /v1/ws` | |
 | `PATCH /v1/accounts/me` | |
-| `PATCH /v1/channels/:id` | |
+| `PATCH /v1/channels/:id` | also `{reactionEmojis, commentsEnabled}`; needs `canEditChannel` |
+| `PATCH /v1/channels/:id/posts/:postId` | the author only — an admin may delete, not rewrite |
 | `PATCH /v1/groups/:id` | |
 | `POST /v1/accounts/me/totp/setup` | |
 | `POST /v1/accounts` | |
@@ -103,7 +108,8 @@ decides that, never the client.
 | `POST /v1/channels/:id/join` | |
 | `POST /v1/channels/:id/key-epochs` | |
 | `POST /v1/channels/:id/key-requests` | |
-| `POST /v1/channels/:id/posts` | |
+| `POST /v1/channels/:id/posts` | `{publishAt}` schedules it; a past time is now |
+| `POST /v1/channels/:id/posts/:postId/comments` | needs the channel to have comments on |
 | `POST /v1/channels` | |
 | `POST /v1/contacts` | |
 | `POST /v1/groups/:id/join` | |
@@ -123,6 +129,7 @@ decides that, never the client.
 | `PUT /v1/channels/:id/members/:accountId/role` | |
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
 | `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
+| `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |
 | `PUT /v1/devices/current/push` | |
 | `PUT /v1/groups/:id/members/:accountId/role` | |
 | `PUT /v1/keys/signed-prekey` | |

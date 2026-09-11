@@ -24,9 +24,33 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => PrivioScope.of(context).channels.loadMembers(widget.channel.id),
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = PrivioScope.of(context).channels;
+      controller.loadMembers(widget.channel.id);
+      // Who has been silenced, so a ban set from a thread has somewhere to be
+      // undone. The server refuses this to anyone who cannot manage members.
+      if (widget.channel.permissions.canManageMembers) {
+        controller.loadBans(widget.channel.id);
+      }
+    });
+  }
+
+  /// Lets somebody speak again.
+  Future<void> _unsilence(ChannelBan ban) async {
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.setBanned(
+      widget.channel.id,
+      ban.accountId,
+      banned: false,
     );
+    if (!mounted) return;
+    if (ok) {
+      await controller.loadBans(widget.channel.id);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.error ?? 'Could not lift that.')),
+      );
+    }
   }
 
   Future<void> _edit(ChannelMember member) async {
@@ -66,6 +90,10 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
       builder: (context, _) {
         final members = controller.membersOf(widget.channel.id);
         final complete = controller.membersAreComplete(widget.channel.id);
+        final silenced = canManage ? controller.bansIn(widget.channel.id) : const <ChannelBan>[];
+        // Members, then the silenced, then the note. Flattened into one list
+        // so the whole screen scrolls as one thing.
+        final extras = silenced.isEmpty ? 0 : silenced.length + 1;
 
         return Scaffold(
           appBar: AppBar(
@@ -75,9 +103,33 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
           body: ListView.builder(
             // The note is a row of its own so it scrolls with the list rather
             // than sitting above it as a banner nobody reads twice.
-            itemCount: members.length + (complete ? 0 : 1),
+            itemCount: members.length + extras + (complete ? 0 : 1),
             itemBuilder: (context, index) {
-              if (!complete && index == members.length) return const _AudienceNote();
+              if (index >= members.length && index < members.length + extras) {
+                final offset = index - members.length;
+                if (offset == 0) return const _SilencedHeading();
+                final ban = silenced[offset - 1];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: PrivioSpacing.gutter,
+                    vertical: PrivioSpacing.xs,
+                  ),
+                  leading: const Icon(
+                    Icons.volume_off_rounded,
+                    color: PrivioColors.textTertiary,
+                  ),
+                  title: Text(ban.username),
+                  subtitle: Text(
+                    'Can read, cannot post or react',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: TextButton(
+                    onPressed: () => _unsilence(ban),
+                    child: const Text('Allow again'),
+                  ),
+                );
+              }
+              if (!complete && index == members.length + extras) return const _AudienceNote();
               final member = members[index];
               final editable = canManage && !member.isOwner && member.id != state.accountId;
 
@@ -317,6 +369,25 @@ class _Toggle extends StatelessWidget {
 /// Saying nothing would be the worse choice: a short list of admins looks like
 /// a small channel, and a reader deciding whether to post something personal
 /// deserves to know the roster is not on offer to the person beside them either.
+/// Marks the silenced off from the roster above them.
+class _SilencedHeading extends StatelessWidget {
+  const _SilencedHeading();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          PrivioSpacing.gutter,
+          PrivioSpacing.lg,
+          PrivioSpacing.gutter,
+          PrivioSpacing.xs,
+        ),
+        child: Text(
+          'Stopped from posting',
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+      );
+}
+
 class _AudienceNote extends StatelessWidget {
   const _AudienceNote();
 
