@@ -79,6 +79,65 @@ class ChannelInviteSettings {
   bool get isSpent => hasExpired || isUsedUp;
 }
 
+/// What a channel adds up to, for whoever runs it.
+///
+/// Every number here is counted from rows that exist for their own reasons.
+/// **There is no view count**, and that is a decision rather than a gap:
+/// counting who has read a post, deduplicated, means a row per reader per
+/// post — a record of what each person read, made by people who are only
+/// reading. The screen says so.
+@immutable
+class ChannelStats {
+  const ChannelStats({
+    this.members = 0,
+    this.posts = 0,
+    this.scheduled = 0,
+    this.reactions = 0,
+    this.comments = 0,
+    this.pollVoters = 0,
+    this.silenced = 0,
+    this.waiting = 0,
+  });
+
+  factory ChannelStats.fromJson(Map<String, dynamic> json) => ChannelStats(
+        members: (json['members'] as num?)?.toInt() ?? 0,
+        posts: (json['posts'] as num?)?.toInt() ?? 0,
+        scheduled: (json['scheduled'] as num?)?.toInt() ?? 0,
+        reactions: (json['reactions'] as num?)?.toInt() ?? 0,
+        comments: (json['comments'] as num?)?.toInt() ?? 0,
+        pollVoters: (json['pollVoters'] as num?)?.toInt() ?? 0,
+        silenced: (json['silenced'] as num?)?.toInt() ?? 0,
+        waiting: (json['waiting'] as num?)?.toInt() ?? 0,
+      );
+
+  final int members;
+  final int posts;
+  final int scheduled;
+  final int reactions;
+  final int comments;
+  final int pollVoters;
+  final int silenced;
+  final int waiting;
+}
+
+/// Why somebody reported a channel.
+///
+/// A fixed set, never free text: a text box is where somebody pastes the
+/// content they are reporting, which would put the very thing the encryption
+/// protects into a column the server can read.
+enum ChannelReportReason {
+  spam('spam', 'Spam'),
+  abuse('abuse', 'Abuse or harassment'),
+  illegal('illegal', 'Illegal content'),
+  impersonation('impersonation', 'Pretending to be someone else'),
+  other('other', 'Something else');
+
+  const ChannelReportReason(this.wire, this.label);
+
+  final String wire;
+  final String label;
+}
+
 /// Somebody waiting at the door of a channel that asks first.
 @immutable
 class ChannelJoinRequest {

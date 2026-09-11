@@ -556,6 +556,31 @@ class PrivioApiClient {
   Future<void> deleteComment(String channelId, int postId, int commentId) async =>
       _send('DELETE', '/v1/channels/$channelId/posts/$postId/comments/$commentId');
 
+  // --- Ownership, reporting and numbers --------------------------------------
+
+  /// Hands the channel to another member.
+  ///
+  /// The password, not the session: every other admin action here can be
+  /// undone by the owner, and this one cannot.
+  Future<void> transferChannel({
+    required String channelId,
+    required String toAccountId,
+    required String currentPassword,
+  }) async =>
+      _send('POST', '/v1/channels/$channelId/owner', body: {
+        'accountId': toAccountId,
+        'currentPassword': currentPassword,
+      },);
+
+  /// Reports a channel. The reason is one of a fixed set — see the screen for
+  /// why there is no free-text field.
+  Future<void> reportChannel(String channelId, String reason) async =>
+      _send('POST', '/v1/channels/$channelId/report', body: {'reason': reason});
+
+  /// What the channel adds up to, for whoever runs it.
+  Future<Map<String, dynamic>> channelStats(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/stats');
+
   // --- Invite links ---------------------------------------------------------
 
   /// What the link is allowed to do. Absent fields are left alone; an explicit

@@ -470,6 +470,216 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('handing a channel on, reporting it, and what it adds up to', () => {
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const handOver = (
+      user: TestUser,
+      channelId: string,
+      to: string,
+      currentPassword: string,
+    ) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/owner`,
+        headers: bearer(user),
+        payload: { accountId: to, currentPassword },
+      });
+
+    it('the password is what hands a channel on, not the unlocked phone', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'uebergabe',
+        title: 'Uebergabe',
+      })).json();
+      await join(reader, channel.id);
+
+      // Every other admin action trusts the session. This one cannot: the
+      // owner cannot undo it afterwards.
+      const withoutPassword = await handOver(owner, channel.id, reader.accountId, 'falsch');
+      assert.equal(withoutPassword.statusCode, 401);
+      assert.equal(withoutPassword.json().error, 'invalid_credentials');
+
+      const done = await handOver(owner, channel.id, reader.accountId, owner.password);
+      assert.equal(done.statusCode, 200);
+    });
+
+    it('and the old owner stays on as an admin rather than being thrown out', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'bleibtda',
+        title: 'Bleibt da',
+      })).json();
+      await join(reader, channel.id);
+      await handOver(owner, channel.id, reader.accountId, owner.password);
+
+      const { rows } = await pool.query(
+        `SELECT account_id, role, can_delete_channel, can_manage_members
+         FROM channel_members WHERE channel_id = $1 ORDER BY role`,
+        [channel.id],
+      );
+      const byAccount = Object.fromEntries(rows.map((r) => [r.account_id, r]));
+
+      assert.equal(byAccount[reader.accountId].role, 'owner');
+      assert.equal(byAccount[reader.accountId].can_delete_channel, true);
+
+      // A handover is not an ejection. Whoever takes over can remove them
+      // afterwards if that is what was meant.
+      assert.equal(byAccount[owner.accountId].role, 'admin');
+      assert.equal(byAccount[owner.accountId].can_manage_members, true);
+      assert.equal(
+        byAccount[owner.accountId].can_delete_channel,
+        false,
+        'the one thing that is now somebody else\'s',
+      );
+    });
+
+    it('only to a member, and only by the owner', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nurmitglieder',
+        title: 'Nur Mitglieder',
+      })).json();
+      await join(reader, channel.id);
+
+      // Handing it to somebody who is not in it would put a stranger in charge
+      // of a key they do not hold.
+      const toAStranger = await handOver(owner, channel.id, stranger.accountId, owner.password);
+      assert.equal(toAStranger.statusCode, 404);
+
+      const byAReader = await handOver(reader, channel.id, reader.accountId, reader.password);
+      assert.equal(byAReader.statusCode, 400, 'and not to yourself');
+
+      const byAnAdmin = await handOver(reader, channel.id, owner.accountId, reader.password);
+      assert.equal(byAnAdmin.statusCode, 403);
+      assert.equal(byAnAdmin.json().error, 'not_the_owner');
+    });
+
+    it('the handover leaves a record of who gave it away', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'aktenzeichen',
+        title: 'Aktenzeichen',
+      })).json();
+      await join(reader, channel.id);
+      await handOver(owner, channel.id, reader.accountId, owner.password);
+
+      const { rows } = await pool.query(
+        `SELECT from_account_id, to_account_id FROM channel_ownership_transfers
+         WHERE channel_id = $1`,
+        [channel.id],
+      );
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from_account_id, owner.accountId);
+      assert.equal(rows[0].to_account_id, reader.accountId);
+    });
+
+    it('a report is one per person, and its reason is a fixed set', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'gemeldet',
+        title: 'Gemeldet',
+      })).json();
+
+      const report = (reason: string) =>
+        h.app.inject({
+          method: 'POST',
+          url: `/v1/channels/${channel.id}/report`,
+          headers: bearer(reader),
+          payload: { reason },
+        });
+
+      assert.equal((await report('spam')).statusCode, 200);
+      assert.equal((await report('abuse')).statusCode, 200);
+
+      const { rows } = await pool.query(
+        'SELECT reason FROM channel_reports WHERE channel_id = $1',
+        [channel.id],
+      );
+      assert.equal(rows.length, 1, 'reporting twice is not twice as true');
+      assert.equal(rows[0].reason, 'abuse', 'the later reason stands');
+
+      // Free text would be a place to paste the content being reported, which
+      // would put it into a readable column written by somebody with every
+      // reason to.
+      const pasted = await report('Hier ist der ganze Beitrag den ich melde');
+      assert.equal(pasted.statusCode, 400);
+    });
+
+    it('the numbers are counted from rows that exist anyway, and views are not among them', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zahlenwerk',
+        title: 'Zahlenwerk',
+      })).json();
+      await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { commentsEnabled: true },
+      });
+      await join(reader, channel.id);
+
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/reactions`,
+        headers: bearer(reader),
+        payload: { emoji: '👍' },
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments`,
+        headers: bearer(reader),
+        payload: { content: Buffer.from('dazu').toString('base64') },
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: Buffer.from('spaeter').toString('base64'),
+          publishAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+      });
+
+      const stats = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/stats`,
+        headers: bearer(owner),
+      });
+      assert.equal(stats.statusCode, 200);
+      assert.deepEqual(
+        {
+          members: stats.json().members,
+          posts: stats.json().posts,
+          scheduled: stats.json().scheduled,
+          reactions: stats.json().reactions,
+          comments: stats.json().comments,
+        },
+        { members: 2, posts: 1, scheduled: 1, reactions: 1, comments: 1 },
+      );
+
+      // Deliberately absent: counting who read a post, deduplicated, is a row
+      // per reader per post — a record of what each person read, made by people
+      // who are only reading.
+      assert.equal(stats.json().views, undefined);
+
+      const asSubscriber = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/stats`,
+        headers: bearer(reader),
+      });
+      assert.equal(asSubscriber.statusCode, 403, 'the numbers are for whoever runs it');
+    });
+  });
+
   describe('invite links', () => {
     const setInvite = (user: TestUser, channelId: string, payload: Record<string, unknown>) =>
       h.app.inject({

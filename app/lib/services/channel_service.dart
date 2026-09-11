@@ -917,6 +917,24 @@ class ChannelService {
   Future<void> deleteComment(String channelId, int postId, int commentId) =>
       _api.deleteComment(channelId, postId, commentId);
 
+  /// Hands the channel to another member. Needs the password, not the session.
+  Future<void> transfer({
+    required String channelId,
+    required String toAccountId,
+    required String currentPassword,
+  }) =>
+      _api.transferChannel(
+        channelId: channelId,
+        toAccountId: toAccountId,
+        currentPassword: currentPassword,
+      );
+
+  Future<void> report(String channelId, ChannelReportReason reason) =>
+      _api.reportChannel(channelId, reason.wire);
+
+  Future<ChannelStats> stats(String channelId) async =>
+      ChannelStats.fromJson(await _api.channelStats(channelId));
+
   /// Changes what the invite link is allowed to do.
   Future<void> setInviteSettings(
     String channelId, {

@@ -6,6 +6,7 @@ import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import { ApiError } from '../util/errors.js';
+import { verifySecret } from '../util/crypto.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
 import {
   clearKeyRequest,
@@ -1417,6 +1418,181 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       createdAt: (updated.created_at as Date).toISOString(),
       editedAt: (updated.edited_at as Date | null)?.toISOString() ?? null,
       publishAt: (updated.publish_at as Date | null)?.toISOString() ?? null,
+    };
+  });
+
+  /**
+   * Handing the channel to somebody else.
+   *
+   * **The password, not the session.** Every other admin action here trusts
+   * the signed-in device, and that is right for actions an owner can undo.
+   * This one they cannot: afterwards they are an admin in somebody else's
+   * channel, and the person who now owns it can remove them. A phone left
+   * unlocked on a table should not be able to give a channel away.
+   *
+   * The new owner has to be a member already. Handing a channel to somebody
+   * who is not in it would put a stranger in charge of a key they do not hold.
+   *
+   * The old owner stays as an admin with everything they had. They are not
+   * removed and not demoted to a reader: a handover is not an ejection, and
+   * whoever takes over can do either afterwards if that is what was meant.
+   */
+  app.post('/v1/channels/:id/owner', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        accountId: uuidSchema,
+        currentPassword: z.string().min(1),
+      }),
+      request.body,
+    );
+
+    if (body.accountId === accountId) {
+      throw ApiError.badRequest('already_the_owner', 'You already own this channel');
+    }
+
+    const { rows: accounts } = await pool.query<{ password_hash: string }>(
+      'SELECT password_hash FROM accounts WHERE id = $1 AND deleted_at IS NULL',
+      [accountId],
+    );
+    const hash = accounts[0]?.password_hash;
+    if (!hash || !(await verifySecret(hash, body.currentPassword))) {
+      throw ApiError.unauthorized('invalid_credentials', 'That password is not right');
+    }
+
+    await withTransaction(async (client) => {
+      // Same lock and same order as every other two-row change in this file.
+      await lockChannel(client, params.id, 'update');
+
+      const actor = await membership(params.id, accountId, client);
+      if (actor?.role !== 'owner') {
+        throw ApiError.forbidden('not_the_owner', 'Only the owner can hand a channel on');
+      }
+      const target = await membership(params.id, body.accountId, client);
+      if (!target) {
+        throw ApiError.notFound('member_not_found', 'They are not in this channel');
+      }
+
+      await client.query(
+        `UPDATE channel_members
+         SET role = 'owner', can_post = true, can_edit_channel = true,
+             can_delete_posts = true, can_manage_members = true, can_delete_channel = true
+         WHERE channel_id = $1 AND account_id = $2`,
+        [params.id, body.accountId],
+      );
+      // Everything they had, minus the one thing that is now somebody else's.
+      await client.query(
+        `UPDATE channel_members
+         SET role = 'admin', can_delete_channel = false
+         WHERE channel_id = $1 AND account_id = $2`,
+        [params.id, accountId],
+      );
+      await client.query(
+        'UPDATE channels SET owner_account_id = $2 WHERE id = $1',
+        [params.id, body.accountId],
+      );
+      // Who gave it away and when. A role column cannot answer that, and it is
+      // the first question an owner who loses a channel asks.
+      await client.query(
+        `INSERT INTO channel_ownership_transfers (channel_id, from_account_id, to_account_id)
+         VALUES ($1, $2, $3)`,
+        [params.id, accountId, body.accountId],
+      );
+    });
+
+    return { owner: body.accountId };
+  });
+
+  /**
+   * Reporting a channel.
+   *
+   * The reason is one of a fixed set, not free text — and that is the
+   * interesting decision. A free field is a place for somebody to paste the
+   * content they are reporting, which would put the very thing the encryption
+   * protects into a readable column, written by a person with every reason to.
+   *
+   * What a report can deliver is limited by the same design: the server cannot
+   * read the posts, so an operator gets the channel's id and the reason. For a
+   * public channel there is also the title, description and handle, which are
+   * plaintext for search. For a private one there is nothing to look at. The
+   * screen says so rather than implying an investigation that cannot happen.
+   */
+  app.post('/v1/channels/:id/report', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        reason: z.enum(['spam', 'abuse', 'illegal', 'impersonation', 'other']),
+      }),
+      request.body,
+    );
+
+    const { rowCount } = await pool.query(
+      'SELECT 1 FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    if (!rowCount) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    // One standing report per person per channel: reporting twice is not twice
+    // as true, and a counter somebody can run up is a way to brigade a channel.
+    await pool.query(
+      `INSERT INTO channel_reports (channel_id, account_id, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (channel_id, account_id) DO UPDATE SET reason = $3, reported_at = now()`,
+      [params.id, accountId, body.reason],
+    );
+    return { reported: true };
+  });
+
+  /**
+   * What a channel amounts to, for whoever runs it.
+   *
+   * Everything here is counted from rows that exist for their own reasons —
+   * members, posts, reactions, comments, votes. **There is no view count**, and
+   * that is a decision rather than an omission: counting who has read a post,
+   * deduplicated, means a row per reader per post, which is a record of what
+   * each person read. That is a larger disclosure than anything else in a
+   * channel and it would be made by people who are only reading. See
+   * docs/security-model.md.
+   */
+  app.get('/v1/channels/:id/stats', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT member_count FROM channels WHERE id = $1) AS members,
+         (SELECT count(*)::int FROM channel_posts
+           WHERE channel_id = $1 AND deleted_at IS NULL
+             AND (publish_at IS NULL OR publish_at <= now())) AS posts,
+         (SELECT count(*)::int FROM channel_posts
+           WHERE channel_id = $1 AND deleted_at IS NULL
+             AND publish_at > now()) AS scheduled,
+         (SELECT count(*)::int FROM channel_post_reactions r
+            JOIN channel_posts p ON p.id = r.post_id
+           WHERE p.channel_id = $1) AS reactions,
+         (SELECT count(*)::int FROM channel_post_comments c
+            JOIN channel_posts p ON p.id = c.post_id
+           WHERE p.channel_id = $1 AND c.deleted_at IS NULL) AS comments,
+         (SELECT count(DISTINCT v.account_id)::int FROM channel_poll_votes v
+            JOIN channel_posts p ON p.id = v.post_id
+           WHERE p.channel_id = $1) AS poll_voters,
+         (SELECT count(*)::int FROM channel_bans WHERE channel_id = $1) AS silenced,
+         (SELECT count(*)::int FROM channel_join_requests WHERE channel_id = $1) AS waiting`,
+      [params.id],
+    );
+    const row = rows[0] ?? {};
+    return {
+      members: row.members ?? 0,
+      posts: row.posts ?? 0,
+      scheduled: row.scheduled ?? 0,
+      reactions: row.reactions ?? 0,
+      comments: row.comments ?? 0,
+      pollVoters: row.poll_voters ?? 0,
+      silenced: row.silenced ?? 0,
+      waiting: row.waiting ?? 0,
     };
   });
 

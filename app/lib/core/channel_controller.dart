@@ -366,6 +366,36 @@ class ChannelController extends ChangeNotifier {
         _posts[channelId] = await _channels.posts(channelId);
       });
 
+  /// Hands the channel to another member.
+  ///
+  /// Reloads afterwards because everything on the screen changes: the caller is
+  /// an admin now, and the controls they had a moment ago are somebody else's.
+  Future<bool> transfer({
+    required String channelId,
+    required String toAccountId,
+    required String currentPassword,
+  }) =>
+      _run(() async {
+        await _channels.transfer(
+          channelId: channelId,
+          toAccountId: toAccountId,
+          currentPassword: currentPassword,
+        );
+        _mine = await _channels.mine();
+        _members.remove(channelId);
+      });
+
+  Future<bool> report(String channelId, ChannelReportReason reason) =>
+      _run(() async => _channels.report(channelId, reason));
+
+  final Map<String, ChannelStats> _stats = {};
+
+  ChannelStats? statsFor(String channelId) => _stats[channelId];
+
+  Future<bool> loadStats(String channelId) => _run(() async {
+        _stats[channelId] = await _channels.stats(channelId);
+      });
+
   /// Changes what the invite link is allowed to do, then re-reads the channel
   /// so the sheet shows what actually took.
   Future<bool> setInviteSettings(
