@@ -71,6 +71,13 @@ const READABLE: Record<string, string> = {
   'channel_post_reactions.emoji': 'one of the channel s offered emojis, counted by the server',
   'channels.reaction_emojis': 'the menu an admin offers, not anything a member wrote',
 
+  // A report's reason, and the reason it is one of five words rather than a
+  // text box. A free field is where somebody pastes the content they are
+  // reporting — which would put the very thing the encryption protects into a
+  // readable column, written by a person with every reason to. See
+  // migration 022.
+  'channel_reports.reason': 'one of five fixed words, never free text',
+
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
   'licenses.status': 'active or revoked',

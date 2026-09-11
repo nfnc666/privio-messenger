@@ -287,6 +287,42 @@ would be advertising something it would have to break encryption to deliver.
 Threads are off until a channel's owner turns them on, because a channel is a
 broadcast and threads change what the thing is.
 
+**Handing a channel on needs the password, not the session.** Every other
+admin action in a channel trusts the signed-in device, and that is right for
+things an owner can undo. A transfer is not one: afterwards they are an admin
+in somebody else's channel and the new owner can remove them. A phone left
+unlocked on a table should not be able to give a channel away. The new owner
+must already be a member — handing a channel to somebody outside it would put a
+stranger in charge of a key they do not hold — and the old owner stays on as an
+admin with everything except the right to delete the channel. A handover is not
+an ejection; whoever takes over can do that afterwards if that is what was
+meant. The transfer is recorded, because "who gave this away and when" is the
+first question an owner who loses a channel asks, and a role column cannot
+answer it.
+
+**A report's reason is five fixed words, never a text box.** A free field is
+where somebody pastes the content they are reporting — which would put the very
+thing the encryption protects into a column the server can read, written by a
+person with every reason to. What a report can deliver is limited by the same
+design: the server cannot read a channel's posts, so an operator gets the
+channel's id and the reason. For a public channel there is also its title,
+description and handle, which are plaintext for search; for a private one there
+is nothing to look at. The screen says exactly that rather than implying an
+investigation that cannot happen. One standing report per person per channel:
+reporting twice is not twice as true, and a counter people can run up is a way
+to brigade a channel.
+
+**There is no view count, and that is a decision.** A channel's statistics are
+counted from rows that exist for their own reasons — members, posts, reactions,
+comments, votes. Counting who has *read* a post, deduplicated, means a row per
+reader per post: a record of what each person read, produced by people who are
+only reading and have chosen nothing. That is a larger disclosure than anything
+else in a channel, and it is the one place where the obvious feature was left
+out rather than built and explained away. Approximating it without identities
+was considered — a per-post sketch or bitmap — and rejected: a fixed-size
+bitmap answers "was this account among the readers" far too well to be called
+anonymous.
+
 **An invite link can be revoked, and revoking is replacing.** A channel has one
 link, with three limits on it: an expiry, a number of joins, and whether it puts
 people in a queue instead of in the room. Revoking rotates the code — the new

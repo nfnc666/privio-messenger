@@ -444,6 +444,86 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     );
   }
 
+  Future<void> _openStats() async {
+    final controller = PrivioScope.of(context).channels;
+    await controller.loadStats(_channel.id);
+    if (!mounted) return;
+    final stats = controller.statsFor(_channel.id);
+    if (stats == null) {
+      _say(controller.error ?? 'Could not read the numbers.');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      isScrollControlled: true,
+      builder: (_) => _StatsSheet(stats: stats),
+    );
+  }
+
+  /// Hands the channel to another member.
+  ///
+  /// Two steps on purpose: who, then the password. The owner cannot undo this
+  /// afterwards — they will be an admin in somebody else's channel — so a
+  /// single tap is not enough, and neither is an unlocked phone.
+  Future<void> _transfer() async {
+    final controller = PrivioScope.of(context).channels;
+    await controller.loadMembers(_channel.id);
+    if (!mounted) return;
+
+    final candidates = [
+      for (final member in controller.membersOf(_channel.id))
+        if (!member.isOwner) member,
+    ];
+    if (candidates.isEmpty) {
+      _say('There is nobody else in this channel to hand it to.');
+      return;
+    }
+
+    final chosen = await showModalBottomSheet<ChannelMember>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      isScrollControlled: true,
+      builder: (_) => _PickNewOwnerSheet(members: candidates),
+    );
+    if (chosen == null || !mounted) return;
+
+    final password = await showDialog<String>(
+      context: context,
+      builder: (_) => _ConfirmTransferDialog(member: chosen),
+    );
+    if (password == null || password.isEmpty || !mounted) return;
+
+    final ok = await controller.transfer(
+      channelId: _channel.id,
+      toAccountId: chosen.id,
+      currentPassword: password,
+    );
+    if (!mounted) return;
+    final fresh = controller.channelById(_channel.id);
+    if (fresh != null) setState(() => _channel = fresh);
+    _say(
+      ok
+          ? '${chosen.label} owns this channel now. You are an admin in it.'
+          : controller.error ?? 'Could not hand the channel on.',
+    );
+  }
+
+  Future<void> _report() async {
+    final reason = await showModalBottomSheet<ChannelReportReason>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      isScrollControlled: true,
+      builder: (_) => _ReportSheet(channel: _channel),
+    );
+    if (reason == null || !mounted) return;
+
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.report(_channel.id, reason);
+    if (!mounted) return;
+    _say(ok ? 'Reported. Thank you.' : controller.error ?? 'Could not send that.');
+  }
+
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -512,6 +592,12 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         _openScheduled();
       case 'requests':
         _openJoinRequests();
+      case 'stats':
+        _openStats();
+      case 'transfer':
+        _transfer();
+      case 'report':
+        _report();
       case 'members':
         _openMembers();
       case 'leave':
@@ -580,6 +666,15 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                         ),
                       ),
                     const PopupMenuItem(value: 'members', child: Text('Members')),
+                    if (channel.permissions.canEditChannel)
+                      const PopupMenuItem(value: 'stats', child: Text('Statistics')),
+                    if (channel.role == 'owner')
+                      const PopupMenuItem(
+                        value: 'transfer',
+                        child: Text('Hand this channel on'),
+                      ),
+                    if (channel.isMember && channel.role != 'owner')
+                      const PopupMenuItem(value: 'report', child: Text('Report channel')),
                     if (channel.role != 'owner')
                       const PopupMenuItem(value: 'leave', child: Text('Leave channel')),
                     if (channel.permissions.canDeleteChannel)
@@ -2068,6 +2163,237 @@ class _ImageViewer extends StatelessWidget {
           minScale: 1,
           maxScale: 6,
           child: Image.memory(bytes),
+        ),
+      ),
+    );
+  }
+}
+
+/// What a channel adds up to.
+///
+/// No view count, and the sheet says why rather than leaving a gap somebody
+/// reads as an oversight.
+class _StatsSheet extends StatelessWidget {
+  const _StatsSheet({required this.stats});
+
+  final ChannelStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(PrivioSpacing.gutter),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Statistics', style: theme.textTheme.titleMedium),
+              const SizedBox(height: PrivioSpacing.md),
+              _StatRow(label: 'Subscribers', value: stats.members),
+              _StatRow(label: 'Posts', value: stats.posts),
+              if (stats.scheduled > 0) _StatRow(label: 'Waiting to publish', value: stats.scheduled),
+              _StatRow(label: 'Reactions', value: stats.reactions),
+              _StatRow(label: 'Comments', value: stats.comments),
+              if (stats.pollVoters > 0) _StatRow(label: 'People who voted', value: stats.pollVoters),
+              if (stats.silenced > 0) _StatRow(label: 'Stopped from posting', value: stats.silenced),
+              if (stats.waiting > 0) _StatRow(label: 'Waiting to join', value: stats.waiting),
+              const SizedBox(height: PrivioSpacing.lg),
+              Text(
+                'There is no view count, and that is a decision rather than a '
+                'gap. Counting who has read a post — without counting anybody '
+                'twice — means keeping a row for every reader of every post, '
+                'which is a record of what each person read. Everything above '
+                'is counted from something somebody chose to do.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: PrivioSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+          Text('$value', style: theme.textTheme.titleSmall),
+        ],
+      ),
+    );
+  }
+}
+
+/// Choosing who gets the channel.
+class _PickNewOwnerSheet extends StatelessWidget {
+  const _PickNewOwnerSheet({required this.members});
+
+  final List<ChannelMember> members;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(PrivioSpacing.gutter),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Hand this channel on', style: theme.textTheme.titleMedium),
+            const SizedBox(height: PrivioSpacing.xs),
+            Text(
+              'Only somebody already in the channel. Handing it to a stranger '
+              'would put them in charge of a key they do not hold.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: members.length,
+                itemBuilder: (context, index) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(members[index].label),
+                  subtitle: Text(
+                    members[index].isAdmin ? 'Admin' : 'Subscriber',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  onTap: () => Navigator.of(context).pop(members[index]),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The password step, and the sentence that explains why there is one.
+class _ConfirmTransferDialog extends StatefulWidget {
+  const _ConfirmTransferDialog({required this.member});
+
+  final ChannelMember member;
+
+  @override
+  State<_ConfirmTransferDialog> createState() => _ConfirmTransferDialogState();
+}
+
+class _ConfirmTransferDialogState extends State<_ConfirmTransferDialog> {
+  final TextEditingController _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      backgroundColor: PrivioColors.surfaceRaised,
+      title: Text('Give the channel to ${widget.member.label}?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'They will own it. You stay on as an admin with everything you '
+              'have now except the right to delete the channel — and they can '
+              'remove you afterwards.\n\n'
+              'You cannot undo this yourself. That is why it asks for your '
+              'password rather than trusting an unlocked phone.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            TextField(
+              controller: _password,
+              autofocus: true,
+              obscureText: true,
+              onSubmitted: (value) => Navigator.of(context).pop(value),
+              decoration: const InputDecoration(hintText: 'Your Privio password'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
+          onPressed: () => Navigator.of(context).pop(_password.text),
+          child: const Text('Hand it on'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Reporting a channel, and being straight about what a report can reach.
+class _ReportSheet extends StatelessWidget {
+  const _ReportSheet({required this.channel});
+
+  final ChannelInfo channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(PrivioSpacing.gutter),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Report this channel', style: theme.textTheme.titleMedium),
+              const SizedBox(height: PrivioSpacing.xs),
+              Text(
+                channel.isPublic
+                    ? 'The report carries this channel and the reason you pick. '
+                        'Whoever runs the server can see a public channel\'s name '
+                        'and description, because those are how it is searched '
+                        'for — but not its posts, which are encrypted.'
+                    : 'The report carries this channel and the reason you pick, '
+                        'and nothing else. Its name and its posts are encrypted, '
+                        'so whoever runs the server cannot read them. That is the '
+                        'honest limit of what reporting a private channel does.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: PrivioSpacing.md),
+              for (final reason in ChannelReportReason.values)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(reason.label),
+                  onTap: () => Navigator.of(context).pop(reason),
+                ),
+              const SizedBox(height: PrivioSpacing.sm),
+              Text(
+                'There is no message box on purpose: it would be the one place '
+                'in Privio where somebody pastes the encrypted thing they are '
+                'reporting into a field the server can read.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -72,6 +72,7 @@ decides that, never the client.
 | `GET /v1/channels/:id/posts/:postId/comments` | members only |
 | `GET /v1/channels/:id/bans` | admins only — as a list it would name the audience |
 | `GET /v1/channels/:id/join-requests` | admins only; people who are not members |
+| `GET /v1/channels/:id/stats` | needs `canEditChannel`; deliberately carries no view count |
 | `GET /v1/channels/:id` | |
 | `GET /v1/channels/discover` | |
 | `GET /v1/channels/invite/:code` | |
@@ -113,6 +114,8 @@ decides that, never the client.
 | `POST /v1/channels/:id/posts` | `{publishAt}` schedules it; `{poll}` is its *shape* only |
 | `POST /v1/channels/:id/posts/:postId/comments` | needs the channel to have comments on |
 | `POST /v1/channels/:id/invite/rotate` | revoking is replacing; the old code dies at once |
+| `POST /v1/channels/:id/owner` | `{accountId, currentPassword}` — the password, not the session |
+| `POST /v1/channels/:id/report` | `{reason}` from a fixed set; never free text |
 | `POST /v1/channels/:id/join-requests/:accountId` | lets them in |
 | `POST /v1/channels` | |
 | `POST /v1/contacts` | |
