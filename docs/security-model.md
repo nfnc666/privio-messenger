@@ -287,6 +287,33 @@ would be advertising something it would have to break encryption to deliver.
 Threads are off until a channel's owner turns them on, because a channel is a
 broadcast and threads change what the thing is.
 
+**An invite link can be revoked, and revoking is replacing.** A channel has one
+link, with three limits on it: an expiry, a number of joins, and whether it puts
+people in a queue instead of in the room. Revoking rotates the code — the new
+one takes effect the moment it is written and every copy of the old one stops
+resolving, in messages, on posters, in somebody's clipboard. There is no list of
+past codes and no grace period, because a link that still half-works is the
+thing being revoked. The use counter goes back to zero with it: a limit belongs
+to the link that was handed out, not to the channel.
+
+The counter counts joins, not clicks. Opening a link, reading the preview and
+walking away does not use it up, and a member tapping their own link again does
+not either.
+
+An expired or used-up link answers `invite_expired` rather than "no such
+channel": whoever holds it is already looking at the channel's preview, so
+hiding it now would only confuse. A *wrong* code for a private channel still
+answers 404 — that is the case where the existence is the secret. And a public
+channel is not closed by its link running out: the link's settings govern the
+link, not the channel's own front door.
+
+**Asking first is not membership.** Somebody who follows a link into a channel
+that asks holds no key, is sent nothing, is not counted, and cannot read the
+feed. What the row records is that they knocked — it exists so an admin sees it,
+since the alternative is a link that silently does nothing. No key request is
+raised for them and no key-holder is woken: sealing a key to somebody an admin
+has not let in would be handing over the channel.
+
 **A poll's question is not in the database.** The question and the answers
 travel inside the post's sealed payload, with its text, so the server never
 learns what was asked or what the options were called. What it holds is the

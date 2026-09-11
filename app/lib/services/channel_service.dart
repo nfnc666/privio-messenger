@@ -917,6 +917,43 @@ class ChannelService {
   Future<void> deleteComment(String channelId, int postId, int commentId) =>
       _api.deleteComment(channelId, postId, commentId);
 
+  /// Changes what the invite link is allowed to do.
+  Future<void> setInviteSettings(
+    String channelId, {
+    DateTime? expiresAt,
+    bool clearExpiry = false,
+    int? maxUses,
+    bool clearMaxUses = false,
+    bool? needsApproval,
+  }) async =>
+      _api.setInviteSettings(
+        channelId,
+        expiresAt: expiresAt,
+        clearExpiry: clearExpiry,
+        maxUses: maxUses,
+        clearMaxUses: clearMaxUses,
+        needsApproval: needsApproval,
+      );
+
+  /// Revokes the link by replacing it, and returns the new code.
+  Future<String?> rotateInvite(String channelId) async =>
+      (await _api.rotateInvite(channelId))['inviteCode'] as String?;
+
+  Future<List<ChannelJoinRequest>> joinRequests(String channelId) async {
+    final response = await _api.joinRequests(channelId);
+    return [
+      for (final raw in response['requests'] as List<dynamic>? ?? const [])
+        ChannelJoinRequest.fromJson(raw as Map<String, dynamic>),
+    ];
+  }
+
+  Future<void> answerJoinRequest(
+    String channelId,
+    String accountId, {
+    required bool admit,
+  }) =>
+      _api.answerJoinRequest(channelId, accountId, admit: admit);
+
   /// Turns threads under posts on or off. Admins only; the server checks.
   Future<void> setCommentsEnabled(String channelId, {required bool enabled}) async =>
       _api.updateChannel(channelId, commentsEnabled: enabled);
@@ -1237,6 +1274,7 @@ class ChannelService {
                 .toList() ??
             ChannelInfo.defaultReactionEmojis,
         commentsEnabled: raw['commentsEnabled'] as bool? ?? false,
+        invite: ChannelInviteSettings.fromJson(raw['invite'] as Map<String, dynamic>?),
         hasKey: hasKey,
         keyEpoch: keyEpoch,
         hasCurrentKey: hasCurrentKey ?? hasKey,

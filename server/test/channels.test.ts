@@ -470,6 +470,231 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('invite links', () => {
+    const setInvite = (user: TestUser, channelId: string, payload: Record<string, unknown>) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/invite`,
+        headers: bearer(user),
+        payload,
+      });
+
+    const joinWith = (user: TestUser, channelId: string, inviteCode?: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: inviteCode === undefined ? {} : { inviteCode },
+      });
+
+    const queue = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/join-requests`,
+        headers: bearer(user),
+      });
+
+    async function privateChannel(handle: string) {
+      const created = (await createChannel(owner, {
+        visibility: 'private',
+        encryptedMetadata: Buffer.from(handle).toString('base64'),
+      })).json();
+      return created;
+    }
+
+    it('an expired link stops letting people in', async () => {
+      const channel = await privateChannel('abgelaufen');
+      await pool.query(
+        "UPDATE channels SET invite_expires_at = now() - interval '1 minute' WHERE id = $1",
+        [channel.id],
+      );
+
+      const late = await joinWith(reader, channel.id, channel.inviteCode);
+      assert.equal(late.statusCode, 409);
+      assert.equal(late.json().error, 'invite_expired');
+    });
+
+    it('a use limit is counted in joins, not in clicks', async () => {
+      const channel = await privateChannel('einmalig');
+      assert.equal((await setInvite(owner, channel.id, { maxUses: 1 })).statusCode, 200);
+
+      // Looking at the preview is not using it up.
+      const peek = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/invite/${channel.inviteCode}`,
+        headers: bearer(reader),
+      });
+      assert.equal(peek.statusCode, 200);
+
+      assert.equal((await joinWith(reader, channel.id, channel.inviteCode)).statusCode, 200);
+
+      const second = await joinWith(stranger, channel.id, channel.inviteCode);
+      assert.equal(second.statusCode, 409);
+      assert.equal(second.json().error, 'invite_used_up');
+    });
+
+    it('a member re-joining does not spend a use', async () => {
+      const channel = await privateChannel('nochmal');
+      await setInvite(owner, channel.id, { maxUses: 2 });
+      await joinWith(reader, channel.id, channel.inviteCode);
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      const { rows } = await pool.query('SELECT invite_uses FROM channels WHERE id = $1', [
+        channel.id,
+      ]);
+      assert.equal(rows[0].invite_uses, 1, 'one person joined, however often they tapped it');
+    });
+
+    it('rotating kills every copy of the old link', async () => {
+      const channel = await privateChannel('gedreht');
+      const rotated = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/invite/rotate`,
+        headers: bearer(owner),
+      });
+      assert.equal(rotated.statusCode, 200);
+      assert.notEqual(rotated.json().inviteCode, channel.inviteCode);
+
+      // The old one answers exactly as a channel that does not exist: for a
+      // private channel the existence is the secret.
+      const old = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/invite/${channel.inviteCode}`,
+        headers: bearer(stranger),
+      });
+      assert.equal(old.statusCode, 404);
+      assert.equal((await joinWith(stranger, channel.id, channel.inviteCode)).statusCode, 404);
+      assert.equal(
+        (await joinWith(stranger, channel.id, rotated.json().inviteCode)).statusCode,
+        200,
+      );
+    });
+
+    it('and takes the use counter with it', async () => {
+      const channel = await privateChannel('neuerzaehler');
+      await setInvite(owner, channel.id, { maxUses: 1 });
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      const rotated = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/invite/rotate`,
+        headers: bearer(owner),
+      })).json();
+
+      // A use limit belongs to the link that was handed out, not to the
+      // channel: the new link starts from nothing.
+      assert.equal(
+        (await joinWith(stranger, channel.id, rotated.inviteCode)).statusCode,
+        200,
+      );
+    });
+
+    it('a link that asks first puts people in a queue, not in the channel', async () => {
+      const channel = await privateChannel('anklopfen');
+      await setInvite(owner, channel.id, { needsApproval: true });
+
+      const knocked = await joinWith(reader, channel.id, channel.inviteCode);
+      assert.equal(knocked.statusCode, 200);
+      assert.equal(knocked.json().joined, false);
+      assert.equal(knocked.json().pending, true);
+
+      // Not a member: no key, no feed, and not counted.
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 403);
+
+      const waiting = (await queue(owner, channel.id)).json().requests;
+      assert.equal(waiting.length, 1);
+      assert.equal(waiting[0].username, 'reader');
+    });
+
+    it('approving lets them in, and turning them away simply empties the queue', async () => {
+      const channel = await privateChannel('entscheidung');
+      await setInvite(owner, channel.id, { needsApproval: true });
+      await joinWith(reader, channel.id, channel.inviteCode);
+      await joinWith(stranger, channel.id, channel.inviteCode);
+
+      const admitted = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join-requests/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(admitted.statusCode, 200);
+
+      const turnedAway = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/join-requests/${stranger.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(turnedAway.statusCode, 200);
+
+      assert.deepEqual((await queue(owner, channel.id)).json().requests, []);
+
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 200, 'the one let in can read');
+
+      const refused = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(stranger),
+      });
+      assert.equal(refused.statusCode, 403, 'the one turned away cannot');
+    });
+
+    it('the queue is admins-only, and so is changing the link', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nurchefs',
+        title: 'Nur Chefs',
+      })).json();
+      await joinWith(reader, channel.id);
+
+      assert.equal((await queue(reader, channel.id)).statusCode, 403);
+      assert.equal((await setInvite(reader, channel.id, { maxUses: 5 })).statusCode, 403);
+      assert.equal(
+        (await h.app.inject({
+          method: 'POST',
+          url: `/v1/channels/${channel.id}/invite/rotate`,
+          headers: bearer(reader),
+        })).statusCode,
+        403,
+      );
+    });
+
+    it('an expiry already gone is refused rather than quietly revoking', async () => {
+      const channel = await privateChannel('rueckwaerts');
+
+      const backwards = await setInvite(owner, channel.id, {
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      assert.equal(backwards.statusCode, 400);
+      assert.equal(backwards.json().error, 'expiry_in_the_past');
+    });
+
+    it('a public channel is not closed by its link running out', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'offenetuer',
+        title: 'Offene Tuer',
+      })).json();
+      await setInvite(owner, channel.id, { maxUses: 1, needsApproval: true });
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      // The link's settings govern the link. A public channel's own front door
+      // is not one of them.
+      const straightIn = await joinWith(stranger, channel.id);
+      assert.equal(straightIn.statusCode, 200);
+      assert.equal(straightIn.json().joined, true);
+    });
+  });
+
   describe('polls', () => {
     const sealed = (text: string) => Buffer.from(text).toString('base64');
 

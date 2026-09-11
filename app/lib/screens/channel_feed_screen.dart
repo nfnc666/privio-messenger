@@ -282,8 +282,61 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (link == null) return;
     await showDialog<void>(
       context: context,
-      builder: (_) => _InviteDialog(link: link),
+      builder: (_) => _InviteDialog(
+        link: link,
+        channel: _channel,
+        // Only somebody who decides who is in the channel gets to change what
+        // the standing offer of membership does.
+        onManage: _channel.permissions.canManageMembers ? _manageInvite : null,
+      ),
     );
+    if (mounted) await _load();
+  }
+
+  /// Changing what the link does, or replacing it.
+  Future<void> _manageInvite() async {
+    final controller = PrivioScope.of(context).channels;
+    final action = await showModalBottomSheet<_InviteAction>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      isScrollControlled: true,
+      builder: (_) => _InviteSettingsSheet(channel: _channel),
+    );
+    if (action == null || !mounted) return;
+
+    final ok = action.rotate
+        ? await controller.rotateInvite(_channel.id)
+        : await controller.setInviteSettings(
+            _channel.id,
+            expiresAt: action.expiresAt,
+            clearExpiry: action.clearExpiry,
+            maxUses: action.maxUses,
+            clearMaxUses: action.clearMaxUses,
+            needsApproval: action.needsApproval,
+          );
+    if (!mounted) return;
+    final fresh = controller.channelById(_channel.id);
+    if (fresh != null) setState(() => _channel = fresh);
+    _say(
+      !ok
+          ? controller.error ?? 'Could not change the link.'
+          : action.rotate
+              ? 'The old link is dead. Anyone holding it will need the new one.'
+              : 'Saved.',
+    );
+  }
+
+  /// Who is waiting at the door.
+  Future<void> _openJoinRequests() async {
+    final controller = PrivioScope.of(context).channels;
+    await controller.loadJoinRequests(_channel.id);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _JoinRequestsScreen(channel: _channel),
+      ),
+    );
+    if (mounted) await _load();
   }
 
   /// Lets an admin choose what the bar under a post offers.
@@ -457,6 +510,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         _toggleComments();
       case 'scheduled':
         _openScheduled();
+      case 'requests':
+        _openJoinRequests();
       case 'members':
         _openMembers();
       case 'leave':
@@ -510,6 +565,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                       const PopupMenuItem(value: 'invite', child: Text('Invite link')),
                     if (channel.permissions.canPost)
                       const PopupMenuItem(value: 'scheduled', child: Text('Scheduled')),
+                    if (channel.permissions.canManageMembers && channel.invite.needsApproval)
+                      const PopupMenuItem(
+                        value: 'requests',
+                        child: Text('Requests to join'),
+                      ),
                     if (channel.permissions.canEditChannel)
                       const PopupMenuItem(value: 'reactions', child: Text('Reactions')),
                     if (channel.permissions.canEditChannel)
@@ -2014,10 +2074,355 @@ class _ImageViewer extends StatelessWidget {
   }
 }
 
+/// What the settings sheet decided.
+class _InviteAction {
+  const _InviteAction.settings({
+    this.expiresAt,
+    this.clearExpiry = false,
+    this.maxUses,
+    this.clearMaxUses = false,
+    this.needsApproval,
+  }) : rotate = false;
+
+  const _InviteAction.rotate()
+      : rotate = true,
+        expiresAt = null,
+        clearExpiry = false,
+        maxUses = null,
+        clearMaxUses = false,
+        needsApproval = null;
+
+  final bool rotate;
+  final DateTime? expiresAt;
+  final bool clearExpiry;
+  final int? maxUses;
+  final bool clearMaxUses;
+  final bool? needsApproval;
+}
+
+/// What the invite link is allowed to do.
+///
+/// Revoking is rotating, and the sheet says so plainly rather than calling it
+/// "revoke" and leaving people to wonder whether the old link half-works. It
+/// does not: a new code takes effect at once and every copy of the old one
+/// stops resolving, in messages, on posters, in somebody's clipboard.
+class _InviteSettingsSheet extends StatefulWidget {
+  const _InviteSettingsSheet({required this.channel});
+
+  final ChannelInfo channel;
+
+  @override
+  State<_InviteSettingsSheet> createState() => _InviteSettingsSheetState();
+}
+
+class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
+  late DateTime? _expiresAt = widget.channel.invite.expiresAt;
+  late int? _maxUses = widget.channel.invite.maxUses;
+  late bool _needsApproval = widget.channel.invite.needsApproval;
+
+  /// The limits people actually pick. A free number field invites a typo that
+  /// closes a channel to everybody but one person.
+  static const List<int> _useChoices = [1, 5, 10, 25, 100];
+
+  Future<void> _pickExpiry() async {
+    final now = DateTime.now();
+    final day = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: DateTime(now.year + 1, now.month, now.day),
+    );
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (time == null || !mounted) return;
+    final when = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+    if (!when.isAfter(now)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pick a time that has not gone yet.')),
+      );
+      return;
+    }
+    setState(() => _expiresAt = when);
+  }
+
+  Future<void> _confirmRotate() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surfaceRaised,
+        title: const Text('Replace the link?'),
+        content: const Text(
+          'The link you have shared stops working immediately — in messages, '
+          'on posters, wherever it was pasted. Nobody holding it can join.\n\n'
+          'People already in the channel stay in. There is no way to bring the '
+          'old link back.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Replace it'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop(const _InviteAction.rotate());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(PrivioSpacing.gutter),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Invite link', style: theme.textTheme.titleMedium),
+              const SizedBox(height: PrivioSpacing.md),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _needsApproval,
+                onChanged: (value) => setState(() => _needsApproval = value),
+                activeThumbColor: PrivioColors.accent,
+                title: Text('Ask me first', style: theme.textTheme.bodyMedium),
+                subtitle: Text(
+                  'People who follow the link wait for your approval instead of '
+                  'walking in. They hold no key until you let them in.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+
+              const SizedBox(height: PrivioSpacing.md),
+              Text('Expires', style: theme.textTheme.labelLarge),
+              const SizedBox(height: PrivioSpacing.xs),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _expiresAt == null ? 'Never' : _whenLabel(_expiresAt!),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (_expiresAt != null)
+                    TextButton(
+                      onPressed: () => setState(() => _expiresAt = null),
+                      child: const Text('Never'),
+                    ),
+                  TextButton(onPressed: _pickExpiry, child: const Text('Pick a time')),
+                ],
+              ),
+
+              const SizedBox(height: PrivioSpacing.md),
+              Text('How many can join on it', style: theme.textTheme.labelLarge),
+              const SizedBox(height: PrivioSpacing.xs),
+              Wrap(
+                spacing: PrivioSpacing.sm,
+                children: [
+                  ChoiceChip(
+                    label: const Text('No limit'),
+                    selected: _maxUses == null,
+                    onSelected: (_) => setState(() => _maxUses = null),
+                  ),
+                  for (final choice in _useChoices)
+                    ChoiceChip(
+                      label: Text('$choice'),
+                      selected: _maxUses == choice,
+                      onSelected: (_) => setState(() => _maxUses = choice),
+                    ),
+                ],
+              ),
+              if (widget.channel.invite.maxUses != null) ...[
+                const SizedBox(height: PrivioSpacing.xs),
+                Text(
+                  '${widget.channel.invite.uses} have joined on this link so far. '
+                  'Opening it and walking away does not count.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+
+              const SizedBox(height: PrivioSpacing.lg),
+              OutlinedButton.icon(
+                onPressed: _confirmRotate,
+                icon: const Icon(Icons.link_off_rounded, size: 18),
+                label: const Text('Replace the link'),
+                style: OutlinedButton.styleFrom(foregroundColor: PrivioColors.danger),
+              ),
+              const SizedBox(height: PrivioSpacing.xs),
+              Text(
+                'Replacing is how a link is revoked: the old one stops working '
+                'at once, everywhere. There is no half-working link left behind.',
+                style: theme.textTheme.bodySmall,
+              ),
+
+              const SizedBox(height: PrivioSpacing.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: PrivioSpacing.sm),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(
+                      _InviteAction.settings(
+                        expiresAt: _expiresAt,
+                        clearExpiry: _expiresAt == null,
+                        maxUses: _maxUses,
+                        clearMaxUses: _maxUses == null,
+                        needsApproval: _needsApproval,
+                      ),
+                    ),
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Who is waiting at the door.
+///
+/// They are not members: they hold no key, are sent nothing, and the channel
+/// does not count them. The row exists so an admin sees the knock — the
+/// alternative is a link that silently does nothing and a person who assumes
+/// it is broken.
+class _JoinRequestsScreen extends StatelessWidget {
+  const _JoinRequestsScreen({required this.channel});
+
+  final ChannelInfo channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = PrivioScope.of(context).channels;
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final waiting = controller.knockingAt(channel.id);
+        return Scaffold(
+          appBar: AppBar(
+            leading: const PrivioBackButton(),
+            title: const Text('Requests to join'),
+          ),
+          body: waiting.isEmpty
+              ? const _NobodyWaiting()
+              : ListView.builder(
+                  itemCount: waiting.length,
+                  itemBuilder: (context, index) {
+                    final request = waiting[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: PrivioSpacing.gutter,
+                        vertical: PrivioSpacing.xs,
+                      ),
+                      title: Text(request.label),
+                      subtitle: Text(
+                        'Asked ${_whenLabel(request.requestedAt)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => controller.answerJoinRequest(
+                              channel.id,
+                              request.accountId,
+                              admit: false,
+                            ),
+                            child: const Text(
+                              'No',
+                              style: TextStyle(color: PrivioColors.danger),
+                            ),
+                          ),
+                          const SizedBox(width: PrivioSpacing.xs),
+                          FilledButton(
+                            onPressed: () => controller.answerJoinRequest(
+                              channel.id,
+                              request.accountId,
+                              admit: true,
+                            ),
+                            child: const Text('Let in'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _NobodyWaiting extends StatelessWidget {
+  const _NobodyWaiting();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.door_front_door_outlined, size: 40, color: PrivioColors.textTertiary),
+            const SizedBox(height: PrivioSpacing.md),
+            Text('Nobody waiting', style: theme.textTheme.titleMedium),
+            const SizedBox(height: PrivioSpacing.xs),
+            Text(
+              'People who follow the invite link appear here while the link is '
+              'set to ask you first.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InviteDialog extends StatelessWidget {
-  const _InviteDialog({required this.link});
+  const _InviteDialog({required this.link, required this.channel, this.onManage});
 
   final String link;
+  final ChannelInfo channel;
+
+  /// Opens the settings. Null for a member who cannot change them.
+  final VoidCallback? onManage;
+
+  /// What the link is currently good for, in one line.
+  String get _state {
+    final invite = channel.invite;
+    if (invite.hasExpired) return 'This link has expired — nobody can join on it.';
+    if (invite.isUsedUp) return 'This link has been used up.';
+    return [
+      if (invite.needsApproval)
+        'Joining needs your approval'
+      else
+        'Anyone with it joins straight away',
+      if (invite.maxUses != null) '${invite.uses} of ${invite.maxUses} used',
+      if (invite.expiresAt != null) 'expires ${_whenLabel(invite.expiresAt!)}',
+    ].join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2066,10 +2471,25 @@ class _InviteDialog extends StatelessWidget {
             'encrypted, by someone who already has it.',
             style: theme.textTheme.bodySmall,
           ),
+          const SizedBox(height: PrivioSpacing.sm),
+          Text(
+            _state,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: channel.invite.isSpent ? PrivioColors.warning : PrivioColors.textSecondary,
+            ),
+          ),
           ],
         ),
       ),
       actions: [
+        if (onManage != null)
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              onManage!();
+            },
+            child: const Text('Settings'),
+          ),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
         FilledButton(
           onPressed: () async {

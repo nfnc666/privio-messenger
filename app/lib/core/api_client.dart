@@ -556,6 +556,49 @@ class PrivioApiClient {
   Future<void> deleteComment(String channelId, int postId, int commentId) async =>
       _send('DELETE', '/v1/channels/$channelId/posts/$postId/comments/$commentId');
 
+  // --- Invite links ---------------------------------------------------------
+
+  /// What the link is allowed to do. Absent fields are left alone; an explicit
+  /// null clears a limit, which is why the two flags are separate.
+  Future<Map<String, dynamic>> setInviteSettings(
+    String channelId, {
+    DateTime? expiresAt,
+    bool clearExpiry = false,
+    int? maxUses,
+    bool clearMaxUses = false,
+    bool? needsApproval,
+  }) =>
+      _send('PUT', '/v1/channels/$channelId/invite', body: {
+        if (clearExpiry)
+          'expiresAt': null
+        else if (expiresAt != null)
+          'expiresAt': expiresAt.toUtc().toIso8601String(),
+        if (clearMaxUses)
+          'maxUses': null
+        else if (maxUses != null)
+          'maxUses': maxUses,
+        if (needsApproval != null) 'needsApproval': needsApproval,
+      },);
+
+  /// Revokes the link by replacing it. Every copy of the old one stops
+  /// resolving at once, and the use counter starts again from nothing.
+  Future<Map<String, dynamic>> rotateInvite(String channelId) =>
+      _send('POST', '/v1/channels/$channelId/invite/rotate');
+
+  /// Who is waiting at the door. Admins only; the server refuses the rest.
+  Future<Map<String, dynamic>> joinRequests(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/join-requests');
+
+  Future<void> answerJoinRequest(
+    String channelId,
+    String accountId, {
+    required bool admit,
+  }) async =>
+      _send(
+        admit ? 'POST' : 'DELETE',
+        '/v1/channels/$channelId/join-requests/$accountId',
+      );
+
   // --- Silencing ------------------------------------------------------------
 
   /// Stops somebody commenting and reacting, without removing them.
