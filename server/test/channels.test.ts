@@ -470,6 +470,234 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('editing and scheduling', () => {
+    const feed = (user: TestUser, channelId: string, scheduled = false) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts${scheduled ? '?scheduled=true' : ''}`,
+        headers: bearer(user),
+      });
+
+    const edit = (
+      user: TestUser,
+      channelId: string,
+      postId: number,
+      payload: Record<string, unknown>,
+    ) =>
+      h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channelId}/posts/${postId}`,
+        headers: bearer(user),
+        payload,
+      });
+
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    it('an author can change their own post, and it says so', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'bearbeiten',
+        title: 'Bearbeiten',
+      })).json();
+      const published = (await post(owner, channel.id, 'erste fassung')).json();
+
+      const changed = await edit(owner, channel.id, published.id, {
+        content: sealed('zweite fassung'),
+      });
+      assert.equal(changed.statusCode, 200);
+      assert.ok(changed.json().editedAt, 'a post people have read carries the mark');
+
+      const shown = (await feed(owner, channel.id)).json().posts[0];
+      assert.equal(
+        Buffer.from(shown.content, 'base64').toString(),
+        'zweite fassung',
+        'the ciphertext the server stores is the new one',
+      );
+      assert.ok(shown.editedAt);
+    });
+
+    it('an admin who can delete a post still cannot rewrite it', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'fremdeworte',
+        title: 'Fremde Worte',
+      })).json();
+      const published = (await post(owner, channel.id, 'meine worte')).json();
+
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join`,
+        headers: bearer(reader),
+        payload: {},
+      });
+      // Everything an admin gets, including deleting other people's posts.
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/members/${reader.accountId}/role`,
+        headers: bearer(owner),
+        payload: {
+          role: 'admin',
+          permissions: { canPost: true, canDeletePosts: true, canEditChannel: true },
+        },
+      });
+
+      const attempt = await edit(reader, channel.id, published.id, {
+        content: sealed('worte die ich nie sagte'),
+      });
+      // Every post carries its author's name. Editing somebody else's is
+      // putting words in their mouth under their own byline; deleting is the
+      // moderation tool, and it is honest about what it is.
+      assert.equal(attempt.statusCode, 403);
+      assert.equal(attempt.json().error, 'not_the_author');
+    });
+
+    it('a scheduled post is invisible until it is due', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'spaeter',
+        title: 'Spaeter',
+      })).json();
+
+      const later = new Date(Date.now() + 3_600_000).toISOString();
+      const queued = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('noch nicht'), publishAt: later },
+      });
+      assert.equal(queued.statusCode, 201);
+      assert.ok(queued.json().publishAt);
+
+      assert.deepEqual(
+        (await feed(owner, channel.id)).json().posts,
+        [],
+        'not even to the author: the feed is what everybody sees',
+      );
+
+      const waiting = (await feed(owner, channel.id, true)).json().posts;
+      assert.equal(waiting.length, 1);
+      assert.equal(waiting[0].id, queued.json().id);
+    });
+
+    it('and appears once its time has passed, with no job having run', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'faellig',
+        title: 'Faellig',
+      })).json();
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('jetzt'), publishAt: new Date(Date.now() + 60_000).toISOString() },
+      })).json();
+
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 0);
+
+      // Move its time into the past, which is all that "becoming due" is here.
+      // No sweeper, no queue, nothing to fall over at three in the morning.
+      await pool.query('UPDATE channel_posts SET publish_at = now() - interval \'1 second\' WHERE id = $1', [
+        queued.id,
+      ]);
+
+      const shown = (await feed(owner, channel.id)).json().posts;
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].id, queued.id);
+      assert.equal(shown[0].editedAt, null, 'appearing on time is not an edit');
+    });
+
+    it('a subscriber cannot look into the waiting room', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'wartezimmer',
+        title: 'Wartezimmer',
+      })).json();
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join`,
+        headers: bearer(reader),
+        payload: {},
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('geheim'), publishAt: new Date(Date.now() + 3_600_000).toISOString() },
+      });
+
+      const peeked = await feed(reader, channel.id, true);
+      assert.equal(peeked.statusCode, 403);
+    });
+
+    it('editing something still scheduled leaves no mark', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'ohnemarke',
+        title: 'Ohne Marke',
+      })).json();
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('entwurf'), publishAt: new Date(Date.now() + 3_600_000).toISOString() },
+      })).json();
+
+      const changed = await edit(owner, channel.id, queued.id, { content: sealed('besserer entwurf') });
+      assert.equal(changed.statusCode, 200);
+      // Nobody read the earlier version, so there is nothing to disclose.
+      assert.equal(changed.json().editedAt, null);
+
+      // And publishing it now is a reschedule, not an edit.
+      const published = await edit(owner, channel.id, queued.id, {
+        content: sealed('besserer entwurf'),
+        publishAt: null,
+      });
+      assert.equal(published.json().publishAt, null);
+      assert.equal(published.json().editedAt, null);
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 1);
+    });
+
+    it('a time in the past is now, not a way to jump the queue', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'rueckdatiert',
+        title: 'Rueckdatiert',
+      })).json();
+
+      const backdated = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: sealed('von gestern'),
+          publishAt: new Date(Date.now() - 86_400_000).toISOString(),
+        },
+      });
+      assert.equal(backdated.statusCode, 201);
+      assert.equal(backdated.json().publishAt, null, 'published, not back-dated');
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 1);
+    });
+
+    it('an edit is refused under a superseded key, like a post is', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'altschluessel',
+        title: 'Alter Schluessel',
+      })).json();
+      const published = (await post(owner, channel.id, 'unter epoche eins')).json();
+
+      // The channel moves on without this author's edit knowing.
+      await pool.query('UPDATE channels SET key_epoch = 2 WHERE id = $1', [channel.id]);
+
+      const stale = await edit(owner, channel.id, published.id, {
+        content: sealed('immer noch epoche eins'),
+        keyEpoch: 1,
+      });
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'stale_key_epoch');
+    });
+  });
+
   describe('reactions', () => {
     const react = (user: TestUser, channelId: string, postId: number, emoji: string) =>
       h.app.inject({

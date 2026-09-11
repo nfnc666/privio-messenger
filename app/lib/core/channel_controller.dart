@@ -143,14 +143,24 @@ class ChannelController extends ChangeNotifier {
   ///
   /// An empty message is still a post when it carries a file — a picture with
   /// no caption is a thing people send.
-  Future<bool> publish(String channelId, String body, {ChannelUpload? file}) async {
+  Future<bool> publish(
+    String channelId,
+    String body, {
+    ChannelUpload? file,
+    DateTime? publishAt,
+  }) async {
     final text = body.trim();
     if (text.isEmpty && file == null) return false;
     return _run(() async {
-      await _channels.publish(channelId, text, file: file);
+      await _channels.publish(channelId, text, file: file, publishAt: publishAt);
       // Re-read rather than append locally: the server assigns the id and the
       // timestamp, and a feed that disagrees with them is worse than a wait.
       _posts[channelId] = await _channels.posts(channelId);
+      // A post that went into the waiting room is in neither list until this
+      // runs, which looks exactly like a send that failed.
+      if (publishAt != null) {
+        _scheduled[channelId] = await _channels.posts(channelId, scheduled: true);
+      }
     });
   }
 
@@ -248,6 +258,42 @@ class ChannelController extends ChangeNotifier {
   Future<bool> pin(String channelId, int postId, {required bool pinned}) => _run(() async {
         await _channels.pin(channelId, postId, pinned: pinned);
         _posts[channelId] = await _channels.posts(channelId);
+      });
+
+  /// Posts waiting for their time, per channel. Only ever filled for a channel
+  /// this account may publish in — the server refuses the query to anyone else.
+  final Map<String, List<ChannelPost>> _scheduled = {};
+
+  List<ChannelPost> scheduledIn(String channelId) => _scheduled[channelId] ?? const [];
+
+  Future<void> loadScheduled(String channelId) async {
+    await _run(() async {
+      _scheduled[channelId] = await _channels.posts(channelId, scheduled: true);
+    });
+  }
+
+  /// Rewrites a post, or moves when it appears.
+  ///
+  /// Reloads both lists afterwards: publishing a waiting post moves it from one
+  /// to the other, and showing it in neither for a moment looks like it was
+  /// lost.
+  Future<bool> editPost(
+    String channelId,
+    ChannelPost post,
+    String body, {
+    DateTime? publishAt,
+    bool clearSchedule = false,
+  }) =>
+      _run(() async {
+        await _channels.edit(
+          channelId,
+          post,
+          body,
+          publishAt: publishAt,
+          clearSchedule: clearSchedule,
+        );
+        _posts[channelId] = await _channels.posts(channelId);
+        _scheduled[channelId] = await _channels.posts(channelId, scheduled: true);
       });
 
   /// Changes the emojis this channel offers, then reloads it so the bar under
