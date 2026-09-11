@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../core/app_state.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
+import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
 
 /// One channel's feed.
@@ -27,8 +30,24 @@ class ChannelFeedScreen extends StatefulWidget {
 
 class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   final TextEditingController _composer = TextEditingController();
+  final TextEditingController _search = TextEditingController();
   late ChannelInfo _channel = widget.channel;
   bool _sending = false;
+
+  /// Drives the one jump this screen makes on its own: onto the newest post
+  /// when the feed first arrives.
+  final ItemScrollController _scroll = ItemScrollController();
+
+  /// Whether that jump has happened. A feed that re-landed on every rebuild
+  /// would yank the reader back down the moment anybody posted.
+  bool _landed = false;
+
+  /// The in-channel search, or null when the search bar is closed.
+  ///
+  /// Local, and it has to be: the posts are sealed on the server, so the only
+  /// place a word can be looked for is among the ones this device has already
+  /// opened. That is also the honest limit — see the empty state.
+  String? _query;
 
   @override
   void initState() {
@@ -39,7 +58,52 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   @override
   void dispose() {
     _composer.dispose();
+    _search.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      if (_query == null) {
+        _query = '';
+      } else {
+        _query = null;
+        _search.clear();
+      }
+    });
+  }
+
+  /// The feed as it is drawn: oldest at the top, newest at the bottom, with the
+  /// date above the first post of each day.
+  ///
+  /// The controller hands them over newest-first, because that is the order the
+  /// server pages through them in. Reading them is the other way round.
+  List<_FeedEntry> _entries(List<ChannelPost> newestFirst) {
+    final query = _query?.trim().toLowerCase() ?? '';
+    final entries = <_FeedEntry>[];
+    DateTime? lastDay;
+
+    for (final post in newestFirst.reversed) {
+      // A post nobody on this device can open has no text to match, and
+      // silently dropping it from a search would suggest it was not there.
+      if (query.isNotEmpty && !post.body.toLowerCase().contains(query)) continue;
+      final day = DateUtils.dateOnly(post.createdAt);
+      if (lastDay == null || day != lastDay) entries.add(_FeedEntry.day(day));
+      entries.add(_FeedEntry.post(post));
+      lastDay = day;
+    }
+    return entries;
+  }
+
+  /// Puts the first paint on the newest post rather than at the top of the
+  /// history, once, when there is something to land on.
+  void _landOnNewest(int count) {
+    if (_landed || count == 0) return;
+    _landed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.isAttached) return;
+      _scroll.jumpTo(index: count - 1);
+    });
   }
 
   Future<void> _load() async {
@@ -255,6 +319,12 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
             ),
             actions: [
               if (channel.isMember)
+                IconButton(
+                  onPressed: _toggleSearch,
+                  icon: Icon(_query == null ? Icons.search_rounded : Icons.close_rounded),
+                  tooltip: _query == null ? 'Search this channel' : 'Close search',
+                ),
+              if (channel.isMember)
                 PopupMenuButton<String>(
                   onSelected: _onMenu,
                   color: PrivioColors.surfaceRaised,
@@ -276,6 +346,25 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
           ),
           body: Column(
             children: [
+              if (_query != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    PrivioSpacing.gutter,
+                    PrivioSpacing.sm,
+                    PrivioSpacing.gutter,
+                    0,
+                  ),
+                  child: TextField(
+                    controller: _search,
+                    autofocus: true,
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search_rounded, size: 18),
+                      hintText: 'Search posts you can read',
+                      isDense: true,
+                    ),
+                  ),
+                ),
               if (channel.isMember && !channel.hasCurrentKey)
                 _MissingKeyBanner(
                   // Two different situations behind one padlock, and the
@@ -288,30 +377,44 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   onRetry: () => _retryKey(channel.id),
                 ),
               Expanded(
-                child: !channel.isMember
-                    ? _JoinPrompt(channel: channel, onJoin: _join)
-                    : posts.isEmpty
-                        ? const _EmptyFeed()
-                        : RefreshIndicator(
-                            color: PrivioColors.accent,
-                            backgroundColor: PrivioColors.surface,
-                            onRefresh: () => controller.loadPosts(channel.id),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(PrivioSpacing.gutter),
-                              itemCount: posts.length,
-                              itemBuilder: (context, index) => _PostCard(
-                                post: posts[index],
-                                channel: channel,
-                                onPin: () => controller.pin(
-                                  channel.id,
-                                  posts[index].id,
-                                  pinned: !posts[index].pinned,
-                                ),
-                                onDelete: () =>
-                                    controller.deletePost(channel.id, posts[index].id),
-                              ),
+                child: Builder(
+                  builder: (context) {
+                    if (!channel.isMember) {
+                      return _JoinPrompt(channel: channel, onJoin: _join);
+                    }
+                    if (posts.isEmpty) return const _EmptyFeed();
+
+                    final entries = _entries(posts);
+                    if (entries.isEmpty) return const _NoSearchResults();
+                    _landOnNewest(entries.length);
+
+                    return RefreshIndicator(
+                      color: PrivioColors.accent,
+                      backgroundColor: PrivioColors.surface,
+                      onRefresh: () => controller.loadPosts(channel.id),
+                      child: ScrollablePositionedList.builder(
+                        itemScrollController: _scroll,
+                        padding: const EdgeInsets.all(PrivioSpacing.gutter),
+                        itemCount: entries.length,
+                        itemBuilder: (context, index) {
+                          final entry = entries[index];
+                          final post = entry.post;
+                          if (post == null) return _DayDivider(day: entry.day!);
+                          return _PostCard(
+                            post: post,
+                            channel: channel,
+                            onPin: () => controller.pin(
+                              channel.id,
+                              post.id,
+                              pinned: !post.pinned,
                             ),
-                          ),
+                            onDelete: () => controller.deletePost(channel.id, post.id),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
               ),
               if (channel.isMember && canPost)
                 _Composer(
@@ -331,6 +434,98 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// One row of the feed: either a post, or the date above the first post of a
+/// day.
+///
+/// Flattened into a single list rather than grouped, because the list has to
+/// be able to say what is at index N — that is what puts the first paint on
+/// the newest post instead of at the top of the history.
+class _FeedEntry {
+  const _FeedEntry.post(ChannelPost this.post) : day = null;
+  const _FeedEntry.day(DateTime this.day) : post = null;
+
+  final ChannelPost? post;
+  final DateTime? day;
+}
+
+/// "Today", "Yesterday", or the date.
+class _DayDivider extends StatelessWidget {
+  const _DayDivider({required this.day});
+
+  final DateTime day;
+
+  static const List<String> _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  String get _label {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final difference = today.difference(day).inDays;
+    if (difference == 0) return 'Today';
+    if (difference == 1) return 'Yesterday';
+    final month = _months[day.month - 1];
+    // The year only where it is not this one: a feed of last week's posts does
+    // not need telling which year it is.
+    return day.year == today.year
+        ? '${day.day} $month'
+        : '${day.day} $month ${day.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: PrivioSpacing.md),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: PrivioSpacing.md,
+              vertical: PrivioSpacing.xs,
+            ),
+            decoration: const BoxDecoration(
+              color: PrivioColors.surfaceRaised,
+              borderRadius: BorderRadius.all(PrivioRadius.pill),
+            ),
+            child: Text(_label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ),
+      );
+}
+
+/// What a search that found nothing says.
+///
+/// It says where it looked, because the limit is real and not obvious: the
+/// server holds the posts sealed, so the only text there is to search is what
+/// this device has already opened and downloaded.
+class _NoSearchResults extends StatelessWidget {
+  const _NoSearchResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off_rounded, size: 40, color: PrivioColors.textTertiary),
+            const SizedBox(height: PrivioSpacing.md),
+            Text('Nothing matches', style: theme.textTheme.titleMedium),
+            const SizedBox(height: PrivioSpacing.xs),
+            Text(
+              'The search runs on this device, over the posts it has already '
+              'loaded and could open. The server cannot search them: it holds '
+              'them sealed.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -400,7 +595,11 @@ class _PostCard extends StatelessWidget {
           ),
           const SizedBox(height: PrivioSpacing.sm),
           if (post.opened) ...[
-            if (post.body.isNotEmpty) Text(post.body, style: theme.textTheme.bodyMedium),
+            if (post.body.isNotEmpty)
+              // Links are tappable, and nothing opens without being confirmed:
+              // a channel is somebody else's text, and a tap that leaves for
+              // the browser unannounced is not a thing a reader agreed to.
+              LinkedText(post.body, style: theme.textTheme.bodyMedium),
             if (post.attachment != null) ...[
               if (post.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
               _AttachmentTile(channelId: channel.id, post: post),
@@ -579,9 +778,16 @@ class _AttachmentTileState extends State<_AttachmentTile> {
 
     // Once an image is open it is the point, so it replaces its own row.
     if (opened != null && attachment.isImage) {
-      return ClipRRect(
-        borderRadius: const BorderRadius.all(PrivioRadius.card),
-        child: Image.memory(opened, fit: BoxFit.cover),
+      return GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _ImageViewer(bytes: opened, name: attachment.name),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.all(PrivioRadius.card),
+          child: Image.memory(opened, fit: BoxFit.cover),
+        ),
       );
     }
 
@@ -631,6 +837,41 @@ String _readableSize(int bytes) {
   return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
+/// A picture at full size, with pinch and pan.
+///
+/// The bytes are the ones already decrypted in memory for the feed — opening
+/// this writes nothing to disk and asks the server for nothing a second time.
+class _ImageViewer extends StatelessWidget {
+  const _ImageViewer({required this.bytes, this.name});
+
+  final Uint8List bytes;
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: PrivioColors.background,
+      appBar: AppBar(
+        backgroundColor: PrivioColors.background,
+        leading: const PrivioBackButton(),
+        title: Text(
+          name ?? 'Picture',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 1,
+          maxScale: 6,
+          child: Image.memory(bytes),
+        ),
+      ),
+    );
+  }
+}
+
 class _InviteDialog extends StatelessWidget {
   const _InviteDialog({required this.link});
 
@@ -642,10 +883,39 @@ class _InviteDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
       title: const Text('Invite link'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      // Scrollable: the QR code plus the link plus the explanation is taller
+      // than a dialog on a small phone in landscape.
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          // Rendered on this device. The link is never sent anywhere to be
+          // turned into a picture of itself.
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(PrivioSpacing.md),
+              decoration: const BoxDecoration(
+                color: PrivioColors.textPrimary,
+                borderRadius: BorderRadius.all(PrivioRadius.card),
+              ),
+              child: QrImageView(
+                data: link,
+                version: QrVersions.auto,
+                size: 176,
+                backgroundColor: PrivioColors.textPrimary,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: PrivioColors.background,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: PrivioColors.background,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: PrivioSpacing.md),
           SelectableText(link, style: theme.textTheme.bodySmall),
           const SizedBox(height: PrivioSpacing.md),
           Text(
@@ -654,7 +924,8 @@ class _InviteDialog extends StatelessWidget {
             'encrypted, by someone who already has it.',
             style: theme.textTheme.bodySmall,
           ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),

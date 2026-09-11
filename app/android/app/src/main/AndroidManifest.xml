@@ -80,5 +80,18 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Opening a link somebody put in a channel post. Android 11 hides
+             other packages unless they are declared here, and a browser the app
+             cannot see is a link that silently does nothing. Only http and
+             https: a post does not get to hand the phone a tel: or an app
+             scheme. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
     </queries>
 </manifest>
