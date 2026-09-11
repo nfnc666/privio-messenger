@@ -420,20 +420,55 @@ class PrivioApiClient {
     required String content,
     String? mediaId,
     int? keyEpoch,
+    DateTime? publishAt,
   }) =>
       _send('POST', '/v1/channels/$channelId/posts', body: {
         'content': content,
         if (mediaId != null) 'mediaId': mediaId,
+        // When it should appear. The server treats a time in the past as now,
+        // so a clock that is a minute slow does not back-date a post.
+        if (publishAt != null) 'publishAt': publishAt.toUtc().toIso8601String(),
         // Which key sealed it. The server refuses anything older than the
         // channel's current epoch, which is what stops a post prepared before a
         // removal from reaching the person who was removed.
         if (keyEpoch != null) 'keyEpoch': keyEpoch,
       },);
 
-  Future<Map<String, dynamic>> channelPosts(String channelId, {int? before, int limit = 50}) =>
+  Future<Map<String, dynamic>> channelPosts(
+    String channelId, {
+    int? before,
+    int limit = 50,
+    bool scheduled = false,
+  }) =>
       _send('GET', '/v1/channels/$channelId/posts', query: {
         if (before != null) 'before': '$before',
         'limit': '$limit',
+        // The author's own waiting room. The server refuses it to anybody who
+        // cannot publish, so this is not what keeps it private.
+        if (scheduled) 'scheduled': 'true',
+      },);
+
+  /// Rewrites a post. Author only — the server checks, and an admin who can
+  /// delete a post still cannot put words in its author's mouth.
+  ///
+  /// [publishAt] absent leaves the schedule alone; `clearSchedule` publishes a
+  /// waiting post now. The two are separate because "do not touch the time" and
+  /// "the time is now" are different instructions.
+  Future<Map<String, dynamic>> editPost({
+    required String channelId,
+    required int postId,
+    required String content,
+    int? keyEpoch,
+    DateTime? publishAt,
+    bool clearSchedule = false,
+  }) =>
+      _send('PATCH', '/v1/channels/$channelId/posts/$postId', body: {
+        'content': content,
+        if (keyEpoch != null) 'keyEpoch': keyEpoch,
+        if (clearSchedule)
+          'publishAt': null
+        else if (publishAt != null)
+          'publishAt': publishAt.toUtc().toIso8601String(),
       },);
 
   Future<void> pinPost(String channelId, int postId, {required bool pinned}) async =>

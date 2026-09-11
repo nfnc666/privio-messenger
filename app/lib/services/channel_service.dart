@@ -674,7 +674,12 @@ class ChannelService {
   /// Padding matters more here than in a chat: a channel's post lengths are
   /// visible to the server for every subscriber at once, and a run of exact
   /// lengths is a fingerprint of the text.
-  Future<int> publish(String channelId, String body, {ChannelUpload? file}) async {
+  Future<int> publish(
+    String channelId,
+    String body, {
+    ChannelUpload? file,
+    DateTime? publishAt,
+  }) async {
     // The epoch is read now rather than remembered from the last time this
     // screen was opened. A post composed before somebody was removed and sent
     // afterwards is the exact case this milestone exists for: sealing it with
@@ -692,35 +697,7 @@ class ChannelService {
       );
     }
 
-    // Sealed with the same key as the text, so the two share a fate: a member
-    // who cannot open the post cannot open its file either, and a rotation that
-    // locks one locks both.
-    ChannelAttachment? attachment;
-    if (file != null) {
-      // Sniffed rather than trusted: the name is what somebody typed, the first
-      // bytes are what the file is. Same call the scrubber makes to decide what
-      // it is scrubbing.
-      final type = MetadataScrubber.sniff(file.bytes)
-          ?? file.mimeType
-          ?? 'application/octet-stream';
-      final sealedFile = await AttachmentCipher.sealWithKey(
-        file.bytes,
-        key: key,
-        declaredType: type,
-      );
-      final blob = await _api.uploadMedia(sealedFile);
-      final token = blob.token;
-      if (token == null) {
-        throw StateError('The server accepted the file without a download token.');
-      }
-      attachment = ChannelAttachment(
-        mediaId: blob.id,
-        token: token,
-        mimeType: type,
-        bytes: file.bytes.length,
-        name: file.name,
-      );
-    }
+    final attachment = file == null ? null : await _sealFile(file, key);
 
     try {
       final result = await _api.publishPost(
@@ -733,6 +710,7 @@ class ChannelService {
         ),
         mediaId: attachment?.mediaId,
         keyEpoch: state.epoch,
+        publishAt: publishAt,
       );
       return result['id'] as int;
     } on ApiException catch (failure) {
@@ -750,13 +728,95 @@ class ChannelService {
           awaitingGeneration: now.keyId == null,
         );
       }
+      // The file has to be sealed again too, under the new key: the copy
+      // uploaded a moment ago opens with the key the removed member holds.
+      // This retry used to drop the attachment entirely and publish the text
+      // alone, which is a post that silently lost its picture.
+      final freshAttachment = file == null ? null : await _sealFile(file, fresh);
       final result = await _api.publishPost(
         channelId: channelId,
-        content: base64Encode(await _seal(body, fresh)),
+        content: base64Encode(
+          await _seal(
+            freshAttachment == null ? body : _wrapWithAttachment(body, freshAttachment),
+            fresh,
+          ),
+        ),
+        mediaId: freshAttachment?.mediaId,
         keyEpoch: now.epoch,
+        publishAt: publishAt,
       );
       return result['id'] as int;
     }
+  }
+
+  /// Seals a picked file under [key] and uploads it.
+  ///
+  /// Sealed with the same key as the text it goes with, so the two share a
+  /// fate: a member who cannot open the post cannot open its file either, and
+  /// a rotation that locks one locks both.
+  Future<ChannelAttachment> _sealFile(ChannelUpload file, Uint8List key) async {
+    // Sniffed rather than trusted: the name is what somebody typed, the first
+    // bytes are what the file is. Same call the scrubber makes to decide what
+    // it is scrubbing.
+    final type = MetadataScrubber.sniff(file.bytes)
+        ?? file.mimeType
+        ?? 'application/octet-stream';
+    final sealedFile = await AttachmentCipher.sealWithKey(
+      file.bytes,
+      key: key,
+      declaredType: type,
+    );
+    final blob = await _api.uploadMedia(sealedFile);
+    final token = blob.token;
+    if (token == null) {
+      throw StateError('The server accepted the file without a download token.');
+    }
+    return ChannelAttachment(
+      mediaId: blob.id,
+      token: token,
+      mimeType: type,
+      bytes: file.bytes.length,
+      name: file.name,
+    );
+  }
+
+  /// Rewrites a post that is already out, or one still waiting for its time.
+  ///
+  /// The text is re-sealed under whatever key is current, for the same reason
+  /// publishing is: an edit prepared before a rotation must not land under the
+  /// key somebody was just removed from. An existing attachment is carried
+  /// through unchanged — it is already sealed and uploaded, and re-uploading it
+  /// to change a sentence would cost the author their data allowance twice.
+  Future<void> edit(
+    String channelId,
+    ChannelPost post,
+    String body, {
+    DateTime? publishAt,
+    bool clearSchedule = false,
+  }) async {
+    final state = await currentEpoch(channelId);
+    final key = await keyFor(channelId, state.epoch);
+    if (key == null) {
+      throw ChannelKeyPending(
+        channelId: channelId,
+        epoch: state.epoch,
+        awaitingGeneration: state.keyId == null,
+      );
+    }
+    final attachment = post.attachment;
+    await _api.editPost(
+      channelId: channelId,
+      postId: post.id,
+      content: base64Encode(
+        await _seal(
+          attachment == null ? body : _wrapWithAttachment(body, attachment),
+          key,
+        ),
+      ),
+      keyEpoch: state.epoch,
+      publishAt: publishAt,
+      clearSchedule: clearSchedule,
+    );
   }
 
   /// The feed, newest first. Posts that will not open come back as locked
@@ -800,8 +860,18 @@ class ChannelService {
     return (readReactions(response['reactions']), readMyReactions(response['myReactions']));
   }
 
-  Future<List<ChannelPost>> posts(String channelId, {int? before, int limit = 50}) async {
-    final response = await _api.channelPosts(channelId, before: before, limit: limit);
+  Future<List<ChannelPost>> posts(
+    String channelId, {
+    int? before,
+    int limit = 50,
+    bool scheduled = false,
+  }) async {
+    final response = await _api.channelPosts(
+      channelId,
+      before: before,
+      limit: limit,
+      scheduled: scheduled,
+    );
     final posts = <ChannelPost>[];
     // One read per epoch rather than one per post: a feed of fifty posts spans
     // two or three key versions, not fifty.
@@ -828,6 +898,8 @@ class ChannelService {
           pinned: entry['pinned'] as bool? ?? false,
           reactions: readReactions(entry['reactions']),
           myReactions: readMyReactions(entry['myReactions']),
+          editedAt: DateTime.tryParse(entry['editedAt'] as String? ?? '')?.toLocal(),
+          publishAt: DateTime.tryParse(entry['publishAt'] as String? ?? '')?.toLocal(),
         ),
       );
     }

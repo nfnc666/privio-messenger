@@ -186,20 +186,65 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   void _say(String message) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
-  Future<void> _publish() async {
+  /// Asks for a day and a time, and publishes then instead of now.
+  ///
+  /// Two pickers rather than one, because Flutter ships one of each and a
+  /// third-party combined one is a dependency for something that takes two
+  /// taps. A time already past on the chosen day is refused here rather than
+  /// silently becoming "now" on the server.
+  Future<DateTime?> _askWhen() async {
+    final now = DateTime.now();
+    final day = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 1, now.month, now.day),
+    );
+    if (day == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+    );
+    if (time == null || !mounted) return null;
+
+    final when = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+    if (!when.isAfter(now)) {
+      _say('Pick a time that has not gone yet.');
+      return null;
+    }
+    return when;
+  }
+
+  Future<void> _schedule() async {
+    final when = await _askWhen();
+    if (when == null) return;
+    await _publish(publishAt: when);
+  }
+
+  Future<void> _publish({DateTime? publishAt}) async {
     final text = _composer.text.trim();
     // A picture with no caption is a post; an empty box is not.
     if (text.isEmpty && _pending == null) return;
 
     setState(() => _sending = true);
     final controller = PrivioScope.of(context).channels;
-    final ok = await controller.publish(_channel.id, text, file: _pending);
+    final ok = await controller.publish(
+      _channel.id,
+      text,
+      file: _pending,
+      publishAt: publishAt,
+    );
     if (!mounted) return;
     setState(() => _sending = false);
 
     if (ok) {
       _composer.clear();
       setState(() => _pending = null);
+      if (publishAt != null) {
+        // It is not in the feed, so without this the send looks like it failed.
+        _say('Scheduled for ${_whenLabel(publishAt)}. It is under "Scheduled" '
+            'until then.');
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(controller.error ?? 'Could not publish')),
@@ -238,6 +283,62 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         SnackBar(content: Text(controller.error ?? 'Could not change the reactions.')),
       );
     }
+  }
+
+  /// Rewrites one of this account's own posts.
+  ///
+  /// Only the author's: the server refuses anybody else, and the menu does not
+  /// offer it. Every post carries a name, so editing somebody else's would be
+  /// putting words in their mouth under their own byline.
+  Future<void> _edit(ChannelPost post) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditPostDialog(post: post),
+    );
+    if (text == null || !mounted) return;
+
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.editPost(_channel.id, post, text);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.error ?? 'Could not change the post.')),
+      );
+    }
+  }
+
+  /// Publishes something that was waiting, straight away.
+  Future<void> _publishNow(ChannelPost post) async {
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.editPost(
+      _channel.id,
+      post,
+      post.body,
+      clearSchedule: true,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Published.' : controller.error ?? 'Could not publish it.'),
+      ),
+    );
+  }
+
+  /// The waiting room: what this account has queued and when it goes out.
+  Future<void> _openScheduled() async {
+    final controller = PrivioScope.of(context).channels;
+    await controller.loadScheduled(_channel.id);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ScheduledScreen(
+          channel: _channel,
+          onPublishNow: _publishNow,
+          onDelete: (post) => controller.deletePost(_channel.id, post.id),
+        ),
+      ),
+    );
+    if (mounted) await _load();
   }
 
   Future<void> _confirmDelete() async {
@@ -302,6 +403,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         _share();
       case 'reactions':
         _editReactions();
+      case 'scheduled':
+        _openScheduled();
       case 'members':
         _openMembers();
       case 'leave':
@@ -353,6 +456,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   itemBuilder: (_) => [
                     if (channel.inviteCode != null)
                       const PopupMenuItem(value: 'invite', child: Text('Invite link')),
+                    if (channel.permissions.canPost)
+                      const PopupMenuItem(value: 'scheduled', child: Text('Scheduled')),
                     if (channel.permissions.canEditChannel)
                       const PopupMenuItem(value: 'reactions', child: Text('Reactions')),
                     const PopupMenuItem(value: 'members', child: Text('Members')),
@@ -427,6 +532,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                           return _PostCard(
                             post: post,
                             channel: channel,
+                            mine: post.authorUsername != null &&
+                                post.authorUsername == state.username,
+                            onEdit: () => _edit(post),
                             onReact: (emoji, {required bool on}) =>
                                 controller.react(channel.id, post.id, emoji, on: on),
                             onPin: () => controller.pin(
@@ -448,6 +556,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   sending: _sending,
                   pending: _pending,
                   onAttach: _attach,
+                  onSchedule: _schedule,
                   onDropAttachment: () => setState(() => _pending = null),
                   // Never the old key. Posting under a superseded version is
                   // exactly what a rotation exists to prevent, and the server
@@ -563,6 +672,8 @@ class _PostCard extends StatelessWidget {
     required this.onPin,
     required this.onDelete,
     required this.onReact,
+    required this.onEdit,
+    required this.mine,
   });
 
   final ChannelPost post;
@@ -570,14 +681,22 @@ class _PostCard extends StatelessWidget {
   final VoidCallback onPin;
   final VoidCallback onDelete;
 
+  /// Rewrites it. Offered only on this account's own posts, because that is
+  /// the only case the server will accept.
+  final VoidCallback onEdit;
+
+  /// Whether this account wrote it.
+  final bool mine;
+
   /// Adds or removes this account's reaction.
   final Future<bool> Function(String emoji, {required bool on}) onReact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canModerate =
-        channel.permissions.canEditChannel || channel.permissions.canDeletePosts;
+    final canModerate = channel.permissions.canEditChannel ||
+        channel.permissions.canDeletePosts ||
+        (mine && channel.permissions.canPost);
 
     return Container(
       margin: const EdgeInsets.only(bottom: PrivioSpacing.md),
@@ -605,13 +724,25 @@ class _PostCard extends StatelessWidget {
                 ),
               ),
               Text(_formatTime(post.createdAt), style: theme.textTheme.bodySmall),
+              // Said plainly rather than hidden: a reader who saw the first
+              // version is entitled to know it is not the one in front of them.
+              if (post.isEdited) ...[
+                const SizedBox(width: PrivioSpacing.xs),
+                Text('· edited', style: theme.textTheme.bodySmall),
+              ],
               if (canModerate)
                 PopupMenuButton<String>(
                   color: PrivioColors.surfaceHigh,
                   padding: EdgeInsets.zero,
                   icon: const Icon(Icons.more_horiz_rounded, size: 18),
-                  onSelected: (value) => value == 'pin' ? onPin() : onDelete(),
+                  onSelected: (value) => switch (value) {
+                    'pin' => onPin(),
+                    'edit' => onEdit(),
+                    _ => onDelete(),
+                  },
                   itemBuilder: (_) => [
+                    if (mine && channel.permissions.canPost)
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
                     if (channel.permissions.canEditChannel)
                       PopupMenuItem(value: 'pin', child: Text(post.pinned ? 'Unpin' : 'Pin')),
                     if (channel.permissions.canDeletePosts)
@@ -677,6 +808,7 @@ class _Composer extends StatelessWidget {
     required this.onSend,
     this.pending,
     this.onAttach,
+    this.onSchedule,
     this.onDropAttachment,
   });
 
@@ -688,6 +820,9 @@ class _Composer extends StatelessWidget {
   /// The file that will go with the next post, before it is sealed.
   final ChannelUpload? pending;
   final VoidCallback? onAttach;
+
+  /// Publishes later instead of now. Null hides the button.
+  final VoidCallback? onSchedule;
   final VoidCallback? onDropAttachment;
 
   @override
@@ -736,6 +871,12 @@ class _Composer extends StatelessWidget {
                   icon: const Icon(Icons.attach_file_rounded),
                   tooltip: 'Attach a picture or a file',
                 ),
+                if (onSchedule != null)
+                  IconButton(
+                    onPressed: enabled && !sending ? onSchedule : null,
+                    icon: const Icon(Icons.schedule_rounded),
+                    tooltip: 'Publish later',
+                  ),
                 Expanded(
               child: TextField(
                 controller: controller,
@@ -768,6 +909,218 @@ class _Composer extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Rewriting a post.
+///
+/// The attachment is not part of this and the dialog says so: it is already
+/// sealed and uploaded, and re-uploading it to change a sentence would spend
+/// the author's data allowance twice. Changing the picture means a new post.
+class _EditPostDialog extends StatefulWidget {
+  const _EditPostDialog({required this.post});
+
+  final ChannelPost post;
+
+  @override
+  State<_EditPostDialog> createState() => _EditPostDialogState();
+}
+
+class _EditPostDialogState extends State<_EditPostDialog> {
+  late final TextEditingController _text = TextEditingController(text: widget.post.body);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      backgroundColor: PrivioColors.surfaceRaised,
+      title: const Text('Edit post'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _text,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 10,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(hintText: 'Post'),
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(
+              widget.post.isScheduled
+                  ? 'Nobody has seen this yet, so it will not be marked as '
+                      'edited.'
+                  : 'The post will be marked as edited. Its file, if it has '
+                      'one, stays as it is.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final text = _text.text.trim();
+            // An empty post is a deletion wearing another name, and deletion
+            // has its own entry that says what it does.
+            if (text.isEmpty) return;
+            Navigator.of(context).pop(text);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+/// What this account has queued, and when each of it goes out.
+///
+/// Its own screen rather than a section of the feed: the feed is what everyone
+/// sees, and a waiting post is not in it for anybody, the author included.
+class _ScheduledScreen extends StatelessWidget {
+  const _ScheduledScreen({
+    required this.channel,
+    required this.onPublishNow,
+    required this.onDelete,
+  });
+
+  final ChannelInfo channel;
+  final Future<void> Function(ChannelPost) onPublishNow;
+  final Future<void> Function(ChannelPost) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = PrivioScope.of(context).channels;
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final waiting = controller.scheduledIn(channel.id);
+        return Scaffold(
+          appBar: AppBar(
+            leading: const PrivioBackButton(),
+            title: const Text('Scheduled'),
+          ),
+          body: waiting.isEmpty
+              ? const _NothingScheduled()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(PrivioSpacing.gutter),
+                  itemCount: waiting.length,
+                  itemBuilder: (context, index) {
+                    final post = waiting[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: PrivioSpacing.md),
+                      padding: const EdgeInsets.all(PrivioSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: PrivioColors.surfaceRaised,
+                        borderRadius: const BorderRadius.all(PrivioRadius.card),
+                        border: Border.all(color: PrivioColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.schedule_rounded,
+                                size: 14,
+                                color: PrivioColors.accent,
+                              ),
+                              const SizedBox(width: PrivioSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  post.publishAt == null
+                                      ? 'Waiting'
+                                      : _whenLabel(post.publishAt!),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: PrivioSpacing.sm),
+                          Text(
+                            post.opened ? post.body : 'Encrypted — no key on this device.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: PrivioSpacing.sm),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => onDelete(post),
+                                child: const Text(
+                                  'Discard',
+                                  style: TextStyle(color: PrivioColors.danger),
+                                ),
+                              ),
+                              const SizedBox(width: PrivioSpacing.sm),
+                              FilledButton(
+                                onPressed: () => onPublishNow(post),
+                                child: const Text('Publish now'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _NothingScheduled extends StatelessWidget {
+  const _NothingScheduled();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.schedule_rounded, size: 40, color: PrivioColors.textTertiary),
+            const SizedBox(height: PrivioSpacing.md),
+            Text('Nothing waiting', style: theme.textTheme.titleMedium),
+            const SizedBox(height: PrivioSpacing.xs),
+            Text(
+              'Posts you schedule wait here until their time comes. Nobody '
+              'else can see them, or that they exist.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Today at 18:30", "Tomorrow at 09:00", or the date.
+String _whenLabel(DateTime when) {
+  final today = DateUtils.dateOnly(DateTime.now());
+  final day = DateUtils.dateOnly(when);
+  final hh = when.hour.toString().padLeft(2, '0');
+  final mm = when.minute.toString().padLeft(2, '0');
+  final difference = day.difference(today).inDays;
+  if (difference == 0) return 'today at $hh:$mm';
+  if (difference == 1) return 'tomorrow at $hh:$mm';
+  return '${when.day}.${when.month}. at $hh:$mm';
 }
 
 /// Which emojis a channel offers under its posts.

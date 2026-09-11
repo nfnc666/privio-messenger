@@ -229,6 +229,8 @@ class ChannelPost {
     this.attachment,
     this.reactions = const {},
     this.myReactions = const {},
+    this.editedAt,
+    this.publishAt,
   });
 
   final int id;
@@ -249,6 +251,19 @@ class ChannelPost {
   /// none, and also when the post could not be opened — a locked post shows a
   /// padlock, not a download button for something nobody can read.
   final ChannelAttachment? attachment;
+
+  /// When the author last changed it, or null if they never did.
+  ///
+  /// Only set for a post people could already read. One still waiting for its
+  /// time carries no mark, because nobody saw the earlier version.
+  final DateTime? editedAt;
+
+  /// When it becomes visible, for one that is not yet. Null for everything in
+  /// an ordinary feed.
+  final DateTime? publishAt;
+
+  bool get isEdited => editedAt != null;
+  bool get isScheduled => publishAt != null;
 
   /// How many of each emoji are on this post.
   ///
@@ -273,6 +288,8 @@ class ChannelPost {
         attachment: attachment,
         reactions: counts,
         myReactions: mine,
+        editedAt: editedAt,
+        publishAt: publishAt,
       );
 
   /// Which version of the channel key sealed this post.

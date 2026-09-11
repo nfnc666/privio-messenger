@@ -980,10 +980,25 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          * what such a client's key is.
          */
         keyEpoch: z.number().int().min(1).optional(),
+        /**
+         * When it becomes visible. Absent means now.
+         *
+         * A scheduled post is an ordinary row the feed does not select yet —
+         * there is no queue and no worker, so there is nothing to fall over
+         * and leave a channel silent. See migration 018 for why that works
+         * here and what would have to change if a post ever raised a push.
+         */
+        publishAt: z.coerce.date().optional(),
       }),
       request.body,
     );
     const postEpoch = body.keyEpoch ?? 1;
+
+    // A time in the past is not scheduling, it is back-dating: it would put a
+    // post above ones people have already read. Treated as "now" rather than
+    // refused, because a client whose clock is a minute slow is not an error.
+    const publishAt =
+      body.publishAt && body.publishAt.getTime() > Date.now() ? body.publishAt : null;
 
     /*
      * The rule that makes a removal mean anything: nothing new under the old
@@ -1047,9 +1062,10 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       }
 
       const { rows } = await client.query(
-        `INSERT INTO channel_posts (channel_id, author_account_id, content, media_id, key_epoch)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, key_epoch`,
-        [params.id, accountId, body.content, body.mediaId ?? null, postEpoch],
+        `INSERT INTO channel_posts
+           (channel_id, author_account_id, content, media_id, key_epoch, publish_at)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, key_epoch, publish_at`,
+        [params.id, accountId, body.content, body.mediaId ?? null, postEpoch, publishAt],
       );
       return rows[0];
     });
@@ -1059,6 +1075,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       id: created.id,
       keyEpoch: created.key_epoch,
       createdAt: (created.created_at as Date).toISOString(),
+      publishAt: (created.publish_at as Date | null)?.toISOString() ?? null,
     };
   });
 
@@ -1070,10 +1087,21 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       z.object({
         before: z.coerce.number().int().positive().optional(),
         limit: z.coerce.number().int().min(1).max(100).default(50),
+        /**
+         * The author's own waiting room: posts whose time has not come.
+         *
+         * Only for someone who may publish. A subscriber has no business
+         * knowing that something is queued, and the ordinary feed never shows
+         * it — a scheduled post is invisible until it is due, to everyone.
+         */
+        scheduled: z.coerce.boolean().optional(),
       }),
       request.query,
     );
-    await requireMember(params.id, accountId);
+    const member = await requireMember(params.id, accountId);
+    if (query.scheduled && !member.permissions.canPost) {
+      throw ApiError.forbidden('insufficient_permission', 'You need canPost for that');
+    }
 
     /*
      * The counts come back with the feed rather than from a second call: fifty
@@ -1089,6 +1117,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const { rows } = await pool.query(
       `SELECT p.id, p.author_account_id, a.username AS author_username,
               p.content, p.media_id, p.pinned, p.created_at, p.key_epoch,
+              p.edited_at, p.publish_at,
               COALESCE(r.counts, '{}'::jsonb) AS reactions,
               COALESCE(m.mine, ARRAY[]::text[]) AS mine
        FROM channel_posts p
@@ -1109,8 +1138,12 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
        ) AS m ON true
        WHERE p.channel_id = $1 AND p.deleted_at IS NULL
          AND ($2::bigint IS NULL OR p.id < $2)
+         AND CASE WHEN $5::boolean
+                  THEN p.publish_at IS NOT NULL AND p.publish_at > now()
+                  ELSE p.publish_at IS NULL OR p.publish_at <= now()
+             END
        ORDER BY p.id DESC LIMIT $3`,
-      [params.id, query.before ?? null, query.limit, accountId],
+      [params.id, query.before ?? null, query.limit, accountId, query.scheduled ?? false],
     );
 
     return {
@@ -1123,6 +1156,9 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         pinned: r.pinned,
         reactions: r.reactions,
         myReactions: r.mine,
+        // Null unless somebody changed it after people could already read it.
+        editedAt: (r.edited_at as Date | null)?.toISOString() ?? null,
+        publishAt: (r.publish_at as Date | null)?.toISOString() ?? null,
         // So a reader knows which key a post needs, rather than inferring it
         // from a decryption that failed. A padlock that can say "waiting for
         // the key from 12 March" is a different thing from one that cannot.
@@ -1130,6 +1166,101 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         createdAt: (r.created_at as Date).toISOString(),
       })),
       more: rows.length === query.limit,
+    };
+  });
+
+  /**
+   * Changing a post after it is out.
+   *
+   * **Only the author.** An admin who can delete a post cannot rewrite it:
+   * every post carries its author's name, so editing somebody else's words
+   * would be putting words in their mouth under their own byline. Deleting is
+   * the moderation tool, and it is honest about what it is.
+   *
+   * The new text arrives sealed, like the old one, and under the same epoch
+   * rule — an edit prepared before a rotation must not land under the key
+   * somebody was just removed from. Same lock, same refusal as publishing.
+   *
+   * `edited_at` is set only when the post was already visible. Changing one
+   * that is still scheduled leaves no mark, because nobody read the earlier
+   * version and there is nothing to disclose.
+   */
+  app.patch('/v1/channels/:id/posts/:postId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        content: base64Bytes(1, MAX_POST_BYTES),
+        keyEpoch: z.number().int().min(1).optional(),
+        /** Moves a scheduled post. Null publishes it now. */
+        publishAt: z.coerce.date().nullable().optional(),
+      }),
+      request.body,
+    );
+    const postEpoch = body.keyEpoch ?? 1;
+
+    const updated = await withTransaction(async (client) => {
+      const channel = await lockChannel(client, params.id, 'share');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+      await requirePermission(params.id, accountId, 'canPost', client);
+
+      if (postEpoch < channel.key_epoch) {
+        throw ApiError.conflict(
+          'stale_key_epoch',
+          `This channel has rotated its key. Seal the post under epoch ${channel.key_epoch}.`,
+        );
+      }
+      if (postEpoch > channel.key_epoch) {
+        throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
+      }
+
+      const { rows: existing } = await client.query<{
+        author_account_id: string | null;
+        publish_at: Date | null;
+      }>(
+        `SELECT author_account_id, publish_at FROM channel_posts
+         WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
+        [params.postId, params.id],
+      );
+      const post = existing[0];
+      if (!post) throw ApiError.notFound('post_not_found', 'No such post');
+      if (post.author_account_id !== accountId) {
+        throw ApiError.forbidden('not_the_author', 'Only the author can change a post');
+      }
+
+      // Was it already out? That is what decides whether this leaves a mark.
+      const wasVisible = post.publish_at === null || post.publish_at.getTime() <= Date.now();
+
+      // `publishAt` absent leaves the schedule alone; null publishes now; a
+      // future time moves it. A past time is "now", for the same reason as
+      // when publishing.
+      const reschedule = body.publishAt !== undefined;
+      const nextPublishAt = !reschedule
+        ? post.publish_at
+        : body.publishAt && body.publishAt.getTime() > Date.now()
+          ? body.publishAt
+          : null;
+
+      const { rows } = await client.query(
+        `UPDATE channel_posts
+         SET content = $3, key_epoch = $4, publish_at = $5,
+             edited_at = CASE WHEN $6::boolean THEN now() ELSE edited_at END
+         WHERE id = $1 AND channel_id = $2
+         RETURNING id, created_at, edited_at, publish_at, key_epoch`,
+        [params.postId, params.id, body.content, postEpoch, nextPublishAt, wasVisible],
+      );
+      return rows[0];
+    });
+
+    return {
+      id: updated.id,
+      keyEpoch: updated.key_epoch,
+      createdAt: (updated.created_at as Date).toISOString(),
+      editedAt: (updated.edited_at as Date | null)?.toISOString() ?? null,
+      publishAt: (updated.publish_at as Date | null)?.toISOString() ?? null,
     };
   });
 
