@@ -13,6 +13,7 @@ import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/models/channel.dart';
 import 'package:privio/screens/channel_admins_screen.dart';
+import 'package:privio/screens/channel_feed_screen.dart';
 import 'package:privio/screens/channel_profile_screen.dart';
 import 'package:privio/screens/channel_subscribers_screen.dart';
 import 'package:privio/services/backup_service.dart';
@@ -472,6 +473,69 @@ void main() {
         isTrue,
         reason: 'a channel with thousands of people cannot be downloaded to filter',
       );
+    });
+  });
+
+  group('the profile is reachable at all', () {
+    // The bug this group exists for: the profile screen, the edit screen, the
+    // admin list and the subscriber list all shipped in the binary with
+    // *nothing that opened them*. `_openProfile` was written, the menu's switch
+    // had a case for it, and the two things that would have called it — the
+    // header tap and the menu entry — were lost when an edit script aborted
+    // before writing. `flutter analyze` was green the whole time, because
+    // unreachable code is not an analyzer error.
+    //
+    // Only a test that presses the thing a person presses can catch that.
+
+    testWidgets('tapping the channel header opens its page', (tester) async {
+      final server = FakeServer();
+      final state = await stateWith(
+        server,
+        channelFor(role: 'owner', permissions: ownerPermissions),
+      );
+
+      await tester.pumpWidget(
+        wrap(ChannelFeedScreen(channel: state.channels.mine.single), state),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChannelProfileScreen), findsNothing);
+
+      // The title in the app bar, which is the whole header.
+      await tester.tap(find.text('HouseOfTrading').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(ChannelProfileScreen),
+        findsOneWidget,
+        reason: 'the header is how a person reaches a channel page',
+      );
+      expect(find.text('34 subscribers'), findsOneWidget);
+    });
+
+    testWidgets('and so does Channel info in the overflow menu', (tester) async {
+      final server = FakeServer();
+      final state = await stateWith(
+        server,
+        channelFor(role: 'owner', permissions: ownerPermissions),
+      );
+
+      await tester.pumpWidget(
+        wrap(ChannelFeedScreen(channel: state.channels.mine.single), state),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // The entry has to exist, or the switch case behind it is dead code —
+      // which is exactly what it was.
+      expect(find.text('Channel info'), findsOneWidget);
+
+      await tester.tap(find.text('Channel info'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChannelProfileScreen), findsOneWidget);
     });
   });
 }

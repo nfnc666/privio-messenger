@@ -797,39 +797,59 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
           appBar: AppBar(
             leading: const PrivioBackButton(),
             titleSpacing: 0,
-            title: Row(
-              children: [
-                // Tapping it is the same as the menu entry, because that is
-                // where people look for it first.
-                GestureDetector(
-                  onTap: channel.permissions.canEditChannel ? _editPicture : null,
-                  child: ChannelAvatar(
+            // The whole header opens the channel's own page — its picture, its
+            // link, who is in it, what it holds. Tapping a header is where
+            // people look for that first, and until this line existed the four
+            // screens behind it shipped in the binary with nothing to open them.
+            title: GestureDetector(
+              onTap: () => unawaited(_openProfile()),
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                children: [
+                  ChannelAvatar(
                     channel: channel,
                     imageBytes: controller.avatarFor(channel),
                     size: 36,
                   ),
-                ),
-                const SizedBox(width: PrivioSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        channel.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      Text(
-                        '${channel.isPublic ? 'Public' : 'Private'} · '
-                        '${channel.memberLabel}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  const SizedBox(width: PrivioSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          channel.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${channel.isPublic ? 'Public' : 'Private'} · '
+                                '${channel.memberLabel}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                            if (channel.muted)
+                              const Padding(
+                                padding: EdgeInsets.only(left: PrivioSpacing.xs),
+                                child: Icon(
+                                  Icons.notifications_off_rounded,
+                                  size: 12,
+                                  color: PrivioColors.textTertiary,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             actions: [
               if (channel.isMember)
@@ -843,6 +863,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   onSelected: _onMenu,
                   color: PrivioColors.surfaceRaised,
                   itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'profile', child: Text('Channel info')),
                     if (channel.inviteCode != null)
                       const PopupMenuItem(value: 'invite', child: Text('Invite link')),
                     if (channel.permissions.canPost)
