@@ -287,6 +287,24 @@ would be advertising something it would have to break encryption to deliver.
 Threads are off until a channel's owner turns them on, because a channel is a
 broadcast and threads change what the thing is.
 
+**A poll's question is not in the database.** The question and the answers
+travel inside the post's sealed payload, with its text, so the server never
+learns what was asked or what the options were called. What it holds is the
+shape — how many options, how many a person may pick, when it closes — because
+it is the thing enforcing that a vote is in range, that nobody picks four
+answers in a two-answer poll, and that a closed poll stays closed. A
+client-side rule is a suggestion; these three integers say nothing about
+content and let the server enforce a real one.
+
+A vote is `(post_id, account_id, option_index)` in the clear, so the server
+knows that an account picked option 2 of a question it cannot read. That is
+strictly less than it learns from a reaction, where the emoji itself is
+readable, and it is there for the same two reasons: it stops one person voting
+ten times and it lets them change their mind. Who voted for what is held and
+never served — the feed answers with a count per option and the reader's own
+choices, and there is no route that returns the rows. A silenced member has no
+vote either, because a vote is a voice.
+
 **Silencing is not removal, and the difference is the point.** Removing somebody
 rotates the channel key and cuts them off from reading as well — the right
 answer to "should not be here", and much too heavy an answer to "will not stop

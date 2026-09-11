@@ -1001,6 +1001,25 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          * here and what would have to change if a post ever raised a push.
          */
         publishAt: z.coerce.date().optional(),
+        /**
+         * The *shape* of a poll, never its content.
+         *
+         * The question and the answers travel inside the sealed payload with
+         * the post's text, so the server never learns what was asked. These
+         * three numbers are what it needs to enforce a vote being in range,
+         * nobody picking four answers in a two-answer poll, and a closed poll
+         * staying closed — see migration 020.
+         */
+        poll: z
+          .object({
+            optionCount: z.number().int().min(2).max(12),
+            maxChoices: z.number().int().min(1).max(12).default(1),
+            closesAt: z.coerce.date().optional(),
+          })
+          .refine((value) => value.maxChoices <= value.optionCount, {
+            message: 'maxChoices cannot exceed optionCount',
+          })
+          .optional(),
       }),
       request.body,
     );
@@ -1079,7 +1098,22 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, key_epoch, publish_at`,
         [params.id, accountId, body.content, body.mediaId ?? null, postEpoch, publishAt],
       );
-      return rows[0];
+      const created = rows[0];
+      if (body.poll) {
+        // In the same transaction as the post: a post that claims a poll and
+        // has no row for it is a question nobody can answer.
+        await client.query(
+          `INSERT INTO channel_polls (post_id, option_count, max_choices, closes_at)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            created.id,
+            body.poll.optionCount,
+            body.poll.maxChoices,
+            body.poll.closesAt ?? null,
+          ],
+        );
+      }
+      return created;
     });
 
     reply.code(201);
@@ -1132,7 +1166,10 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
               p.edited_at, p.publish_at,
               COALESCE(r.counts, '{}'::jsonb) AS reactions,
               COALESCE(m.mine, ARRAY[]::text[]) AS mine,
-              COALESCE(c.n, 0) AS comment_count
+              COALESCE(c.n, 0) AS comment_count,
+              poll.option_count, poll.max_choices, poll.closes_at,
+              v.counts AS vote_counts, vp.voters,
+              COALESCE(mv.mine, ARRAY[]::smallint[]) AS my_votes
        FROM channel_posts p
        LEFT JOIN accounts a ON a.id = p.author_account_id
        LEFT JOIN LATERAL (
@@ -1156,6 +1193,30 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          FROM channel_post_comments
          WHERE post_id = p.id AND deleted_at IS NULL
        ) AS c ON true
+       LEFT JOIN channel_polls poll ON poll.post_id = p.id
+       -- A tally per option, and how many people took part. Two laterals and
+       -- not one: folding them together needs a UNION whose other half has no
+       -- option_index, and jsonb_object_agg throws on a null key rather than
+       -- skipping the row. The feed died for every poll until a test asked for
+       -- one. (No backticks in here: this is a template literal.)
+       LEFT JOIN LATERAL (
+         SELECT jsonb_object_agg(option_index, n) AS counts
+         FROM (
+           SELECT option_index, count(*)::int AS n
+           FROM channel_poll_votes WHERE post_id = p.id GROUP BY option_index
+         ) AS per_option
+       ) AS v ON poll.post_id IS NOT NULL
+       -- Not the sum of the above: in a poll that takes several answers one
+       -- person is several votes, and "42 people voted" is what a reader means.
+       LEFT JOIN LATERAL (
+         SELECT count(DISTINCT account_id)::int AS voters
+         FROM channel_poll_votes WHERE post_id = p.id
+       ) AS vp ON poll.post_id IS NOT NULL
+       LEFT JOIN LATERAL (
+         SELECT array_agg(option_index) AS mine
+         FROM channel_poll_votes
+         WHERE post_id = p.id AND account_id = $4
+       ) AS mv ON poll.post_id IS NOT NULL
        WHERE p.channel_id = $1 AND p.deleted_at IS NULL
          AND ($2::bigint IS NULL OR p.id < $2)
          AND CASE WHEN $5::boolean
@@ -1178,6 +1239,19 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         myReactions: r.mine,
         // Null unless somebody changed it after people could already read it.
         commentCount: r.comment_count,
+        // Null unless this post is a poll. The question and the answers are
+        // not here — they are inside `content`, sealed.
+        poll:
+          r.option_count === null
+            ? null
+            : {
+                optionCount: r.option_count,
+                maxChoices: r.max_choices,
+                closesAt: (r.closes_at as Date | null)?.toISOString() ?? null,
+                counts: r.vote_counts ?? {},
+                voters: r.voters ?? 0,
+                myVotes: r.my_votes ?? [],
+              },
         editedAt: (r.edited_at as Date | null)?.toISOString() ?? null,
         publishAt: (r.publish_at as Date | null)?.toISOString() ?? null,
         // So a reader knows which key a post needs, rather than inferring it
@@ -1283,6 +1357,109 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       editedAt: (updated.edited_at as Date | null)?.toISOString() ?? null,
       publishAt: (updated.publish_at as Date | null)?.toISOString() ?? null,
     };
+  });
+
+  /** One poll's tallies, for the answer a vote gets. */
+  async function tallyOf(
+    postId: number,
+    accountId: string,
+  ): Promise<{ counts: Record<number, number>; voters: number; myVotes: number[] }> {
+    const { rows } = await pool.query<{ option_index: number; n: number; mine: boolean }>(
+      `SELECT option_index, count(*)::int AS n,
+              bool_or(account_id = $2) AS mine
+       FROM channel_poll_votes WHERE post_id = $1
+       GROUP BY option_index`,
+      [postId, accountId],
+    );
+    const { rows: people } = await pool.query<{ voters: number }>(
+      'SELECT count(DISTINCT account_id)::int AS voters FROM channel_poll_votes WHERE post_id = $1',
+      [postId],
+    );
+    const counts: Record<number, number> = {};
+    const myVotes: number[] = [];
+    for (const row of rows) {
+      counts[row.option_index] = row.n;
+      if (row.mine) myVotes.push(row.option_index);
+    }
+    return { counts, voters: people[0]?.voters ?? 0, myVotes };
+  }
+
+  /**
+   * Voting, and changing your mind.
+   *
+   * The whole of this account's answer is sent each time and replaces what was
+   * there — not "add one vote", because changing a single-choice answer is
+   * otherwise two calls with a moment in between where the person has voted
+   * twice or not at all. An empty list takes the vote back.
+   *
+   * The server checks the shape it is holding: every index inside the poll's
+   * options, no more picks than the poll allows, and nothing after it closed.
+   * It is doing that without knowing what any of the options say.
+   */
+  app.put('/v1/channels/:id/posts/:postId/votes', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        options: z.array(z.number().int().min(0).max(11)).max(12),
+      }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+    // A silenced member does not get a vote either: it is the same voice.
+    await requireNotBanned(params.id, accountId);
+
+    await withTransaction(async (client) => {
+      const { rows } = await client.query<{
+        option_count: number;
+        max_choices: number;
+        closes_at: Date | null;
+      }>(
+        `SELECT poll.option_count, poll.max_choices, poll.closes_at
+         FROM channel_polls poll
+         JOIN channel_posts p ON p.id = poll.post_id
+         WHERE poll.post_id = $1 AND p.channel_id = $2 AND p.deleted_at IS NULL
+           AND (p.publish_at IS NULL OR p.publish_at <= now())`,
+        [params.postId, params.id],
+      );
+      const poll = rows[0];
+      if (!poll) throw ApiError.notFound('poll_not_found', 'No such poll');
+
+      if (poll.closes_at && poll.closes_at.getTime() <= Date.now()) {
+        throw ApiError.conflict('poll_closed', 'This poll has closed');
+      }
+
+      // Duplicates in the request would otherwise buy extra picks past the
+      // limit, and the primary key would silently swallow them.
+      const chosen = [...new Set(body.options)];
+      if (chosen.some((index) => index >= poll.option_count)) {
+        throw ApiError.badRequest('option_out_of_range', 'That is not one of the answers');
+      }
+      if (chosen.length > poll.max_choices) {
+        throw ApiError.badRequest(
+          'too_many_choices',
+          `This poll takes ${poll.max_choices} answer${poll.max_choices === 1 ? '' : 's'}`,
+        );
+      }
+
+      // Replace rather than add: the request is the whole answer.
+      await client.query(
+        'DELETE FROM channel_poll_votes WHERE post_id = $1 AND account_id = $2',
+        [params.postId, accountId],
+      );
+      for (const index of chosen) {
+        await client.query(
+          `INSERT INTO channel_poll_votes (post_id, account_id, option_index)
+           VALUES ($1, $2, $3)`,
+          [params.postId, accountId, index],
+        );
+      }
+    });
+
+    return tallyOf(params.postId, accountId);
   });
 
   /**
@@ -1698,6 +1875,11 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         await client.query('DELETE FROM channel_post_comments WHERE post_id = $1', [
           params.postId,
         ]);
+        // And the poll, if it was one. Third time this list has grown, and
+        // always for the same reason: the post delete is a soft delete, so
+        // nothing that hangs off the row goes with it on its own. Anything
+        // added here later has to be added here too.
+        await client.query('DELETE FROM channel_polls WHERE post_id = $1', [params.postId]);
       }
       return deleted;
     });

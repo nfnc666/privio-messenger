@@ -424,6 +424,7 @@ class PrivioApiClient {
     String? mediaId,
     int? keyEpoch,
     DateTime? publishAt,
+    Map<String, dynamic>? poll,
   }) =>
       _send('POST', '/v1/channels/$channelId/posts', body: {
         'content': content,
@@ -431,6 +432,9 @@ class PrivioApiClient {
         // When it should appear. The server treats a time in the past as now,
         // so a clock that is a minute slow does not back-date a post.
         if (publishAt != null) 'publishAt': publishAt.toUtc().toIso8601String(),
+        // The poll's *shape* only: how many options, how many may be picked,
+        // when it closes. The question and the answers are inside `content`.
+        if (poll != null) 'poll': poll,
         // Which key sealed it. The server refuses anything older than the
         // channel's current epoch, which is what stops a post prepared before a
         // removal from reaching the person who was removed.
@@ -506,6 +510,21 @@ class PrivioApiClient {
 
   Future<void> deletePost(String channelId, int postId) async =>
       _send('DELETE', '/v1/channels/$channelId/posts/$postId');
+
+  /// This account's whole answer to a poll, replacing whatever was there.
+  ///
+  /// The whole answer each time rather than one vote at a time: changing a
+  /// single-choice answer would otherwise be two calls with a moment in
+  /// between where the person has voted twice or not at all. An empty list
+  /// takes the vote back.
+  Future<Map<String, dynamic>> voteInPoll(
+    String channelId,
+    int postId,
+    List<int> options,
+  ) =>
+      _send('PUT', '/v1/channels/$channelId/posts/$postId/votes', body: {
+        'options': options,
+      },);
 
   // --- Comments -------------------------------------------------------------
 

@@ -679,6 +679,7 @@ class ChannelService {
     String body, {
     ChannelUpload? file,
     DateTime? publishAt,
+    ChannelPollDraft? poll,
   }) async {
     // The epoch is read now rather than remembered from the last time this
     // screen was opened. A post composed before somebody was removed and sent
@@ -704,13 +705,14 @@ class ChannelService {
         channelId: channelId,
         content: base64Encode(
           await _seal(
-            attachment == null ? body : _wrapWithAttachment(body, attachment),
+            _wrap(body, attachment: attachment, poll: poll),
             key,
           ),
         ),
         mediaId: attachment?.mediaId,
         keyEpoch: state.epoch,
         publishAt: publishAt,
+        poll: _pollShape(poll),
       );
       return result['id'] as int;
     } on ApiException catch (failure) {
@@ -737,17 +739,27 @@ class ChannelService {
         channelId: channelId,
         content: base64Encode(
           await _seal(
-            freshAttachment == null ? body : _wrapWithAttachment(body, freshAttachment),
+            _wrap(body, attachment: freshAttachment, poll: poll),
             fresh,
           ),
         ),
         mediaId: freshAttachment?.mediaId,
         keyEpoch: now.epoch,
         publishAt: publishAt,
+        poll: _pollShape(poll),
       );
       return result['id'] as int;
     }
   }
+
+  /// The three numbers the server is allowed to know about a poll.
+  static Map<String, dynamic>? _pollShape(ChannelPollDraft? poll) => poll == null
+      ? null
+      : {
+          'optionCount': poll.options.length,
+          'maxChoices': poll.maxChoices,
+          if (poll.closesAt != null) 'closesAt': poll.closesAt!.toUtc().toIso8601String(),
+        };
 
   /// Seals a picked file under [key] and uploads it.
   ///
@@ -809,7 +821,7 @@ class ChannelService {
       postId: post.id,
       content: base64Encode(
         await _seal(
-          attachment == null ? body : _wrapWithAttachment(body, attachment),
+          _wrap(body, attachment: attachment),
           key,
         ),
       ),
@@ -967,7 +979,8 @@ class ChannelService {
       final key = keys.putIfAbsent(epoch, () => null) ?? await keyFor(channelId, epoch);
       keys[epoch] = key;
       final opened = key == null ? null : await _openSealed(entry['content'] as String, key);
-      final (body, attachment) = opened == null ? ('', null) : _unwrap(opened);
+      final (body, attachment, pollContent) =
+          opened == null ? ('', null, null) : _unwrap(opened);
       posts.add(
         ChannelPost(
           id: entry['id'] as int,
@@ -983,6 +996,7 @@ class ChannelService {
           reactions: readReactions(entry['reactions']),
           myReactions: readMyReactions(entry['myReactions']),
           commentCount: (entry['commentCount'] as num?)?.toInt() ?? 0,
+          poll: _readPoll(entry['poll'], pollContent),
           editedAt: DateTime.tryParse(entry['editedAt'] as String? ?? '')?.toLocal(),
           publishAt: DateTime.tryParse(entry['publishAt'] as String? ?? '')?.toLocal(),
         ),
@@ -1039,31 +1053,91 @@ class ChannelService {
   /// token alone and never learns who asked.
   static const _envelopeMarker = 'privio';
 
-  String _wrapWithAttachment(String text, ChannelAttachment attachment) => jsonEncode({
-        _envelopeMarker: 1,
-        'text': text,
-        'media': attachment.toJson(),
-      });
+  /// Wraps a post's text with whatever travels sealed beside it.
+  ///
+  /// Returns the text unchanged when there is nothing to wrap, so a plain post
+  /// stays a plain string and nothing about the old shape changes.
+  String _wrap(String text, {ChannelAttachment? attachment, ChannelPollDraft? poll}) {
+    if (attachment == null && poll == null) return text;
+    return jsonEncode({
+      _envelopeMarker: 1,
+      'text': text,
+      if (attachment != null) 'media': attachment.toJson(),
+      // The question and the answers. This is the half the server never sees;
+      // the half it does see is three integers sent beside the post.
+      if (poll != null)
+        'poll': ChannelPollContent(question: poll.question, options: poll.options).toJson(),
+    });
+  }
 
-  /// Splits an opened post back into its text and its file.
+  /// Splits an opened post back into its text, its file and its poll.
   ///
   /// Anything that is not the envelope is a post from before attachments
-  /// existed, or one without a file, and is returned as it was.
-  (String, ChannelAttachment?) _unwrap(String opened) {
-    if (!opened.startsWith('{')) return (opened, null);
+  /// existed, or one with nothing beside its text, and is returned as it was.
+  (String, ChannelAttachment?, ChannelPollContent?) _unwrap(String opened) {
+    if (!opened.startsWith('{')) return (opened, null, null);
     try {
       final decoded = jsonDecode(opened);
       if (decoded is! Map<String, dynamic> || decoded[_envelopeMarker] != 1) {
-        return (opened, null);
+        return (opened, null, null);
       }
       return (
         decoded['text'] as String? ?? '',
         ChannelAttachment.fromJson(decoded['media']),
+        ChannelPollContent.fromJson(decoded['poll']),
       );
     } on FormatException {
       // Text that merely starts with a brace.
-      return (opened, null);
+      return (opened, null, null);
     }
+  }
+
+  /// The tallies as the server sends them, with anything malformed dropped
+  /// rather than crashing a feed over one row.
+  static Map<int, int> readVoteCounts(Object? raw) {
+    if (raw is! Map) return const {};
+    final counts = <int, int>{};
+    raw.forEach((key, value) {
+      final index = key is String ? int.tryParse(key) : (key is num ? key.toInt() : null);
+      final count = value is num ? value.toInt() : null;
+      if (index != null && count != null && count > 0) counts[index] = count;
+    });
+    return counts;
+  }
+
+  static Set<int> readMyVotes(Object? raw) => raw is List
+      ? {for (final entry in raw) if (entry is num) entry.toInt()}
+      : const {};
+
+  /// Builds the poll on a post out of the server's shape and the sealed
+  /// question, where this device could open it.
+  static ChannelPoll? _readPoll(Object? raw, ChannelPollContent? content) {
+    if (raw is! Map<String, dynamic>) return null;
+    final optionCount = (raw['optionCount'] as num?)?.toInt();
+    if (optionCount == null) return null;
+    return ChannelPoll(
+      content: content,
+      optionCount: optionCount,
+      maxChoices: (raw['maxChoices'] as num?)?.toInt() ?? 1,
+      closesAt: DateTime.tryParse(raw['closesAt'] as String? ?? '')?.toLocal(),
+      counts: readVoteCounts(raw['counts']),
+      voters: (raw['voters'] as num?)?.toInt() ?? 0,
+      myVotes: readMyVotes(raw['myVotes']),
+    );
+  }
+
+  /// Sends this account's whole answer and returns the fresh tallies.
+  Future<(Map<int, int>, int, Set<int>)> vote(
+    String channelId,
+    int postId,
+    List<int> options,
+  ) async {
+    final response = await _api.voteInPoll(channelId, postId, options);
+    return (
+      readVoteCounts(response['counts']),
+      (response['voters'] as num?)?.toInt() ?? 0,
+      readMyVotes(response['myVotes']),
+    );
   }
 
   Future<Uint8List> _seal(String text, Uint8List key) async {
