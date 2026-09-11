@@ -80,25 +80,82 @@ file naming only one verifies for some installs and silently fails for the rest.
 
 Until then, the pages work on the server's own hostname, and so do the links.
 
-### Apple
+### Apple — and the order matters
 
-1. An App ID with the Associated Domains capability.
-2. `applinks:<host>` in the app's entitlements.
-3. `IOS_APP_ID` set to `<team id>.<bundle id>`.
+**Universal Links are deliberately not configured in the entitlements yet.**
+`com.apple.developer.associated-domains` is a *capability*, not a plain key:
+adding it makes signing fail unless the App ID has Associated Domains enabled
+and the provisioning profile was regenerated with it. CI builds iOS with
+`--no-codesign` and would not catch that — the TestFlight workflow would, by
+breaking. There is also nothing to point it at while the domain is
+unregistered.
+
+In this order, once the domain exists:
+
+1. Enable **Associated Domains** on the App ID in the Apple Developer portal.
+2. Regenerate the provisioning profile and update the CI secret that holds it.
+3. Add to `app/ios/Runner/Runner.entitlements`, replacing the comment there:
+
+   ```xml
+   <key>com.apple.developer.associated-domains</key>
+   <array>
+     <string>applinks:privio.channel</string>
+   </array>
+   ```
+
+4. Set `IOS_APP_ID` on the server to `<team id>.<bundle id>`.
+5. Run the TestFlight workflow and confirm it still signs before relying on it.
 
 Apple fetches `https://<host>/.well-known/apple-app-site-association` directly —
 no redirects, `application/json`, and no `.json` extension. The server serves it
 exactly that way.
 
+Until all of that: **`privio://` works today**. It is in `Info.plist`, needs no
+domain, no verification file and nothing from Apple, and it is what actually
+opens a link on an installed device.
+
 ### Android
 
-1. `ANDROID_PACKAGE` and every SHA-256 signing fingerprint the app ships under.
-   `keytool -list -v -keystore <store>` prints them; Play Console shows the one
-   Google re-signs with under **App signing**.
-2. The intent filter with `android:autoVerify="true"` in the manifest.
+The intent filters are already in the manifest — both of them:
+
+* `privio://` — needs nothing, works on install.
+* `https://privio.channel/open/` with `android:autoVerify="true"`.
+
+The second fetches `assetlinks.json` at install time. While that answers 404,
+verification simply fails and the link opens in a browser, which shows the
+invite page, which has a button. That is a working fallback, not a broken state.
+
+To finish it:
+
+1. Set `ANDROID_PACKAGE` and every SHA-256 signing fingerprint the app ships
+   under. `keytool -list -v -keystore <store>` prints them; Play Console shows
+   the one Google re-signs with under **App signing**.
+2. Change the `android:host` in the manifest if the domain is not
+   `privio.channel`.
 
 Verify with `adb shell pm get-app-links <package>` on a device: anything other
 than `verified` means the file and the fingerprints disagree.
+
+## Opening a link never joins
+
+Tapping an invitation shows the channel with a **Join** button. It does not put
+anybody in a channel — a person who taps a link out of curiosity should not
+find their name in a stranger's member list. Somebody who is already a member
+lands in the channel itself.
+
+This was not always true: opening an invite link used to join immediately,
+inside the same call that resolved it.
+
+A link that arrives when the app is locked, or on a device with no account,
+**waits**. It is held in a controller rather than in a route, so it survives
+the passcode screen, signing up and the activation step, and opens once there
+is somewhere to put it.
+
+## After installing
+
+Open the same link again. Privio does not try to work out which invitation
+brought somebody to a store and does not claim to: there is no reliable way to
+carry a link through an install, and the page says so rather than pretending.
 
 ## What the page discloses
 

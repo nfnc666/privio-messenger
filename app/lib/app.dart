@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'models/channel.dart';
+import 'screens/channel_feed_screen.dart';
 import 'screens/activation_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/calculator_screen.dart';
@@ -89,12 +91,106 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
             // app switcher must not photograph who is on it.
             child: PrivacyCover(
               hidden: _lifecycle != AppLifecycleState.resumed,
-              child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+              // Inside the cover and above the navigator: the opener needs a
+              // navigator to push onto, and it must not be photographed by the
+              // app switcher any more than anything else is.
+              child: _DeepLinkOpener(
+                child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+              ),
             ),
           );
         },
         home: const _StageRouter(),
       ),
+    );
+  }
+}
+
+/// Opens whatever a link named, once the app is in a state to open it.
+///
+/// Sits above the stage router so it survives the screen underneath changing —
+/// which it does exactly when this matters, as somebody finishes signing in.
+///
+/// It waits for [AppStage.ready] and nothing else. A link that arrives at the
+/// lock screen waits for the passcode; one that arrives on a device with no
+/// account waits through signing up and the activation step. Whoever tapped the
+/// invitation ends up looking at it, whenever that turns out to be.
+///
+/// **It never joins.** It fetches what the link names and pushes the channel
+/// screen, which shows a Join button to somebody who is not a member and the
+/// feed to somebody who is.
+class _DeepLinkOpener extends StatefulWidget {
+  const _DeepLinkOpener({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_DeepLinkOpener> createState() => _DeepLinkOpenerState();
+}
+
+class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
+  /// True while a link is being resolved, so a rebuild does not start a second
+  /// fetch of the same one.
+  bool _opening = false;
+
+  Future<void> _open(AppState state, ChannelLinkTarget target) async {
+    if (_opening) return;
+    _opening = true;
+    final controller = state.channels;
+    final channel = await controller.preview(target);
+    if (!mounted) {
+      _opening = false;
+      return;
+    }
+
+    // Taken only now. Cleared on read, a target would be lost if the fetch
+    // failed, and the person would be left with nothing and no explanation.
+    state.deepLinks.taken();
+    _opening = false;
+
+    if (channel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            controller.error ??
+                'That link does not point at a channel any more. Ask whoever '
+                    'sent it for a new one.',
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ChannelFeedScreen(channel: channel)),
+    );
+  }
+
+  void _reportUnreadable(AppState state) {
+    state.deepLinks.taken();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('That does not look like a Privio channel link.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = PrivioScope.of(context);
+
+    return ListenableBuilder(
+      listenable: state.deepLinks,
+      builder: (context, child) {
+        final target = state.deepLinks.pending;
+        // Only once there is somewhere to put it. Everything else waits.
+        if (state.stage == AppStage.ready) {
+          if (target != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _open(state, target));
+          } else if (state.deepLinks.unreadable) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _reportUnreadable(state));
+          }
+        }
+        return child!;
+      },
+      child: widget.child,
     );
   }
 }

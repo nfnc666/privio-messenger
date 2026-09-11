@@ -57,6 +57,11 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.1
+  # Channel links arriving from outside the app: a shared link tapped in
+  # WhatsApp, or the button on the invite page. Covers the cold start as well
+  # as the stream, which is the half that decides whether tapping an invitation
+  # on a phone without Privio open works at all.
+  app_links: ^6.3.2
   # Opening a link somebody put in a channel post. Only ever called after the
   # reader has confirmed the address in a dialog — see `widgets/linked_text.dart`
   # for why a silent hand-off to the browser is the wrong default here.

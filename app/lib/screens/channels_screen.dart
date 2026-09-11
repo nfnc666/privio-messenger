@@ -57,6 +57,9 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
 
   /// A link is the only way into a private channel. It carries no key — that
   /// arrives afterwards from a member who already has one.
+  ///
+  /// Opening one shows the channel; it does not join it. Tapping a link out of
+  /// curiosity should not put somebody's name in a stranger's member list.
   Future<void> _joinByLink() async {
     final controller = PrivioScope.of(context).channels;
     final link = await showDialog<String>(
@@ -282,12 +285,13 @@ class _JoinByLinkDialogState extends State<_JoinByLinkDialog> {
             controller: _link,
             autofocus: true,
             decoration: const InputDecoration(
-              hintText: 'https://${ChannelService.channelLinkHost}/c/…',
+              hintText: 'https://${ChannelService.channelLinkHost}/…',
             ),
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'Paste a channel link. Joining does not hand you the key — a member '
+            'Paste a channel link. It shows you the channel; joining is a '
+            'button there. Joining does not hand you the key either — a member '
             'who has it sends it to your device, encrypted, right after.',
             style: Theme.of(context).textTheme.bodySmall,
           ),

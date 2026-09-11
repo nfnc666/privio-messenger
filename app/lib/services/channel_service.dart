@@ -501,6 +501,10 @@ class ChannelService {
   Future<ChannelInfo> byId(String channelId) async =>
       _open(await _api.channel(channelId));
 
+  /// A public channel by its handle, which is what a public link carries.
+  Future<ChannelInfo> byHandle(String handle) async =>
+      _open(await _api.channelByHandle(handle));
+
   /// Joins.
   ///
   /// The server queues a key request for this device as part of the join, so
@@ -638,10 +642,31 @@ class ChannelService {
   static const String channelLinkHost = 'privio.channel';
   static const String groupLinkHost = 'privio.group';
 
-  /// The link to share. It holds the code and nothing else, so it is safe to
-  /// post anywhere a link can be posted.
+  /// The link to share for a private channel. It holds the code and nothing
+  /// else, so it is safe to post anywhere a link can be posted — the code is
+  /// the capability, and it is unguessable.
   static String linkForChannel(String inviteCode) =>
-      'https://$channelLinkHost/c/$inviteCode';
+      'https://$channelLinkHost/+$inviteCode';
+
+  /// The link to share for a public channel: its name, and no capability.
+  ///
+  /// A public channel is searchable by handle, so a link to one grants nothing
+  /// that search does not. The old form put an invite code into every public
+  /// link, which meant a link printed on a poster or posted on a website was a
+  /// capability anybody could read off it.
+  static String linkForPublicChannel(String handle) =>
+      'https://$channelLinkHost/$handle';
+
+  /// The right link for a channel: its handle where it has one, its code
+  /// otherwise.
+  static String? shareLinkFor(ChannelInfo channel) {
+    final handle = channel.handle;
+    if (channel.isPublic && handle != null && handle.isNotEmpty) {
+      return linkForPublicChannel(handle);
+    }
+    final code = channel.inviteCode;
+    return code == null ? null : linkForChannel(code);
+  }
 
   static String linkForGroup(String inviteCode) => 'https://$groupLinkHost/g/$inviteCode';
 
@@ -652,9 +677,48 @@ class ChannelService {
   /// names the same channel. Returns null on anything malformed — a link is
   /// user input, not a promise.
   static ChannelInvite? parseInviteLink(String link) {
+    final target = parseLink(link);
+    return target is ChannelLinkByCode
+        ? ChannelInvite(code: target.code, kind: target.kind)
+        : null;
+  }
+
+  /// A handle is what a public channel link carries, and the same shape the
+  /// server enforces on the column.
+  static final RegExp _handle = RegExp(r'^[a-z0-9_.]{3,32}$');
+
+  /// Reads back any Privio link, in every shape one has ever had.
+  ///
+  ///     /+<code>          a private invitation
+  ///     /<handle>         a public channel, by name
+  ///     /c/<code>         what every shipped build used to generate
+  ///     /g/<code>         a group
+  ///     privio://…        the same paths under the app's own scheme
+  ///
+  /// A leading `/open` is stripped first. That is the path the web page's
+  /// button uses and the only one the app-link files claim, so it is the shape
+  /// most real links arrive in — but it names the same thing as the link that
+  /// was shared, and nothing downstream should have to know which of the two
+  /// it got.
+  ///
+  /// What decides the kind is the *path*, never the host: a link that has been
+  /// shortened, wrapped by a mail scanner or re-hosted still names the same
+  /// channel, and the host was never the authorisation. Returns null on
+  /// anything malformed — a link is user input, not a promise.
+  static ChannelLinkTarget? parseLink(String link) {
     final uri = Uri.tryParse(link.trim());
     if (uri == null) return null;
-    final segments = uri.pathSegments;
+
+    var segments = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    // `privio://open/+code` puts "open" in the host rather than the path,
+    // because a custom scheme has no authority of its own.
+    if (uri.scheme == 'privio' && uri.host.isNotEmpty && uri.host != 'open') {
+      segments = [uri.host, ...segments];
+    }
+    if (segments.isNotEmpty && segments.first == 'open') {
+      segments = segments.sublist(1);
+    }
+    if (segments.isEmpty) return null;
 
     const kinds = {'c': InviteKind.channel, 'g': InviteKind.group};
     for (final entry in kinds.entries) {
@@ -662,7 +726,17 @@ class ChannelService {
       if (index < 0 || index + 1 >= segments.length) continue;
       final code = segments[index + 1];
       if (code.isEmpty) continue;
-      return ChannelInvite(code: code, kind: entry.value);
+      return ChannelLinkByCode(code: code, kind: entry.value);
+    }
+
+    final first = segments.first;
+    if (first.startsWith('+') && first.length > 1) {
+      return ChannelLinkByCode(code: first.substring(1), kind: InviteKind.channel);
+    }
+    // Only a single segment that looks like a handle. Two segments is some
+    // other path on the same host and not a channel at all.
+    if (segments.length == 1 && _handle.hasMatch(first)) {
+      return ChannelLinkByHandle(first);
     }
     return null;
   }

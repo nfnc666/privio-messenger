@@ -34,6 +34,43 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+
+            <!-- Privio's own scheme.
+
+                 This needs no domain, no verification file and nothing from
+                 Google: it works the moment the app is installed. It is what
+                 actually opens a link today. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="privio"/>
+            </intent-filter>
+
+            <!-- Android App Links, for the https form.
+
+                 `autoVerify` makes Android fetch
+                 `https://<host>/.well-known/assetlinks.json` at install time.
+                 That file is served from this project's own server and answers
+                 404 until the package name and signing fingerprints are
+                 configured — which is a working state: verification simply
+                 fails, the link opens in a browser, and the browser shows the
+                 invite page, which has a button.
+
+                 Only `/open/` is claimed. That is the whole design: the shared
+                 link shows the page, and the button on it hands the link over.
+                 Claiming the share paths here would mean the app swallowing
+                 every link before anybody saw a page.
+
+                 The host is a placeholder until the domain is registered. It
+                 has to match `ChannelService.channelLinkHost` and the server's
+                 `PUBLIC_WEB_URL`; see docs/invite-links.md. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="privio.channel" android:pathPrefix="/open/"/>
+            </intent-filter>
         </activity>
 
         <!-- Privio's own entry. Enabled unless the disguise is on. -->

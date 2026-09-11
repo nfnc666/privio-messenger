@@ -33,6 +33,28 @@
 	     Each string says what the app really does with the hardware and what
 	     happens to what it captures. They are shown to the person being asked,
 	     so they are written for that person rather than for review. -->
+	<!--
+	  The app's own URL scheme, `privio://`.
+
+	  This is the half of link handling that needs no domain, no verification
+	  file and no Apple configuration — it works on a device the moment the app
+	  is installed. Universal Links are the better experience and are configured
+	  in `Runner.entitlements`, but they need a registered domain serving a file
+	  Apple fetches, and until that exists this is what actually opens a link.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>app.privio.privio</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>privio</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Privio uses the camera for video calls. The picture goes directly to the person you are calling, end-to-end encrypted; it is never recorded, and Privio's servers cannot see it.</string>
 	<key>NSMicrophoneUsageDescription</key>

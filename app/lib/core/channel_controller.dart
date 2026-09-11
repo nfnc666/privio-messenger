@@ -185,29 +185,62 @@ class ChannelController extends ChangeNotifier {
     return null;
   }
 
+  /// Joins, which is what the button on the preview does.
+  ///
+  /// [inviteCode] falls back to the code the channel was previewed with: a
+  /// private channel needs it again here, and by this point the link that
+  /// carried it is long gone.
   Future<bool> join(ChannelInfo channel, {String? inviteCode}) => _run(() async {
-        final joined = await _channels.join(channel, inviteCode: inviteCode);
+        final joined = await _channels.join(
+          channel,
+          inviteCode: inviteCode ?? _previewCodes[channel.id],
+        );
         _mine = [joined, ..._mine.where((c) => c.id != joined.id)];
         _discovered = [
           for (final c in _discovered) if (c.id == joined.id) joined else c,
         ];
       });
 
-  /// Opens a channel invite link: resolves the channel and joins it. The key
-  /// follows on its own, delivered by a member who already has it.
+  /// Looks up what a link names. **Does not join.**
+  ///
+  /// It used to join, right here, the moment a link was opened. That is the
+  /// wrong shape for a link somebody was sent: opening it is reading an
+  /// invitation, not accepting one, and a person who taps a link out of
+  /// curiosity should not find themselves a member of a stranger's channel
+  /// with their name in its list. What this returns is a channel the screen
+  /// shows with a Join button — and for somebody who is already a member, that
+  /// screen is simply the channel.
+  ///
+  /// The invite code is kept with the result: a private channel needs it again
+  /// at the moment of joining, and by then the link is gone.
   Future<ChannelInfo?> openInvite(String link) async {
-    final invite = ChannelService.parseInviteLink(link);
-    if (invite == null) {
+    final target = ChannelService.parseLink(link);
+    if (target == null) {
       _error = 'That does not look like a Privio channel link.';
       notifyListeners();
       return null;
     }
+    return preview(target);
+  }
+
+  /// The invite code a previewed channel was reached by, if it was reached by
+  /// one. Needed again when the Join button is pressed.
+  final Map<String, String> _previewCodes = {};
+
+  String? codeFor(String channelId) => _previewCodes[channelId];
+
+  /// Fetches what a link names, without joining anything.
+  Future<ChannelInfo?> preview(ChannelLinkTarget target) async {
     ChannelInfo? channel;
     await _run(() async {
-      final found = await _channels.byInvite(invite.code);
-      final joined = await _channels.join(found, inviteCode: invite.code);
-      _mine = [joined, ..._mine.where((c) => c.id != joined.id)];
-      channel = joined;
+      switch (target) {
+        case ChannelLinkByCode(:final code):
+          final found = await _channels.byInvite(code);
+          _previewCodes[found.id] = code;
+          channel = found;
+        case ChannelLinkByHandle(:final handle):
+          channel = await _channels.byHandle(handle);
+      }
     });
     return channel;
   }
@@ -522,10 +555,12 @@ class ChannelController extends ChangeNotifier {
         ];
       });
 
-  /// The share link for a channel. Safe to post anywhere: it carries the code
-  /// and no key.
-  String? inviteLink(ChannelInfo channel) =>
-      channel.inviteCode == null ? null : ChannelService.linkForChannel(channel.inviteCode!);
+  /// The share link for a channel.
+  ///
+  /// A public channel's is its handle and carries no capability at all; a
+  /// private one's is its invite code, which is the capability and is safe to
+  /// post anywhere because it is unguessable and carries no key.
+  String? inviteLink(ChannelInfo channel) => ChannelService.shareLinkFor(channel);
 
   /// Both halves of channel-key housekeeping, in one walk of the list.
   ///
