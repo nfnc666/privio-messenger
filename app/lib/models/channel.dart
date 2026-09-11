@@ -240,6 +240,7 @@ class ChannelPost {
     this.editedAt,
     this.publishAt,
     this.commentCount = 0,
+    this.poll,
   });
 
   final int id;
@@ -275,6 +276,9 @@ class ChannelPost {
   /// fetching a thread for every post it scrolls past.
   final int commentCount;
 
+  /// The poll on this post, or null for an ordinary one.
+  final ChannelPoll? poll;
+
   bool get isEdited => editedAt != null;
   bool get isScheduled => publishAt != null;
 
@@ -304,6 +308,25 @@ class ChannelPost {
         editedAt: editedAt,
         publishAt: publishAt,
         commentCount: commentCount,
+        poll: poll,
+      );
+
+  /// The same post with a poll's tallies replaced, for the answer a vote gets.
+  ChannelPost withPoll(ChannelPoll updated) => ChannelPost(
+        id: id,
+        body: body,
+        createdAt: createdAt,
+        authorUsername: authorUsername,
+        pinned: pinned,
+        opened: opened,
+        keyEpoch: keyEpoch,
+        attachment: attachment,
+        reactions: reactions,
+        myReactions: myReactions,
+        editedAt: editedAt,
+        publishAt: publishAt,
+        commentCount: commentCount,
+        poll: updated,
       );
 
   /// Which version of the channel key sealed this post.
@@ -313,6 +336,108 @@ class ChannelPost {
   /// simply still waiting for, and telling somebody to keep waiting for a key
   /// that is never coming is worse than saying so.
   final int keyEpoch;
+}
+
+/// The part of a poll the server never sees.
+///
+/// The question and the answers travel inside the post's sealed payload, with
+/// its text. What the server holds is the shape — how many options, how many
+/// may be picked, when it closes — because it is the thing enforcing a vote is
+/// in range, and it does that without knowing what any option says.
+@immutable
+class ChannelPollContent {
+  const ChannelPollContent({required this.question, required this.options});
+
+  static ChannelPollContent? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final question = raw['q'];
+    final options = raw['o'];
+    if (question is! String || options is! List) return null;
+    final labels = options.whereType<String>().toList();
+    if (labels.length < 2) return null;
+    return ChannelPollContent(question: question, options: labels);
+  }
+
+  Map<String, dynamic> toJson() => {'q': question, 'o': options};
+
+  final String question;
+  final List<String> options;
+}
+
+/// A poll as it is shown: the question from the sealed payload, the tallies
+/// from the server.
+@immutable
+class ChannelPoll {
+  const ChannelPoll({
+    required this.content,
+    required this.optionCount,
+    this.maxChoices = 1,
+    this.closesAt,
+    this.counts = const {},
+    this.voters = 0,
+    this.myVotes = const {},
+  });
+
+  /// Null when this device has no key for the post: the shape is known, the
+  /// question is not, and a poll nobody can read is not one to offer.
+  final ChannelPollContent? content;
+
+  final int optionCount;
+  final int maxChoices;
+  final DateTime? closesAt;
+
+  /// Votes per option index. Options nobody picked are simply absent.
+  final Map<int, int> counts;
+
+  /// How many people took part — not the sum of [counts], because a poll that
+  /// takes several answers counts one person several times.
+  final int voters;
+
+  /// Which options this account picked.
+  final Set<int> myVotes;
+
+  bool get isClosed => closesAt != null && !closesAt!.isAfter(DateTime.now());
+  bool get takesSeveral => maxChoices > 1;
+  bool get hasVoted => myVotes.isNotEmpty;
+
+  int countFor(int index) => counts[index] ?? 0;
+
+  /// The share of the vote an option has, between 0 and 1.
+  ///
+  /// Against the busiest option rather than the total: in a poll that takes
+  /// several answers the totals add up to more than the people, and a bar
+  /// running past its own track is worse than one that is only relative.
+  double shareOf(int index) {
+    final highest = counts.values.fold(0, (a, b) => a > b ? a : b);
+    if (highest == 0) return 0;
+    return countFor(index) / highest;
+  }
+
+  ChannelPoll withTally(Map<int, int> tally, int people, Set<int> mine) => ChannelPoll(
+        content: content,
+        optionCount: optionCount,
+        maxChoices: maxChoices,
+        closesAt: closesAt,
+        counts: tally,
+        voters: people,
+        myVotes: mine,
+      );
+}
+
+/// What a poll looks like before it is published.
+@immutable
+class ChannelPollDraft {
+  const ChannelPollDraft({
+    required this.question,
+    required this.options,
+    this.maxChoices = 1,
+    this.closesAt,
+  });
+
+  final String question;
+  final List<String> options;
+  final int maxChoices;
+  final DateTime? closesAt;
 }
 
 /// One comment under a post, after it has been opened.

@@ -148,11 +148,19 @@ class ChannelController extends ChangeNotifier {
     String body, {
     ChannelUpload? file,
     DateTime? publishAt,
+    ChannelPollDraft? poll,
   }) async {
     final text = body.trim();
-    if (text.isEmpty && file == null) return false;
+    // A poll is a post even with no words around it: the question is the text.
+    if (text.isEmpty && file == null && poll == null) return false;
     return _run(() async {
-      await _channels.publish(channelId, text, file: file, publishAt: publishAt);
+      await _channels.publish(
+        channelId,
+        text,
+        file: file,
+        publishAt: publishAt,
+        poll: poll,
+      );
       // Re-read rather than append locally: the server assigns the id and the
       // timestamp, and a feed that disagrees with them is worse than a wait.
       _posts[channelId] = await _channels.posts(channelId);
@@ -295,6 +303,35 @@ class ChannelController extends ChangeNotifier {
         _posts[channelId] = await _channels.posts(channelId);
         _scheduled[channelId] = await _channels.posts(channelId, scheduled: true);
       });
+
+  /// Sends this account's whole answer to a poll and keeps the fresh tallies.
+  ///
+  /// Not through [_run], for the same reason a reaction is not: a spinner over
+  /// the whole feed because somebody answered a poll is a worse answer than the
+  /// bars simply not moving. The numbers shown are the server's, never a guess.
+  Future<bool> vote(String channelId, int postId, List<int> options) async {
+    try {
+      final (counts, voters, mine) = await _channels.vote(channelId, postId, options);
+      _posts[channelId] = [
+        for (final post in postsIn(channelId))
+          if (post.id == postId && post.poll != null)
+            post.withPoll(post.poll!.withTally(counts, voters, mine))
+          else
+            post,
+      ];
+      _error = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (failure) {
+      _error = _explain(failure);
+      notifyListeners();
+      return false;
+    } on Object {
+      _error = 'Could not reach Privio. Check your connection.';
+      notifyListeners();
+      return false;
+    }
+  }
 
   /// Open threads, keyed by post id. Only the ones being looked at.
   final Map<int, List<ChannelComment>> _comments = {};

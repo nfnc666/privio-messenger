@@ -216,6 +216,26 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     return when;
   }
 
+  /// Asks the question, then publishes it as a post.
+  ///
+  /// The question and the answers go inside the sealed payload with the post's
+  /// text. What reaches the server is three numbers: how many options, how many
+  /// may be picked, when it closes.
+  Future<void> _poll() async {
+    final draft = await showDialog<ChannelPollDraft>(
+      context: context,
+      builder: (_) => const _NewPollDialog(),
+    );
+    if (draft == null || !mounted) return;
+
+    setState(() => _sending = true);
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.publish(_channel.id, '', poll: draft);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (!ok) _say(controller.error ?? 'Could not publish that poll.');
+  }
+
   Future<void> _schedule() async {
     final when = await _askWhen();
     if (when == null) return;
@@ -575,6 +595,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                                 post.authorUsername == state.username,
                             onEdit: () => _edit(post),
                             onOpenThread: () => _openThread(post),
+                            onVote: (options) =>
+                                controller.vote(channel.id, post.id, options),
                             onReact: (emoji, {required bool on}) =>
                                 controller.react(channel.id, post.id, emoji, on: on),
                             onPin: () => controller.pin(
@@ -597,6 +619,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   pending: _pending,
                   onAttach: _attach,
                   onSchedule: _schedule,
+                  onPoll: _poll,
                   onDropAttachment: () => setState(() => _pending = null),
                   // Never the old key. Posting under a superseded version is
                   // exactly what a rotation exists to prevent, and the server
@@ -714,6 +737,7 @@ class _PostCard extends StatelessWidget {
     required this.onReact,
     required this.onEdit,
     required this.onOpenThread,
+    required this.onVote,
     required this.mine,
   });
 
@@ -728,6 +752,9 @@ class _PostCard extends StatelessWidget {
 
   /// Opens the thread under it. Only reachable where the channel has threads.
   final VoidCallback onOpenThread;
+
+  /// Sends this account's whole answer to the poll on it.
+  final Future<bool> Function(List<int>) onVote;
 
   /// Whether this account wrote it.
   final bool mine;
@@ -809,6 +836,14 @@ class _PostCard extends StatelessWidget {
               if (post.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
               _AttachmentTile(channelId: channel.id, post: post),
             ],
+            if (post.poll != null) ...[
+              if (post.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+              _PollCard(
+                poll: post.poll!,
+                canVote: channel.isMember,
+                onVote: (options) => onVote(options),
+              ),
+            ],
             // Only under a post this device could open. A padlock with a row
             // of emojis beneath it invites a reaction to something nobody can
             // read, which is not a thing to ask of a reader.
@@ -884,6 +919,7 @@ class _Composer extends StatelessWidget {
     this.pending,
     this.onAttach,
     this.onSchedule,
+    this.onPoll,
     this.onDropAttachment,
   });
 
@@ -898,6 +934,9 @@ class _Composer extends StatelessWidget {
 
   /// Publishes later instead of now. Null hides the button.
   final VoidCallback? onSchedule;
+
+  /// Asks a question instead of making a statement. Null hides the button.
+  final VoidCallback? onPoll;
   final VoidCallback? onDropAttachment;
 
   @override
@@ -951,6 +990,12 @@ class _Composer extends StatelessWidget {
                     onPressed: enabled && !sending ? onSchedule : null,
                     icon: const Icon(Icons.schedule_rounded),
                     tooltip: 'Publish later',
+                  ),
+                if (onPoll != null)
+                  IconButton(
+                    onPressed: enabled && !sending ? onPoll : null,
+                    icon: const Icon(Icons.poll_outlined),
+                    tooltip: 'Ask a question',
                   ),
                 Expanded(
               child: TextField(
@@ -1315,6 +1360,355 @@ class _PaletteTile extends StatelessWidget {
           child: Text(emoji, style: const TextStyle(fontSize: 22)),
         ),
       );
+}
+
+/// A poll under a post: the question, the answers, and the bars.
+///
+/// The question comes out of the post's sealed payload; the numbers come from
+/// the server, which counted them without ever learning what any option says.
+/// Nobody is ever shown who voted for what — the server holds that and does not
+/// serve it, so there is no list here to open.
+class _PollCard extends StatefulWidget {
+  const _PollCard({required this.poll, required this.canVote, required this.onVote});
+
+  final ChannelPoll poll;
+  final bool canVote;
+  final Future<bool> Function(List<int>) onVote;
+
+  @override
+  State<_PollCard> createState() => _PollCardState();
+}
+
+class _PollCardState extends State<_PollCard> {
+  bool _busy = false;
+
+  /// What is selected but not yet sent, in a poll that takes several answers.
+  /// Null while nothing has been touched, so the server's own answer shows.
+  Set<int>? _draft;
+
+  Set<int> get _selected => _draft ?? widget.poll.myVotes;
+
+  Future<void> _send(List<int> options) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await widget.onVote(options);
+    // Cleared either way: on success the controller has the server's answer,
+    // and on failure a draft left behind would show a vote nobody cast.
+    if (mounted) {
+      setState(() {
+        _busy = false;
+        _draft = null;
+      });
+    }
+  }
+
+  void _tap(int index) {
+    final poll = widget.poll;
+    if (!widget.canVote || poll.isClosed || _busy) return;
+
+    if (!poll.takesSeveral) {
+      // One answer: a tap is the whole answer, and tapping the one already
+      // chosen takes it back.
+      _send(poll.myVotes.contains(index) ? const [] : [index]);
+      return;
+    }
+    final next = {..._selected};
+    if (next.contains(index)) {
+      next.remove(index);
+    } else if (next.length < poll.maxChoices) {
+      next.add(index);
+    } else {
+      return;
+    }
+    setState(() => _draft = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final poll = widget.poll;
+    final content = poll.content;
+
+    // The shape is known and the question is not: this device has no key for
+    // the post. Offering answers nobody can read would be worse than saying so.
+    if (content == null) {
+      return Container(
+        padding: const EdgeInsets.all(PrivioSpacing.md),
+        decoration: const BoxDecoration(
+          color: PrivioColors.surfaceHigh,
+          borderRadius: BorderRadius.all(PrivioRadius.card),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.lock_rounded, size: 16, color: PrivioColors.textTertiary),
+            const SizedBox(width: PrivioSpacing.sm),
+            Expanded(
+              child: Text(
+                'A poll this device has no key for.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Results show once this account has answered, or once it can no longer
+    // answer. Before that the bars would be an argument rather than a question.
+    final showResults = poll.hasVoted || poll.isClosed || !widget.canVote;
+
+    return Container(
+      padding: const EdgeInsets.all(PrivioSpacing.md),
+      decoration: const BoxDecoration(
+        color: PrivioColors.surfaceHigh,
+        borderRadius: BorderRadius.all(PrivioRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(content.question, style: theme.textTheme.titleSmall),
+          const SizedBox(height: PrivioSpacing.xs),
+          Text(
+            [
+              if (poll.takesSeveral)
+                'Pick up to ${poll.maxChoices}'
+              else
+                'Pick one',
+              if (poll.isClosed)
+                'closed'
+              else if (poll.closesAt != null)
+                'closes ${_whenLabel(poll.closesAt!)}',
+              '${poll.voters} ${poll.voters == 1 ? 'vote' : 'votes'}',
+            ].join(' · '),
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: PrivioSpacing.sm),
+          for (var index = 0; index < content.options.length; index++)
+            _PollOption(
+              label: content.options[index],
+              count: poll.countFor(index),
+              share: poll.shareOf(index),
+              chosen: _selected.contains(index),
+              showResults: showResults,
+              enabled: widget.canVote && !poll.isClosed && !_busy,
+              onTap: () => _tap(index),
+            ),
+          // A poll that takes several answers needs a moment to gather them,
+          // so it has a button; a one-answer poll is sent by the tap itself.
+          if (poll.takesSeveral && widget.canVote && !poll.isClosed) ...[
+            const SizedBox(height: PrivioSpacing.xs),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: _busy ? null : () => _send(_selected.toList()),
+                child: Text(_selected.isEmpty ? 'Clear my answer' : 'Answer'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PollOption extends StatelessWidget {
+  const _PollOption({
+    required this.label,
+    required this.count,
+    required this.share,
+    required this.chosen,
+    required this.showResults,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+
+  /// Against the busiest option, not the total: in a poll that takes several
+  /// answers the totals add up to more than the people.
+  final double share;
+  final bool chosen;
+  final bool showResults;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: PrivioSpacing.xs),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Stack(
+          children: [
+            if (showResults)
+              Positioned.fill(
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: share.clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: chosen ? PrivioColors.accentSurface : PrivioColors.surfaceRaised,
+                      borderRadius: const BorderRadius.all(PrivioRadius.card),
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: PrivioSpacing.md,
+                vertical: PrivioSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    chosen
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 16,
+                    color: chosen ? PrivioColors.accentBright : PrivioColors.textTertiary,
+                  ),
+                  const SizedBox(width: PrivioSpacing.sm),
+                  Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+                  if (showResults) ...[
+                    const SizedBox(width: PrivioSpacing.sm),
+                    Text('$count', style: theme.textTheme.bodySmall),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Writing a poll.
+class _NewPollDialog extends StatefulWidget {
+  const _NewPollDialog();
+
+  @override
+  State<_NewPollDialog> createState() => _NewPollDialogState();
+}
+
+class _NewPollDialogState extends State<_NewPollDialog> {
+  /// Two is the fewest that is a question; twelve is what the server allows and
+  /// more than fits on a phone.
+  static const int _maxOptions = 12;
+
+  final TextEditingController _question = TextEditingController();
+  final List<TextEditingController> _options = [
+    TextEditingController(),
+    TextEditingController(),
+  ];
+  bool _several = false;
+
+  @override
+  void dispose() {
+    _question.dispose();
+    for (final option in _options) {
+      option.dispose();
+    }
+    super.dispose();
+  }
+
+  List<String> get _filled =>
+      [for (final option in _options) option.text.trim()]..removeWhere((o) => o.isEmpty);
+
+  bool get _ready => _question.text.trim().isNotEmpty && _filled.length >= 2;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      backgroundColor: PrivioColors.surfaceRaised,
+      title: const Text('Ask a question'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _question,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(hintText: 'Question'),
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            for (var index = 0; index < _options.length; index++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: PrivioSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _options[index],
+                        onChanged: (_) => setState(() {}),
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(hintText: 'Answer ${index + 1}'),
+                      ),
+                    ),
+                    if (_options.length > 2)
+                      IconButton(
+                        onPressed: () => setState(() => _options.removeAt(index).dispose()),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        tooltip: 'Remove',
+                      ),
+                  ],
+                ),
+              ),
+            if (_options.length < _maxOptions)
+              TextButton.icon(
+                onPressed: () =>
+                    setState(() => _options.add(TextEditingController())),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Add an answer'),
+              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _several,
+              onChanged: (value) => setState(() => _several = value),
+              activeThumbColor: PrivioColors.accent,
+              title: Text('Several answers', style: theme.textTheme.bodyMedium),
+            ),
+            Text(
+              'The question and the answers are encrypted with the channel key, '
+              'like a post. The server counts the votes without ever learning '
+              'what any of them say.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: !_ready
+              ? null
+              : () {
+                  final options = _filled;
+                  Navigator.of(context).pop(
+                    ChannelPollDraft(
+                      question: _question.text.trim(),
+                      options: options,
+                      // "Several" means up to all but one: letting somebody
+                      // tick every box is not a poll, it is a list.
+                      maxChoices: _several ? options.length - 1 : 1,
+                    ),
+                  );
+                },
+          child: const Text('Ask'),
+        ),
+      ],
+    );
+  }
 }
 
 /// The reactions on a post, and a way to add one.

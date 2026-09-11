@@ -108,7 +108,7 @@ decides that, never the client.
 | `POST /v1/channels/:id/join` | |
 | `POST /v1/channels/:id/key-epochs` | |
 | `POST /v1/channels/:id/key-requests` | |
-| `POST /v1/channels/:id/posts` | `{publishAt}` schedules it; a past time is now |
+| `POST /v1/channels/:id/posts` | `{publishAt}` schedules it; `{poll}` is its *shape* only |
 | `POST /v1/channels/:id/posts/:postId/comments` | needs the channel to have comments on |
 | `POST /v1/channels` | |
 | `POST /v1/contacts` | |
@@ -130,6 +130,7 @@ decides that, never the client.
 | `PUT /v1/channels/:id/posts/:postId/pin` | |
 | `PUT /v1/channels/:id/posts/:postId/reactions` | `{emoji}` — must be one the channel offers |
 | `PUT /v1/channels/:id/bans/:accountId` | silences without removing; needs `canManageMembers` |
+| `PUT /v1/channels/:id/posts/:postId/votes` | `{options}` is the whole answer; empty takes it back |
 | `PUT /v1/devices/current/push` | |
 | `PUT /v1/groups/:id/members/:accountId/role` | |
 | `PUT /v1/keys/signed-prekey` | |

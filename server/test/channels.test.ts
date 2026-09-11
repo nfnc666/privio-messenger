@@ -470,6 +470,204 @@ describe('channels', () => {
     assert.equal(feed.json().posts.length, 0);
   });
 
+  describe('polls', () => {
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const ask = (
+      channelId: string,
+      poll: Record<string, unknown>,
+      question = 'Welche Farbe?',
+    ) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(owner),
+        // The question and the answers are inside the sealed payload. The
+        // server sees only the shape below.
+        payload: { content: sealed(question), poll },
+      });
+
+    const vote = (user: TestUser, channelId: string, postId: number, options: number[]) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/posts/${postId}/votes`,
+        headers: bearer(user),
+        payload: { options },
+      });
+
+    const feed = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(user),
+      });
+
+    async function polled(handle: string, poll: Record<string, unknown>) {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle,
+        title: handle,
+      })).json();
+      const published = (await ask(channel.id, poll)).json();
+      await join(reader, channel.id);
+      return { channel, published };
+    }
+
+    it('the server never sees the question, only the shape', async () => {
+      const { channel, published } = await polled('umfrage', { optionCount: 3 });
+
+      const { rows } = await pool.query(
+        'SELECT option_count, max_choices, closes_at FROM channel_polls WHERE post_id = $1',
+        [published.id],
+      );
+      assert.deepEqual(
+        { ...rows[0], closes_at: rows[0].closes_at },
+        { option_count: 3, max_choices: 1, closes_at: null },
+      );
+
+      // Everything a person would recognise is in the post's ciphertext.
+      const { rows: posts } = await pool.query(
+        'SELECT content FROM channel_posts WHERE id = $1',
+        [published.id],
+      );
+      assert.equal(
+        (posts[0].content as Buffer).toString(),
+        'Welche Farbe?',
+        'sealed in the real client; the point is the server never gets it as a poll field',
+      );
+      assert.equal((await feed(reader, channel.id)).json().posts[0].poll.optionCount, 3);
+    });
+
+    it('counts votes, and names only the reader’s own', async () => {
+      const { channel, published } = await polled('zaehlung', { optionCount: 3 });
+
+      await vote(owner, channel.id, published.id, [0]);
+      const mine = await vote(reader, channel.id, published.id, [2]);
+
+      assert.equal(mine.statusCode, 200);
+      assert.deepEqual(mine.json().counts, { 0: 1, 2: 1 });
+      assert.deepEqual(mine.json().myVotes, [2]);
+      assert.equal(mine.json().voters, 2);
+
+      const theirs = (await feed(owner, channel.id)).json().posts[0].poll;
+      assert.deepEqual(theirs.counts, { 0: 1, 2: 1 }, 'the totals are the same');
+      assert.deepEqual(theirs.myVotes, [0], 'but only their own are named');
+    });
+
+    it('changing your mind replaces the answer rather than adding to it', async () => {
+      const { channel, published } = await polled('umentschieden', { optionCount: 2 });
+
+      await vote(reader, channel.id, published.id, [0]);
+      const changed = await vote(reader, channel.id, published.id, [1]);
+
+      assert.deepEqual(changed.json().counts, { 1: 1 });
+      assert.equal(changed.json().voters, 1, 'one person, not two');
+    });
+
+    it('and an empty answer takes the vote back', async () => {
+      const { channel, published } = await polled('zurueckgezogen', { optionCount: 2 });
+      await vote(reader, channel.id, published.id, [0]);
+
+      const withdrawn = await vote(reader, channel.id, published.id, []);
+      assert.deepEqual(withdrawn.json().counts, {});
+      assert.equal(withdrawn.json().voters, 0);
+    });
+
+    it('a poll that takes several answers takes several, and no more', async () => {
+      const { channel, published } = await polled('mehrfach', {
+        optionCount: 4,
+        maxChoices: 2,
+      });
+
+      assert.equal((await vote(reader, channel.id, published.id, [0, 2])).statusCode, 200);
+
+      const tooMany = await vote(reader, channel.id, published.id, [0, 1, 2]);
+      assert.equal(tooMany.statusCode, 400);
+      assert.equal(tooMany.json().error, 'too_many_choices');
+
+      // The same option twice must not buy a third pick past the limit.
+      const doubled = await vote(reader, channel.id, published.id, [0, 0, 1]);
+      assert.equal(doubled.statusCode, 200);
+      assert.deepEqual(doubled.json().myVotes.sort(), [0, 1]);
+    });
+
+    it('an answer that is not one of the answers is refused', async () => {
+      const { channel, published } = await polled('ausserhalb', { optionCount: 2 });
+
+      const beyond = await vote(reader, channel.id, published.id, [5]);
+      assert.equal(beyond.statusCode, 400);
+      assert.equal(beyond.json().error, 'option_out_of_range');
+    });
+
+    it('a closed poll stays closed', async () => {
+      const { channel, published } = await polled('geschlossen', { optionCount: 2 });
+      await pool.query('UPDATE channel_polls SET closes_at = now() - interval \'1 minute\' WHERE post_id = $1', [
+        published.id,
+      ]);
+
+      const late = await vote(reader, channel.id, published.id, [0]);
+      assert.equal(late.statusCode, 409);
+      assert.equal(late.json().error, 'poll_closed');
+    });
+
+    it('a silenced member has no vote either', async () => {
+      const { channel, published } = await polled('stummabstimmung', { optionCount: 2 });
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/bans/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+
+      const refused = await vote(reader, channel.id, published.id, [0]);
+      assert.equal(refused.statusCode, 403);
+      assert.equal(refused.json().error, 'banned');
+    });
+
+    it('a stranger cannot vote, and a post that is not a poll has nothing to vote on', async () => {
+      const { channel, published } = await polled('keinfremder', { optionCount: 2 });
+      assert.equal((await vote(stranger, channel.id, published.id, [0])).statusCode, 403);
+
+      const plain = (await post(owner, channel.id, 'keine umfrage')).json();
+      assert.equal((await vote(reader, channel.id, plain.id, [0])).statusCode, 404);
+    });
+
+    it('a poll cannot take more answers than it has', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'unmoeglich',
+        title: 'Unmoeglich',
+      })).json();
+
+      const impossible = await ask(channel.id, { optionCount: 2, maxChoices: 3 });
+      assert.equal(impossible.statusCode, 400);
+    });
+
+    it('deleting the post takes the poll and its votes with it', async () => {
+      const { channel, published } = await polled('mitsamtumfrage', { optionCount: 2 });
+      await vote(reader, channel.id, published.id, [0]);
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_poll_votes WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0);
+    });
+  });
+
   describe('comments and silencing', () => {
     const sealed = (text: string) => Buffer.from(text).toString('base64');
 
