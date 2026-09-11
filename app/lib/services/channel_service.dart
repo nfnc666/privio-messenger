@@ -762,6 +762,44 @@ class ChannelService {
   /// The feed, newest first. Posts that will not open come back as locked
   /// placeholders rather than being dropped, so a missing key looks like a
   /// missing key instead of an empty channel.
+  /// `{"👍": 2}` as the server sends it, with anything malformed dropped
+  /// rather than crashing a feed over one row.
+  static Map<String, int> readReactions(Object? raw) {
+    if (raw is! Map) return const {};
+    final counts = <String, int>{};
+    raw.forEach((key, value) {
+      final count = value is num ? value.toInt() : null;
+      if (key is String && count != null && count > 0) counts[key] = count;
+    });
+    return counts;
+  }
+
+  static Set<String> readMyReactions(Object? raw) =>
+      raw is List ? raw.whereType<String>().toSet() : const {};
+
+  /// Adds this account's reaction, or takes it back, and returns the post's
+  /// fresh counts.
+  ///
+  /// Unsealed on purpose and the only part of a channel that is: a count has to
+  /// be counted somewhere. What the server learns by it is written down in
+  /// migration 017 and in the security model, rather than glossed over here.
+  /// Sets the emojis a channel offers under a post. Admins only, and the
+  /// server checks that rather than trusting the screen that hid the button.
+  Future<void> setReactionEmojis(String channelId, List<String> emojis) async =>
+      _api.updateChannel(channelId, reactionEmojis: emojis);
+
+  Future<(Map<String, int>, Set<String>)> react(
+    String channelId,
+    int postId,
+    String emoji, {
+    required bool on,
+  }) async {
+    final response = on
+        ? await _api.reactToPost(channelId, postId, emoji)
+        : await _api.unreactToPost(channelId, postId, emoji);
+    return (readReactions(response['reactions']), readMyReactions(response['myReactions']));
+  }
+
   Future<List<ChannelPost>> posts(String channelId, {int? before, int limit = 50}) async {
     final response = await _api.channelPosts(channelId, before: before, limit: limit);
     final posts = <ChannelPost>[];
@@ -788,6 +826,8 @@ class ChannelService {
                   DateTime.now(),
           authorUsername: entry['authorUsername'] as String?,
           pinned: entry['pinned'] as bool? ?? false,
+          reactions: readReactions(entry['reactions']),
+          myReactions: readMyReactions(entry['myReactions']),
         ),
       );
     }
@@ -958,6 +998,13 @@ class ChannelService {
         ),
         inviteCode: raw['inviteCode'] as String?,
         restrictSaving: raw['restrictSaving'] as bool? ?? false,
+        // A server from before reactions existed sends nothing here, and a
+        // channel with no bar at all would look like the feature is missing
+        // rather than unset — so the default set stands in.
+        reactionEmojis: (raw['reactionEmojis'] as List<dynamic>?)
+                ?.whereType<String>()
+                .toList() ??
+            ChannelInfo.defaultReactionEmojis,
         hasKey: hasKey,
         keyEpoch: keyEpoch,
         hasCurrentKey: hasCurrentKey ?? hasKey,

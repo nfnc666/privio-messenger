@@ -384,6 +384,7 @@ class PrivioApiClient {
     String? encryptedMetadata,
     int? metadataKeyEpoch,
     bool? restrictSaving,
+    List<String>? reactionEmojis,
   }) =>
       _send('PATCH', '/v1/channels/$channelId', body: {
         if (title != null) 'title': title,
@@ -395,6 +396,9 @@ class PrivioApiClient {
         // name, because the name is still under epoch 1.
         if (metadataKeyEpoch != null) 'metadataKeyEpoch': metadataKeyEpoch,
         if (restrictSaving != null) 'restrictSaving': restrictSaving,
+        // The menu under a post. Changing it leaves what is already there
+        // alone — see migration 017.
+        if (reactionEmojis != null) 'reactionEmojis': reactionEmojis,
       },);
 
   /// Moves a channel past a key version whose key nobody holds.
@@ -434,6 +438,33 @@ class PrivioApiClient {
 
   Future<void> pinPost(String channelId, int postId, {required bool pinned}) async =>
       _send('PUT', '/v1/channels/$channelId/posts/$postId/pin', body: {'pinned': pinned});
+
+  /// Puts a reaction on a post, or takes this account's own back.
+  ///
+  /// Both answer with the post's fresh counts, so a tap does not need the whole
+  /// feed fetched again to show a number going up. The emoji has to be one the
+  /// channel offers; the server refuses anything else.
+  Future<Map<String, dynamic>> reactToPost(
+    String channelId,
+    int postId,
+    String emoji,
+  ) =>
+      _send(
+        'PUT',
+        '/v1/channels/$channelId/posts/$postId/reactions',
+        body: {'emoji': emoji},
+      );
+
+  Future<Map<String, dynamic>> unreactToPost(
+    String channelId,
+    int postId,
+    String emoji,
+  ) =>
+      _send(
+        'DELETE',
+        '/v1/channels/$channelId/posts/$postId/reactions',
+        query: {'emoji': emoji},
+      );
 
   Future<void> deletePost(String channelId, int postId) async =>
       _send('DELETE', '/v1/channels/$channelId/posts/$postId');

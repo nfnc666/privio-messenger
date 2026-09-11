@@ -233,8 +233,8 @@ everything, and the encryption would be decoration.
 
 **What is deliberately in the clear.** Search cannot run over ciphertext, so a
 public channel's handle, title, description and category are plaintext columns.
-Nothing else is: the posts are not, and a private channel's title is sealed like
-a group's. A private channel is also never listed, never searchable, and answers
+Beyond those, one thing: reactions, below. The posts are not, and a private
+channel's title is sealed like a group's. A private channel is also never listed, never searchable, and answers
 a stranger asking about it exactly as it answers about a channel that does not
 exist.
 
@@ -249,6 +249,33 @@ people who run the channel — whose names are already on every post they
 publish — plus their own row. The response says which of the two it is, and the
 app labels the screen accordingly rather than passing a staff list off as the
 whole membership.
+
+**Reactions are the exception, and it is a real one.** A reaction is stored as
+a row of `(post_id, account_id, emoji)` in the clear. The server therefore knows
+which account responded to which post, with which of the channel's emojis, and
+when. It still cannot read the post — that says nothing about *what* was
+reacted to — but "who responded to what" is metadata, and this is the only place
+in a channel where the server holds something a member chose.
+
+There is no version of the feature that avoids it. A count has to be counted
+somewhere, and the server is the one place every member can agree on; the
+account id beside it is what stops one person counting ten times and what lets
+them take a reaction back. Anonymous counters give up both. The choice was
+between the feature and the metadata, so the metadata is held visibly and said
+out loud here rather than left for somebody to find in a migration.
+
+What is *not* done with it: the list of who reacted is never served to anybody,
+including admins. The feed answers with a total per emoji plus the reader's own,
+and there is no route that returns the rows. Reactions raise no push
+notification. A deleted post has its reactions deleted with it in the same
+transaction — the soft delete means the cascade does not fire on its own, and a
+record of who responded must not outlive its subject.
+
+The emoji itself is not free text. It has to be one of the channel's own
+configured set, which an admin picks from a fixed palette of symbols: an
+unconstrained column here would let an admin write captions into a readable
+column under every post. The server enforces that, not the screen that hides the
+field.
 
 A group is different on purpose: it is a mutual construct, capped and
 invite-only, where every member is already known to every other. There the list

@@ -220,6 +220,26 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     );
   }
 
+  /// Lets an admin choose what the bar under a post offers.
+  Future<void> _editReactions() async {
+    final controller = PrivioScope.of(context).channels;
+    final chosen = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _ReactionSetDialog(current: _channel.reactionEmojis),
+    );
+    if (chosen == null || !mounted) return;
+
+    final ok = await controller.setReactionEmojis(_channel.id, chosen);
+    if (!mounted) return;
+    final fresh = controller.channelById(_channel.id);
+    if (fresh != null) setState(() => _channel = fresh);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(controller.error ?? 'Could not change the reactions.')),
+      );
+    }
+  }
+
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -280,6 +300,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     switch (action) {
       case 'invite':
         _share();
+      case 'reactions':
+        _editReactions();
       case 'members':
         _openMembers();
       case 'leave':
@@ -331,6 +353,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   itemBuilder: (_) => [
                     if (channel.inviteCode != null)
                       const PopupMenuItem(value: 'invite', child: Text('Invite link')),
+                    if (channel.permissions.canEditChannel)
+                      const PopupMenuItem(value: 'reactions', child: Text('Reactions')),
                     const PopupMenuItem(value: 'members', child: Text('Members')),
                     if (channel.role != 'owner')
                       const PopupMenuItem(value: 'leave', child: Text('Leave channel')),
@@ -403,6 +427,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                           return _PostCard(
                             post: post,
                             channel: channel,
+                            onReact: (emoji, {required bool on}) =>
+                                controller.react(channel.id, post.id, emoji, on: on),
                             onPin: () => controller.pin(
                               channel.id,
                               post.id,
@@ -536,12 +562,16 @@ class _PostCard extends StatelessWidget {
     required this.channel,
     required this.onPin,
     required this.onDelete,
+    required this.onReact,
   });
 
   final ChannelPost post;
   final ChannelInfo channel;
   final VoidCallback onPin;
   final VoidCallback onDelete;
+
+  /// Adds or removes this account's reaction.
+  final Future<bool> Function(String emoji, {required bool on}) onReact;
 
   @override
   Widget build(BuildContext context) {
@@ -603,6 +633,13 @@ class _PostCard extends StatelessWidget {
             if (post.attachment != null) ...[
               if (post.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
               _AttachmentTile(channelId: channel.id, post: post),
+            ],
+            // Only under a post this device could open. A padlock with a row
+            // of emojis beneath it invites a reaction to something nobody can
+            // read, which is not a thing to ask of a reader.
+            if (channel.isMember) ...[
+              const SizedBox(height: PrivioSpacing.sm),
+              _ReactionBar(post: post, channel: channel, onReact: onReact),
             ],
           ] else
             Row(
@@ -727,6 +764,289 @@ class _Composer extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Which emojis a channel offers under its posts.
+///
+/// A fixed palette rather than a free text field, and that is the security
+/// decision rather than a design one: the column behind this is readable by the
+/// server, and an unconstrained one would turn the bar under every post into a
+/// row of captions an admin writes. The server enforces the same rule, so
+/// hiding the field is not what stops it.
+///
+/// What is already on a post is not touched by a change here.
+class _ReactionSetDialog extends StatefulWidget {
+  const _ReactionSetDialog({required this.current});
+
+  final List<String> current;
+
+  /// What an admin may choose from. Wide enough to cover what a channel
+  /// usually wants, and nothing in it is text.
+  static const List<String> palette = [
+    '👍', '👎', '❤️', '🔥', '👏', '😂', '😮', '😢',
+    '🎉', '🙏', '💯', '🤔', '👀', '✅', '❌', '⭐',
+  ];
+
+  /// Twelve already does not fit across a phone.
+  static const int limit = 12;
+
+  @override
+  State<_ReactionSetDialog> createState() => _ReactionSetDialogState();
+}
+
+class _ReactionSetDialogState extends State<_ReactionSetDialog> {
+  late final Set<String> _chosen = widget.current.toSet();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      backgroundColor: PrivioColors.surfaceRaised,
+      title: const Text('Reactions'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'What readers can put under a post. Reactions already on a post '
+              'stay, even if you take the emoji off this list.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            Wrap(
+              spacing: PrivioSpacing.xs,
+              runSpacing: PrivioSpacing.xs,
+              children: [
+                for (final emoji in _ReactionSetDialog.palette)
+                  _PaletteTile(
+                    emoji: emoji,
+                    selected: _chosen.contains(emoji),
+                    onTap: () => setState(() {
+                      if (_chosen.contains(emoji)) {
+                        _chosen.remove(emoji);
+                      } else if (_chosen.length < _ReactionSetDialog.limit) {
+                        _chosen.add(emoji);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: PrivioSpacing.sm),
+            Text(
+              '${_chosen.length} of ${_ReactionSetDialog.limit}',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          // An empty bar is not a state the server accepts, and it is not one
+          // anybody meant to ask for.
+          onPressed: _chosen.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_chosen.toList()),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaletteTile extends StatelessWidget {
+  const _PaletteTile({
+    required this.emoji,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Container(
+          padding: const EdgeInsets.all(PrivioSpacing.sm),
+          decoration: BoxDecoration(
+            color: selected ? PrivioColors.accentSurface : PrivioColors.surfaceHigh,
+            borderRadius: const BorderRadius.all(PrivioRadius.card),
+            border: selected ? Border.all(color: PrivioColors.accentDim) : null,
+          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+        ),
+      );
+}
+
+/// The reactions on a post, and a way to add one.
+///
+/// What is shown is what is there: an emoji with nobody behind it is not drawn,
+/// so a quiet post stays quiet and does not carry a row of zeroes. The plus
+/// opens the channel's own set — an admin decides what it holds, and the server
+/// refuses anything outside it.
+///
+/// A tap on one already marked takes it back. There is no long-press list of
+/// who reacted, because there is no such list to serve: the server answers with
+/// totals and with this account's own, and nothing else.
+class _ReactionBar extends StatefulWidget {
+  const _ReactionBar({
+    required this.post,
+    required this.channel,
+    required this.onReact,
+  });
+
+  final ChannelPost post;
+  final ChannelInfo channel;
+  final Future<bool> Function(String emoji, {required bool on}) onReact;
+
+  @override
+  State<_ReactionBar> createState() => _ReactionBarState();
+}
+
+class _ReactionBarState extends State<_ReactionBar> {
+  /// Which emoji is mid-flight, so a second tap does not race the first.
+  String? _busy;
+
+  Future<void> _toggle(String emoji) async {
+    if (_busy != null) return;
+    setState(() => _busy = emoji);
+    // No optimistic count. The number that appears is the one the server
+    // agreed to, because a reaction that quietly failed would otherwise leave a
+    // total on this screen that nobody else can see.
+    await widget.onReact(emoji, on: !widget.post.myReactions.contains(emoji));
+    if (mounted) setState(() => _busy = null);
+  }
+
+  Future<void> _pick() async {
+    final emoji = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surfaceRaised,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.lg),
+          child: Wrap(
+            spacing: PrivioSpacing.sm,
+            runSpacing: PrivioSpacing.sm,
+            children: [
+              for (final emoji in widget.channel.reactionEmojis)
+                InkWell(
+                  onTap: () => Navigator.of(sheetContext).pop(emoji),
+                  borderRadius: const BorderRadius.all(PrivioRadius.card),
+                  child: Padding(
+                    padding: const EdgeInsets.all(PrivioSpacing.sm),
+                    child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (emoji != null) await _toggle(emoji);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = widget.post.reactions.entries.toList()
+      // Busiest first, and alphabetical within a tie so the row does not
+      // reshuffle itself every time two counts pass each other.
+      ..sort((a, b) {
+        final byCount = b.value.compareTo(a.value);
+        return byCount != 0 ? byCount : a.key.compareTo(b.key);
+      });
+
+    return Wrap(
+      spacing: PrivioSpacing.xs,
+      runSpacing: PrivioSpacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final entry in counts)
+          _ReactionChip(
+            emoji: entry.key,
+            count: entry.value,
+            mine: widget.post.myReactions.contains(entry.key),
+            busy: _busy == entry.key,
+            onTap: () => _toggle(entry.key),
+          ),
+        InkWell(
+          onTap: _busy == null ? _pick : null,
+          borderRadius: const BorderRadius.all(PrivioRadius.pill),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: PrivioSpacing.sm,
+              vertical: PrivioSpacing.xs,
+            ),
+            child: Icon(
+              Icons.add_reaction_outlined,
+              size: 18,
+              color: PrivioColors.textTertiary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReactionChip extends StatelessWidget {
+  const _ReactionChip({
+    required this.emoji,
+    required this.count,
+    required this.mine,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final int count;
+
+  /// Whether this account is one of the [count]. Drawn differently, because
+  /// "three people" and "three people including you" are different facts.
+  final bool mine;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: busy ? null : onTap,
+      borderRadius: const BorderRadius.all(PrivioRadius.pill),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: PrivioSpacing.sm,
+          vertical: PrivioSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: mine ? PrivioColors.accentSurface : PrivioColors.surfaceHigh,
+          borderRadius: const BorderRadius.all(PrivioRadius.pill),
+          border: mine ? Border.all(color: PrivioColors.accentDim) : null,
+        ),
+        child: Opacity(
+          opacity: busy ? 0.5 : 1,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: PrivioSpacing.xs),
+              Text(
+                '$count',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: mine ? PrivioColors.accentBright : PrivioColors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
