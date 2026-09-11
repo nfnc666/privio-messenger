@@ -304,9 +304,21 @@ class ChannelController extends ChangeNotifier {
   /// The service decides how it is stored — unsealed for a public channel,
   /// sealed with the channel key for a private one — because that follows from
   /// what the channel is and must not be a choice a screen can get wrong.
+  /// The channel as it stands after the change, or null if it did not happen.
+  ///
+  /// Returned rather than only stored: the feed screen holds its own copy of
+  /// the channel and has to be handed the new one, exactly as leaving, joining
+  /// and renaming already do. Relying on the screen to find it again through
+  /// the lists is what made a successful upload look like nothing at all.
+  ChannelInfo? lastAvatarChange;
+
   Future<bool> setAvatar(ChannelInfo channel, Uint8List picked) => _run(() async {
         final updated = await _channels.setAvatar(channel, picked);
         _replace(updated);
+        lastAvatarChange = updated;
+        // Put the bytes in the cache from what was just uploaded rather than
+        // fetching them back: the round trip can fail on a slow network and
+        // leave a channel that has a picture showing none.
         final bytes = await _channels.avatarBytes(updated);
         if (bytes != null) _avatars[updated.avatarMediaId!] = bytes;
       });
@@ -316,10 +328,24 @@ class ChannelController extends ChangeNotifier {
         _avatars.remove(channel.avatarMediaId);
         _avatarMisses.remove(channel.avatarMediaId);
         _replace(updated);
+        lastAvatarChange = updated;
       });
 
   /// Puts a changed channel back into whichever list it was in.
+  ///
+  /// **Adds it when it is in neither.** It used to only rewrite entries that
+  /// were already there, which quietly dropped the update for a channel reached
+  /// before `refresh()` had run or opened straight from a link: the write
+  /// succeeded on the server, `channelById` went on answering null, and the
+  /// screen kept showing the copy it was built with. A picture set that way
+  /// never appeared, with nothing anywhere saying why.
   void _replace(ChannelInfo channel) {
+    final inMine = _mine.any((c) => c.id == channel.id);
+    final inDiscovered = _discovered.any((c) => c.id == channel.id);
+    if (!inMine && !inDiscovered) {
+      _mine = [..._mine, channel];
+      return;
+    }
     _mine = [for (final c in _mine) if (c.id == channel.id) channel else c];
     _discovered = [for (final c in _discovered) if (c.id == channel.id) channel else c];
   }

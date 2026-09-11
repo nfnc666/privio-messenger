@@ -572,6 +572,10 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final controller = PrivioScope.of(context).channels;
     final ok = await controller.clearAvatar(channel);
     if (!mounted) return;
+    if (ok) {
+      final updated = controller.lastAvatarChange;
+      if (updated != null) setState(() => _channel = updated);
+    }
     _say(ok ? 'Picture removed.' : controller.error ?? 'Could not remove the picture.');
   }
 
@@ -630,7 +634,18 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
 
     final ok = await controller.setAvatar(channel, bytes);
     if (!mounted) return;
-    if (!ok) _say(controller.error ?? 'Could not set the picture.');
+    if (!ok) {
+      _say(controller.error ?? 'Could not set the picture.');
+      return;
+    }
+    // Adopt the channel the controller handed back, the same way leaving,
+    // joining and renaming already do. This screen keeps its own copy, and
+    // without this line a picture that uploaded perfectly well went on showing
+    // the placeholder — which is indistinguishable from a failure.
+    final updated = controller.lastAvatarChange;
+    if (updated != null) setState(() => _channel = updated);
+    // Said out loud, because the whole failure mode here was silence.
+    _say('Channel picture updated.');
   }
 
   Future<void> _confirmDelete() async {

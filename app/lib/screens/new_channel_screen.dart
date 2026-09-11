@@ -87,7 +87,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     // from — not a minute later, after a channel has already been created.
     final prepared = await AvatarImage.prepare(bytes);
     if (prepared == null) {
-      _say('That file is not an image Privio can use.');
+      _say('Privio could not read ${picked.name}. Try a different picture.');
       return;
     }
     setState(() => _picture = prepared);
