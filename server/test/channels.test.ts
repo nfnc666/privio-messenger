@@ -216,7 +216,7 @@ describe('channels', () => {
     assert.equal((await post(reader, channel.id, 'jetzt-schon')).statusCode, 201);
   });
 
-  it('an admin who may manage members can appoint another admin', async () => {
+  it('an admin who may appoint admins can appoint another admin', async () => {
     const channel = (await createChannel(owner, {
       visibility: 'public',
       handle: 'ernennen',
@@ -227,7 +227,7 @@ describe('channels', () => {
 
     await setRole(owner, channel.id, reader, {
       role: 'admin',
-      permissions: { canPost: true, canManageMembers: true },
+      permissions: { canPost: true, canManageMembers: true, canAppointAdmins: true },
     });
 
     const appointed = await setRole(reader, channel.id, stranger, {
@@ -236,6 +236,67 @@ describe('channels', () => {
     });
     assert.equal(appointed.statusCode, 200, 'this is what the owner delegated');
     assert.equal((await post(stranger, channel.id, 'ich-auch')).statusCode, 201);
+  });
+
+  it('managing members is not permission to appoint an admin', async () => {
+    // These used to be the same flag, and that meant an admin brought in to
+    // remove a spammer could appoint a second admin who could remove them back.
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'nichternennen',
+      title: 'Nicht ernennen',
+    })).json();
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canPost: true, canManageMembers: true },
+    });
+
+    const refused = await setRole(reader, channel.id, stranger, {
+      role: 'admin',
+      permissions: { canPost: true },
+    });
+    assert.equal(refused.statusCode, 403);
+    assert.equal(refused.json().error, 'insufficient_permission');
+
+    // What they *can* still do: remove somebody, which is what the permission
+    // they hold is actually for.
+    const removed = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/members/${stranger.accountId}`,
+      headers: bearer(reader),
+    });
+    assert.equal(removed.statusCode, 200);
+  });
+
+  it('records who appointed an admin, and forgets it on a demotion', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'befoerdertvon',
+      title: 'Befoerdert von',
+    })).json();
+    await join(reader, channel.id);
+
+    await setRole(owner, channel.id, reader, { role: 'admin', permissions: { canPost: true } });
+
+    const admins = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/members?role=admins`,
+      headers: bearer(owner),
+    });
+    const promoted = admins.json().members.find((m: { id: string }) => m.id === reader.accountId);
+    assert.equal(promoted.promotedBy.id, owner.accountId, 'the admin list shows who appointed them');
+
+    await setRole(owner, channel.id, reader, { role: 'subscriber' });
+    const after = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/members`,
+      headers: bearer(owner),
+    });
+    const demoted = after.json().members.find((m: { id: string }) => m.id === reader.accountId);
+    assert.equal(demoted.promotedBy, null, 'a subscriber carries no stale promotion');
   });
 
   it('an admin cannot grant a permission they do not hold themselves', async () => {
@@ -250,7 +311,7 @@ describe('channels', () => {
     // Can appoint admins, but cannot delete the channel.
     await setRole(owner, channel.id, reader, {
       role: 'admin',
-      permissions: { canPost: true, canManageMembers: true },
+      permissions: { canPost: true, canManageMembers: true, canAppointAdmins: true },
     });
 
     const overreach = await setRole(reader, channel.id, stranger, {

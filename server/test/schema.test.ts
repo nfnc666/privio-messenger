@@ -51,6 +51,19 @@ const READABLE: Record<string, string> = {
   'channels.title': 'public channels are searchable by name',
   'channels.description': 'the same',
   'channels.category': 'the same',
+  // A public channel's welcome text, under the same rule as its description:
+  // the route refuses to write this column for a private channel at all, whose
+  // welcome message goes inside `encrypted_metadata` with its title.
+  'channels.welcome_message': 'public channels only; a private one seals it with its title',
+  // Token names, not content: one of six accents and one of three backgrounds,
+  // held to that by a check constraint. What it says about the channel is what
+  // colour it is.
+  'channels.accent_name': 'a theme token name, constrained to a fixed list',
+  'channels.background_name': 'the same',
+  // A random room id on the media server. A livestream is not end-to-end
+  // encrypted — no SFU can forward what it cannot read — and this is the name
+  // of the room, not of the channel: see docs/channels.md.
+  'channels.live_room': 'a random room id on the media server, not derived from the channel',
 
   // Devices. A push token is an address the server posts to, so it cannot be
   // sealed; the rest is what the connected-devices screen shows.

@@ -5,6 +5,8 @@ import { pool, withTransaction, type PoolClient } from '../db/pool.js';
 import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
+import { lastSeenFor } from '../services/presence.js';
+import * as livestreams from '../services/livestreams.js';
 import { ApiError } from '../util/errors.js';
 import { verifySecret } from '../util/crypto.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
@@ -104,6 +106,55 @@ function publicView(row: Record<string, unknown>) {
     keyEpoch: row.key_epoch ?? 1,
     // And which one opens its name, for a private channel. See migration 016.
     metadataKeyEpoch: row.metadata_key_epoch ?? 1,
+    /**
+     * Whether a post carries its author's name.
+     *
+     * Off by default, and it is a decision about other people's names as well
+     * as your own: a channel with several admins speaks with one voice until
+     * somebody turns this on for all of them.
+     */
+    showSenderName: row.show_sender_name ?? false,
+    /**
+     * What a new subscriber is shown once, on joining.
+     *
+     * Plaintext here only for a public channel, whose title and description are
+     * already plaintext for the same reason. A private channel's rides inside
+     * `encryptedMetadata` with its title and is not in this column.
+     */
+    welcome: {
+      enabled: row.welcome_enabled ?? false,
+      message: row.welcome_message ?? null,
+    },
+    /**
+     * The channel's own colours, as token names rather than values.
+     *
+     * A name cannot be white-on-white and cannot be a colour that vanishes in
+     * one of the two themes — the client resolves each name to a pair that was
+     * checked against both.
+     */
+    appearance: {
+      accent: row.accent_name ?? null,
+      background: row.background_name ?? null,
+    },
+    /** A group where the channel's posts are discussed. */
+    discussionGroupId: row.discussion_group_id ?? null,
+    /** Whether subscribers may write to the channel's own inbox. */
+    directMessagesEnabled: row.direct_messages_enabled ?? false,
+    /**
+     * A livestream, if one is running.
+     *
+     * `room` is the identifier on whichever media server the deployment is
+     * configured with. Null everywhere when none is configured — see
+     * `LIVEKIT_URL` in the deployment notes — and the client shows the control
+     * as unavailable rather than as a button that does nothing.
+     */
+    live: row.live_started_at
+      ? {
+          startedAt: (row.live_started_at as Date).toISOString(),
+          startedBy: row.live_started_by ?? null,
+          room: row.live_room ?? null,
+        }
+      : null,
     createdAt: (row.created_at as Date).toISOString(),
   };
 }
@@ -174,8 +225,14 @@ async function membership(
   client: Queryable = pool,
 ): Promise<Membership | null> {
   const { rows } = await client.query(
+    // Every column, deliberately. `permissionsFromRow` reads a missing one as
+    // not granted, so a SELECT that forgets a flag does not fail — it quietly
+    // takes the permission away from everyone, everywhere this function is used,
+    // which is every permission check there is.
     `SELECT m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
-            m.can_manage_members, m.can_delete_channel
+            m.can_manage_members, m.can_delete_channel,
+            m.can_moderate_discussion, m.can_manage_invites,
+            m.can_manage_livestreams, m.can_appoint_admins
      FROM channel_members m
      JOIN channels c ON c.id = m.channel_id
      WHERE m.channel_id = $1 AND m.account_id = $2 AND c.deleted_at IS NULL`,
@@ -214,6 +271,10 @@ const permissionsSchema = z.object({
   canDeletePosts: z.boolean().optional(),
   canManageMembers: z.boolean().optional(),
   canDeleteChannel: z.boolean().optional(),
+  canModerateDiscussion: z.boolean().optional(),
+  canManageInvites: z.boolean().optional(),
+  canManageLivestreams: z.boolean().optional(),
+  canAppointAdmins: z.boolean().optional(),
 });
 
 function resolvePermissions(
@@ -304,8 +365,9 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       await client.query(
         `INSERT INTO channel_members
            (channel_id, account_id, role, can_post, can_edit_channel, can_delete_posts,
-            can_manage_members, can_delete_channel)
-         VALUES ($1, $2, 'owner', true, true, true, true, true)`,
+            can_manage_members, can_delete_channel, can_moderate_discussion,
+            can_manage_invites, can_manage_livestreams, can_appoint_admins)
+         VALUES ($1, $2, 'owner', true, true, true, true, true, true, true, true, true)`,
         [rows[0].id, accountId],
       );
       // Epoch 1, claimed by the device that generated the key. Same table and
@@ -328,7 +390,14 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
       `SELECT c.*, m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
-              m.can_manage_members, m.can_delete_channel
+              m.can_manage_members, m.can_delete_channel,
+              m.can_moderate_discussion, m.can_manage_invites,
+              m.can_manage_livestreams, m.can_appoint_admins,
+              (SELECT mu.until FROM channel_mutes mu
+                WHERE mu.channel_id = c.id AND mu.account_id = $1) AS muted_until,
+              EXISTS (SELECT 1 FROM channel_mutes mu
+                       WHERE mu.channel_id = c.id AND mu.account_id = $1
+                         AND (mu.until IS NULL OR mu.until > now())) AS muted
        FROM channel_members m
        JOIN channels c ON c.id = m.channel_id
        WHERE m.account_id = $1 AND c.deleted_at IS NULL
@@ -342,6 +411,11 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         // Without these the client cannot tell an owner from a reader, and would
         // hide the controls of someone who holds every permission there is.
         permissions: permissionsFromRow(row),
+        // Whether this account has silenced it, and until when. Per account
+        // rather than per device: somebody who muted a channel on their phone
+        // did not mean "until I pick up my laptop".
+        muted: row.muted === true,
+        mutedUntil: (row.muted_until as Date | null)?.toISOString() ?? null,
         // Anyone may pass the link on; it carries no key.
         inviteCode: row.invite_code,
       })),
@@ -594,25 +668,100 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const viewer = await requireMember(params.id, accountId);
     const complete = viewer.permissions.canManageMembers;
 
-    const { rows } = await pool.query(
-      `SELECT a.id, a.username, a.display_name, m.role, m.joined_at,
-              m.can_post, m.can_edit_channel, m.can_delete_posts,
-              m.can_manage_members, m.can_delete_channel
-       FROM channel_members m JOIN accounts a ON a.id = m.account_id
-       WHERE m.channel_id = $1 AND a.deleted_at IS NULL
-         AND ($2::boolean OR m.role <> 'subscriber' OR a.id = $3)
-       ORDER BY m.joined_at ASC LIMIT 500`,
-      [params.id, complete, accountId],
+    const query = parse(
+      z.object({
+        // Paging, because a channel with thousands of subscribers cannot hand
+        // the whole list to a phone — the old `LIMIT 500` was a silent truncation
+        // that looked like a complete list.
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        cursor: z.string().max(128).optional(),
+        // Server-side, so searching a large channel does not require first
+        // downloading all of it.
+        q: z.string().trim().max(64).optional(),
+        // 'admins' is what the admin screen asks for: the list is short, always
+        // complete, and visible to every member — who is in charge of a channel
+        // is not a secret from the people in it.
+        role: z.enum(['all', 'admins']).default('all'),
+      }),
+      request.query,
     );
+    const adminsOnly = query.role === 'admins';
+
+    const { rows } = await pool.query(
+      `SELECT a.id, a.username, a.display_name, a.privacy, a.last_seen_at,
+              m.role, m.joined_at, extract(epoch from m.joined_at) AS joined_at_epoch,
+              m.promoted_by,
+              p.username AS promoted_by_username, p.display_name AS promoted_by_display_name,
+              m.can_post, m.can_edit_channel, m.can_delete_posts,
+              m.can_manage_members, m.can_delete_channel,
+              m.can_moderate_discussion, m.can_manage_invites,
+              m.can_manage_livestreams, m.can_appoint_admins,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = $3 AND c.contact_account_id = a.id
+              ) AS is_contact,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = a.id AND c.contact_account_id = $3
+              ) AS viewer_is_contact_of_them
+       FROM channel_members m
+       JOIN accounts a ON a.id = m.account_id
+       LEFT JOIN accounts p ON p.id = m.promoted_by
+       WHERE m.channel_id = $1 AND a.deleted_at IS NULL
+         AND ($6::boolean OR $2::boolean OR m.role <> 'subscriber' OR a.id = $3)
+         AND (NOT $6::boolean OR m.role <> 'subscriber')
+         AND ($4::text IS NULL OR a.username ILIKE '%' || $4 || '%'
+              OR a.display_name ILIKE '%' || $4 || '%')
+         AND ($5::text IS NULL OR (extract(epoch from m.joined_at), a.id::text) >
+              (split_part($5, '|', 1)::numeric, split_part($5, '|', 2)))
+       ORDER BY m.joined_at ASC, a.id ASC
+       LIMIT $7`,
+      [
+        params.id,
+        complete,
+        accountId,
+        query.q ?? null,
+        query.cursor ?? null,
+        adminsOnly,
+        query.limit + 1,
+      ],
+    );
+    // Taken straight from Postgres at full precision, for the same reason.
+
+    const page = rows.slice(0, query.limit);
     return {
       complete,
-      members: rows.map((r) => ({
+      // The admin list is complete for everybody, so a subscriber's screen does
+      // not have to claim otherwise.
+      more: rows.length > query.limit,
+      // Both sort keys, because two people can join in the same microsecond and
+      // a cursor that carries only the timestamp drops one of them — and the
+      // timestamp as epoch seconds rather than an ISO string, because
+      // `toISOString()` rounds microseconds away and a cursor that lands
+      // *before* the row it names hands that row back on every page.
+      nextCursor:
+        rows.length > query.limit
+          ? `${page[page.length - 1]!.joined_at_epoch}|${page[page.length - 1]!.id}`
+          : null,
+      members: page.map((r) => ({
         id: r.id,
         username: r.username,
         displayName: r.display_name,
         role: r.role,
         permissions: permissionsFromRow(r),
         joinedAt: (r.joined_at as Date).toISOString(),
+        // Whose address book they are in — the screen splits "contacts in this
+        // channel" from everyone else.
+        isContact: r.is_contact === true,
+        // Decided by the *target's* setting, never by whether the viewer is an
+        // admin: running a channel does not entitle you to watch its members.
+        lastSeenAt: lastSeenFor(
+          { privacy: r.privacy, last_seen_at: r.last_seen_at },
+          r.viewer_is_contact_of_them === true,
+        ),
+        promotedBy: r.promoted_by
+          ? { id: r.promoted_by, username: r.promoted_by_username, displayName: r.promoted_by_display_name }
+          : null,
       })),
     };
   });
@@ -659,10 +808,14 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     await withTransaction(async (client) => {
       await lockChannel(client, params.id, 'update');
 
+      // Making somebody an admin is its own permission. Managing members is
+      // about removing and silencing; appointing is about handing out authority,
+      // and an admin who may do the first should not thereby be able to appoint
+      // a second admin who can remove them back.
       const actor = await requirePermission(
         params.id,
         accountId,
-        'canManageMembers',
+        body.role === 'admin' ? 'canAppointAdmins' : 'canManageMembers',
         client,
       );
 
@@ -688,7 +841,12 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       await client.query(
         `UPDATE channel_members
          SET role = $3, can_post = $4, can_edit_channel = $5, can_delete_posts = $6,
-             can_manage_members = $7, can_delete_channel = $8
+             can_manage_members = $7, can_delete_channel = $8,
+             can_moderate_discussion = $9, can_manage_invites = $10,
+             can_manage_livestreams = $11, can_appoint_admins = $12,
+             -- Who appointed them, which the admin list shows. Cleared on a
+             -- demotion so a subscriber does not carry a stale promotion.
+             promoted_by = CASE WHEN $3 = 'admin' THEN $13::uuid ELSE NULL END
          WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
         [
           params.id,
@@ -699,6 +857,11 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
           granted.canDeletePosts,
           granted.canManageMembers,
           granted.canDeleteChannel,
+          granted.canModerateDiscussion,
+          granted.canManageInvites,
+          granted.canManageLivestreams,
+          granted.canAppointAdmins,
+          accountId,
         ],
       );
     });
@@ -799,10 +962,70 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          * threads rather than deleting them — see the comments routes.
          */
         commentsEnabled: z.boolean().optional(),
+        /**
+         * Whether a post carries its author's name.
+         *
+         * A channel-wide setting rather than a per-post one: it decides how the
+         * channel speaks, and letting each post choose would mean one admin
+         * could put another admin's name on something.
+         */
+        showSenderName: z.boolean().optional(),
+        /**
+         * The message a new subscriber is shown once.
+         *
+         * Public channels only — a private channel's welcome text goes into
+         * `encryptedMetadata` with its title, and the server never sees it.
+         * Sending it here for a private channel is refused rather than quietly
+         * stored in the clear.
+         */
+        welcomeEnabled: z.boolean().optional(),
+        welcomeMessage: z.string().trim().max(1024).optional(),
+        /** Token names, not colour values. The check constraint is the list. */
+        accent: z.enum(['green', 'blue', 'purple', 'orange', 'red', 'teal']).nullable().optional(),
+        background: z.enum(['black', 'charcoal', 'midnight']).nullable().optional(),
+        /** A group to discuss the channel's posts in, or null to unlink. */
+        discussionGroupId: uuidSchema.nullable().optional(),
+        /** Whether subscribers may write to the channel's inbox. */
+        directMessagesEnabled: z.boolean().optional(),
       }),
       request.body,
     );
     await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows: existing } = await pool.query(
+      'SELECT visibility FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    const current = existing[0];
+    if (!current) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    // A private channel's welcome text belongs in the sealed metadata, like its
+    // title. Refused rather than stored: silently writing it to a plaintext
+    // column is exactly the kind of quiet downgrade nobody would notice.
+    if (body.welcomeMessage !== undefined && current.visibility !== 'public') {
+      throw ApiError.badRequest(
+        'welcome_must_be_sealed',
+        "A private channel's welcome message goes inside encryptedMetadata",
+      );
+    }
+
+    // Linking a discussion group needs authority over the group too, or an
+    // admin here could attach a group they have nothing to do with and point
+    // this channel's readers at it.
+    if (body.discussionGroupId) {
+      const { rowCount } = await pool.query(
+        `SELECT 1 FROM group_members m JOIN groups g ON g.id = m.group_id
+          WHERE m.group_id = $1 AND m.account_id = $2 AND m.role = 'admin'
+            AND g.deleted_at IS NULL`,
+        [body.discussionGroupId, accountId],
+      );
+      if (!rowCount) {
+        throw ApiError.forbidden(
+          'not_a_group_admin',
+          'You can only link a group you administer',
+        );
+      }
+    }
 
     // The metadata epoch moves only with the metadata, and only forwards.
     // A re-seal that arrives out of order — two devices re-sealing after the
@@ -821,7 +1044,17 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          END,
          restrict_saving = COALESCE($6, restrict_saving),
          reaction_emojis = COALESCE($8, reaction_emojis),
-         comments_enabled = COALESCE($9, comments_enabled)
+         comments_enabled = COALESCE($9, comments_enabled),
+         show_sender_name = COALESCE($10, show_sender_name),
+         welcome_enabled = COALESCE($11, welcome_enabled),
+         welcome_message = COALESCE($12, welcome_message),
+         -- Three-state, because null is a value here: not sent leaves it,
+         -- explicit null clears it back to the app's own colours. COALESCE
+         -- cannot express that, so the caller says which it meant.
+         accent_name = CASE WHEN $13::boolean THEN $14::text ELSE accent_name END,
+         background_name = CASE WHEN $15::boolean THEN $16::text ELSE background_name END,
+         discussion_group_id = CASE WHEN $17::boolean THEN $18::uuid ELSE discussion_group_id END,
+         direct_messages_enabled = COALESCE($19, direct_messages_enabled)
        WHERE id = $1 RETURNING *`,
       [
         params.id,
@@ -833,6 +1066,16 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         body.metadataKeyEpoch ?? null,
         body.reactionEmojis ?? null,
         body.commentsEnabled ?? null,
+        body.showSenderName ?? null,
+        body.welcomeEnabled ?? null,
+        body.welcomeMessage ?? null,
+        body.accent !== undefined,
+        body.accent ?? null,
+        body.background !== undefined,
+        body.background ?? null,
+        body.discussionGroupId !== undefined,
+        body.discussionGroupId ?? null,
+        body.directMessagesEnabled ?? null,
       ],
     );
     return publicView(rows[0]);
@@ -1627,14 +1870,20 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       await client.query(
         `UPDATE channel_members
          SET role = 'owner', can_post = true, can_edit_channel = true,
-             can_delete_posts = true, can_manage_members = true, can_delete_channel = true
+             can_delete_posts = true, can_manage_members = true, can_delete_channel = true,
+             can_moderate_discussion = true, can_manage_invites = true,
+             can_manage_livestreams = true, can_appoint_admins = true,
+             promoted_by = NULL
          WHERE channel_id = $1 AND account_id = $2`,
         [params.id, body.accountId],
       );
       // Everything they had, minus the one thing that is now somebody else's.
       await client.query(
         `UPDATE channel_members
-         SET role = 'admin', can_delete_channel = false
+         SET role = 'admin', can_delete_channel = false,
+             -- They handed it on themselves, which is the honest answer to
+             -- "who made this person an admin".
+             promoted_by = $2
          WHERE channel_id = $1 AND account_id = $2`,
         [params.id, accountId],
       );
@@ -1764,7 +2013,10 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       }),
       request.body ?? {},
     );
-    await requirePermission(params.id, accountId, 'canManageMembers');
+    // Invites are their own permission now. Setting a link's limits is not the
+    // same act as removing a member, and an admin brought in to moderate should
+    // not thereby control who can get in.
+    await requirePermission(params.id, accountId, 'canManageInvites');
 
     // A time already gone is not a setting, it is a revocation with extra
     // steps — and rotating the code is the honest way to do that.
@@ -1802,7 +2054,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   app.post('/v1/channels/:id/invite/rotate', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
-    await requirePermission(params.id, accountId, 'canManageMembers');
+    await requirePermission(params.id, accountId, 'canManageInvites');
 
     const { rows } = await pool.query(
       `UPDATE channels SET invite_code = $2, invite_uses = 0
@@ -1823,7 +2075,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   app.get('/v1/channels/:id/join-requests', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
-    await requirePermission(params.id, accountId, 'canManageMembers');
+    await requirePermission(params.id, accountId, 'canManageInvites');
 
     const { rows } = await pool.query(
       `SELECT r.account_id, a.username, a.display_name, r.requested_at
@@ -1850,7 +2102,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       z.object({ id: uuidSchema, accountId: uuidSchema }),
       request.params,
     );
-    await requirePermission(params.id, accountId, 'canManageMembers');
+    await requirePermission(params.id, accountId, 'canManageInvites');
 
     const admitted = await withTransaction(async (client) => {
       const { rowCount: knocked } = await client.query(
@@ -1889,7 +2141,7 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       z.object({ id: uuidSchema, accountId: uuidSchema }),
       request.params,
     );
-    await requirePermission(params.id, accountId, 'canManageMembers');
+    await requirePermission(params.id, accountId, 'canManageInvites');
 
     await pool.query(
       'DELETE FROM channel_join_requests WHERE channel_id = $1 AND account_id = $2',
@@ -2177,8 +2429,15 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       if (!comment) throw ApiError.notFound('comment_not_found', 'No such comment');
 
       const isAuthor = comment.author_account_id === accountId;
-      if (!isAuthor && !member.permissions.canDeletePosts) {
-        throw ApiError.forbidden('insufficient_permission', 'You need canDeletePosts for that');
+      // Moderating a discussion is its own permission. It used to fall out of
+      // `canDeletePosts`, which is a different act on different content: an
+      // admin trusted to take down a post was thereby trusted to delete what
+      // anybody had said underneath one.
+      if (!isAuthor && !member.permissions.canModerateDiscussion) {
+        throw ApiError.forbidden(
+          'insufficient_permission',
+          'You need canModerateDiscussion for that',
+        );
       }
 
       await pool.query(
@@ -2261,6 +2520,308 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         since: (r.created_at as Date).toISOString(),
       })),
     };
+  });
+
+  /**
+   * Put somebody into the channel directly.
+   *
+   * Only where *they* allow it. `whoCanAddMeToGroups` is their setting, and
+   * 'contacts' means their address book, not yours — being added by a stranger
+   * to a channel you have never heard of is the thing the setting exists to
+   * stop. Anyone it refuses comes back in `invite`, which is the honest
+   * outcome: send them the link and let them decide.
+   */
+  app.post('/v1/channels/:id/members', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ accountIds: z.array(uuidSchema).min(1).max(64) }),
+      request.body,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows: candidates } = await pool.query(
+      `SELECT a.id, a.username, a.privacy,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = a.id AND c.contact_account_id = $2
+              ) AS adder_is_their_contact,
+              EXISTS (
+                SELECT 1 FROM blocks b
+                 WHERE b.account_id = a.id AND b.blocked_account_id = $2
+              ) AS blocked_the_adder
+         FROM accounts a
+        WHERE a.id = ANY($1::uuid[]) AND a.deleted_at IS NULL`,
+      [body.accountIds, accountId],
+    );
+
+    const added: string[] = [];
+    const invite: string[] = [];
+    for (const person of candidates) {
+      const setting = (person.privacy?.whoCanAddMeToGroups as string) ?? 'contacts';
+      // Somebody who blocked you does not get added by you, whatever their
+      // group setting says — and is not told they were tried.
+      const allowed =
+        !person.blocked_the_adder &&
+        (setting === 'everyone' || person.adder_is_their_contact === true);
+      if (allowed) added.push(person.id);
+      else invite.push(person.id);
+    }
+
+    if (added.length) {
+      await withTransaction(async (client) => {
+        await lockChannel(client, params.id, 'update');
+        const { rowCount } = await client.query(
+          `INSERT INTO channel_members (channel_id, account_id, role)
+           SELECT $1, unnest($2::uuid[]), 'subscriber'
+           ON CONFLICT (channel_id, account_id) DO NOTHING`,
+          [params.id, added],
+        );
+        // Counted from what the insert actually did, so adding somebody who is
+        // already in does not inflate the count.
+        if (rowCount) {
+          await client.query(
+            'UPDATE channels SET member_count = member_count + $2 WHERE id = $1',
+            [params.id, rowCount],
+          );
+        }
+      });
+    }
+
+    // Two lists rather than a silent partial success: the screen has to be able
+    // to say "these are in, these need a link".
+    return { added, invite };
+  });
+
+  // --- Muting -------------------------------------------------------------
+
+  /**
+   * Mute a channel for this account, for a while or for good.
+   *
+   * Per account rather than per device: somebody who silenced a channel on
+   * their phone did not mean "until I pick up my laptop". `until` null means no
+   * end; sending `{}` mutes indefinitely.
+   */
+  app.put('/v1/channels/:id/mute', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ until: z.coerce.date().nullable().optional() }),
+      request.body ?? {},
+    );
+    // Members only, so muting is not a way to probe which channels exist.
+    await requireMember(params.id, accountId);
+
+    if (body.until && body.until.getTime() <= Date.now()) {
+      throw ApiError.badRequest('expiry_in_the_past', 'Pick a time that has not gone yet');
+    }
+
+    await pool.query(
+      `INSERT INTO channel_mutes (account_id, channel_id, until)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id, channel_id) DO UPDATE SET until = EXCLUDED.until`,
+      [accountId, params.id, body.until ?? null],
+    );
+    return { muted: true, until: body.until?.toISOString() ?? null };
+  });
+
+  app.delete('/v1/channels/:id/mute', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await pool.query(
+      'DELETE FROM channel_mutes WHERE account_id = $1 AND channel_id = $2',
+      [accountId, params.id],
+    );
+    return { muted: false, until: null };
+  });
+
+  // --- Livestreams --------------------------------------------------------
+
+  /**
+   * What this account may do about a livestream right now.
+   *
+   * Answers `available: false` where the deployment has no media server, which
+   * is what the client draws as "unavailable" with a reason rather than as a
+   * button that quietly does nothing.
+   */
+  app.get('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const member = await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query(
+      `SELECT live_started_at, live_started_by, live_room
+         FROM channels WHERE id = $1 AND deleted_at IS NULL`,
+      [params.id],
+    );
+    const channel = rows[0];
+    if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    const running = Boolean(channel.live_started_at && channel.live_room);
+    return {
+      available: livestreams.available(),
+      canStart: member.permissions.canManageLivestreams,
+      live: running
+        ? {
+            startedAt: (channel.live_started_at as Date).toISOString(),
+            startedBy: channel.live_started_by,
+          }
+        : null,
+      // A token only while something is running, and only ever a viewing one
+      // here — publishing comes back from the start call.
+      access:
+        running && livestreams.available()
+          ? livestreams.accessToken({
+              room: channel.live_room as string,
+              identity: accountId,
+              canPublish: false,
+            })
+          : null,
+    };
+  });
+
+  app.post('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageLivestreams');
+
+    if (!livestreams.available()) {
+      throw new ApiError(
+        503,
+        'livestream_unconfigured',
+        'This server has no media server for livestreams',
+      );
+    }
+
+    // Under the lock, so two admins pressing start at the same moment cannot
+    // end up with two rooms and half the subscribers in each.
+    const room = await withTransaction(async (client) => {
+      // The lock, then the columns: `lockChannel` selects only what the key
+      // rotation needs, so the live columns are read separately under it.
+      if (!(await lockChannel(client, params.id, 'update'))) {
+        throw ApiError.notFound('channel_not_found', 'No such channel');
+      }
+      const { rows: live } = await client.query<{
+        live_started_at: Date | null;
+        live_room: string | null;
+      }>('SELECT live_started_at, live_room FROM channels WHERE id = $1', [params.id]);
+      const running = live[0];
+      // Already going: hand back the room that exists rather than making a
+      // second one and splitting the audience between them.
+      if (running?.live_started_at && running.live_room) return running.live_room;
+      const fresh = livestreams.newRoom();
+      await client.query(
+        `UPDATE channels SET live_started_at = now(), live_started_by = $2, live_room = $3
+          WHERE id = $1`,
+        [params.id, accountId, fresh],
+      );
+      return fresh;
+    });
+
+    return {
+      access: livestreams.accessToken({ room, identity: accountId, canPublish: true }),
+    };
+  });
+
+  app.delete('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageLivestreams');
+    await pool.query(
+      `UPDATE channels SET live_started_at = NULL, live_started_by = NULL, live_room = NULL
+        WHERE id = $1`,
+      [params.id],
+    );
+    return { live: null };
+  });
+
+  // --- The channel's own inbox --------------------------------------------
+
+  /**
+   * Write to a channel.
+   *
+   * Sealed by the sender to the channel key before it gets here, like a post:
+   * the server stores bytes and who sent them. An admin reads it under the
+   * channel's identity, which is the point — a subscriber writing to a channel
+   * should not thereby learn which human is behind it, and an admin answering
+   * should not have to hand out their own account.
+   */
+  app.post('/v1/channels/:id/inbox', requireAuth, async (request, reply) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ content: base64Bytes(1, config.MAX_ENVELOPE_BYTES) }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query<{ direct_messages_enabled: boolean }>(
+      'SELECT direct_messages_enabled FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    if (!rows[0].direct_messages_enabled) {
+      throw ApiError.forbidden('inbox_closed', 'This channel does not take messages');
+    }
+    // Somebody silenced in the channel is silenced in its inbox too, or the
+    // inbox is the way around being silenced.
+    const { rowCount: banned } = await pool.query(
+      'SELECT 1 FROM channel_bans WHERE channel_id = $1 AND account_id = $2',
+      [params.id, accountId],
+    );
+    if (banned) throw ApiError.forbidden('silenced', 'You cannot write to this channel');
+
+    const { rows: written } = await pool.query<{ id: string }>(
+      `INSERT INTO channel_inbox (channel_id, sender_account_id, content)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [params.id, accountId, body.content],
+    );
+    reply.code(201);
+    return { id: Number(written[0]!.id) };
+  });
+
+  /** Read the inbox. Admins who may manage members, and nobody else. */
+  app.get('/v1/channels/:id/inbox', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const query = parse(
+      z.object({ limit: z.coerce.number().int().min(1).max(100).default(50) }),
+      request.query,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `SELECT i.id, i.sender_account_id, a.username, i.content, i.created_at, i.answered_at
+         FROM channel_inbox i JOIN accounts a ON a.id = i.sender_account_id
+        WHERE i.channel_id = $1
+        ORDER BY i.created_at DESC LIMIT $2`,
+      [params.id, query.limit],
+    );
+    return {
+      messages: rows.map((r) => ({
+        id: Number(r.id),
+        senderAccountId: r.sender_account_id,
+        senderUsername: r.username,
+        content: (r.content as Buffer).toString('base64'),
+        createdAt: (r.created_at as Date).toISOString(),
+        answeredAt: (r.answered_at as Date | null)?.toISOString() ?? null,
+      })),
+    };
+  });
+
+  /** Mark one as handled. */
+  app.put('/v1/channels/:id/inbox/:messageId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, messageId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+    await pool.query(
+      'UPDATE channel_inbox SET answered_at = now() WHERE id = $1 AND channel_id = $2',
+      [params.messageId, params.id],
+    );
+    return { answered: true };
   });
 
   app.put('/v1/channels/:id/posts/:postId/pin', requireAuth, async (request) => {
