@@ -217,6 +217,20 @@ Three things make the split hold rather than merely being described:
 What the server learns either way: that a channel has a picture, when it last
 changed, and roughly how large it is.
 
+### Two accounts on one phone
+
+A device is shared, handed on, or simply used by somebody with a second account,
+and **whatever an account sees must be its own**. That is a client-side
+guarantee more than a server one: the server has always derived identity from
+the session and never from an id the client supplied, but the app was carrying
+one account's state across a sign-out into the next.
+
+The rule and its four failures — a controller that was stopped instead of taken
+down, a Signal identity that outlived the account it belonged to, a slow reply
+landing in the next account's screen, and a push token registered to two
+accounts at once — are written up in full in `docs/account-separation.md`,
+together with the repair path for data that was already mis-assigned.
+
 ### Groups
 
 The server keeps a membership list, because it has to fan messages out. It does

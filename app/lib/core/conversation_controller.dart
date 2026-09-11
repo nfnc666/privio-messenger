@@ -227,7 +227,11 @@ class ConversationController extends ChangeNotifier {
 
   /// Reads the sealed history back so a relaunch does not start blank.
   Future<void> restore() async {
-    final contents = await _services.archive.load();
+    // The account is named, so an archive belonging to somebody else is refused
+    // rather than adopted. That matters on a phone whose previous sign-out was
+    // interrupted: the history is still on disk and the session that owned it
+    // is not.
+    final contents = await _services.archive.load(accountId: accountId);
     if (contents.conversations.isEmpty && contents.outbox.isEmpty) return;
     _services.store.restore(contents.conversations);
     _outbox
@@ -236,7 +240,7 @@ class ConversationController extends ChangeNotifier {
     // A message queued before the app was killed is still owed to somebody.
     _services.store.pruneExpired(DateTime.now());
     notifyListeners();
-    unawaited(flushOutbox());
+    detached(flushOutbox());
   }
 
   /// Takes on a history that a restore has just put into the store.
@@ -256,7 +260,11 @@ class ConversationController extends ChangeNotifier {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(
-        _services.archive.save(_services.store.conversations(), outbox: _outbox),
+        _services.archive.save(
+          _services.store.conversations(),
+          outbox: _outbox,
+          accountId: accountId,
+        ),
       );
     });
   }
@@ -265,7 +273,11 @@ class ConversationController extends ChangeNotifier {
   Future<void> flush() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    await _services.archive.save(_services.store.conversations(), outbox: _outbox);
+    await _services.archive.save(
+      _services.store.conversations(),
+      outbox: _outbox,
+      accountId: accountId,
+    );
   }
 
   /// Whether the realtime socket is currently up.
@@ -284,7 +296,7 @@ class ConversationController extends ChangeNotifier {
     if (token != null) _openRealtime(token);
     pruneExpired();
     unawaited(drain());
-    unawaited(flushOutbox());
+    detached(flushOutbox());
   }
 
   void _openRealtime(String token) {
@@ -344,7 +356,7 @@ class ConversationController extends ChangeNotifier {
     // Not inside the try below, and not conditional on it: the own picture has
     // nothing to do with the contact list, and a failed contacts read should
     // not also cost the user their avatar.
-    unawaited(_restoreOwnAvatar());
+    detached(_restoreOwnAvatar());
     try {
       final response = await _services.api.contacts();
       final entries = response['contacts'] as List<dynamic>? ?? const [];
@@ -364,7 +376,7 @@ class ConversationController extends ChangeNotifier {
           ),
         );
       }
-      unawaited(_loadAvatars());
+      detached(_loadAvatars());
       _error = null;
     } on ApiException catch (failure) {
       _error = failure.message;
@@ -419,7 +431,7 @@ class ConversationController extends ChangeNotifier {
         ),
       );
       notifyListeners();
-      unawaited(_loadAvatars());
+      detached(_loadAvatars());
       return conversation.id;
     } on ApiException catch (failure) {
       _error = failure.message;
@@ -1577,7 +1589,7 @@ class ConversationController extends ChangeNotifier {
       // gets another try, and where expired messages go.
       pruneExpired();
       unawaited(_maintainGroupKeys());
-      unawaited(flushOutbox());
+      detached(flushOutbox());
       return result.messages.isNotEmpty;
     } on ApiException catch (failure) {
       _error = failure.message;

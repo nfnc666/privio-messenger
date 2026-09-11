@@ -399,11 +399,11 @@ class AppState extends ChangeNotifier {
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
-    unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
+    detached(controller.restore().then((_) => controller.start(token: _sessionToken)));
     // The store builds register themselves; the free ones do not, because
     // choosing a distributor is a disclosure and therefore the user's to make.
     // Either way this must not block the chat list from appearing.
-    unawaited(wakeUp.ensureRegistered());
+    detached(wakeUp.ensureRegistered());
     // The platform's side of push: a wake-up means fetch, and a reissued token
     // means tell the server before it goes on posting to the old one.
     //
@@ -415,15 +415,15 @@ class AppState extends ChangeNotifier {
       onWake: () => controller.drain(),
       onTokenChanged: (token) => wakeUp.handleTokenChanged(token),
     );
-    unawaited(controller.refreshContacts());
+    detached(controller.refreshContacts());
     // A key request arrives on the socket, and the channels' keys live in a
     // different controller: the conversation one answers for groups and calls
     // this for the rest.
     controller.onKeyRequest = () => channels.deliverPendingKeys();
-    unawaited(controller.maintainKeys());
+    detached(controller.maintainKeys());
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.
-    unawaited(controller.loadKeyChangeAlerts());
+    detached(controller.loadKeyChangeAlerts());
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
@@ -766,6 +766,19 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// Ends the session and leaves nothing of this account behind.
+  ///
+  /// The rule this has to satisfy is simple to state and was not being met:
+  /// **whatever the next account sees must be its own.** A sign-out is the only
+  /// boundary between two people on one phone, so everything that was built
+  /// while signed in has to be taken down here — not stopped, taken down.
+  ///
+  /// Stopping was the bug. `_conversations?.stop()` cancels the timers and
+  /// closes the socket but clears nothing, and the controller was then handed
+  /// to the next account by the `??=` in its getter, still holding the previous
+  /// one's profile picture, contacts and decrypted attachments. The fix is the
+  /// same shape [deleteAccount] and the duress wipe already had: dispose it and
+  /// drop it, so the next read builds a new one.
   Future<void> signOut() async {
     _conversations?.stop();
     // Before the session goes: clearing the push token needs the token that
@@ -778,12 +791,17 @@ class AppState extends ChangeNotifier {
     } on Object {
       // A dead session on the server is no reason to keep one on the device.
     }
+    // Bumps the transport's session counter, which is what makes every request
+    // still in flight refuse to apply its answer. Kept before the teardown
+    // below so a reply that lands during it has already been disowned.
     services.api.useToken(null);
     services.messaging.identifyAs(null);
     _sessionToken = null;
     services.ice.clear();
     services.store.clear();
     _pushWake?.stop();
+    _conversations?.dispose();
+    _conversations = null;
     _channels?.dispose();
     _channels = null;
     _license?.dispose();
@@ -795,6 +813,25 @@ class AppState extends ChangeNotifier {
     _passcodeKind = null;
     _disguise = null;
     await services.archive.clear();
+    try {
+      // The identity goes too, and this is not the same trade-off as it looks.
+      //
+      // It used to stay, on the reasoning that signing back into the same
+      // account should keep its sessions. But the keys here are not the
+      // device's, they are the *account's*: the identity key a safety number is
+      // computed from, the Signal sessions with every contact, and the channel
+      // and group keys. Leaving them meant the next account on this phone
+      // signed as the previous one — same fingerprint, same safety number — and
+      // held the keys to private channels it had never been in.
+      //
+      // It costs nothing to take them: both `register` and `login` send a fresh
+      // device registration, and the server inserts a new device row for each
+      // sign-in either way, so re-registering is what already happened.
+      await services.crypto.wipe();
+    } on Object {
+      // A keystore that will not clear must not strand somebody on a screen
+      // belonging to an account they have just left.
+    }
     await _store.wipe();
     _username = null;
     _accountId = null;

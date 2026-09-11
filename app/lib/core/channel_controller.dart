@@ -82,24 +82,24 @@ class ChannelController extends ChangeNotifier {
     await _run(() async => _mine = await _channels.mine());
     // Anyone who joined by a link is waiting on a member with the key. This
     // device may be that member.
-    unawaited(deliverPendingKeys());
+    detached(deliverPendingKeys());
     // Pictures are fetched after the list is already on screen, not before:
     // a channel list should not wait on an image.
-    unawaited(loadAvatars(_mine));
+    detached(loadAvatars(_mine));
   }
 
   Future<void> search({String? query, String? category}) async {
     await _run(
       () async => _discovered = await _channels.discover(query: query, category: category),
     );
-    unawaited(loadAvatars(_discovered));
+    detached(loadAvatars(_discovered));
   }
 
   Future<void> loadPosts(String channelId) async {
     await _run(() async => _posts[channelId] = await _channels.posts(channelId));
     // Someone reading a channel is someone who holds its key, which makes this
     // the best moment to answer whoever joined by a link and is still waiting.
-    unawaited(_deliverFor(channelId));
+    detached(_deliverFor(channelId));
   }
 
   Future<void> _deliverFor(String channelId) async {
