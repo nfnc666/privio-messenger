@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="design/logo/privio-logo-wordmark.png" alt="Privio" width="180">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="design/logo/privio-wordmark-dark.png">
+  <img src="design/logo/privio-wordmark-light.png" alt="Privio" width="220">
+</picture>
 
 ### Encrypted. Private. Yours.
 

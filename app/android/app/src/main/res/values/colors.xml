@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The launcher icon's background layer. True black, the same ground the
+      delivered icon is drawn on and the same one the app itself uses.
+    -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>

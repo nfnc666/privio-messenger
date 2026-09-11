@@ -67,7 +67,20 @@ export interface PrivateInvitePresentation {
   needsApproval: boolean;
 }
 
+/** The mark on its own, transparent, for drawing on this page's own dark ground. */
 const MARK = '/assets/privio-mark.png';
+
+/**
+ * The app icon, opaque, for link previews only.
+ *
+ * A preview is composited by whichever messenger drew it, onto a colour this
+ * page does not choose and cannot predict. A transparent PNG there lands on
+ * white as often as on black, and the mark's counter — the speech bubble — is a
+ * knockout, so on the wrong ground it fills in and the shape stops reading.
+ * The icon carries its own black, which is also what makes a preview match the
+ * icon on the reader's home screen.
+ */
+const OG_IMAGE = '/assets/privio-icon.png';
 
 /**
  * The whole stylesheet. Inline, because a second request is a second chance
@@ -261,7 +274,7 @@ export function publicChannelPage(
     title: `${channel.title} — Privio`,
     ogTitle: channel.title,
     ogDescription: channel.description ?? 'A channel on Privio.',
-    ogImage: channel.avatarUrl ?? `${options.origin}${MARK}`,
+    ogImage: channel.avatarUrl ?? `${options.origin}${OG_IMAGE}`,
     noindex: false,
     body,
     origin: options.origin,
@@ -311,7 +324,7 @@ export function privateInvitePage(
     // is fetched by a messenger, not by the person who was invited.
     ogTitle: 'Privio',
     ogDescription: 'A private invitation. Open it in Privio.',
-    ogImage: `${options.origin}${MARK}`,
+    ogImage: `${options.origin}${OG_IMAGE}`,
     noindex: true,
     body,
     origin: options.origin,
@@ -379,7 +392,7 @@ export function problemPage(
     title: 'Privio',
     ogTitle: 'Privio',
     ogDescription: 'Private by default.',
-    ogImage: `${options.origin}${MARK}`,
+    ogImage: `${options.origin}${OG_IMAGE}`,
     noindex: true,
     body,
     origin: options.origin,
@@ -422,7 +435,7 @@ export function appDidNotOpenPage(options: InvitePageOptions): string {
     title: 'Open in Privio',
     ogTitle: 'Privio',
     ogDescription: 'Private by default.',
-    ogImage: `${options.origin}${MARK}`,
+    ogImage: `${options.origin}${OG_IMAGE}`,
     noindex: true,
     body,
     origin: options.origin,

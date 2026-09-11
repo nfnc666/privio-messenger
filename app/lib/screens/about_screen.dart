@@ -39,7 +39,7 @@ class AboutScreen extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
           const SizedBox(height: PrivioSpacing.xxl),
-          const Center(child: PrivioWordmark(markSize: 72, glow: false)),
+          const Center(child: PrivioWordmark(markSize: 52, glow: false)),
           const SizedBox(height: PrivioSpacing.sm),
           Center(
             child: Text(

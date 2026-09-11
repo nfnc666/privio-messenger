@@ -312,10 +312,43 @@ describe('the invite web page', () => {
     assert.equal(android.json().error, 'not_configured');
   });
 
-  it('serves the mark for the page and for link previews', async () => {
+  it('serves the mark for the page, and an opaque icon for link previews', async () => {
     const mark = await open('/assets/privio-mark.png');
     assert.equal(mark.statusCode, 200);
     assert.equal(mark.headers['content-type'], 'image/png');
     assert.ok(mark.rawPayload.length > 1000);
+
+    const icon = await open('/assets/privio-icon.png');
+    assert.equal(icon.statusCode, 200);
+    assert.equal(icon.headers['content-type'], 'image/png');
+    assert.ok(icon.rawPayload.length > 1000);
+
+    // The two are different files on purpose. A preview is composited by
+    // whichever messenger drew it, onto a colour this page does not choose, and
+    // the mark's counter is a knockout — on the wrong ground it fills in and
+    // the shape stops reading. PNG colour type 2 is truecolour with no alpha;
+    // type 6 carries one. The byte lives at offset 25 of the IHDR chunk.
+    assert.equal(icon.rawPayload[25], 2, 'the preview image must be opaque');
+    assert.equal(mark.rawPayload[25], 6, 'the on-page mark keeps its alpha');
+  });
+
+  it('and points every link preview at the opaque one', async () => {
+    await createChannel({
+      visibility: 'public',
+      handle: 'vorschaubild',
+      title: 'Vorschaubild',
+    });
+
+    const page = await open('/vorschaubild');
+    assert.match(page.body, /og:image" content="http[^"]*\/assets\/privio-icon\.png"/);
+
+    // A private invitation has no channel picture to show and still needs a
+    // preview image; it gets the same neutral icon.
+    const channel = (await createChannel({
+      visibility: 'private',
+      encryptedMetadata: Buffer.from('x').toString('base64'),
+    })).json();
+    const invite = await open(`/+${channel.inviteCode}`);
+    assert.ok(invite.body.includes('/assets/privio-icon.png'));
   });
 });
