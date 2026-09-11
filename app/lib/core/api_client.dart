@@ -441,8 +441,70 @@ class PrivioApiClient {
   Future<void> clearChannelAvatar(String channelId) async =>
       _send('DELETE', '/v1/channels/$channelId/avatar');
 
-  Future<Map<String, dynamic>> channelMembers(String channelId) =>
-      _send('GET', '/v1/channels/$channelId/members');
+  /// Who is in a channel.
+  ///
+  /// Paged and searched on the server, because a channel with thousands of
+  /// subscribers cannot hand the whole list to a phone to filter. `role:
+  /// 'admins'` asks for the short list the admin screen shows, which every
+  /// member may see — who runs a channel is not a secret from the people in it.
+  Future<Map<String, dynamic>> channelMembers(
+    String channelId, {
+    int? limit,
+    String? cursor,
+    String? query,
+    String? role,
+  }) =>
+      _send('GET', '/v1/channels/$channelId/members', query: {
+        if (limit != null) 'limit': '$limit',
+        if (cursor != null) 'cursor': cursor,
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (role != null) 'role': role,
+      });
+
+  /// Put people into a channel directly.
+  ///
+  /// Answers two lists: who went in, and who has to be invited instead because
+  /// their own privacy setting does not allow being added.
+  Future<Map<String, dynamic>> addChannelMembers(
+    String channelId,
+    List<String> accountIds,
+  ) =>
+      _send('POST', '/v1/channels/$channelId/members', body: {'accountIds': accountIds});
+
+  /// Silence a channel for this account, everywhere it is signed in.
+  Future<Map<String, dynamic>> muteChannel(String channelId, {DateTime? until}) =>
+      _send('PUT', '/v1/channels/$channelId/mute', body: {
+        if (until != null) 'until': until.toUtc().toIso8601String(),
+      });
+
+  Future<Map<String, dynamic>> unmuteChannel(String channelId) =>
+      _send('DELETE', '/v1/channels/$channelId/mute');
+
+  /// What this account may do about a livestream right now.
+  ///
+  /// `available: false` where the deployment has no media server, which is what
+  /// the screen draws as unavailable-with-a-reason rather than as a dead button.
+  Future<Map<String, dynamic>> channelLive(String channelId) =>
+      _send('GET', '/v1/channels/$channelId/live');
+
+  Future<Map<String, dynamic>> startChannelLive(String channelId) =>
+      _send('POST', '/v1/channels/$channelId/live');
+
+  Future<Map<String, dynamic>> endChannelLive(String channelId) =>
+      _send('DELETE', '/v1/channels/$channelId/live');
+
+  /// Write to a channel's own inbox. The bytes are sealed before they get here.
+  Future<Map<String, dynamic>> writeToChannelInbox(
+    String channelId,
+    String base64Content,
+  ) =>
+      _send('POST', '/v1/channels/$channelId/inbox', body: {'content': base64Content});
+
+  Future<Map<String, dynamic>> channelInbox(String channelId, {int limit = 50}) =>
+      _send('GET', '/v1/channels/$channelId/inbox', query: {'limit': '$limit'});
+
+  Future<Map<String, dynamic>> markChannelInboxAnswered(String channelId, int messageId) =>
+      _send('PUT', '/v1/channels/$channelId/inbox/$messageId');
 
   /// Promote or demote a member. The server refuses to grant a permission the
   /// caller does not hold, so a rejection here is a real answer, not a bug.
@@ -470,6 +532,19 @@ class PrivioApiClient {
     bool? restrictSaving,
     List<String>? reactionEmojis,
     bool? commentsEnabled,
+    bool? showSenderName,
+    bool? welcomeEnabled,
+    String? welcomeMessage,
+    // Three-state on purpose: not passed leaves the colour alone, an explicit
+    // null clears it back to the app's own. A nullable parameter cannot say
+    // which of the two was meant, so the caller sets the flag.
+    bool clearAccent = false,
+    String? accent,
+    bool clearBackground = false,
+    String? background,
+    bool clearDiscussionGroup = false,
+    String? discussionGroupId,
+    bool? directMessagesEnabled,
   }) =>
       _send('PATCH', '/v1/channels/$channelId', body: {
         if (title != null) 'title': title,
@@ -486,6 +561,17 @@ class PrivioApiClient {
         if (reactionEmojis != null) 'reactionEmojis': reactionEmojis,
         // Whether posts have threads under them at all.
         if (commentsEnabled != null) 'commentsEnabled': commentsEnabled,
+        if (showSenderName != null) 'showSenderName': showSenderName,
+        if (welcomeEnabled != null) 'welcomeEnabled': welcomeEnabled,
+        // Public channels only. The server refuses this for a private channel
+        // rather than storing its welcome text in the clear — a private
+        // channel's goes inside the sealed metadata with its title.
+        if (welcomeMessage != null) 'welcomeMessage': welcomeMessage,
+        if (clearAccent || accent != null) 'accent': accent,
+        if (clearBackground || background != null) 'background': background,
+        if (clearDiscussionGroup || discussionGroupId != null)
+          'discussionGroupId': discussionGroupId,
+        if (directMessagesEnabled != null) 'directMessagesEnabled': directMessagesEnabled,
       },);
 
   /// Moves a channel past a key version whose key nobody holds.

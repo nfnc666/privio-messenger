@@ -42,6 +42,17 @@ class ChannelController extends ChangeNotifier {
   final Map<String, List<ChannelMember>> _members = {};
   final Map<String, bool> _membersComplete = {};
 
+  /// Just the people running each channel, which is a different list from the
+  /// audience and is visible to every member.
+  final Map<String, List<ChannelMember>> _admins = {};
+
+  /// Where the next page of members starts, or null at the end.
+  final Map<String, String?> _memberCursor = {};
+
+  /// Big enough that a small channel arrives in one go, small enough that a
+  /// large one does not stall the screen.
+  static const int _memberPage = 60;
+
   bool _loading = false;
   String? _error;
 
@@ -110,13 +121,106 @@ class ChannelController extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMembers(String channelId) async {
+  /// The first page of a channel's members.
+  ///
+  /// Paged rather than fetched whole: the old call took the first five hundred
+  /// and said nothing about the rest, which reads on screen exactly like a
+  /// complete list of a channel that happens to have five hundred people in it.
+  Future<void> loadMembers(String channelId, {String? query}) async {
     await _run(() async {
-      final roster = await _channels.members(channelId);
+      final roster = await _channels.members(channelId, limit: _memberPage, query: query);
       _members[channelId] = roster.members;
       _membersComplete[channelId] = roster.complete;
+      _memberCursor[channelId] = roster.nextCursor;
     });
   }
+
+  /// The next page, appended. A no-op once there is nothing after.
+  Future<void> loadMoreMembers(String channelId, {String? query}) async {
+    final cursor = _memberCursor[channelId];
+    if (cursor == null) return;
+    await _run(() async {
+      final roster = await _channels.members(
+        channelId,
+        limit: _memberPage,
+        cursor: cursor,
+        query: query,
+      );
+      _members[channelId] = [...membersOf(channelId), ...roster.members];
+      _memberCursor[channelId] = roster.nextCursor;
+    });
+  }
+
+  /// Just the people running the channel, which every member may see.
+  Future<void> loadAdmins(String channelId) async {
+    await _run(() async {
+      final roster = await _channels.members(channelId, role: 'admins', limit: 200);
+      _admins[channelId] = roster.members;
+    });
+  }
+
+  List<ChannelMember> adminsOf(String channelId) => _admins[channelId] ?? const [];
+
+  /// Whether another page of members exists.
+  bool hasMoreMembers(String channelId) => _memberCursor[channelId] != null;
+
+  /// Puts people in directly where their own settings allow it.
+  ///
+  /// Returns who could not be added, so the screen offers them a link instead
+  /// of reporting a success that did not happen to everybody.
+  Future<({List<String> added, List<String> invite})?> addMembers(
+    String channelId,
+    List<String> accountIds,
+  ) async {
+    ({List<String> added, List<String> invite})? result;
+    final ok = await _run(() async {
+      result = await _channels.addMembers(channelId, accountIds);
+      await loadMembers(channelId);
+    });
+    return ok ? result : null;
+  }
+
+  // --- Muting ---------------------------------------------------------------
+
+  /// Silences a channel for this account, for a while or for good.
+  ///
+  /// The channel in the list is updated straight away rather than waiting for a
+  /// refresh: muting something is the kind of act whose effect should be
+  /// visible in the same breath.
+  Future<bool> mute(String channelId, {DateTime? until}) => _run(() async {
+        final result = await _channels.mute(channelId, until: until);
+        final channel = channelById(channelId);
+        if (channel != null) {
+          _replace(channel.copyWith(muted: result.muted, mutedUntil: result.until));
+        }
+      });
+
+  Future<bool> unmute(String channelId) => _run(() async {
+        await _channels.unmute(channelId);
+        final channel = channelById(channelId);
+        if (channel != null) _replace(channel.copyWith(muted: false, clearMutedUntil: true));
+      });
+
+  // --- Livestreams ----------------------------------------------------------
+
+  /// What can be done about a livestream, including "nothing, and why".
+  Future<ChannelLive?> live(String channelId) async {
+    ChannelLive? found;
+    final ok = await _run(() async {
+      found = await _channels.live(channelId);
+    });
+    return ok ? found : null;
+  }
+
+  Future<ChannelLive?> startLive(String channelId) async {
+    ChannelLive? started;
+    final ok = await _run(() async {
+      started = await _channels.startLive(channelId);
+    });
+    return ok ? started : null;
+  }
+
+  Future<bool> endLive(String channelId) => _run(() => _channels.endLive(channelId));
 
   // --- Acting ---------------------------------------------------------------
 
@@ -591,6 +695,44 @@ class ChannelController extends ChangeNotifier {
   /// Turns threads under posts on or off for the whole channel.
   Future<bool> setCommentsEnabled(String channelId, {required bool enabled}) => _run(() async {
         await _channels.setCommentsEnabled(channelId, enabled: enabled);
+        _mine = await _channels.mine();
+      });
+
+  /// Saves the edit screen in one request, then reloads so every screen showing
+  /// this channel redraws from what the server actually stored.
+  Future<bool> saveSettings(
+    ChannelInfo channel, {
+    String? title,
+    String? description,
+    bool? showSenderName,
+    bool? welcomeEnabled,
+    String? welcomeMessage,
+    bool clearAccent = false,
+    String? accent,
+    bool clearBackground = false,
+    String? background,
+    bool clearDiscussionGroup = false,
+    String? discussionGroupId,
+    bool? directMessagesEnabled,
+    bool? commentsEnabled,
+  }) =>
+      _run(() async {
+        await _channels.saveSettings(
+          channel,
+          title: title,
+          description: description,
+          showSenderName: showSenderName,
+          welcomeEnabled: welcomeEnabled,
+          welcomeMessage: welcomeMessage,
+          clearAccent: clearAccent,
+          accent: accent,
+          clearBackground: clearBackground,
+          background: background,
+          clearDiscussionGroup: clearDiscussionGroup,
+          discussionGroupId: discussionGroupId,
+          directMessagesEnabled: directMessagesEnabled,
+          commentsEnabled: commentsEnabled,
+        );
         _mine = await _channels.mine();
       });
 

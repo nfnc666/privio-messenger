@@ -9,6 +9,10 @@ class ChannelPermissions {
     this.canDeletePosts = false,
     this.canManageMembers = false,
     this.canDeleteChannel = false,
+    this.canModerateDiscussion = false,
+    this.canManageInvites = false,
+    this.canManageLivestreams = false,
+    this.canAppointAdmins = false,
   });
 
   factory ChannelPermissions.fromJson(Map<String, dynamic>? json) => json == null
@@ -19,6 +23,10 @@ class ChannelPermissions {
           canDeletePosts: json['canDeletePosts'] as bool? ?? false,
           canManageMembers: json['canManageMembers'] as bool? ?? false,
           canDeleteChannel: json['canDeleteChannel'] as bool? ?? false,
+          canModerateDiscussion: json['canModerateDiscussion'] as bool? ?? false,
+          canManageInvites: json['canManageInvites'] as bool? ?? false,
+          canManageLivestreams: json['canManageLivestreams'] as bool? ?? false,
+          canAppointAdmins: json['canAppointAdmins'] as bool? ?? false,
         );
 
   final bool canPost;
@@ -27,13 +35,77 @@ class ChannelPermissions {
   final bool canManageMembers;
   final bool canDeleteChannel;
 
+  /// Removing a comment somebody else wrote, and silencing them in a thread.
+  final bool canModerateDiscussion;
+
+  /// The invite link: its limits, rotating it, admitting people waiting.
+  final bool canManageInvites;
+
+  final bool canManageLivestreams;
+
+  /// Making somebody else an admin.
+  ///
+  /// Deliberately not implied by [canManageMembers], and never granted by
+  /// default — it is the one permission that multiplies itself.
+  final bool canAppointAdmins;
+
   Map<String, dynamic> toJson() => {
         'canPost': canPost,
         'canEditChannel': canEditChannel,
         'canDeletePosts': canDeletePosts,
         'canManageMembers': canManageMembers,
         'canDeleteChannel': canDeleteChannel,
+        'canModerateDiscussion': canModerateDiscussion,
+        'canManageInvites': canManageInvites,
+        'canManageLivestreams': canManageLivestreams,
+        'canAppointAdmins': canAppointAdmins,
       };
+
+  /// Every permission, in the order the admin screen lists them, with the label
+  /// it shows. One list so the screen cannot quietly omit one.
+  static const List<({String key, String label, String detail})> all = [
+    (key: 'canEditChannel', label: 'Edit the channel', detail: 'Name, picture, description and settings'),
+    (key: 'canPost', label: 'Publish posts', detail: 'And edit or schedule their own'),
+    (key: 'canDeletePosts', label: 'Delete posts', detail: "Including other people's"),
+    (key: 'canModerateDiscussion', label: 'Moderate the discussion', detail: 'Remove comments and silence people'),
+    (key: 'canManageMembers', label: 'Manage subscribers', detail: 'Add, remove and silence'),
+    (key: 'canManageInvites', label: 'Manage invites', detail: 'The link, its limits, and who is waiting'),
+    (key: 'canManageLivestreams', label: 'Manage livestreams', detail: 'Start and end them'),
+    (key: 'canAppointAdmins', label: 'Appoint admins', detail: 'Hand this authority to somebody else'),
+  ];
+
+  bool has(String key) => switch (key) {
+        'canPost' => canPost,
+        'canEditChannel' => canEditChannel,
+        'canDeletePosts' => canDeletePosts,
+        'canManageMembers' => canManageMembers,
+        'canDeleteChannel' => canDeleteChannel,
+        'canModerateDiscussion' => canModerateDiscussion,
+        'canManageInvites' => canManageInvites,
+        'canManageLivestreams' => canManageLivestreams,
+        'canAppointAdmins' => canAppointAdmins,
+        _ => false,
+      };
+
+  ChannelPermissions withFlag(String key, {required bool on}) => ChannelPermissions(
+        canPost: key == 'canPost' ? on : canPost,
+        canEditChannel: key == 'canEditChannel' ? on : canEditChannel,
+        canDeletePosts: key == 'canDeletePosts' ? on : canDeletePosts,
+        canManageMembers: key == 'canManageMembers' ? on : canManageMembers,
+        canDeleteChannel: key == 'canDeleteChannel' ? on : canDeleteChannel,
+        canModerateDiscussion:
+            key == 'canModerateDiscussion' ? on : canModerateDiscussion,
+        canManageInvites: key == 'canManageInvites' ? on : canManageInvites,
+        canManageLivestreams: key == 'canManageLivestreams' ? on : canManageLivestreams,
+        canAppointAdmins: key == 'canAppointAdmins' ? on : canAppointAdmins,
+      );
+
+  /// True when this holds everything [granted] does.
+  ///
+  /// The same rule the server enforces, checked here too so the screen greys
+  /// out what it would refuse rather than offering it and then failing.
+  bool covers(ChannelPermissions granted) =>
+      all.every((p) => !granted.has(p.key) || has(p.key));
 }
 
 /// What a channel's invite link is allowed to do.
@@ -77,6 +149,106 @@ class ChannelInviteSettings {
 
   /// Whether the link would let anybody in right now.
   bool get isSpent => hasExpired || isUsedUp;
+}
+
+/// A channel's own colours.
+///
+/// Token names rather than colour values, because a channel must not be able to
+/// ask for white-on-white, or for a colour that disappears in one of the two
+/// themes. Each name resolves to a pair that was checked against both.
+@immutable
+class ChannelAppearance {
+  const ChannelAppearance({this.accent, this.background});
+
+  factory ChannelAppearance.fromJson(Map<String, dynamic>? json) => json == null
+      ? const ChannelAppearance()
+      : ChannelAppearance(
+          accent: json['accent'] as String?,
+          background: json['background'] as String?,
+        );
+
+  /// One of: green, blue, purple, orange, red, teal. Null means the app's own.
+  final String? accent;
+
+  /// One of: black, charcoal, midnight. Null means the app's own.
+  final String? background;
+
+  bool get isDefault => accent == null && background == null;
+}
+
+/// What a new subscriber is shown once, on joining.
+@immutable
+class ChannelWelcome {
+  const ChannelWelcome({this.enabled = false, this.message});
+
+  factory ChannelWelcome.fromJson(Map<String, dynamic>? json) => json == null
+      ? const ChannelWelcome()
+      : ChannelWelcome(
+          enabled: json['enabled'] as bool? ?? false,
+          message: json['message'] as String?,
+        );
+
+  final bool enabled;
+
+  /// Plaintext only for a public channel. A private channel's welcome text
+  /// travels inside the sealed metadata with its title, and the server refuses
+  /// to store it in the clear at all.
+  final String? message;
+
+  bool get isUsable => enabled && (message?.trim().isNotEmpty ?? false);
+}
+
+/// A livestream, and whether this deployment can have one at all.
+@immutable
+class ChannelLive {
+  const ChannelLive({
+    this.available = false,
+    this.canStart = false,
+    this.startedAt,
+    this.startedBy,
+    this.url,
+    this.room,
+    this.token,
+    this.canPublish = false,
+  });
+
+  factory ChannelLive.fromJson(Map<String, dynamic> json) {
+    final live = json['live'] as Map<String, dynamic>?;
+    final access = json['access'] as Map<String, dynamic>?;
+    return ChannelLive(
+      available: json['available'] as bool? ?? false,
+      canStart: json['canStart'] as bool? ?? false,
+      startedAt: DateTime.tryParse(live?['startedAt'] as String? ?? '')?.toLocal(),
+      startedBy: live?['startedBy'] as String?,
+      url: access?['url'] as String?,
+      room: access?['room'] as String?,
+      token: access?['token'] as String?,
+      canPublish: access?['canPublish'] as bool? ?? false,
+    );
+  }
+
+  /// Whether the deployment has a media server at all.
+  ///
+  /// False is the default and the honest one: a livestream is the single thing
+  /// in Privio that cannot be peer-to-peer — one publisher and every subscriber
+  /// needs a server that forwards the stream — and without one configured there
+  /// is nothing to join. The button says so rather than doing nothing.
+  final bool available;
+
+  /// Whether this account holds `canManageLivestreams`.
+  final bool canStart;
+
+  final DateTime? startedAt;
+  final String? startedBy;
+
+  /// Where to connect, and the short-lived token for it. Null unless something
+  /// is actually running.
+  final String? url;
+  final String? room;
+  final String? token;
+  final bool canPublish;
+
+  bool get isRunning => startedAt != null;
 }
 
 /// What a channel adds up to, for whoever runs it.
@@ -189,6 +361,13 @@ class ChannelInfo {
     this.avatarMediaId,
     this.avatarUpdatedAt,
     this.avatarToken,
+    this.showSenderName = false,
+    this.welcome = const ChannelWelcome(),
+    this.appearance = const ChannelAppearance(),
+    this.discussionGroupId,
+    this.directMessagesEnabled = false,
+    this.muted = false,
+    this.mutedUntil,
   });
 
   /// What a channel offers until an admin changes it. Mirrors the server's
@@ -280,8 +459,35 @@ class ChannelInfo {
   /// just removed.
   final bool hasCurrentKey;
 
+  /// Whether a post carries its author's name.
+  ///
+  /// Off by default. A channel speaks with one voice unless somebody decides
+  /// otherwise — and it is a decision about every admin's name, not only the
+  /// name of whoever flipped it.
+  final bool showSenderName;
+
+  final ChannelWelcome welcome;
+  final ChannelAppearance appearance;
+
+  /// A group where this channel's posts are discussed, or null.
+  final String? discussionGroupId;
+
+  /// Whether subscribers may write to the channel's own inbox.
+  final bool directMessagesEnabled;
+
+  /// Whether this account has silenced it, and until when.
+  ///
+  /// Per account, not per device: somebody who muted a channel on their phone
+  /// did not mean "until I pick up my laptop".
+  final bool muted;
+  final DateTime? mutedUntil;
+
   /// True when this device is behind the channel and has to wait.
   bool get isAwaitingKey => isMember && !hasCurrentKey;
+
+  /// "34 subscribers", which is what a channel's audience is called.
+  String get subscriberLabel =>
+      '$memberCount subscriber${memberCount == 1 ? '' : 's'}';
 
   /// "1 member", not "1 members".
   String get memberLabel => '$memberCount member${memberCount == 1 ? '' : 's'}';
@@ -300,6 +506,15 @@ class ChannelInfo {
     String? avatarMediaId,
     DateTime? avatarUpdatedAt,
     String? avatarToken,
+    bool? showSenderName,
+    ChannelWelcome? welcome,
+    ChannelAppearance? appearance,
+    bool? directMessagesEnabled,
+    bool? muted,
+    DateTime? mutedUntil,
+    // `mutedUntil` null means "unchanged" like every other parameter here, so
+    // unmuting needs a way to say null and mean it.
+    bool clearMutedUntil = false,
   }) =>
       ChannelInfo(
         id: id,
@@ -322,6 +537,13 @@ class ChannelInfo {
         avatarMediaId: avatarMediaId ?? this.avatarMediaId,
         avatarUpdatedAt: avatarUpdatedAt ?? this.avatarUpdatedAt,
         avatarToken: avatarToken ?? this.avatarToken,
+        showSenderName: showSenderName ?? this.showSenderName,
+        welcome: welcome ?? this.welcome,
+        appearance: appearance ?? this.appearance,
+        discussionGroupId: discussionGroupId,
+        directMessagesEnabled: directMessagesEnabled ?? this.directMessagesEnabled,
+        muted: muted ?? this.muted,
+        mutedUntil: clearMutedUntil ? null : (mutedUntil ?? this.mutedUntil),
       );
 
   /// The same channel with no picture.
@@ -349,6 +571,13 @@ class ChannelInfo {
         invite: invite,
         hasKey: hasKey,
         avatarUpdatedAt: DateTime.now(),
+        showSenderName: showSenderName,
+        welcome: welcome,
+        appearance: appearance,
+        discussionGroupId: discussionGroupId,
+        directMessagesEnabled: directMessagesEnabled,
+        muted: muted,
+        mutedUntil: mutedUntil,
       );
 }
 
@@ -695,17 +924,32 @@ class ChannelMember {
     this.displayName,
     this.role = 'subscriber',
     this.permissions = const ChannelPermissions(),
+    this.isContact = false,
+    this.lastSeenAt,
+    this.promotedByName,
+    this.promotedById,
   });
 
-  factory ChannelMember.fromJson(Map<String, dynamic> json) => ChannelMember(
-        id: json['id'] as String,
-        username: json['username'] as String? ?? '',
-        displayName: json['displayName'] as String?,
-        role: json['role'] as String? ?? 'subscriber',
-        permissions: ChannelPermissions.fromJson(
-          json['permissions'] as Map<String, dynamic>?,
-        ),
-      );
+  factory ChannelMember.fromJson(Map<String, dynamic> json) {
+    final promoter = json['promotedBy'] as Map<String, dynamic>?;
+    return ChannelMember(
+      id: json['id'] as String,
+      username: json['username'] as String? ?? '',
+      displayName: json['displayName'] as String?,
+      role: json['role'] as String? ?? 'subscriber',
+      permissions: ChannelPermissions.fromJson(
+        json['permissions'] as Map<String, dynamic>?,
+      ),
+      isContact: json['isContact'] as bool? ?? false,
+      lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? '')?.toLocal(),
+      promotedById: promoter?['id'] as String?,
+      promotedByName: promoter == null
+          ? null
+          : (promoter['displayName'] as String?)?.trim().isNotEmpty == true
+              ? promoter['displayName'] as String
+              : promoter['username'] as String? ?? 'a deleted account',
+    );
+  }
 
   final String id;
   final String username;
@@ -713,10 +957,44 @@ class ChannelMember {
   final String role;
   final ChannelPermissions permissions;
 
+  /// Whether they are in this account's address book, which is what splits
+  /// "contacts in this channel" from everyone else.
+  final bool isContact;
+
+  /// When they were last online, **or null** — and null is the common case
+  /// rather than an error. The server applies their own privacy setting, and
+  /// running the channel is deliberately not a reason to see more.
+  final DateTime? lastSeenAt;
+
+  /// Who made them an admin. Null for the owner and for subscribers.
+  final String? promotedByName;
+  final String? promotedById;
+
   bool get isOwner => role == 'owner';
   bool get isAdmin => role == 'admin' || isOwner;
 
   String get label => displayName?.isNotEmpty == true ? displayName! : username;
+
+  /// 'online', 'last seen 5 Sept', or empty where they do not share it.
+  ///
+  /// Empty rather than "last seen a long time ago": not knowing is not the same
+  /// as knowing it was long ago, and the row shows nothing instead of guessing.
+  String presenceLabel({DateTime? now}) {
+    final seen = lastSeenAt;
+    if (seen == null) return '';
+    final asOf = now ?? DateTime.now();
+    final ago = asOf.difference(seen);
+    if (ago.inMinutes < 2) return 'online';
+    if (ago.inMinutes < 60) return 'last seen ${ago.inMinutes} minutes ago';
+    if (ago.inHours < 24) {
+      return 'last seen ${ago.inHours} hour${ago.inHours == 1 ? '' : 's'} ago';
+    }
+    if (ago.inDays < 7) {
+      return 'last seen ${ago.inDays} day${ago.inDays == 1 ? '' : 's'} ago';
+    }
+    return 'last seen ${seen.day.toString().padLeft(2, '0')}.'
+        '${seen.month.toString().padLeft(2, '0')}.${seen.year % 100}';
+  }
 
   ChannelMember copyWith({String? role, ChannelPermissions? permissions}) => ChannelMember(
         id: id,
@@ -724,6 +1002,10 @@ class ChannelMember {
         displayName: displayName,
         role: role ?? this.role,
         permissions: permissions ?? this.permissions,
+        isContact: isContact,
+        lastSeenAt: lastSeenAt,
+        promotedByName: promotedByName,
+        promotedById: promotedById,
       );
 }
 
