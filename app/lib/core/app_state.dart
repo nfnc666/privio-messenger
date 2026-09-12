@@ -15,6 +15,7 @@ import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
+import 'locale_controller.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
@@ -99,6 +100,16 @@ class AppState extends ChangeNotifier {
   /// stage — cold start, lock screen, halfway through signing up — and has to
   /// outlive whatever is on screen when it does.
   final DeepLinkController deepLinks;
+
+  /// Which language the interface is in.
+  ///
+  /// Its own notifier rather than a field here, because the `MaterialApp` has
+  /// to rebuild on a change and nothing else does: a language change is not a
+  /// reason to rebuild every listener of [AppState].
+  ///
+  /// Loaded per account in [_onSignedIn] and reset by the sign-out and wipe
+  /// paths, which is the same rule as the rest of the per-account state.
+  late final LocaleController locale = LocaleController(_store);
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -402,6 +413,13 @@ class AppState extends ChangeNotifier {
   }
 
   void _onSignedIn() {
+    // The interface language, before anything else is read: it decides what
+    // every screen that is about to appear is written in. `load` resets to
+    // English first and notifies again when the stored choice arrives, so a
+    // slow keystore shows English for a frame rather than the last account's
+    // language.
+    final account = _accountId;
+    if (account != null) detached(locale.load(account));
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
@@ -643,6 +661,9 @@ class AppState extends ChangeNotifier {
       unawaited(_wipeOnServer(services, code));
     }
     await _store.wipe();
+    // Silently: see [LocaleController.signedOut]. Everything else here is
+    // equally quiet, for the same reason.
+    locale.signedOut(notify: false);
     _conversations?.dispose();
     _conversations = null;
     _channels?.dispose();
@@ -761,6 +782,7 @@ class AppState extends ChangeNotifier {
     _wakeUp?.dispose();
     _wakeUp = null;
     await _store.wipe();
+    locale.signedOut();
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
@@ -839,6 +861,7 @@ class AppState extends ChangeNotifier {
       // belonging to an account they have just left.
     }
     await _store.wipe();
+    locale.signedOut();
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;
@@ -848,6 +871,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     deepLinks.dispose();
+    locale.dispose();
     _security?.dispose();
     _license?.dispose();
     _channels?.dispose();

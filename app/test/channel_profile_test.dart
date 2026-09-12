@@ -8,6 +8,7 @@ import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
@@ -149,7 +150,12 @@ Future<AppState> stateWith(FakeServer server, ChannelInfo channel) async {
 
 Widget wrap(Widget child, AppState state) => PrivioScope(
       notifier: state,
-      child: MaterialApp(theme: PrivioTheme.dark(), home: child),
+      child: MaterialApp(
+        theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: child,
+      ),
     );
 
 void main() {

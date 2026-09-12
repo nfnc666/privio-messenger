@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'l10n/app_localizations.dart';
 import 'models/channel.dart';
 import 'screens/channel_feed_screen.dart';
 import 'screens/activation_screen.dart';
@@ -72,35 +73,54 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return PrivioScope(
       notifier: _state,
-      child: MaterialApp(
-        title: 'Privio',
-        debugShowCheckedModeBanner: false,
-        theme: PrivioTheme.dark(),
-        darkTheme: PrivioTheme.dark(),
-        themeMode: ThemeMode.dark,
-        // The one appearance setting that is real, applied where every screen
-        // sees it rather than by each screen remembering to. Read through the
-        // scope rather than off the field, so changing it redraws the app
-        // instead of waiting for the next relaunch.
-        builder: (context, child) {
-          final scale = PrivioScope.of(context).textScale;
-          return MediaQuery.withClampedTextScaling(
-            minScaleFactor: scale,
-            maxScaleFactor: scale,
-            // The cover goes outermost: a call screen is content too, and the
-            // app switcher must not photograph who is on it.
-            child: PrivacyCover(
-              hidden: _lifecycle != AppLifecycleState.resumed,
-              // Inside the cover and above the navigator: the opener needs a
-              // navigator to push onto, and it must not be photographed by the
-              // app switcher any more than anything else is.
-              child: _DeepLinkOpener(
-                child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+      // Two notifiers, because the language is not on [AppState]: it has its
+      // own controller, and the `MaterialApp` has to be rebuilt when either
+      // changes. Merging them is also what lets the duress wipe reset the
+      // language without a notification of its own — see
+      // [LocaleController.signedOut].
+      child: ListenableBuilder(
+        listenable: Listenable.merge([_state, _state.locale]),
+        builder: (context, _) => MaterialApp(
+          // Not localised, deliberately: this is the app's name, which is the
+          // same word in every language.
+          title: 'Privio',
+          debugShowCheckedModeBanner: false,
+          theme: PrivioTheme.dark(),
+          darkTheme: PrivioTheme.dark(),
+          themeMode: ThemeMode.dark,
+          // The whole interface, in the signed-in account's language. Changing it
+          // rebuilds every screen already on the navigator stack, which is what
+          // makes the switch immediate rather than something a restart applies.
+          //
+          // `supportedLocales` is generated from the ARB files, and English is
+          // first, so it is also what Flutter falls back to.
+          locale: _state.locale.locale,
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          // The one appearance setting that is real, applied where every screen
+          // sees it rather than by each screen remembering to. Read through the
+          // scope rather than off the field, so changing it redraws the app
+          // instead of waiting for the next relaunch.
+          builder: (context, child) {
+            final scale = PrivioScope.of(context).textScale;
+            return MediaQuery.withClampedTextScaling(
+              minScaleFactor: scale,
+              maxScaleFactor: scale,
+              // The cover goes outermost: a call screen is content too, and the
+              // app switcher must not photograph who is on it.
+              child: PrivacyCover(
+                hidden: _lifecycle != AppLifecycleState.resumed,
+                // Inside the cover and above the navigator: the opener needs a
+                // navigator to push onto, and it must not be photographed by the
+                // app switcher any more than anything else is.
+                child: _DeepLinkOpener(
+                  child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+                ),
               ),
-            ),
-          );
-        },
-        home: const _StageRouter(),
+            );
+          },
+          home: const _StageRouter(),
+        ),
       ),
     );
   }
@@ -160,9 +180,9 @@ class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
       );
       return;
     }
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => ChannelFeedScreen(channel: channel)),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => ChannelFeedScreen(channel: channel)));
   }
 
   void _reportUnreadable(AppState state) {
@@ -218,19 +238,18 @@ class _StageRouter extends StatelessWidget {
         // paid for, and asking once the user is already inside would be asking
         // them to pay for something they were let into for free.
         AppStage.welcome => WelcomeScreen(
-            onGetStarted: () => _openAuth(context, AuthMode.signUp),
-            onSignIn: () => _openAuth(context, AuthMode.signIn),
-            // Restoring starts by signing back into the account: a backup holds
-            // history, not an identity, so the device needs one of its own
-            // before there is anywhere to put the history. The backup screen is
-            // where the recovery key goes in, and this says so on the way.
-            onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
-          ),
+          onGetStarted: () => _openAuth(context, AuthMode.signUp),
+          onSignIn: () => _openAuth(context, AuthMode.signIn),
+          // Restoring starts by signing back into the account: a backup holds
+          // history, not an identity, so the device needs one of its own
+          // before there is anywhere to put the history. The backup screen is
+          // where the recovery key goes in, and this says so on the way.
+          onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
+        ),
         // A disguise replaces the lock screen; it does not sit in front of
         // it. Two screens to get past would be two screens to ask about.
-        AppStage.locked => state.disguise == null
-            ? const PinScreen()
-            : CalculatorScreen(skin: state.disguise!),
+        AppStage.locked =>
+          state.disguise == null ? const PinScreen() : CalculatorScreen(skin: state.disguise!),
         AppStage.activation => const ActivationScreen(),
         AppStage.ready => const NavShell(),
       },
@@ -266,7 +285,10 @@ class _CallOverlay extends StatelessWidget {
         final call = state.services.calls.current;
         if (call == null || !call.isLive) return under!;
         return Stack(
-          children: [under!, Positioned.fill(child: CallScreen(call: call))],
+          children: [
+            under!,
+            Positioned.fill(child: CallScreen(call: call)),
+          ],
         );
       },
       child: child,
@@ -322,7 +344,7 @@ class _NeutralCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
-        color: PrivioColors.background,
-        child: Center(child: PrivioMark(size: 72)),
-      );
+    color: PrivioColors.background,
+    child: Center(child: PrivioMark(size: 72)),
+  );
 }

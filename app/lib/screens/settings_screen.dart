@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -9,6 +10,7 @@ import 'appearance_screen.dart';
 import 'backup_screen.dart';
 import 'devices_screen.dart';
 import 'disguise_screen.dart';
+import 'language_screen.dart';
 import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
@@ -64,6 +66,14 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.palette_outlined,
                 label: 'Appearance',
                 onTap: () => open(const AppearanceScreen()),
+              ),
+              SettingsRow(
+                icon: Icons.translate_rounded,
+                label: AppText.of(context).languageName,
+                // The endonym, so the row says what it will switch to in the
+                // word somebody would recognise.
+                value: state.locale.language.endonym,
+                onTap: () => open(const LanguageScreen()),
               ),
               SettingsRow(
                 icon: Icons.cloud_upload_outlined,

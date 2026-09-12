@@ -8,6 +8,7 @@ import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/core/security_controller.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
@@ -429,6 +430,8 @@ void main() {
   group('the screens', () {
     Widget wrap(Widget child, AppState state) => MaterialApp(
           theme: PrivioTheme.dark(),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
           home: PrivioScope(notifier: state, child: child),
         );
 

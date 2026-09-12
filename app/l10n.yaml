@@ -1,0 +1,11 @@
+# Where the translations live and what they compile to.
+#
+# English is the template *and* the fallback: `untranslated-messages-file`
+# writes out anything the other four are missing, so a gap is a file in the
+# build rather than a word somebody notices in the wrong language.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppText
+untranslated-messages-file: l10n-missing.json
+nullable-getter: false

@@ -14,6 +14,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Five languages, and the machinery Flutter already has for them: ARB files
+  # compiled to a typed lookup, with English as the fallback for anything a
+  # translation has not caught up with.
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   # Talks to the Privio API. Nothing leaves the device unencrypted.
   http: ^1.2.2
   # Keychain on iOS, AES-GCM over the Keystore on Android. Holds the session
@@ -79,6 +85,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Builds lib/l10n/*.arb into AppLocalizations. See l10n.yaml.
+  generate: true
   assets:
     - assets/logo/
   # The typeface ships with the app. A Flutter web build otherwise fetches its
