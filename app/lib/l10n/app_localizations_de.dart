@@ -205,6 +205,28 @@ class AppTextDe extends AppText {
   }
 
   @override
+  String noticeUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Nachrichten',
+      one: 'Eine Nachricht',
+    );
+    return '$_temp0 konnte nicht gelesen werden. Sie war mit einem Schlüssel versiegelt, den dieses Gerät nicht mehr hat.';
+  }
+
+  @override
+  String noticeUnreadableFrom(int count, String who) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Nachrichten',
+      one: 'Eine Nachricht',
+    );
+    return '$_temp0 von $who konnte nicht gelesen werden. Sie war mit einem Schlüssel versiegelt, den dieses Gerät nicht mehr hat.';
+  }
+
+  @override
   String durationSeconds(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

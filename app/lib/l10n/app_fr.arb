@@ -61,6 +61,8 @@
   "noticeSomeone": "Quelqu'un",
   "noticeMessageDeletedBy": "{who} a supprimé un message",
   "noticeSafetyNumberChanged": "Votre numéro de sécurité avec {who} a changé",
+  "noticeUnreadable": "{count, plural, =1{Un message} other{{count} messages}} n'a pas pu être lu. Il était scellé avec une clé que cet appareil ne possède plus.",
+  "noticeUnreadableFrom": "{count, plural, =1{Un message} other{{count} messages}} de {who} n'a pas pu être lu. Il était scellé avec une clé que cet appareil ne possède plus.",
   "durationSeconds": "{count, plural, =1{1 seconde} other{{count} secondes}}",
   "durationMinutes": "{count, plural, =1{1 minute} other{{count} minutes}}",
   "durationHours": "{count, plural, =1{1 heure} other{{count} heures}}",

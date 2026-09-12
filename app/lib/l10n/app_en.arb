@@ -80,6 +80,12 @@
   "@noticeSafetyNumberChanged": {
     "placeholders": { "who": { "type": "String" } }
   },
+  "noticeUnreadable": "{count, plural, =1{A message} other{{count} messages}} could not be read. It was sealed to a key this device no longer has.",
+  "@noticeUnreadable": { "placeholders": { "count": { "type": "int" } } },
+  "noticeUnreadableFrom": "{count, plural, =1{A message} other{{count} messages}} from {who} could not be read. It was sealed to a key this device no longer has.",
+  "@noticeUnreadableFrom": {
+    "placeholders": { "count": { "type": "int" }, "who": { "type": "String" } }
+  },
 
   "durationSeconds": "{count, plural, =1{1 second} other{{count} seconds}}",
   "@durationSeconds": { "placeholders": { "count": { "type": "int" } } },

@@ -15,11 +15,13 @@ import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/screens/language_screen.dart';
+import 'package:privio/models/models.dart';
 import 'package:privio/screens/settings_screen.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_theme.dart';
+import 'package:privio/widgets/message_bubble.dart';
 import 'package:privio/widgets/privio_back_button.dart';
 
 import 'support/fake_voice.dart';
@@ -253,6 +255,95 @@ void main() {
       AppLanguage.english,
       reason: 'a new account started in the previous one\'s language',
     );
+  });
+
+  testWidgets('a system notice is drawn in the reader\'s language, not the writer\'s',
+      (tester) async {
+    // What the writer's app put in `body` — English, because that is what it
+    // was set to. Nothing here may end up on screen for a German reader.
+    final message = Message(
+      id: 'notice-1',
+      body: 'Anna set disappearing messages to 1 hour.',
+      sentAt: DateTime(2026, 3, 4, 9),
+      isMine: false,
+      kind: MessageKind.notice,
+      notice: const SystemNotice(
+        NoticeKind.timerSet,
+        who: 'Anna',
+        duration: Duration(hours: 1),
+      ),
+    );
+
+    Future<void> show(Locale locale) => tester.pumpWidget(
+          MaterialApp(
+            theme: PrivioTheme.dark(),
+            locale: locale,
+            localizationsDelegates: AppText.localizationsDelegates,
+            supportedLocales: AppText.supportedLocales,
+            home: Scaffold(body: MessageBubble(message: message)),
+          ),
+        );
+
+    await show(const Locale('en'));
+    expect(find.text('Anna set disappearing messages to 1 hour'), findsOneWidget);
+
+    await show(const Locale('de'));
+    expect(
+      find.text('Anna hat selbstlöschende Nachrichten auf 1 Stunde gesetzt'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Anna set disappearing messages to 1 hour.'),
+      findsNothing,
+      reason: 'the sentence the writer stored reached a reader who cannot read it',
+    );
+
+    await show(const Locale('fr'));
+    expect(
+      find.text('Anna a réglé les messages éphémères sur 1 heure'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a notice with no event behind it still shows its stored sentence',
+      (tester) async {
+    // Filed before notices recorded what they were about. There is nothing to
+    // build a sentence from, so the one it was written with is what it gets —
+    // in the language it was written in, which is the honest best available.
+    final old = Message(
+      id: 'notice-old',
+      body: 'You turned disappearing messages off.',
+      sentAt: DateTime(2026),
+      isMine: true,
+      kind: MessageKind.notice,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PrivioTheme.dark(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: Scaffold(body: MessageBubble(message: old)),
+      ),
+    );
+    expect(find.text('You turned disappearing messages off.'), findsOneWidget);
+  });
+
+  test('the event behind a notice survives being archived', () {
+    final notice = const SystemNotice(
+      NoticeKind.unreadable,
+      who: 'Bruno',
+      count: 3,
+    );
+    final back = SystemNotice.fromJson(notice.toJson());
+    expect(back, isNotNull);
+    expect(back!.kind, NoticeKind.unreadable);
+    expect(back.who, 'Bruno');
+    expect(back.count, 3);
+
+    // A kind this build has never heard of is not a crash and not a blank
+    // line: the stored sentence is still there to fall back on.
+    expect(SystemNotice.fromJson(const {'kind': 'somethingNewer'}), isNull);
   });
 
   testWidgets('the app itself is built in the account\'s language', (tester) async {

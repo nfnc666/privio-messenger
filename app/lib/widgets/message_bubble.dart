@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/notice_text.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import 'voice_bubble.dart';
@@ -36,8 +38,15 @@ class MessageBubble extends StatelessWidget {
     // Not a bubble: a notice is about the conversation, not part of it, and
     // giving it a side would make it look like somebody said it.
     if (message.isNotice) {
+      final notice = message.notice;
       return _Notice(
-        text: message.body,
+        // Built here rather than stored, so it is in the language this reader
+        // has the app set to. `body` is the fallback for a notice filed before
+        // the event was recorded alongside it: the sentence it was written
+        // with, in the language it was written in, which is all there is.
+        text: notice == null
+            ? message.body
+            : describeNotice(AppText.of(context), notice),
         // A lost message is not housekeeping, and must not read as if it were.
         icon: message.kind == MessageKind.undelivered
             ? Icons.report_gmailerrorred_rounded

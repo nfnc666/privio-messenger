@@ -205,6 +205,28 @@ class AppTextEn extends AppText {
   }
 
   @override
+  String noticeUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: 'A message',
+    );
+    return '$_temp0 could not be read. It was sealed to a key this device no longer has.';
+  }
+
+  @override
+  String noticeUnreadableFrom(int count, String who) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: 'A message',
+    );
+    return '$_temp0 from $who could not be read. It was sealed to a key this device no longer has.';
+  }
+
+  @override
   String durationSeconds(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

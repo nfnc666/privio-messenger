@@ -469,6 +469,18 @@ abstract class AppText {
   /// **'Your safety number with {who} changed'**
   String noticeSafetyNumberChanged(String who);
 
+  /// No description provided for @noticeUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{A message} other{{count} messages}} could not be read. It was sealed to a key this device no longer has.'**
+  String noticeUnreadable(int count);
+
+  /// No description provided for @noticeUnreadableFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{A message} other{{count} messages}} from {who} could not be read. It was sealed to a key this device no longer has.'**
+  String noticeUnreadableFrom(int count, String who);
+
   /// No description provided for @durationSeconds.
   ///
   /// In en, this message translates to:

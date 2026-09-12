@@ -1654,10 +1654,19 @@ class ConversationController extends ChangeNotifier {
         // from the same fact, never sent, and so never deduplicated against
         // another device's copy.
         id: 'notice-${DateTime.now().microsecondsSinceEpoch}',
+        // English, and not what the chat draws: `notice` below is what the
+        // bubble renders, in the reader's own language. This stays because
+        // everything that is not a bubble still reads `body` — the chat list
+        // preview, a notification, an exported archive — and a notice with an
+        // empty body would be a blank line in all of them.
         body: '$who $what.',
         sentAt: DateTime.now(),
         isMine: by == null,
         kind: MessageKind.notice,
+        // The fact, kept apart from the sentence. See [SystemNotice].
+        notice: timer == null
+            ? SystemNotice(NoticeKind.timerOff, who: by)
+            : SystemNotice(NoticeKind.timerSet, who: by, duration: timer),
         // Deliberately no expiry of its own. The notice is the record that the
         // rule changed; a record that deletes itself under the rule it
         // describes leaves a history nobody can account for.
@@ -1826,11 +1835,13 @@ class ConversationController extends ChangeNotifier {
       conversationId,
       Message(
         id: 'unreadable-${DateTime.now().microsecondsSinceEpoch}',
+        // As above: the sentence is for everything that is not the bubble.
         body: '$subject$from could not be read. '
             'It was sealed to a key this device no longer has.',
         sentAt: DateTime.now(),
         isMine: false,
         kind: MessageKind.undelivered,
+        notice: SystemNotice(NoticeKind.unreadable, who: who, count: count),
       ),
     );
   }

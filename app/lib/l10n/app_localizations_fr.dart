@@ -206,6 +206,28 @@ class AppTextFr extends AppText {
   }
 
   @override
+  String noticeUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: 'Un message',
+    );
+    return '$_temp0 n\'a pas pu être lu. Il était scellé avec une clé que cet appareil ne possède plus.';
+  }
+
+  @override
+  String noticeUnreadableFrom(int count, String who) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: 'Un message',
+    );
+    return '$_temp0 de $who n\'a pas pu être lu. Il était scellé avec une clé que cet appareil ne possède plus.';
+  }
+
+  @override
   String durationSeconds(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

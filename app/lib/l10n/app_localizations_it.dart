@@ -205,6 +205,28 @@ class AppTextIt extends AppText {
   }
 
   @override
+  String noticeUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messaggi',
+      one: 'Un messaggio',
+    );
+    return '$_temp0 non è stato possibile leggerlo. Era sigillato con una chiave che questo dispositivo non ha più.';
+  }
+
+  @override
+  String noticeUnreadableFrom(int count, String who) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messaggi',
+      one: 'Un messaggio',
+    );
+    return '$_temp0 da $who non è stato possibile leggerlo. Era sigillato con una chiave che questo dispositivo non ha più.';
+  }
+
+  @override
   String durationSeconds(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

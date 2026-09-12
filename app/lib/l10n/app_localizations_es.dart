@@ -206,6 +206,28 @@ class AppTextEs extends AppText {
   }
 
   @override
+  String noticeUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mensajes',
+      one: 'Un mensaje',
+    );
+    return '$_temp0 no se ha podido leer. Estaba sellado con una clave que este dispositivo ya no tiene.';
+  }
+
+  @override
+  String noticeUnreadableFrom(int count, String who) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mensajes',
+      one: 'Un mensaje',
+    );
+    return '$_temp0 de $who no se ha podido leer. Estaba sellado con una clave que este dispositivo ya no tiene.';
+  }
+
+  @override
   String durationSeconds(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

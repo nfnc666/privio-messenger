@@ -116,6 +116,81 @@ class Attachment {
 /// [queued] is the offline case — nothing is wrong, there is simply no network.
 enum DeliveryState { queued, sending, sent, delivered, read, failed }
 
+/// What a system notice is about, as a fact rather than a sentence.
+///
+/// The sentence used to be all there was: `_noteTimerChange` wrote "Anna set
+/// disappearing messages to 1 hour" into `body` and that string was the record.
+/// It cannot be, once the app has five languages — the notice was written in
+/// whatever the *writer's* app was set to at the time, and it would still say
+/// that years later to a reader who has since switched, because a stored
+/// sentence has no way to change its mind.
+///
+/// So what is stored is the event and its parameters, and the sentence is built
+/// at the moment it is drawn, in the language of whoever is looking.
+enum NoticeKind {
+  /// A disappearing-messages timer was set. Carries [SystemNotice.duration].
+  timerSet,
+
+  /// A disappearing-messages timer was turned off.
+  timerOff,
+
+  /// Messages arrived that this device has no key for. Carries
+  /// [SystemNotice.count].
+  unreadable,
+}
+
+/// One system notice: what happened, and the few things the sentence needs.
+///
+/// Deliberately small and typed rather than a free map. Every parameter here
+/// is something a translation has to be able to place — a name, a count, a
+/// duration — and anything that is not one of those belongs in the event kind
+/// instead.
+@immutable
+class SystemNotice {
+  const SystemNotice(this.kind, {this.who, this.duration, this.count});
+
+  final NoticeKind kind;
+
+  /// Who did it, as a label to show. **Null means this account**, which every
+  /// language renders as its own word for "you" — the name is not stored for
+  /// the reader's own actions because there is no name that reads right in
+  /// every language.
+  final String? who;
+
+  /// The timer that was set, for [NoticeKind.timerSet].
+  final Duration? duration;
+
+  /// How many messages, for [NoticeKind.unreadable].
+  final int? count;
+
+  Map<String, dynamic> toJson() => {
+        'kind': kind.name,
+        if (who != null) 'who': who,
+        if (duration != null) 'durationSeconds': duration!.inSeconds,
+        if (count != null) 'count': count,
+      };
+
+  /// Null for anything this build does not recognise, which is the honest
+  /// answer: an archive written by a newer version may hold a notice kind that
+  /// did not exist here, and the stored `body` is still a readable sentence.
+  static SystemNotice? fromJson(Map<String, dynamic>? raw) {
+    if (raw == null) return null;
+    final name = raw['kind'] as String?;
+    NoticeKind? kind;
+    for (final value in NoticeKind.values) {
+      if (value.name == name) kind = value;
+    }
+    if (kind == null) return null;
+    final seconds = raw['durationSeconds'] as int?;
+    return SystemNotice(
+      kind,
+      who: raw['who'] as String?,
+      duration: seconds == null ? null : Duration(seconds: seconds),
+      count: raw['count'] as int?,
+    );
+  }
+}
+
 @immutable
 class Message {
   const Message({
@@ -140,6 +215,7 @@ class Message {
     this.replySender,
     this.reactions = const {},
     this.receipts = const {},
+    this.notice,
   });
 
   final String id;
@@ -210,6 +286,12 @@ class Message {
 
   bool get isVoice => kind == MessageKind.voice;
 
+  /// What this notice is about, for a notice written by a build that records
+  /// it. Null on everything else, and on notices filed before this existed —
+  /// those still have their sentence in [body], in whatever language it was
+  /// written in, and that is the best that can be done for them.
+  final SystemNotice? notice;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -242,6 +324,7 @@ class Message {
         replySender: replySender,
         reactions: reactions ?? this.reactions,
         receipts: receipts ?? this.receipts,
+        notice: notice,
       );
 }
 
