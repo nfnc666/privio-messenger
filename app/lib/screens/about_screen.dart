@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/edition.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/privio_logo.dart';
@@ -21,19 +22,20 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final edition = PrivioEdition.current;
+    final text = AppText.of(context);
 
-    Future<void> copy(String label, String value) async {
+    Future<void> copy(String what, String value) async {
       await Clipboard.setData(ClipboardData(text: value));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$label copied.')),
+        SnackBar(content: Text(text.aboutCopied(what))),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('About Privio'),
+        title: Text(text.settingsAbout),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
@@ -50,7 +52,7 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.md),
           Center(
             child: Text(
-              'Built with privacy in mind.\nNo tracking. No ads. Just you.',
+              text.aboutTagline,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -58,8 +60,14 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.xxl),
           SettingsSection(
             children: [
-              SettingsRow(label: 'Website', onTap: () => copy('Website', 'https://getprivio.com')),
-              SettingsRow(label: 'Support', onTap: () => copy('Address', 'support@getprivio.com')),
+              SettingsRow(
+                label: text.aboutWebsite,
+                onTap: () => copy(text.aboutWebsite, 'https://getprivio.com'),
+              ),
+              SettingsRow(
+                label: text.aboutSupport,
+                onTap: () => copy(text.aboutAddress, 'support@getprivio.com'),
+              ),
               // "Terms of Service" and "Privacy Policy" sat here and opened
               // nothing, because neither document exists. Both have to before
               // this reaches a store; a row that names one and produces
@@ -69,20 +77,22 @@ class AboutScreen extends StatelessWidget {
             ],
           ),
           SettingsSection(
-            caption: 'Open source',
+            caption: text.aboutOpenSource,
             children: [
               SettingsRow(
-                label: 'Edition',
-                value: edition.containsOnlyFreeSoftware ? '${edition.name} · free software' : edition.name,
+                label: text.aboutEdition,
+                value: edition.containsOnlyFreeSoftware
+                    ? text.aboutFreeSoftware(edition.name)
+                    : edition.name,
               ),
-              const SettingsRow(label: 'License', value: PrivioEdition.licenseSpdxId),
+              SettingsRow(label: text.aboutLicense, value: PrivioEdition.licenseSpdxId),
               SettingsRow(
-                label: 'Source code',
-                value: 'Copy link',
-                onTap: () => copy('Source link', PrivioEdition.sourceUrl),
+                label: text.aboutSourceCode,
+                value: text.aboutCopyLink,
+                onTap: () => copy(text.aboutSourceLink, PrivioEdition.sourceUrl),
               ),
               SettingsRow(
-                label: 'Third-party licenses',
+                label: text.aboutThirdParty,
                 onTap: () => showLicensePage(
                   context: context,
                   applicationName: edition.name,
@@ -117,11 +127,8 @@ class _SourceNote extends StatelessWidget {
 
     return Text(
       edition.containsOnlyFreeSoftware
-          ? 'This build contains no proprietary code and can be reproduced from '
-              'the source above. Nothing here has to be taken on trust — build it '
-              'yourself and compare.'
-          : 'This build came from an app store and links that store\'s services. '
-              'The Libre build, at the source above, contains none of them.',
+          ? AppText.of(context).aboutFreeBuildNote
+          : AppText.of(context).aboutStoreBuildNote,
       style: theme.textTheme.labelSmall,
     );
   }

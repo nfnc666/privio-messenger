@@ -330,7 +330,7 @@ void main() {
   });
 
   test('the event behind a notice survives being archived', () {
-    final notice = const SystemNotice(
+    const notice = SystemNotice(
       NoticeKind.unreadable,
       who: 'Bruno',
       count: 3,

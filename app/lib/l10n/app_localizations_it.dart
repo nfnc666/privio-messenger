@@ -106,31 +106,10 @@ class AppTextIt extends AppText {
   String get settingsTitle => 'Impostazioni';
 
   @override
-  String get settingsAccount => 'Account';
-
-  @override
-  String get settingsPrivacy => 'Privacy';
-
-  @override
-  String get settingsSecurity => 'Sicurezza';
-
-  @override
   String get settingsAppearance => 'Aspetto';
 
   @override
   String get settingsNotifications => 'Notifiche';
-
-  @override
-  String get settingsStorage => 'Archiviazione';
-
-  @override
-  String get settingsAbout => 'Informazioni su PRIVIO';
-
-  @override
-  String get settingsSupport => 'Assistenza';
-
-  @override
-  String get settingsSignOut => 'Esci';
 
   @override
   String get disappearingTitle => 'Messaggi a tempo';
@@ -889,4 +868,348 @@ class AppTextIt extends AppText {
 
   @override
   String get searchNoResults => 'Nessun risultato';
+
+  @override
+  String get settingsPrivacy => 'Privacy e sicurezza';
+
+  @override
+  String get settingsStorage => 'Dati e archiviazione';
+
+  @override
+  String get settingsAbout => 'Informazioni su Privio';
+
+  @override
+  String get settingsDevices => 'Dispositivi';
+
+  @override
+  String get settingsBackup => 'Backup';
+
+  @override
+  String get settingsDisguise => 'Modalità travestimento';
+
+  @override
+  String get settingsLicense => 'Licenza Privio';
+
+  @override
+  String get settingsLicenseNotActive => 'Non attiva';
+
+  @override
+  String get appearanceTextSize => 'Dimensione del testo';
+
+  @override
+  String get appearanceTextSizeNote =>
+      'Questa è l\'impostazione di Privio e vale in tutta l\'app. Non sostituisce la dimensione impostata sul telefono per tutto il resto: quella continua a valere sotto.';
+
+  @override
+  String get appearanceDarkOnly =>
+      'Privio è solo scuro. Il design è fatto per questo, il nero pieno non costa nulla sui pannelli OLED della maggior parte dei telefoni, e un tema chiaro che esiste solo a metà non merita un interruttore che finga il contrario.';
+
+  @override
+  String get textSizeSmall => 'Piccolo';
+
+  @override
+  String get textSizeMedium => 'Medio';
+
+  @override
+  String get textSizeLarge => 'Grande';
+
+  @override
+  String get textSizeLarger => 'Più grande';
+
+  @override
+  String get notificationsPushNote =>
+      'Una notifica push non porta contenuti, solo un segnale di risveglio. Il messaggio viene scaricato e decifrato su questo dispositivo, quindi nessuno nel mezzo vede chi ti ha scritto, nemmeno chi gestisce il servizio che lo ha svegliato.';
+
+  @override
+  String get notificationsPhoneNote =>
+      'Suono, vibrazione, la spia luminosa e se qualcosa compare sulla schermata di blocco appartengono alle impostazioni del telefono per Privio, non a questa schermata. Qui c\'erano cinque interruttori che non impostavano nulla; sono stati tolti invece di lasciarli sembrare funzionanti.';
+
+  @override
+  String get notificationsDelivery => 'Recapito';
+
+  @override
+  String notificationsDistributorFound(String app) {
+    return 'Un\'app distributore su questo telefono tiene una sola connessione per tutte le app che la usano e inoltra un segnale senza contenuto. $app non ha bisogno di alcun servizio Google per questo, e puoi gestire il distributore tu stesso.';
+  }
+
+  @override
+  String get notificationsNoDistributor =>
+      'Nessun distributore trovato. Installane uno — ntfy, per esempio — per essere svegliato mentre Privio è chiuso. Senza, i messaggi arrivano mentre l\'app è aperta.';
+
+  @override
+  String get privacyWhoCanSee => 'Chi può vedere';
+
+  @override
+  String get privacyLastSeen => 'Ultimo accesso';
+
+  @override
+  String get privacyLastSeenEveryone => 'Tutti';
+
+  @override
+  String get privacyLastSeenContacts => 'I miei contatti';
+
+  @override
+  String get privacyLastSeenNobody => 'Nessuno';
+
+  @override
+  String get privacyMessaging => 'Messaggi';
+
+  @override
+  String get privacyReadReceipts => 'Conferme di lettura';
+
+  @override
+  String get privacyTypingIndicators => 'Indicatori di scrittura';
+
+  @override
+  String get privacyDisappearing => 'Messaggi a tempo';
+
+  @override
+  String get privacyPerChat => 'Per chat';
+
+  @override
+  String get privacyAccess => 'Accesso';
+
+  @override
+  String get privacyScreenLock => 'Blocco schermo';
+
+  @override
+  String get privacyPin => 'PIN';
+
+  @override
+  String get privacyTwoFactor => 'Autenticazione a due fattori';
+
+  @override
+  String get privacyDuressCode => 'Codice di emergenza';
+
+  @override
+  String get privacySet => 'Impostato';
+
+  @override
+  String get privacyBlockedUsers => 'Utenti bloccati';
+
+  @override
+  String get privacyMutualNote =>
+      'Le conferme di lettura e gli indicatori di scrittura sono reciproci: se li disattivi, non vedrai più nemmeno quelli degli altri.';
+
+  @override
+  String get storageOnThisDevice => 'Su questo dispositivo';
+
+  @override
+  String get storageHistory => 'Cronologia delle conversazioni';
+
+  @override
+  String get storageInIt => 'Contenuto';
+
+  @override
+  String storageChatsAndMessages(int chats, int messages) {
+    String _temp0 = intl.Intl.pluralLogic(
+      chats,
+      locale: localeName,
+      other: '$chats chat',
+      one: '1 chat',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      messages,
+      locale: localeName,
+      other: '$messages messaggi',
+      one: '1 messaggio',
+    );
+    return '$_temp0, $_temp1';
+  }
+
+  @override
+  String get storageKeys => 'Chiavi e sessioni';
+
+  @override
+  String get storageKeystoreNote =>
+      'Entrambi stanno nel portachiavi della piattaforma — il Portachiavi su iOS, l\'archiviazione basata su Keystore su Android — e la cronologia viene sigillata con AES-256-GCM prima di arrivarci. Nessuno dei due è leggibile da un\'altra app, né da chi ha in mano il telefono senza sbloccarlo.';
+
+  @override
+  String get storageNotKept => 'Non conservato';
+
+  @override
+  String get storageFilesOpened => 'File che hai aperto';
+
+  @override
+  String get storageMemoryOnly => 'Solo in memoria';
+
+  @override
+  String get storageVoiceRecordings => 'Registrazioni vocali';
+
+  @override
+  String get storageShredded => 'Distrutte all\'invio';
+
+  @override
+  String get storageEphemeralNote =>
+      'Una foto o un file che apri viene decifrato in memoria e sparisce alla chiusura dell\'app; nulla lo scrive su disco. Un messaggio vocale viene registrato in un file temporaneo, perché il microfono deve pur scrivere da qualche parte, e quel file viene sovrascritto con byte casuali ed eliminato appena la registrazione finisce: un file eliminato su memoria flash non è un file sparito.';
+
+  @override
+  String get storageDelete => 'Elimina';
+
+  @override
+  String get storageDeleteHistory =>
+      'Elimina la cronologia su questo dispositivo';
+
+  @override
+  String get storageDeleteNote =>
+      'Questa è l\'unica eliminazione che avviene qui. Quello che tiene il server — un backup, un allegato ancora entro i suoi trenta giorni — è nella schermata Backup, e quello che ha la persona a cui hai scritto è suo.';
+
+  @override
+  String get storageConfirmTitle =>
+      'Eliminare la cronologia su questo dispositivo?';
+
+  @override
+  String get storageConfirmBody =>
+      'Ogni messaggio su questo telefono sparisce, in ogni chat. Il tuo account, le tue chiavi e le tue conversazioni restano: ti si può ancora scrivere, e quello che invii dopo arriva ancora.\n\nNon raggiunge la loro copia, né un backup già sul server. Elimina quello dalla schermata Backup se vuoi che sparisca anche lui.';
+
+  @override
+  String get storageDeleteIt => 'Eliminala';
+
+  @override
+  String get storageDeleted => 'La cronologia su questo dispositivo è sparita.';
+
+  @override
+  String get devicesThisDevice => 'Questo dispositivo';
+
+  @override
+  String get devicesOthers => 'Altri dispositivi';
+
+  @override
+  String get devicesOthersTapToSignOut =>
+      'Altri dispositivi — tocca per disconnettere';
+
+  @override
+  String get devicesNone => 'Nessuno';
+
+  @override
+  String get devicesOnlyThisOne => 'Solo questo';
+
+  @override
+  String get devicesSignedIn => 'Connesso';
+
+  @override
+  String get devicesActiveNow => 'Attivo ora';
+
+  @override
+  String devicesActiveMinutes(int count) {
+    return 'Attivo $count min fa';
+  }
+
+  @override
+  String devicesActiveHours(int count) {
+    return 'Attivo $count h fa';
+  }
+
+  @override
+  String get devicesActiveYesterday => 'Attivo ieri';
+
+  @override
+  String devicesActiveDays(int count) {
+    return 'Attivo $count giorni fa';
+  }
+
+  @override
+  String get devicesSignOutNote =>
+      'Disconnettere un dispositivo revoca la sua sessione ed elimina tutto ciò che è ancora in coda per lui. Può tornare solo accedendo di nuovo — come nuovo dispositivo, con nuove chiavi.';
+
+  @override
+  String devicesRevokeTitle(String name) {
+    return 'Disconnettere $name?';
+  }
+
+  @override
+  String get devicesRevokeBody =>
+      'La sua sessione viene revocata e tutto ciò che è ancora in coda per lui viene eliminato. Quello che ha già decifrato resta su quel dispositivo: da qui non è raggiungibile. Può tornare solo accedendo di nuovo.';
+
+  @override
+  String get devicesSignItOut => 'Disconnettilo';
+
+  @override
+  String devicesSignedOut(String name) {
+    return '$name è stato disconnesso.';
+  }
+
+  @override
+  String devicesLicenseCovers(int limit) {
+    return 'La tua licenza copre $limit dispositivi.';
+  }
+
+  @override
+  String devicesLicenseCoversUsed(int limit, int used) {
+    return 'La tua licenza copre $limit dispositivi. $used in uso.';
+  }
+
+  @override
+  String get aboutTagline =>
+      'Costruito pensando alla privacy.\nNessun tracciamento. Nessuna pubblicità. Solo tu.';
+
+  @override
+  String get aboutWebsite => 'Sito web';
+
+  @override
+  String get aboutSupport => 'Assistenza';
+
+  @override
+  String get aboutAddress => 'Indirizzo';
+
+  @override
+  String get aboutOpenSource => 'Open source';
+
+  @override
+  String get aboutEdition => 'Edizione';
+
+  @override
+  String aboutFreeSoftware(String name) {
+    return '$name · software libero';
+  }
+
+  @override
+  String get aboutLicense => 'Licenza';
+
+  @override
+  String get aboutSourceCode => 'Codice sorgente';
+
+  @override
+  String get aboutCopyLink => 'Copia il link';
+
+  @override
+  String get aboutSourceLink => 'Link al sorgente';
+
+  @override
+  String get aboutThirdParty => 'Licenze di terze parti';
+
+  @override
+  String aboutCopied(String what) {
+    return '$what copiato.';
+  }
+
+  @override
+  String get aboutFreeBuildNote =>
+      'Questa build non contiene codice proprietario e può essere riprodotta dal sorgente qui sopra. Niente qui va preso sulla fiducia: compilala tu stesso e confronta.';
+
+  @override
+  String get aboutStoreBuildNote =>
+      'Questa build viene da uno store di app e collega i suoi servizi. La build Libre, al sorgente qui sopra, non ne contiene nessuno.';
+
+  @override
+  String get blockedUnblock => 'Sblocca';
+
+  @override
+  String blockedUnblockTitle(String name) {
+    return 'Sbloccare $name?';
+  }
+
+  @override
+  String get blockedUnblockBody => 'Potrà inviarti di nuovo messaggi.';
+
+  @override
+  String get blockedInvisibleNote =>
+      'Il blocco è invisibile: i loro messaggi vengono scartati e non viene detto loro nulla, quindi un blocco non può servire a scoprire di essere stati bloccati.';
+
+  @override
+  String get blockedNobody => 'Nessuno è bloccato';
+
+  @override
+  String get blockedEmptyNote =>
+      'Blocca qualcuno dalla sua chat e comparirà qui.';
 }

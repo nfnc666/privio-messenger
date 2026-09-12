@@ -23,6 +23,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
 
     void open(Widget screen) => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => screen),
@@ -31,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Settings'),
+        title: Text(text.settingsTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
@@ -44,32 +45,32 @@ class SettingsScreen extends StatelessWidget {
               // a circle with a dead button at the top of it.
               SettingsRow(
                 icon: Icons.lock_outline_rounded,
-                label: 'Privacy & Security',
+                label: text.settingsPrivacy,
                 onTap: () => open(const PrivacyScreen()),
               ),
               SettingsRow(
                 icon: Icons.notifications_none_rounded,
-                label: 'Notifications',
+                label: text.settingsNotifications,
                 onTap: () => open(const NotificationsScreen()),
               ),
               SettingsRow(
                 icon: Icons.data_usage_rounded,
-                label: 'Data and Storage',
+                label: text.settingsStorage,
                 onTap: () => open(const StorageScreen()),
               ),
               SettingsRow(
                 icon: Icons.devices_outlined,
-                label: 'Devices',
+                label: text.settingsDevices,
                 onTap: () => open(const DevicesScreen()),
               ),
               SettingsRow(
                 icon: Icons.palette_outlined,
-                label: 'Appearance',
+                label: text.settingsAppearance,
                 onTap: () => open(const AppearanceScreen()),
               ),
               SettingsRow(
                 icon: Icons.translate_rounded,
-                label: AppText.of(context).languageName,
+                label: text.languageName,
                 // The endonym, so the row says what it will switch to in the
                 // word somebody would recognise.
                 value: state.locale.language.endonym,
@@ -77,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               SettingsRow(
                 icon: Icons.cloud_upload_outlined,
-                label: 'Backup',
+                label: text.settingsBackup,
                 onTap: () => open(const BackupScreen()),
               ),
               // Not on iOS, where the app's name cannot be changed and the
@@ -87,25 +88,22 @@ class SettingsScreen extends StatelessWidget {
               if (state.disguiseSupported)
                 SettingsRow(
                   icon: Icons.visibility_off_outlined,
-                  label: 'Disguise mode',
+                  label: text.settingsDisguise,
                   value: state.disguise?.label,
                   onTap: () => open(const DisguiseScreen()),
                 ),
-              // There was a Language row here, reading "English", that opened
-              // nothing. Privio is English-only; a row saying so as though it
-              // were a choice is a choice the app does not offer.
               // Only where there is something to activate. A self-hosted
               // server says it requires no license, and this row goes away.
               if (state.license.isOffered)
                 SettingsRow(
                   icon: Icons.key_outlined,
-                  label: 'Privio License',
-                  value: state.license.needsActivation ? 'Not active' : null,
+                  label: text.settingsLicense,
+                  value: state.license.needsActivation ? text.settingsLicenseNotActive : null,
                   onTap: () => open(const LicenseScreen()),
                 ),
               SettingsRow(
                 icon: Icons.info_outline_rounded,
-                label: 'About Privio',
+                label: text.settingsAbout,
                 onTap: () => open(const AboutScreen()),
               ),
             ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -29,25 +30,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   Future<void> _confirmRevoke(SecurityController security, LinkedDevice device) async {
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text('Sign out ${device.name}?'),
-        content: const Text(
-          'Its session is revoked and anything still queued for it is deleted. '
-          'What it has already decrypted stays on that device — nothing here can '
-          'reach it. It can only come back by signing in again.',
-        ),
+        title: Text(text.devicesRevokeTitle(device.name)),
+        content: Text(text.devicesRevokeBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Sign it out'),
+            child: Text(text.devicesSignItOut),
           ),
         ],
       ),
@@ -56,18 +54,19 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final ok = await security.revokeDevice(device.id);
     if (!mounted || !ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${device.name} is signed out.')),
+      SnackBar(content: Text(text.devicesSignedOut(device.name))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final security = PrivioScope.of(context).security;
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Devices'),
+        title: Text(text.settingsDevices),
       ),
       body: ListenableBuilder(
         listenable: security,
@@ -84,7 +83,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
             children: [
               if (current.isNotEmpty)
                 SettingsSection(
-                  caption: 'This device',
+                  caption: text.devicesThisDevice,
                   children: [
                     for (final device in current)
                       SettingsRow(
@@ -95,20 +94,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   ],
                 ),
               SettingsSection(
-                caption: others.isEmpty ? 'Other devices' : 'Other devices — tap to sign out',
+                caption: others.isEmpty
+                    ? text.devicesOthers
+                    : text.devicesOthersTapToSignOut,
                 children: [
                   if (others.isEmpty)
-                    const SettingsRow(
+                    SettingsRow(
                       icon: Icons.devices_other_rounded,
-                      label: 'None',
-                      value: 'Only this one',
+                      label: text.devicesNone,
+                      value: text.devicesOnlyThisOne,
                     )
                   else
                     for (final device in others)
                       SettingsRow(
                         icon: Icons.devices_other_rounded,
                         label: device.name,
-                        value: _lastSeen(device),
+                        value: _lastSeen(text, device),
                         onTap: () => _confirmRevoke(security, device),
                       ),
                 ],
@@ -130,9 +131,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
                 child: Text(
-                  'Signing a device out revokes its session and deletes anything still '
-                  'queued for it. It can only rejoin by signing in again — as a new '
-                  'device, with new keys.',
+                  text.devicesSignOutNote,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -147,15 +146,15 @@ class _DevicesScreenState extends State<DevicesScreen> {
   /// Coarse on purpose. "Last active: 14:32" on a device you do not recognise
   /// invites a precision this list cannot honestly offer — the server records
   /// when it last spoke, not when someone last read anything.
-  static String _lastSeen(LinkedDevice device) {
+  static String _lastSeen(AppText text, LinkedDevice device) {
     final at = device.lastSeenAt;
-    if (at == null) return 'Signed in';
+    if (at == null) return text.devicesSignedIn;
     final ago = DateTime.now().difference(at);
-    if (ago.inMinutes < 5) return 'Active now';
-    if (ago.inHours < 1) return 'Active ${ago.inMinutes} min ago';
-    if (ago.inDays < 1) return 'Active ${ago.inHours} h ago';
-    if (ago.inDays == 1) return 'Active yesterday';
-    return 'Active ${ago.inDays} days ago';
+    if (ago.inMinutes < 5) return text.devicesActiveNow;
+    if (ago.inHours < 1) return text.devicesActiveMinutes(ago.inMinutes);
+    if (ago.inDays < 1) return text.devicesActiveHours(ago.inHours);
+    if (ago.inDays == 1) return text.devicesActiveYesterday;
+    return text.devicesActiveDays(ago.inDays);
   }
 }
 
@@ -190,8 +189,8 @@ class _LicenceAllowance extends StatelessWidget {
           ),
           child: Text(
             used == null
-                ? 'Your license covers $limit devices.'
-                : 'Your license covers $limit devices. $used in use.',
+                ? AppText.of(context).devicesLicenseCovers(limit)
+                : AppText.of(context).devicesLicenseCoversUsed(limit, used),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: state.atDeviceLimit
                       ? PrivioColors.warning

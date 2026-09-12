@@ -113,11 +113,12 @@ class SecurityController extends ChangeNotifier {
 
   static const List<String> lastSeenChoices = ['everyone', 'contacts', 'nobody'];
 
-  static String labelForLastSeen(String value) => switch (value) {
-        'contacts' => 'My contacts',
-        'nobody' => 'Nobody',
-        _ => 'Everyone',
-      };
+  /// Deliberately no `labelForLastSeen` here any more.
+  ///
+  /// It used to return "My contacts" from this class, which is a sentence in
+  /// one language written by something that cannot know which language the
+  /// reader is in. The screen turns these values into words now; the controller
+  /// only ever handles the values the server stores.
 
   /// Reads what the server says about this account. Never throws: this runs
   /// when a settings screen opens, and a failed read leaves the last known

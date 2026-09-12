@@ -312,7 +312,10 @@ void main() {
 
       await security.setLastSeen('contacts');
       expect(server.lastSeen, 'contacts');
-      expect(SecurityController.labelForLastSeen(security.lastSeen), 'My contacts');
+      // The value, not a word for it: the controller deals in what the server
+      // stores, and the screen is where that becomes a sentence in somebody's
+      // language.
+      expect(security.lastSeen, 'contacts');
     });
 
     test('a value the server would not take is put back', () async {

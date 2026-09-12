@@ -251,10 +251,10 @@ void main() {
       first.state.conversations.stop();
 
       expect(first.state.textScale, 1, reason: 'the design size, until asked otherwise');
-      expect(first.state.textScaleLabel, 'Medium');
+      expect(first.state.textScaleId, 'medium');
 
-      await first.state.setTextScale(AppState.textScales['Larger']!);
-      expect(first.state.textScaleLabel, 'Larger');
+      await first.state.setTextScale(AppState.textScales['larger']!);
+      expect(first.state.textScaleId, 'larger');
 
       final second = Device(
         server: FakeWipeServer(),
@@ -264,7 +264,7 @@ void main() {
       await second.boot();
       second.state.conversations.stop();
 
-      expect(second.state.textScale, AppState.textScales['Larger']);
+      expect(second.state.textScale, AppState.textScales['larger']);
     });
 
     test('an unrecognised scale falls back to a label rather than crashing', () async {
@@ -279,7 +279,7 @@ void main() {
       device.state.conversations.stop();
 
       expect(device.state.textScale, 1.07, reason: 'what was stored is what applies');
-      expect(device.state.textScaleLabel, 'Medium', reason: 'no row is ticked wrongly');
+      expect(device.state.textScaleId, 'medium', reason: 'no row is ticked wrongly');
     });
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -19,11 +20,21 @@ class AppearanceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final theme = Theme.of(context);
+    final text = AppText.of(context);
+
+    // The word for each size, by id. One place, so a new size cannot be added
+    // to the map and reach the screen as its own id.
+    final sizeNames = {
+      'small': text.textSizeSmall,
+      'medium': text.textSizeMedium,
+      'large': text.textSizeLarge,
+      'larger': text.textSizeLarger,
+    };
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Appearance'),
+        title: Text(text.settingsAppearance),
       ),
       body: ListenableBuilder(
         listenable: state,
@@ -31,17 +42,17 @@ class AppearanceScreen extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
           children: [
             SettingsSection(
-              caption: 'Text size',
+              caption: text.appearanceTextSize,
               children: [
                 for (final entry in AppState.textScales.entries)
                   SettingsRow(
-                    label: entry.key,
+                    label: sizeNames[entry.key] ?? entry.key,
                     // An explicit trailing on every row, ticked or not: the
                     // default is a chevron, and a chevron on a row that picks
                     // something here would promise a screen that does not exist.
                     trailing: SizedBox(
                       width: 20,
-                      child: state.textScaleLabel == entry.key
+                      child: state.textScaleId == entry.key
                           ? const Icon(Icons.check_rounded, color: PrivioColors.accent, size: 20)
                           : null,
                     ),
@@ -53,9 +64,7 @@ class AppearanceScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
               child: Text(
-                'This is Privio\'s own setting and it applies everywhere in the app. '
-                'It does not override the size your phone is set to for everything '
-                'else — that one still applies underneath.',
+                text.appearanceTextSizeNote,
                 style: theme.textTheme.bodySmall,
               ),
             ),
@@ -63,9 +72,7 @@ class AppearanceScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
               child: Text(
-                'Privio is dark-only. The design is built for it, true black costs '
-                'nothing on the OLED panels most phones ship with, and a light theme '
-                'that only half exists is not worth a switch that pretends otherwise.',
+                text.appearanceDarkOnly,
                 style: theme.textTheme.labelSmall,
               ),
             ),

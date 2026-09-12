@@ -178,17 +178,22 @@ class AppState extends ChangeNotifier {
   double get textScale => _textScale;
 
   /// The sizes offered, as multipliers of the design.
+  ///
+  /// Keyed by an id rather than by the word on the row: the word is different
+  /// in each of the app's five languages, and a map keyed by "Large" would have
+  /// stopped matching the moment somebody switched.
   static const Map<String, double> textScales = {
-    'Small': 0.9,
-    'Medium': 1,
-    'Large': 1.15,
-    'Larger': 1.3,
+    'small': 0.9,
+    'medium': 1,
+    'large': 1.15,
+    'larger': 1.3,
   };
 
-  String get textScaleLabel => textScales.entries
+  /// Which of [textScales] is in force. The screen turns it into a word.
+  String get textScaleId => textScales.entries
       .firstWhere(
         (entry) => (entry.value - _textScale).abs() < 0.01,
-        orElse: () => const MapEntry('Medium', 1),
+        orElse: () => const MapEntry('medium', 1),
       )
       .key;
 

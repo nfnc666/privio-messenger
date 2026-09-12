@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../crypto/crypto_storage.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -46,28 +47,22 @@ class _StorageScreenState extends State<StorageScreen> {
 
   Future<void> _confirmClear() async {
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Delete the history on this device?'),
-        content: const Text(
-          'Every message on this phone goes, in every chat. Your account, your '
-          'keys and your conversations stay: people can still write to you, and '
-          'what you send after this still arrives.\n\n'
-          'It cannot reach their copy, and it cannot reach a backup already on '
-          'the server. Delete that from the Backup screen if you want it gone '
-          'too.',
-        ),
+        title: Text(text.storageConfirmTitle),
+        content: Text(text.storageConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete it'),
+            child: Text(text.storageDeleteIt),
           ),
         ],
       ),
@@ -78,7 +73,7 @@ class _StorageScreenState extends State<StorageScreen> {
     await _measure();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('The history on this device is gone.')),
+      SnackBar(content: Text(text.storageDeleted)),
     );
   }
 
@@ -89,18 +84,16 @@ class _StorageScreenState extends State<StorageScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  static String _count(int n, String one, String many) =>
-      n == 1 ? '1 $one' : '$n $many';
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final history = _history;
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Data and Storage'),
+        title: Text(text.settingsStorage),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
@@ -108,19 +101,21 @@ class _StorageScreenState extends State<StorageScreen> {
               padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
               children: [
                 SettingsSection(
-                  caption: 'On this device',
+                  caption: text.storageOnThisDevice,
                   children: [
                     SettingsRow(
-                      label: 'Conversation history',
+                      label: text.storageHistory,
                       value: _size(history?.sealedBytes ?? 0),
                     ),
                     SettingsRow(
-                      label: 'In it',
-                      value: '${_count(history?.conversations ?? 0, 'chat', 'chats')}, '
-                          '${_count(history?.messages ?? 0, 'message', 'messages')}',
+                      label: text.storageInIt,
+                      value: text.storageChatsAndMessages(
+                        history?.conversations ?? 0,
+                        history?.messages ?? 0,
+                      ),
                     ),
                     SettingsRow(
-                      label: 'Keys and sessions',
+                      label: text.storageKeys,
                       value: _size(_keyBytes ?? 0),
                     ),
                   ],
@@ -133,19 +128,21 @@ class _StorageScreenState extends State<StorageScreen> {
                     0,
                   ),
                   child: Text(
-                    'Both sit in the platform keystore — the Keychain on iOS, '
-                    'Keystore-backed storage on Android — and the history is '
-                    'sealed with AES-256-GCM before it gets there. Neither is '
-                    'readable by another app, and neither is readable by anyone '
-                    'holding the phone without unlocking it.',
+                    text.storageKeystoreNote,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-                const SettingsSection(
-                  caption: 'Not kept',
+                SettingsSection(
+                  caption: text.storageNotKept,
                   children: [
-                    SettingsRow(label: 'Files you opened', value: 'Memory only'),
-                    SettingsRow(label: 'Voice recordings', value: 'Shredded when sent'),
+                    SettingsRow(
+                      label: text.storageFilesOpened,
+                      value: text.storageMemoryOnly,
+                    ),
+                    SettingsRow(
+                      label: text.storageVoiceRecordings,
+                      value: text.storageShredded,
+                    ),
                   ],
                 ),
                 Padding(
@@ -156,21 +153,15 @@ class _StorageScreenState extends State<StorageScreen> {
                     0,
                   ),
                   child: Text(
-                    'A photo or file you open is decrypted into memory and goes '
-                    'when the app closes; nothing writes it to disk. A voice '
-                    'message is recorded to a temporary file, because the '
-                    'microphone has to write somewhere, and that file is '
-                    'overwritten with random bytes and deleted the moment the '
-                    'recording ends — a deleted file on flash storage is not a '
-                    'gone file.',
+                    text.storageEphemeralNote,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
                 SettingsSection(
-                  caption: 'Delete',
+                  caption: text.storageDelete,
                   children: [
                     SettingsRow(
-                      label: 'Delete history on this device',
+                      label: text.storageDeleteHistory,
                       destructive: true,
                       onTap: () => unawaited(_confirmClear()),
                     ),
@@ -184,10 +175,7 @@ class _StorageScreenState extends State<StorageScreen> {
                     0,
                   ),
                   child: Text(
-                    'This is the only deletion that happens here. What the '
-                    'server holds — a backup, an attachment still inside its '
-                    'thirty days — is on the Backup screen, and what the person '
-                    'you wrote to has is theirs.',
+                    text.storageDeleteNote,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),

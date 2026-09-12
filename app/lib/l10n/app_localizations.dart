@@ -295,24 +295,6 @@ abstract class AppText {
   /// **'Settings'**
   String get settingsTitle;
 
-  /// No description provided for @settingsAccount.
-  ///
-  /// In en, this message translates to:
-  /// **'Account'**
-  String get settingsAccount;
-
-  /// No description provided for @settingsPrivacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Privacy'**
-  String get settingsPrivacy;
-
-  /// No description provided for @settingsSecurity.
-  ///
-  /// In en, this message translates to:
-  /// **'Security'**
-  String get settingsSecurity;
-
   /// No description provided for @settingsAppearance.
   ///
   /// In en, this message translates to:
@@ -324,30 +306,6 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Notifications'**
   String get settingsNotifications;
-
-  /// No description provided for @settingsStorage.
-  ///
-  /// In en, this message translates to:
-  /// **'Storage'**
-  String get settingsStorage;
-
-  /// No description provided for @settingsAbout.
-  ///
-  /// In en, this message translates to:
-  /// **'About PRIVIO'**
-  String get settingsAbout;
-
-  /// No description provided for @settingsSupport.
-  ///
-  /// In en, this message translates to:
-  /// **'Support'**
-  String get settingsSupport;
-
-  /// No description provided for @settingsSignOut.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign out'**
-  String get settingsSignOut;
 
   /// No description provided for @disappearingTitle.
   ///
@@ -1524,6 +1482,582 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Nothing matched'**
   String get searchNoResults;
+
+  /// No description provided for @settingsPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy & Security'**
+  String get settingsPrivacy;
+
+  /// No description provided for @settingsStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Data and Storage'**
+  String get settingsStorage;
+
+  /// No description provided for @settingsAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About Privio'**
+  String get settingsAbout;
+
+  /// No description provided for @settingsDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get settingsDevices;
+
+  /// No description provided for @settingsBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup'**
+  String get settingsBackup;
+
+  /// No description provided for @settingsDisguise.
+  ///
+  /// In en, this message translates to:
+  /// **'Disguise mode'**
+  String get settingsDisguise;
+
+  /// No description provided for @settingsLicense.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio License'**
+  String get settingsLicense;
+
+  /// No description provided for @settingsLicenseNotActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Not active'**
+  String get settingsLicenseNotActive;
+
+  /// No description provided for @appearanceTextSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Text size'**
+  String get appearanceTextSize;
+
+  /// No description provided for @appearanceTextSizeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This is Privio\'s own setting and it applies everywhere in the app. It does not override the size your phone is set to for everything else — that one still applies underneath.'**
+  String get appearanceTextSizeNote;
+
+  /// No description provided for @appearanceDarkOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio is dark-only. The design is built for it, true black costs nothing on the OLED panels most phones ship with, and a light theme that only half exists is not worth a switch that pretends otherwise.'**
+  String get appearanceDarkOnly;
+
+  /// No description provided for @textSizeSmall.
+  ///
+  /// In en, this message translates to:
+  /// **'Small'**
+  String get textSizeSmall;
+
+  /// No description provided for @textSizeMedium.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get textSizeMedium;
+
+  /// No description provided for @textSizeLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Large'**
+  String get textSizeLarge;
+
+  /// No description provided for @textSizeLarger.
+  ///
+  /// In en, this message translates to:
+  /// **'Larger'**
+  String get textSizeLarger;
+
+  /// No description provided for @notificationsPushNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A push carries no content — only a wake-up. The message is fetched and decrypted on this device, so nobody in the middle, including whoever runs the service that woke it, sees who wrote to you.'**
+  String get notificationsPushNote;
+
+  /// No description provided for @notificationsPhoneNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen. There used to be five switches here that set nothing; they are gone rather than left looking like they worked.'**
+  String get notificationsPhoneNote;
+
+  /// No description provided for @notificationsDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery'**
+  String get notificationsDelivery;
+
+  /// No description provided for @notificationsDistributorFound.
+  ///
+  /// In en, this message translates to:
+  /// **'A distributor app on this phone holds one connection for every app that uses it, and forwards a contentless ping. {app} needs no Google service for it, and you can run the distributor yourself.'**
+  String notificationsDistributorFound(String app);
+
+  /// No description provided for @notificationsNoDistributor.
+  ///
+  /// In en, this message translates to:
+  /// **'No distributor found. Install one — ntfy, for example — to be woken while Privio is closed. Without one, messages arrive while the app is open.'**
+  String get notificationsNoDistributor;
+
+  /// No description provided for @privacyWhoCanSee.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can see'**
+  String get privacyWhoCanSee;
+
+  /// No description provided for @privacyLastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Seen'**
+  String get privacyLastSeen;
+
+  /// No description provided for @privacyLastSeenEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get privacyLastSeenEveryone;
+
+  /// No description provided for @privacyLastSeenContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'My contacts'**
+  String get privacyLastSeenContacts;
+
+  /// No description provided for @privacyLastSeenNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody'**
+  String get privacyLastSeenNobody;
+
+  /// No description provided for @privacyMessaging.
+  ///
+  /// In en, this message translates to:
+  /// **'Messaging'**
+  String get privacyMessaging;
+
+  /// No description provided for @privacyReadReceipts.
+  ///
+  /// In en, this message translates to:
+  /// **'Read Receipts'**
+  String get privacyReadReceipts;
+
+  /// No description provided for @privacyTypingIndicators.
+  ///
+  /// In en, this message translates to:
+  /// **'Typing Indicators'**
+  String get privacyTypingIndicators;
+
+  /// No description provided for @privacyDisappearing.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing Messages'**
+  String get privacyDisappearing;
+
+  /// No description provided for @privacyPerChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Per chat'**
+  String get privacyPerChat;
+
+  /// No description provided for @privacyAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Access'**
+  String get privacyAccess;
+
+  /// No description provided for @privacyScreenLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen Lock'**
+  String get privacyScreenLock;
+
+  /// No description provided for @privacyPin.
+  ///
+  /// In en, this message translates to:
+  /// **'PIN'**
+  String get privacyPin;
+
+  /// No description provided for @privacyTwoFactor.
+  ///
+  /// In en, this message translates to:
+  /// **'Two-Factor Authentication'**
+  String get privacyTwoFactor;
+
+  /// No description provided for @privacyDuressCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Duress Code'**
+  String get privacyDuressCode;
+
+  /// No description provided for @privacySet.
+  ///
+  /// In en, this message translates to:
+  /// **'Set'**
+  String get privacySet;
+
+  /// No description provided for @privacyBlockedUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked Users'**
+  String get privacyBlockedUsers;
+
+  /// No description provided for @privacyMutualNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts and typing indicators are mutual: turning them off also stops you from seeing other people’s.'**
+  String get privacyMutualNote;
+
+  /// No description provided for @storageOnThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'On this device'**
+  String get storageOnThisDevice;
+
+  /// No description provided for @storageHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation history'**
+  String get storageHistory;
+
+  /// No description provided for @storageInIt.
+  ///
+  /// In en, this message translates to:
+  /// **'In it'**
+  String get storageInIt;
+
+  /// No description provided for @storageChatsAndMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'{chats, plural, =1{1 chat} other{{chats} chats}}, {messages, plural, =1{1 message} other{{messages} messages}}'**
+  String storageChatsAndMessages(int chats, int messages);
+
+  /// No description provided for @storageKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Keys and sessions'**
+  String get storageKeys;
+
+  /// No description provided for @storageKeystoreNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Both sit in the platform keystore — the Keychain on iOS, Keystore-backed storage on Android — and the history is sealed with AES-256-GCM before it gets there. Neither is readable by another app, and neither is readable by anyone holding the phone without unlocking it.'**
+  String get storageKeystoreNote;
+
+  /// No description provided for @storageNotKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Not kept'**
+  String get storageNotKept;
+
+  /// No description provided for @storageFilesOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Files you opened'**
+  String get storageFilesOpened;
+
+  /// No description provided for @storageMemoryOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory only'**
+  String get storageMemoryOnly;
+
+  /// No description provided for @storageVoiceRecordings.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice recordings'**
+  String get storageVoiceRecordings;
+
+  /// No description provided for @storageShredded.
+  ///
+  /// In en, this message translates to:
+  /// **'Shredded when sent'**
+  String get storageShredded;
+
+  /// No description provided for @storageEphemeralNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A photo or file you open is decrypted into memory and goes when the app closes; nothing writes it to disk. A voice message is recorded to a temporary file, because the microphone has to write somewhere, and that file is overwritten with random bytes and deleted the moment the recording ends — a deleted file on flash storage is not a gone file.'**
+  String get storageEphemeralNote;
+
+  /// No description provided for @storageDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get storageDelete;
+
+  /// No description provided for @storageDeleteHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete history on this device'**
+  String get storageDeleteHistory;
+
+  /// No description provided for @storageDeleteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the only deletion that happens here. What the server holds — a backup, an attachment still inside its thirty days — is on the Backup screen, and what the person you wrote to has is theirs.'**
+  String get storageDeleteNote;
+
+  /// No description provided for @storageConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the history on this device?'**
+  String get storageConfirmTitle;
+
+  /// No description provided for @storageConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Every message on this phone goes, in every chat. Your account, your keys and your conversations stay: people can still write to you, and what you send after this still arrives.\n\nIt cannot reach their copy, and it cannot reach a backup already on the server. Delete that from the Backup screen if you want it gone too.'**
+  String get storageConfirmBody;
+
+  /// No description provided for @storageDeleteIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete it'**
+  String get storageDeleteIt;
+
+  /// No description provided for @storageDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'The history on this device is gone.'**
+  String get storageDeleted;
+
+  /// No description provided for @devicesThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get devicesThisDevice;
+
+  /// No description provided for @devicesOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'Other devices'**
+  String get devicesOthers;
+
+  /// No description provided for @devicesOthersTapToSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Other devices — tap to sign out'**
+  String get devicesOthersTapToSignOut;
+
+  /// No description provided for @devicesNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get devicesNone;
+
+  /// No description provided for @devicesOnlyThisOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Only this one'**
+  String get devicesOnlyThisOne;
+
+  /// No description provided for @devicesSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in'**
+  String get devicesSignedIn;
+
+  /// No description provided for @devicesActiveNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Active now'**
+  String get devicesActiveNow;
+
+  /// No description provided for @devicesActiveMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Active {count} min ago'**
+  String devicesActiveMinutes(int count);
+
+  /// No description provided for @devicesActiveHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Active {count} h ago'**
+  String devicesActiveHours(int count);
+
+  /// No description provided for @devicesActiveYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Active yesterday'**
+  String get devicesActiveYesterday;
+
+  /// No description provided for @devicesActiveDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Active {count} days ago'**
+  String devicesActiveDays(int count);
+
+  /// No description provided for @devicesSignOutNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing a device out revokes its session and deletes anything still queued for it. It can only rejoin by signing in again — as a new device, with new keys.'**
+  String get devicesSignOutNote;
+
+  /// No description provided for @devicesRevokeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out {name}?'**
+  String devicesRevokeTitle(String name);
+
+  /// No description provided for @devicesRevokeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Its session is revoked and anything still queued for it is deleted. What it has already decrypted stays on that device — nothing here can reach it. It can only come back by signing in again.'**
+  String get devicesRevokeBody;
+
+  /// No description provided for @devicesSignItOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign it out'**
+  String get devicesSignItOut;
+
+  /// No description provided for @devicesSignedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is signed out.'**
+  String devicesSignedOut(String name);
+
+  /// No description provided for @devicesLicenseCovers.
+  ///
+  /// In en, this message translates to:
+  /// **'Your license covers {limit} devices.'**
+  String devicesLicenseCovers(int limit);
+
+  /// No description provided for @devicesLicenseCoversUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your license covers {limit} devices. {used} in use.'**
+  String devicesLicenseCoversUsed(int limit, int used);
+
+  /// No description provided for @aboutTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Built with privacy in mind.\nNo tracking. No ads. Just you.'**
+  String get aboutTagline;
+
+  /// No description provided for @aboutWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Website'**
+  String get aboutWebsite;
+
+  /// No description provided for @aboutSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get aboutSupport;
+
+  /// No description provided for @aboutAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get aboutAddress;
+
+  /// No description provided for @aboutOpenSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Open source'**
+  String get aboutOpenSource;
+
+  /// No description provided for @aboutEdition.
+  ///
+  /// In en, this message translates to:
+  /// **'Edition'**
+  String get aboutEdition;
+
+  /// No description provided for @aboutFreeSoftware.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · free software'**
+  String aboutFreeSoftware(String name);
+
+  /// No description provided for @aboutLicense.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get aboutLicense;
+
+  /// No description provided for @aboutSourceCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get aboutSourceCode;
+
+  /// No description provided for @aboutCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get aboutCopyLink;
+
+  /// No description provided for @aboutSourceLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Source link'**
+  String get aboutSourceLink;
+
+  /// No description provided for @aboutThirdParty.
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party licenses'**
+  String get aboutThirdParty;
+
+  /// No description provided for @aboutCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'{what} copied.'**
+  String aboutCopied(String what);
+
+  /// No description provided for @aboutFreeBuildNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This build contains no proprietary code and can be reproduced from the source above. Nothing here has to be taken on trust — build it yourself and compare.'**
+  String get aboutFreeBuildNote;
+
+  /// No description provided for @aboutStoreBuildNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This build came from an app store and links that store\'s services. The Libre build, at the source above, contains none of them.'**
+  String get aboutStoreBuildNote;
+
+  /// No description provided for @blockedUnblock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock'**
+  String get blockedUnblock;
+
+  /// No description provided for @blockedUnblockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock {name}?'**
+  String blockedUnblockTitle(String name);
+
+  /// No description provided for @blockedUnblockBody.
+  ///
+  /// In en, this message translates to:
+  /// **'They will be able to send you messages again.'**
+  String get blockedUnblockBody;
+
+  /// No description provided for @blockedInvisibleNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocking is invisible: their messages are dropped and they are told nothing, so a block cannot be used to find out that they have been blocked.'**
+  String get blockedInvisibleNote;
+
+  /// No description provided for @blockedNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody is blocked'**
+  String get blockedNobody;
+
+  /// No description provided for @blockedEmptyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Block someone from their chat, and they turn up here.'**
+  String get blockedEmptyNote;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {
