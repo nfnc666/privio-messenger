@@ -45,6 +45,25 @@ abstract interface class SecureStore {
   Future<String?> readLanguage(String accountId);
   Future<void> writeLanguage(String accountId, String code);
 
+  /// Which accent colour an account draws its interface in.
+  ///
+  /// Keyed by account for the same reason the language is. Absent means Privio
+  /// green, which is what a new account gets. Read on the way out of the splash
+  /// rather than after it, so a stored colour does not arrive a frame late.
+  Future<String?> readAccent(String accountId);
+  Future<void> writeAccent(String accountId, String code);
+
+  /// Whether this account takes calls only from contacts whose safety number
+  /// it has confirmed.
+  ///
+  /// Keyed by account for the same reason the language is: two people sharing
+  /// a phone do not share a threat model, and a second account must not
+  /// inherit the first one's answer. Absent means off, which is what a new
+  /// account gets — every call is end-to-end encrypted either way, and this
+  /// decides only whether an uncompared key is good enough.
+  Future<bool> readVerifiedCallsOnly(String accountId);
+  Future<void> writeVerifiedCallsOnly(String accountId, bool only);
+
   /// There is no `clearLanguage`: every path that ends an account's use of this
   /// device — sign-out, deletion, the duress wipe — calls [wipe], which takes
   /// the language with everything else.
@@ -285,6 +304,25 @@ class KeystoreSecureStore implements SecureStore {
 
   static String _languageKey(String accountId) => 'privio.language.$accountId';
 
+  static String _accentKey(String accountId) => 'privio.accent.$accountId';
+
+  @override
+  Future<String?> readAccent(String accountId) => _read(_accentKey(accountId));
+
+  @override
+  Future<void> writeAccent(String accountId, String code) =>
+      _write(_accentKey(accountId), code);
+
+  static String _verifiedCallsKey(String accountId) => 'privio.verifiedCallsOnly.$accountId';
+
+  @override
+  Future<bool> readVerifiedCallsOnly(String accountId) async =>
+      await _read(_verifiedCallsKey(accountId)) == 'true';
+
+  @override
+  Future<void> writeVerifiedCallsOnly(String accountId, bool only) =>
+      _write(_verifiedCallsKey(accountId), only ? 'true' : 'false');
+
   @override
   Future<String?> readLanguage(String accountId) => _read(_languageKey(accountId));
 
@@ -497,6 +535,21 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> writeLanguage(String accountId, String code) async =>
       _entries['language.$accountId'] = code;
+
+  @override
+  Future<String?> readAccent(String accountId) async => _entries['accent.$accountId'];
+
+  @override
+  Future<void> writeAccent(String accountId, String code) async =>
+      _entries['accent.$accountId'] = code;
+
+  @override
+  Future<bool> readVerifiedCallsOnly(String accountId) async =>
+      _entries['verifiedCallsOnly.$accountId'] == 'true';
+
+  @override
+  Future<void> writeVerifiedCallsOnly(String accountId, bool only) async =>
+      _entries['verifiedCallsOnly.$accountId'] = only ? 'true' : 'false';
 
   @override
   Future<String?> readDisguise() async => _entries['disguise'];

@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -53,13 +54,13 @@ class DisguiseScreen extends StatelessWidget {
                 children: [
                   SettingsRow(
                     label: text.disguiseLockScreen,
-                    trailing: _tick(state.disguise == null),
+                    trailing: _tick(context, state.disguise == null),
                     onTap: () => state.setDisguise(null),
                   ),
                   for (final skin in CalculatorSkin.values)
                     SettingsRow(
                       label: text.disguiseCalculatorNamed(skin.label),
-                      trailing: _tick(state.disguise == skin),
+                      trailing: _tick(context, state.disguise == skin),
                       onTap: () => state.setDisguise(skin),
                     ),
                 ],
@@ -110,10 +111,12 @@ class DisguiseScreen extends StatelessWidget {
     );
   }
 
-  static Widget _tick(bool on) => SizedBox(
+  /// Takes the context because the tick is drawn in the account's accent, and
+  /// a `static` helper has none of its own.
+  static Widget _tick(BuildContext context, bool on) => SizedBox(
         width: 20,
         child: on
-            ? const Icon(Icons.check_rounded, color: PrivioColors.accent, size: 20)
+            ? Icon(Icons.check_rounded, color: context.accents.accent, size: 20)
             : null,
       );
 }

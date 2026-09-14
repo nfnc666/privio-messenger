@@ -71,6 +71,12 @@ extension FailureText on Failure {
         FailureKind.callDevicesUnavailable => text.failureCallDevicesUnavailable,
         FailureKind.callMicrophoneUnavailable => text.failureCallMicrophoneUnavailable,
         FailureKind.callNotOpen => text.failureCallNotOpen,
+        FailureKind.callMediaNotEncrypted => text.failureCallMediaNotEncrypted,
+        FailureKind.callFarEndNotBound => text.failureCallFarEndNotBound,
+        FailureKind.callCertificateChanged => text.failureCallCertificateChanged,
+        FailureKind.callIdentityChanged => text.failureCallIdentityChanged(detail ?? ''),
+        FailureKind.callWrongParty => text.failureCallWrongParty,
+        FailureKind.callNotVerified => text.failureCallNotVerified(detail ?? ''),
         FailureKind.unexpected => text.failureUnexpected,
         FailureKind.serverSaid => detail ?? text.failureUnreachable,
       };

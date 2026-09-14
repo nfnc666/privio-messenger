@@ -10,6 +10,7 @@ import '../l10n/channel_text.dart';
 import '../l10n/chat_text.dart';
 import '../models/models.dart';
 import '../services/channel_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/chat_list_row.dart';
@@ -132,7 +133,7 @@ class _HitRow extends StatelessWidget {
             TextSpan(
               text: snippet.text.substring(snippet.start, snippet.end),
               style: body.copyWith(
-                color: PrivioColors.accent,
+                color: context.accents.accent,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -382,7 +383,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     ? (chats.isEmpty
                         ? const _EmptyChats()
                         : RefreshIndicator(
-                            color: PrivioColors.accent,
+                            color: context.accents.accent,
                             backgroundColor: PrivioColors.surface,
                             onRefresh: state.conversations.drain,
                             child: ListView.builder(

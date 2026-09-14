@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/search_field.dart';
@@ -205,7 +206,7 @@ class _ChannelList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (channels.isEmpty) return empty;
     return RefreshIndicator(
-      color: PrivioColors.accent,
+      color: context.accents.accent,
       backgroundColor: PrivioColors.surface,
       onRefresh: onRefresh,
       child: ListView.builder(
@@ -278,7 +279,7 @@ class ChannelListRow extends StatelessWidget {
       ),
       subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
       trailing: !channel.isMember
-          ? const Icon(Icons.add_circle_outline_rounded, color: PrivioColors.accent, size: 20)
+          ? Icon(Icons.add_circle_outline_rounded, color: context.accents.accent, size: 20)
           // A muted channel still counts what it has, and still shows it — it
           // just does not buzz. The badge goes grey rather than away: "there is
           // something here" and "tell me about it" are different questions.
@@ -405,7 +406,7 @@ class _UnreadBadge extends StatelessWidget {
         constraints: const BoxConstraints(minWidth: 22),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
         decoration: BoxDecoration(
-          color: muted ? PrivioColors.surfaceHigh : PrivioColors.accent,
+          color: muted ? PrivioColors.surfaceHigh : context.accents.accent,
           borderRadius: BorderRadius.circular(100),
         ),
         child: Text(

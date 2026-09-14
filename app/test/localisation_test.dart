@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:privio/app.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
+import 'package:privio/calls/call_security.dart';
 import 'package:privio/core/failure.dart';
 import 'package:privio/core/locale_controller.dart';
 import 'package:privio/core/privio_services.dart';
@@ -493,5 +494,54 @@ void main() {
     // orders it. Asserting the exact strings would pin CLDR's punctuation.
     expect(written['en']!.startsWith('3'), isTrue, reason: 'en: ${written['en']}');
     expect(written['de']!.startsWith('9'), isTrue, reason: 'de: ${written['de']}');
+  });
+
+  testWidgets('a refused call says which check failed, in five languages', (tester) async {
+    // The security messages are the ones somebody reads at the worst moment.
+    // Each names the person, and the name is never translated.
+    const failure = Failure(FailureKind.callIdentityChanged, detail: 'marta');
+
+    for (final (locale, fragment) in const [
+      ('en', 'security number for marta'),
+      ('de', 'Sicherheitsnummer von marta'),
+      ('es', 'número de seguridad de marta'),
+      ('fr', 'numéro de sécurité de marta'),
+      ('it', 'numero di sicurezza di marta'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          home: Builder(builder: (context) => Text(failure.words(AppText.of(context)))),
+        ),
+      );
+      expect(find.textContaining(fragment), findsOneWidget, reason: 'in $locale');
+    }
+  });
+
+  testWidgets('every call refusal has words in every language', (tester) async {
+    // A refusal with no sentence behind it would be a call that ends silently,
+    // which is the one outcome the feature exists to prevent.
+    for (final locale in const ['en', 'de', 'es', 'fr', 'it']) {
+      for (final refusal in CallRefusal.values) {
+        late String said;
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: Locale(locale),
+            localizationsDelegates: AppText.localizationsDelegates,
+            supportedLocales: AppText.supportedLocales,
+            home: Builder(
+              builder: (context) {
+                said = callFailure(refusal, who: 'marta').words(AppText.of(context));
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+        expect(said.trim(), isNotEmpty, reason: '$refusal in $locale');
+        expect(said, isNot(contains('{')), reason: '$refusal in $locale left a placeholder');
+      }
+    }
   });
 }

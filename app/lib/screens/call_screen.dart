@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../calls/call.dart';
+import '../calls/call_security.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// The screen a call happens on.
@@ -112,7 +114,12 @@ class _CallScreenState extends State<CallScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.lock_rounded,
+                      // Two padlocks for two different findings. A call only
+                      // exists in one of these states — there is no third icon
+                      // because there is no call that reached neither.
+                      call.security == CallSecurity.verified
+                          ? Icons.verified_user_rounded
+                          : Icons.lock_rounded,
                       size: 12,
                       // Tertiary grey disappears into a camera feed. Over a
                       // picture this line is lifted rather than left as
@@ -121,7 +128,12 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                     const SizedBox(width: PrivioSpacing.xs),
                     Text(
-                      AppText.of(context).chatEncrypted,
+                      // Says what was checked, not what the feature is called.
+                      // "verified" appears only where somebody compared a
+                      // safety number; see CallGuard.
+                      call.security == CallSecurity.verified
+                          ? AppText.of(context).callEncryptedVerified
+                          : AppText.of(context).callEncrypted,
                       style: remote == null
                           ? theme.textTheme.labelSmall
                           : theme.textTheme.labelSmall?.copyWith(color: Colors.white70),
@@ -215,7 +227,7 @@ class _RingingControls extends StatelessWidget {
         _CallButton(
           icon: Icons.call_rounded,
           label: AppText.of(context).callAccept,
-          colour: PrivioColors.accent,
+          colour: context.accents.accent,
           onTap: onAccept,
         ),
       ],
@@ -259,7 +271,7 @@ class _InCallControls extends StatelessWidget {
           label: muted
               ? AppText.of(context).callUnmute
               : AppText.of(context).callMute,
-          colour: muted ? PrivioColors.accent : PrivioColors.surface,
+          colour: muted ? context.accents.accent : PrivioColors.surface,
           onTap: onMute,
         ),
         if (video)
@@ -268,7 +280,7 @@ class _InCallControls extends StatelessWidget {
             label: cameraOn
                 ? AppText.of(context).callCamera
                 : AppText.of(context).callCameraOff,
-            colour: cameraOn ? PrivioColors.surface : PrivioColors.accent,
+            colour: cameraOn ? PrivioColors.surface : context.accents.accent,
             onTap: onCamera,
           ),
         _CallButton(
@@ -280,7 +292,7 @@ class _InCallControls extends StatelessWidget {
         _CallButton(
           icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
           label: AppText.of(context).callSpeaker,
-          colour: speakerOn ? PrivioColors.accent : PrivioColors.surface,
+          colour: speakerOn ? context.accents.accent : PrivioColors.surface,
           onTap: onSpeaker,
         ),
       ],

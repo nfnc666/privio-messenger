@@ -112,7 +112,7 @@ void main() {
       type: sealed.single.type,
       content: sealed.single.content,
     );
-    expect(opened, 'Treffen um 19 Uhr');
+    expect(opened.body, 'Treffen um 19 Uhr');
   });
 
   test('a third party with the ciphertext cannot open it', () async {
@@ -161,21 +161,23 @@ void main() {
         reason: 'identical plaintext must never produce identical ciphertext',);
 
     expect(
-      await bob.crypto.openEnvelope(
+      (await bob.crypto.openEnvelope(
         senderAccountId: alice.accountId,
         senderDeviceIndex: alice.deviceIndex,
         type: first.type,
         content: first.content,
-      ),
+      ))
+          .body,
       'same text',
     );
     expect(
-      await bob.crypto.openEnvelope(
+      (await bob.crypto.openEnvelope(
         senderAccountId: alice.accountId,
         senderDeviceIndex: alice.deviceIndex,
         type: second.type,
         content: second.content,
-      ),
+      ))
+          .body,
       'same text',
     );
   });
@@ -206,12 +208,13 @@ void main() {
     expect(reply.type, 'ciphertext');
 
     expect(
-      await alice.crypto.openEnvelope(
+      (await alice.crypto.openEnvelope(
         senderAccountId: bob.accountId,
         senderDeviceIndex: bob.deviceIndex,
         type: reply.type,
         content: reply.content,
-      ),
+      ))
+          .body,
       'Alles gut!',
     );
   });
@@ -292,12 +295,13 @@ void main() {
 
     for (final (index, device) in [bob, bobLaptop].indexed) {
       expect(
-        await device.crypto.openEnvelope(
+        (await device.crypto.openEnvelope(
           senderAccountId: alice.accountId,
           senderDeviceIndex: alice.deviceIndex,
           type: sealed[index].type,
           content: sealed[index].content,
-        ),
+        ))
+            .body,
         'auf beiden Geräten',
       );
     }

@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/notice_text.dart';
 import '../data/message_store.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/disappearing_timer_sheet.dart';
@@ -243,7 +244,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         title: Text(text.chatGroupInfo),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
+          ? Center(child: CircularProgressIndicator(color: context.accents.accent))
           : ListView(
               padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
               children: [

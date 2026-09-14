@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/web_storage_notice.dart';
@@ -60,7 +61,7 @@ class WelcomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: PrivioSpacing.lg),
                   child: Row(
                     children: [
-                      Icon(icon, size: 18, color: PrivioColors.accent),
+                      Icon(icon, size: 18, color: context.accents.accent),
                       const SizedBox(width: PrivioSpacing.md),
                       Text(label, style: theme.textTheme.bodyMedium),
                     ],

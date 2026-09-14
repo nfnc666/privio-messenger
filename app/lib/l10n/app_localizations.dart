@@ -5922,6 +5922,174 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Privio has not been allowed to notify you yet.'**
   String get notificationsPermissionNotAsked;
+
+  /// No description provided for @failureCallMediaNotEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the other side asked for a connection Privio cannot encrypt. Privio never falls back to an unencrypted call.'**
+  String get failureCallMediaNotEncrypted;
+
+  /// No description provided for @failureCallFarEndNotBound.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: nothing in the setup proved who was at the other end. Privio does not connect a call it cannot tie to a key.'**
+  String get failureCallFarEndNotBound;
+
+  /// No description provided for @failureCallCertificateChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the other end changed midway through. A call has one other end, and this one had two.'**
+  String get failureCallCertificateChanged;
+
+  /// The other person, by username. Never translated.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the security number for {who} is not the one Privio had. Compare it with them on another channel before calling again.'**
+  String failureCallIdentityChanged(String who);
+
+  /// No description provided for @failureCallWrongParty.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: a message about it came from someone who is not on it.'**
+  String get failureCallWrongParty;
+
+  /// No description provided for @failureCallNotVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: you only take calls from people whose security number you have confirmed, and {who}\'s is not confirmed on this device.'**
+  String failureCallNotVerified(String who);
+
+  /// No description provided for @callEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'End-to-end encrypted'**
+  String get callEncrypted;
+
+  /// No description provided for @callEncryptedVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'End-to-end encrypted · verified'**
+  String get callEncryptedVerified;
+
+  /// No description provided for @securityVerifiedCallsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Only calls from verified contacts'**
+  String get securityVerifiedCallsOnly;
+
+  /// No description provided for @securityVerifiedCallsOnlyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Every call is end-to-end encrypted either way. With this on, Privio also refuses a call unless you have compared the security number with that person and marked it confirmed — so a key this device merely met first is not enough. Calls from anyone else end with an explanation, on both sides.'**
+  String get securityVerifiedCallsOnlyBody;
+
+  /// No description provided for @privacyCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get privacyCalls;
+
+  /// No description provided for @appearanceAccentColour.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent colour'**
+  String get appearanceAccentColour;
+
+  /// No description provided for @appearanceAccentNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This changes how Privio looks on this device, for this account. Nobody you write to sees it, and your other accounts keep their own. Red, for deleting and hanging up, stays red whichever accent you pick.'**
+  String get appearanceAccentNote;
+
+  /// No description provided for @accentGreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get accentGreen;
+
+  /// No description provided for @accentBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get accentBlue;
+
+  /// No description provided for @accentTeal.
+  ///
+  /// In en, this message translates to:
+  /// **'Turquoise'**
+  String get accentTeal;
+
+  /// No description provided for @accentPurple.
+  ///
+  /// In en, this message translates to:
+  /// **'Violet'**
+  String get accentPurple;
+
+  /// No description provided for @accentPink.
+  ///
+  /// In en, this message translates to:
+  /// **'Pink'**
+  String get accentPink;
+
+  /// No description provided for @accentRed.
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get accentRed;
+
+  /// No description provided for @accentOrange.
+  ///
+  /// In en, this message translates to:
+  /// **'Orange'**
+  String get accentOrange;
+
+  /// No description provided for @accentYellow.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get accentYellow;
+
+  /// No description provided for @accentPrivioDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio default'**
+  String get accentPrivioDefault;
+
+  /// No description provided for @appearanceAccentReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get appearanceAccentReset;
+
+  /// No description provided for @appearanceAccentPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get appearanceAccentPreview;
+
+  /// No description provided for @appearancePreviewSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get appearancePreviewSend;
+
+  /// No description provided for @appearancePreviewSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts'**
+  String get appearancePreviewSetting;
+
+  /// No description provided for @appearancePreviewMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This is what your own messages will look like.'**
+  String get appearancePreviewMessage;
+
+  /// Announced by a screen reader for the chosen swatch.
+  ///
+  /// In en, this message translates to:
+  /// **'{colour}, selected'**
+  String accentSelected(String colour);
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

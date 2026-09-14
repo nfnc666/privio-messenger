@@ -3495,4 +3495,103 @@ class AppTextDe extends AppText {
   @override
   String get notificationsPermissionNotAsked =>
       'Privio darf dich noch nicht benachrichtigen.';
+
+  @override
+  String get failureCallMediaNotEncrypted =>
+      'Der Anruf wurde beendet: Die Gegenseite hat eine Verbindung angefordert, die Privio nicht verschlüsseln kann. Privio weicht nie auf einen unverschlüsselten Anruf aus.';
+
+  @override
+  String get failureCallFarEndNotBound =>
+      'Der Anruf wurde beendet: In der Aushandlung war nicht belegt, wer am anderen Ende ist. Privio verbindet keinen Anruf, den es nicht an einen Schlüssel binden kann.';
+
+  @override
+  String get failureCallCertificateChanged =>
+      'Der Anruf wurde beendet: Die Gegenstelle hat mitten in der Aushandlung gewechselt. Ein Anruf hat eine Gegenstelle, dieser hatte zwei.';
+
+  @override
+  String failureCallIdentityChanged(String who) {
+    return 'Der Anruf wurde beendet: Die Sicherheitsnummer von $who ist nicht die, die Privio hatte. Vergleiche sie über einen anderen Weg mit dieser Person, bevor du erneut anrufst.';
+  }
+
+  @override
+  String get failureCallWrongParty =>
+      'Der Anruf wurde beendet: Eine Nachricht dazu kam von jemandem, der nicht daran beteiligt ist.';
+
+  @override
+  String failureCallNotVerified(String who) {
+    return 'Der Anruf wurde beendet: Du nimmst nur Anrufe von Personen an, deren Sicherheitsnummer du bestätigt hast — die von $who ist auf diesem Gerät nicht bestätigt.';
+  }
+
+  @override
+  String get callEncrypted => 'Ende-zu-Ende-verschlüsselt';
+
+  @override
+  String get callEncryptedVerified =>
+      'Ende-zu-Ende-verschlüsselt · verifiziert';
+
+  @override
+  String get securityVerifiedCallsOnly =>
+      'Nur Anrufe von verifizierten Kontakten';
+
+  @override
+  String get securityVerifiedCallsOnlyBody =>
+      'Jeder Anruf ist ohnehin Ende-zu-Ende-verschlüsselt. Mit dieser Einstellung lehnt Privio einen Anruf zusätzlich ab, solange du die Sicherheitsnummer mit der Person nicht verglichen und bestätigt hast — ein Schlüssel, den dieses Gerät nur als ersten gesehen hat, reicht dann nicht. Anrufe von allen anderen enden mit einer Erklärung, auf beiden Seiten.';
+
+  @override
+  String get privacyCalls => 'Anrufe';
+
+  @override
+  String get appearanceAccentColour => 'Akzentfarbe';
+
+  @override
+  String get appearanceAccentNote =>
+      'Das ändert, wie Privio auf diesem Gerät aussieht, für dieses Konto. Niemand, dem du schreibst, sieht es, und deine anderen Konten behalten ihre eigene Farbe. Rot für Löschen und Auflegen bleibt Rot, welchen Akzent du auch wählst.';
+
+  @override
+  String get accentGreen => 'Grün';
+
+  @override
+  String get accentBlue => 'Blau';
+
+  @override
+  String get accentTeal => 'Türkis';
+
+  @override
+  String get accentPurple => 'Violett';
+
+  @override
+  String get accentPink => 'Pink';
+
+  @override
+  String get accentRed => 'Rot';
+
+  @override
+  String get accentOrange => 'Orange';
+
+  @override
+  String get accentYellow => 'Gelb';
+
+  @override
+  String get accentPrivioDefault => 'PRIVIO-Standard';
+
+  @override
+  String get appearanceAccentReset => 'Auf Standard zurücksetzen';
+
+  @override
+  String get appearanceAccentPreview => 'Vorschau';
+
+  @override
+  String get appearancePreviewSend => 'Senden';
+
+  @override
+  String get appearancePreviewSetting => 'Lesebestätigungen';
+
+  @override
+  String get appearancePreviewMessage =>
+      'So werden deine eigenen Nachrichten aussehen.';
+
+  @override
+  String accentSelected(String colour) {
+    return '$colour, ausgewählt';
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 
@@ -159,9 +160,9 @@ class _LinkedTextState extends State<LinkedText> {
     final base = widget.style ?? Theme.of(context).textTheme.bodyMedium;
     final link = widget.linkStyle ??
         base?.copyWith(
-          color: PrivioColors.accentBright,
+          color: context.accents.bright,
           decoration: TextDecoration.underline,
-          decorationColor: PrivioColors.accentDim,
+          decorationColor: context.accents.dim,
         );
 
     // No link, no spans, no recognizers: the overwhelmingly common case stays a

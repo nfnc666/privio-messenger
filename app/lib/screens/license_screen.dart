@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../core/edition.dart';
 import '../core/license_controller.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/license_key_field.dart';
 import '../widgets/privio_back_button.dart';
@@ -215,13 +216,13 @@ class _Licensed extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(PrivioSpacing.lg),
-          decoration: const BoxDecoration(
-            color: PrivioColors.accentSurface,
+          decoration: BoxDecoration(
+            color: context.accents.surface,
             borderRadius: BorderRadius.all(PrivioRadius.card),
           ),
           child: Row(
             children: [
-              const Icon(Icons.verified_rounded, color: PrivioColors.accent),
+              Icon(Icons.verified_rounded, color: context.accents.accent),
               const SizedBox(width: PrivioSpacing.md),
               Expanded(
                 child: Column(

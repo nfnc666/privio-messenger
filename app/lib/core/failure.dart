@@ -98,6 +98,19 @@ enum FailureKind {
   callMicrophoneUnavailable,
   callNotOpen,
 
+  // A call refused on security grounds. None of these falls back to anything:
+  // the call ends, and the person is told which check failed.
+  callMediaNotEncrypted,
+  callFarEndNotBound,
+  callCertificateChanged,
+
+  /// Carries [Failure.detail]: who, by username.
+  callIdentityChanged,
+  callWrongParty,
+
+  /// Strict mode. Carries [Failure.detail]: who, by username.
+  callNotVerified,
+
   /// A state the app did not expect. Honest rather than blamed on the network.
   unexpected,
 

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../core/passcode.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// Screen 4: the local lock.
@@ -111,12 +112,12 @@ class _PinScreenState extends State<PinScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: PrivioSpacing.sm),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: i < _entered.length ? PrivioColors.accent : Colors.transparent,
+                        color: i < _entered.length ? context.accents.accent : Colors.transparent,
                         border: Border.all(
                           color: _error
                               ? PrivioColors.danger
                               : i < _entered.length
-                                  ? PrivioColors.accent
+                                  ? context.accents.accent
                                   : PrivioColors.surfaceHigh,
                           width: 1.5,
                         ),

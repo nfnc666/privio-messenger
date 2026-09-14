@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../crypto/safety_number.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -132,7 +133,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
         title: Text(text.chatSafetyNumber),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
+          ? Center(child: CircularProgressIndicator(color: context.accents.accent))
           : ListView(
               padding: const EdgeInsets.all(PrivioSpacing.gutter),
               children: [
@@ -160,7 +161,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: numbers.state == VerificationState.verified
                           ? PrivioColors.surfaceHigh
-                          : PrivioColors.accent,
+                          : context.accents.accent,
                       minimumSize: const Size.fromHeight(48),
                     ),
                     onPressed: () =>
@@ -199,7 +200,7 @@ class _StateChip extends StatelessWidget {
     final text = AppText.of(context);
     final (label, colour, icon) = switch (state) {
       VerificationState.verified =>
-        (text.safetyVerified, PrivioColors.accent, Icons.verified_user_outlined),
+        (text.safetyVerified, context.accents.accent, Icons.verified_user_outlined),
       VerificationState.changed =>
         (text.safetyChangedSince, PrivioColors.warning, Icons.error_outline),
       VerificationState.unverified =>
@@ -313,7 +314,7 @@ class _CompareBox extends StatelessWidget {
             result!,
             key: const Key('safety-compare-result'),
             style: TextStyle(
-              color: matched ? PrivioColors.accent : PrivioColors.danger,
+              color: matched ? context.accents.accent : PrivioColors.danger,
               fontWeight: FontWeight.w600,
             ),
           ),

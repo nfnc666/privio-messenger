@@ -3487,4 +3487,102 @@ class AppTextEs extends AppText {
   @override
   String get notificationsPermissionNotAsked =>
       'Privio todavía no tiene permiso para enviarte notificaciones.';
+
+  @override
+  String get failureCallMediaNotEncrypted =>
+      'La llamada ha terminado: el otro extremo ha pedido una conexión que Privio no puede cifrar. Privio nunca recurre a una llamada sin cifrar.';
+
+  @override
+  String get failureCallFarEndNotBound =>
+      'La llamada ha terminado: nada en la negociación demostraba quién estaba al otro lado. Privio no conecta una llamada que no puede ligar a una clave.';
+
+  @override
+  String get failureCallCertificateChanged =>
+      'La llamada ha terminado: el otro extremo cambió a mitad de la negociación. Una llamada tiene un solo otro extremo, y esta tenía dos.';
+
+  @override
+  String failureCallIdentityChanged(String who) {
+    return 'La llamada ha terminado: el número de seguridad de $who no es el que Privio tenía. Compáralo con esa persona por otro canal antes de volver a llamar.';
+  }
+
+  @override
+  String get failureCallWrongParty =>
+      'La llamada ha terminado: llegó un mensaje sobre ella de alguien que no participa en ella.';
+
+  @override
+  String failureCallNotVerified(String who) {
+    return 'La llamada ha terminado: solo aceptas llamadas de personas cuyo número de seguridad has confirmado, y el de $who no está confirmado en este dispositivo.';
+  }
+
+  @override
+  String get callEncrypted => 'Cifrado de extremo a extremo';
+
+  @override
+  String get callEncryptedVerified =>
+      'Cifrado de extremo a extremo · verificado';
+
+  @override
+  String get securityVerifiedCallsOnly =>
+      'Solo llamadas de contactos verificados';
+
+  @override
+  String get securityVerifiedCallsOnlyBody =>
+      'Toda llamada está cifrada de extremo a extremo de todos modos. Con esto activado, Privio además rechaza una llamada mientras no hayas comparado el número de seguridad con esa persona y lo hayas confirmado: una clave que este dispositivo simplemente encontró primero no basta. Las llamadas de cualquier otra persona terminan con una explicación, en ambos lados.';
+
+  @override
+  String get privacyCalls => 'Llamadas';
+
+  @override
+  String get appearanceAccentColour => 'Color de acento';
+
+  @override
+  String get appearanceAccentNote =>
+      'Esto cambia el aspecto de Privio en este dispositivo, para esta cuenta. Nadie a quien escribas lo ve, y tus otras cuentas conservan la suya. El rojo, para eliminar y colgar, sigue siendo rojo elijas el acento que elijas.';
+
+  @override
+  String get accentGreen => 'Verde';
+
+  @override
+  String get accentBlue => 'Azul';
+
+  @override
+  String get accentTeal => 'Turquesa';
+
+  @override
+  String get accentPurple => 'Violeta';
+
+  @override
+  String get accentPink => 'Rosa';
+
+  @override
+  String get accentRed => 'Rojo';
+
+  @override
+  String get accentOrange => 'Naranja';
+
+  @override
+  String get accentYellow => 'Amarillo';
+
+  @override
+  String get accentPrivioDefault => 'Predeterminado de Privio';
+
+  @override
+  String get appearanceAccentReset => 'Restablecer el valor predeterminado';
+
+  @override
+  String get appearanceAccentPreview => 'Vista previa';
+
+  @override
+  String get appearancePreviewSend => 'Enviar';
+
+  @override
+  String get appearancePreviewSetting => 'Confirmaciones de lectura';
+
+  @override
+  String get appearancePreviewMessage => 'Así se verán tus propios mensajes.';
+
+  @override
+  String accentSelected(String colour) {
+    return '$colour, seleccionado';
+  }
 }

@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../media/avatar.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -255,7 +256,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             value: _restrictSaving,
             onChanged: (value) => setState(() => _restrictSaving = value),
             contentPadding: EdgeInsets.zero,
-            activeThumbColor: PrivioColors.accent,
+            activeThumbColor: context.accents.accent,
             title: Text(text.newChannelRestrictSaving),
             subtitle: Text(
               text.newChannelRestrictNote,
@@ -329,7 +330,7 @@ class _Option extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 20, color: selected ? PrivioColors.accent : PrivioColors.textTertiary),
+            Icon(icon, size: 20, color: selected ? context.accents.accent : PrivioColors.textTertiary),
             const SizedBox(width: PrivioSpacing.md),
             Expanded(
               child: Column(
@@ -342,7 +343,7 @@ class _Option extends StatelessWidget {
               ),
             ),
             if (selected)
-              const Icon(Icons.check_circle_rounded, size: 20, color: PrivioColors.accent),
+              Icon(Icons.check_circle_rounded, size: 20, color: context.accents.accent),
           ],
         ),
       ),
@@ -382,13 +383,13 @@ class _PicturePicker extends StatelessWidget {
         alignment: Alignment.center,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: PrivioColors.accentSurface,
+          color: context.accents.surface,
           borderRadius: BorderRadius.circular(18),
         ),
         child: picture == null
             ? Icon(
                 isPublic ? Icons.campaign_rounded : Icons.lock_rounded,
-                color: PrivioColors.accentBright,
+                color: context.accents.bright,
                 size: 26,
               )
             : Image.memory(picture!, width: side, height: side, fit: BoxFit.cover),

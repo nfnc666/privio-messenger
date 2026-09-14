@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../media/metadata_scrubber.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 
@@ -43,7 +44,7 @@ class ScrubNotice extends StatelessWidget {
               Icon(
                 cleaned ? Icons.cleaning_services_rounded : Icons.info_outline_rounded,
                 size: 20,
-                color: cleaned ? PrivioColors.accent : PrivioColors.warning,
+                color: cleaned ? context.accents.accent : PrivioColors.warning,
               ),
               const SizedBox(width: PrivioSpacing.md),
               Expanded(
@@ -75,7 +76,7 @@ class ScrubNotice extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.close_rounded, size: 15, color: PrivioColors.accent),
+                    Icon(Icons.close_rounded, size: 15, color: context.accents.accent),
                     const SizedBox(width: PrivioSpacing.sm),
                     Expanded(child: Text(item, style: theme.textTheme.bodyMedium)),
                   ],

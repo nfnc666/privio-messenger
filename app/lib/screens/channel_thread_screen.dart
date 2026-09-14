@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
@@ -151,7 +152,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
                     Text(
                       widget.post.authorUsername ?? AppText.of(context).threadUnknown,
                       style: theme.textTheme.labelLarge
-                          ?.copyWith(color: PrivioColors.accentBright),
+                          ?.copyWith(color: context.accents.bright),
                     ),
                     const SizedBox(height: PrivioSpacing.xs),
                     Text(
@@ -222,7 +223,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
                       IconButton.filled(
                         onPressed:
                             widget.channel.hasCurrentKey && !_sending ? _send : null,
-                        style: IconButton.styleFrom(backgroundColor: PrivioColors.accent),
+                        style: IconButton.styleFrom(backgroundColor: context.accents.accent),
                         icon: _sending
                             ? const SizedBox(
                                 width: 16,
@@ -284,7 +285,7 @@ class _CommentRow extends StatelessWidget {
                     Text(
                       comment.authorUsername ?? AppText.of(context).threadDeletedAccount,
                       style: theme.textTheme.labelMedium
-                          ?.copyWith(color: PrivioColors.accentBright),
+                          ?.copyWith(color: context.accents.bright),
                     ),
                     const SizedBox(width: PrivioSpacing.sm),
                     Text(_time(comment.createdAt), style: theme.textTheme.bodySmall),

@@ -6,6 +6,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/notice_text.dart';
 import '../models/models.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'voice_bubble.dart';
 
@@ -78,8 +79,8 @@ class MessageBubble extends StatelessWidget {
           vertical: PrivioSpacing.sm + 1,
         ),
         decoration: BoxDecoration(
-          color: mine ? PrivioColors.bubbleOutgoing : PrivioColors.surfaceRaised,
-          border: highlighted ? Border.all(color: PrivioColors.accent) : null,
+          color: mine ? context.accents.bubbleOutgoing : PrivioColors.surfaceRaised,
+          border: highlighted ? Border.all(color: context.accents.accent) : null,
           borderRadius: BorderRadius.only(
             topLeft: PrivioRadius.bubble,
             topRight: PrivioRadius.bubble,
@@ -97,7 +98,7 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
                   message.senderName!,
-                  style: theme.textTheme.labelMedium?.copyWith(color: PrivioColors.accentBright),
+                  style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
                 ),
               ),
             if (message.kind == MessageKind.deleted)
@@ -164,7 +165,7 @@ class MessageBubble extends StatelessWidget {
                       '${message.readCount > 0 ? message.readCount : message.deliveredCount}',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: message.readCount > 0
-                            ? PrivioColors.accentBright
+                            ? context.accents.bright
                             : PrivioColors.textTertiary,
                       ),
                     ),
@@ -336,7 +337,7 @@ class _DeliveryTicks extends StatelessWidget {
     return Icon(
       state == DeliveryState.sent ? Icons.check_rounded : Icons.done_all_rounded,
       size: 15,
-      color: read ? PrivioColors.accentBright : PrivioColors.textTertiary,
+      color: read ? context.accents.bright : PrivioColors.textTertiary,
     );
   }
 }
@@ -352,14 +353,14 @@ class EncryptionNotice extends StatelessWidget {
         horizontal: PrivioSpacing.md,
         vertical: PrivioSpacing.md,
       ),
-      decoration: const BoxDecoration(
-        color: PrivioColors.accentSurface,
+      decoration: BoxDecoration(
+        color: context.accents.surface,
         borderRadius: BorderRadius.all(PrivioRadius.card),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_rounded, size: 15, color: PrivioColors.accent),
+          Icon(Icons.lock_rounded, size: 15, color: context.accents.accent),
           const SizedBox(width: PrivioSpacing.sm),
           Expanded(
             child: Text(
@@ -435,8 +436,8 @@ class _QuotedMessage extends StatelessWidget {
       decoration: BoxDecoration(
         color: (mine ? Colors.black : PrivioColors.background).withValues(alpha: 0.28),
         borderRadius: const BorderRadius.all(Radius.circular(8)),
-        border: const Border(
-          left: BorderSide(color: PrivioColors.accent, width: 3),
+        border: Border(
+          left: BorderSide(color: context.accents.accent, width: 3),
         ),
       ),
       child: Column(
@@ -445,7 +446,7 @@ class _QuotedMessage extends StatelessWidget {
         children: [
           Text(
             message.replySender ?? AppText.of(context).commonReply,
-            style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accentBright),
+            style: theme.textTheme.labelSmall?.copyWith(color: context.accents.bright),
           ),
           Text(
             message.replyPreview ?? '',

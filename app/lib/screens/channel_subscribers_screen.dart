@@ -9,6 +9,7 @@ import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
@@ -293,7 +294,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
             ],
           ),
           body: RefreshIndicator(
-            color: PrivioColors.accent,
+            color: context.accents.accent,
             backgroundColor: PrivioColors.surface,
             onRefresh: () => controller.loadMembers(channel.id, query: _query),
             child: ListView(
@@ -312,13 +313,13 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                     child: _Card(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.person_add_alt_1_rounded,
-                            color: PrivioColors.accent,
+                            color: context.accents.accent,
                           ),
                           title: Text(
                             text.subscribersAdd,
-                            style: const TextStyle(color: PrivioColors.accent),
+                            style: TextStyle(color: context.accents.accent),
                           ),
                           onTap: () => unawaited(_add()),
                         ),
@@ -496,7 +497,7 @@ class _MemberRow extends StatelessWidget {
                   presence,
                   style: TextStyle(
                     color: state.isOnline
-                        ? PrivioColors.accent
+                        ? context.accents.accent
                         : PrivioColors.textSecondary,
                   ),
                 ),
@@ -522,7 +523,7 @@ class _RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colour = owner ? const Color(0xFFA855F7) : PrivioColors.accent;
+    final colour = owner ? const Color(0xFFA855F7) : context.accents.accent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.sm, vertical: 3),
       decoration: BoxDecoration(

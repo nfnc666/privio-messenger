@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -64,7 +65,7 @@ class _InviteScreenState extends State<InviteScreen> {
                   Expanded(
                     child: Text(
                       inviteUrl,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: PrivioColors.accent),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: context.accents.accent),
                     ),
                   ),
                   IconButton(

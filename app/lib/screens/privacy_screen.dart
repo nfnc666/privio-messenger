@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
@@ -71,7 +74,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ListTile(
                 title: Text(_lastSeenLabel(text, value)),
                 trailing: value == security.lastSeen
-                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
                     : null,
                 onTap: () => Navigator.of(sheetContext).pop(value),
               ),
@@ -88,6 +91,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     final state = PrivioScope.of(context);
     final conversations = state.conversations;
     final security = state.security;
+    final calls = state.services.calls;
     final text = AppText.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -95,7 +99,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
         title: Text(text.settingsPrivacy),
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([conversations, security]),
+        listenable: Listenable.merge([conversations, security, calls]),
         builder: (context, _) => ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
@@ -190,6 +194,33 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
             ],
+          ),
+          SettingsSection(
+            caption: text.privacyCalls,
+            children: [
+              SettingsRow(
+                label: text.securityVerifiedCallsOnly,
+                trailing: Switch(
+                  key: const ValueKey('verified-calls-only'),
+                  value: calls.requireVerified,
+                  onChanged: (value) => unawaited(
+                    calls.setRequireVerified(value, accountId: state.accountId),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              PrivioSpacing.xxl,
+              PrivioSpacing.sm,
+              PrivioSpacing.xxl,
+              0,
+            ),
+            child: Text(
+              text.securityVerifiedCallsOnlyBody,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
           const SizedBox(height: PrivioSpacing.xl),
           Padding(

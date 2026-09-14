@@ -1098,6 +1098,37 @@ what it knows about a message: which two accounts, and when.
 the two devices, implemented by the library rather than by Privio. The rule
 against writing our own cryptography applies here as everywhere.
 
+**There is no unencrypted call.** Every session description, incoming and
+outgoing, is read before it is used and refused unless every media section is
+on a DTLS-protected profile, carries no `a=crypto` (SDES puts the media key in
+the document), and commits to one certificate over a strong hash. Plain
+`RTP/AVP` is legal SDP and would be audio in the clear; it is refused, and so
+is any transport profile the policy does not recognise. See
+`app/lib/calls/sdp_policy.dart`.
+
+**The far end is a key, not the name beside it.** `senderAccountId` on an
+envelope is written by the server, so a relay can put any name on anything. It
+cannot make a message open under a key it does not hold — and if it supplies
+its own key under a name this device already pinned, that is a *replacement*,
+and `openEnvelope` reports it. A call whose envelope arrived under a replaced
+key does not ring: the account matching is not enough, and neither is the key
+alone, so both are checked, for the offer and for every signal after it. This
+is stricter than messages deliberately — a message from a changed key is shown
+with a warning, a call is refused, because a call hands over a live microphone
+before anybody can read a warning.
+
+**First contact is still trust on first use**, pinned and never called
+verified. Refusing it would mean nobody could call before writing, and would
+close nothing: on first contact there is by definition nothing to compare.
+"Only calls from verified contacts", off by default and stored per account,
+is the switch for whoever wants the stronger rule.
+
+**A failed check ends the call and says so.** No downgrade, no retry, no
+connect-and-warn. The other side is told the call is over and not which check
+fired, because a relay that learns which check to avoid avoids it. The screen
+says "end-to-end encrypted · verified" only where a person compared a safety
+number. Full account, with the tests that hold each rule: `docs/calls-security.md`.
+
 **What a call still leaks.** Once media flows peer to peer, each side learns
 the other's IP address — that is what a direct connection is. A TURN relay
 moves that exposure rather than removing it: the two parties stop seeing each

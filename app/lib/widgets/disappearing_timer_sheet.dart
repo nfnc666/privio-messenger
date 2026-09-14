@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../l10n/notice_text.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// The chooser for a chat's disappearing-message timer.
@@ -107,7 +108,7 @@ abstract final class DisappearingTimerSheet {
                 ListTile(
                   title: Text(label(AppText.of(sheetContext), option)),
                   trailing: option == current
-                      ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                      ? Icon(Icons.check_rounded, color: context.accents.accent)
                       : null,
                   onTap: () => Navigator.of(sheetContext).pop((value: option)),
                 ),
