@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -122,9 +123,9 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                   onStart: security.beginTotpSetup,
                 ),
             },
-            if (security.error != null) ...[
+            if (security.failure != null) ...[
               const SizedBox(height: PrivioSpacing.lg),
-              _Failure(message: security.error!),
+              _Failure(message: security.failure!.words(AppText.of(context))),
             ],
             const SizedBox(height: PrivioSpacing.xxl),
             const Divider(height: 1, color: PrivioColors.border),

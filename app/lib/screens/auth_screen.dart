@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/failure.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import 'backup_screen.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -79,7 +81,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     // The server asks for a second factor only once it knows the password was
     // right, so the field appears at exactly that point.
-    if (state.authError == 'Enter your two-factor code.') {
+    if (state.authFailure?.kind == FailureKind.totpRequired) {
       setState(() => _needsTotp = true);
     }
   }
@@ -169,7 +171,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     decoration: InputDecoration(hintText: text.authTotpHint),
                   ),
                 ],
-                if (state.authError != null) ...[
+                if (state.authFailure != null) ...[
                   const SizedBox(height: PrivioSpacing.lg),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,7 +180,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(width: PrivioSpacing.sm),
                       Expanded(
                         child: Text(
-                          state.authError!,
+                          state.authFailure!.words(text),
                           style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                         ),
                       ),

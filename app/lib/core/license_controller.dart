@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 import 'edition.dart';
+import 'failure.dart';
 import 'license_key.dart';
 import 'secure_store.dart';
 
@@ -89,7 +90,7 @@ class LicenseController extends ChangeNotifier {
   final SecureStore? _store;
 
   LicenseState? _state;
-  String? _error;
+  Failure? _failure;
   bool _busy = false;
 
   /// Null until the first answer — from the server, or from the cache the last
@@ -97,7 +98,8 @@ class LicenseController extends ChangeNotifier {
   /// paying user of not having paid.
   LicenseState? get state => _state;
 
-  String? get error => _error;
+  /// The last failure, as a case the screen says in the reader's language.
+  Failure? get failure => _failure;
 
   bool get busy => _busy;
 
@@ -135,14 +137,14 @@ class LicenseController extends ChangeNotifier {
     try {
       final body = await _api.licenseStatus();
       await _adopt(LicenseState.fromJson(body));
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
       // A server old enough to have no licence endpoint is a server that does
       // not sell anything. Reading its 404 as "nothing to activate" is what
       // stops the app offering a key screen that could never work.
       if (failure.statusCode == 404) {
         await _adopt(const LicenseState(licensed: false, enforced: false));
-        _error = null;
+        _failure = null;
       }
     } on Object {
       // Leave the last known state in place. Offline is not unlicensed.
@@ -152,16 +154,16 @@ class LicenseController extends ChangeNotifier {
 
   /// Keeps a key entered before there was an account to bind it to.
   ///
-  /// Returns false, with [error] set, if it is not even the right shape —
+  /// Returns false, with [failure] set, if it is not even the right shape —
   /// there is no point carrying a typo all the way to the sign-up screen.
   Future<bool> hold(String key) async {
     if (!isWellFormedLicenseKey(key)) {
-      _error = 'That key is not complete. It looks like $licenseKeyFormat.';
+      _failure = const Failure(FailureKind.licenseKeyIncomplete, detail: licenseKeyFormat);
       notifyListeners();
       return false;
     }
     await _store?.writePendingLicenseKey(formatLicenseKey(key));
-    _error = null;
+    _failure = null;
     notifyListeners();
     return true;
   }
@@ -182,13 +184,13 @@ class LicenseController extends ChangeNotifier {
   /// Redeems a key. Returns true only when the account came back licensed.
   Future<bool> redeem(String key) async {
     if (!isWellFormedLicenseKey(key)) {
-      _error = 'That key is not complete. It looks like $licenseKeyFormat.';
+      _failure = const Failure(FailureKind.licenseKeyIncomplete, detail: licenseKeyFormat);
       notifyListeners();
       return false;
     }
 
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
 
     try {
@@ -203,14 +205,14 @@ class LicenseController extends ChangeNotifier {
       }
       return false;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       // A key that will never work again should not sit there being retried.
       if (failure.code == 'license_already_redeemed' || failure.code == 'license_revoked') {
         await _store?.writePendingLicenseKey(null);
       }
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection and try again.';
+      _failure = const Failure(FailureKind.unreachableTryAgain);
       return false;
     } finally {
       _busy = false;
@@ -224,25 +226,23 @@ class LicenseController extends ChangeNotifier {
   }
 
   void clearError() {
-    if (_error == null) return;
-    _error = null;
+    if (_failure == null) return;
+    _failure = null;
     notifyListeners();
   }
 
-  /// Server error codes, said in words someone can act on.
+  /// Server error codes, as cases someone can be told about in their language.
   ///
   /// `license_already_redeemed` is the one that matters: a key belongs to one
   /// account for good, so the honest answer is that it is gone, not that they
   /// should try again.
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'license_not_found' => 'No license matches that key. Check it and try again.',
-        'license_already_redeemed' =>
-          'That key has already been used by another account. A key can only be redeemed once.',
-        'license_revoked' => 'That license was revoked. Contact support if you paid for it.',
-        'account_already_licensed' =>
-          'This account already has a license, so the key you entered has not been used.',
-        'rate_limited' => 'Too many attempts. Wait a few minutes and try again.',
-        'invalid_request' => 'That does not look like a Privio license key.',
-        _ => failure.message,
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'license_not_found' => const Failure(FailureKind.licenseNotFound),
+        'license_already_redeemed' => const Failure(FailureKind.licenseAlreadyRedeemed),
+        'license_revoked' => const Failure(FailureKind.licenseRevoked),
+        'account_already_licensed' => const Failure(FailureKind.accountAlreadyLicensed),
+        'rate_limited' => const Failure(FailureKind.tooManyAttempts),
+        'invalid_request' => const Failure(FailureKind.notALicenseKey),
+        _ => Failure.server(failure.message),
       };
 }

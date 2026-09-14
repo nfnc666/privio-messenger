@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import '../core/failure.dart';
 import 'call_signal.dart';
 
 /// Where a peer connection is in its life.
@@ -29,13 +30,15 @@ enum CallPeerState {
 enum CallPeerFailure { permissionDenied, noMicrophone, noCamera, unavailable }
 
 class CallPeerException implements Exception {
-  const CallPeerException(this.reason, this.message);
+  const CallPeerException(this.reason, this.failure);
 
   final CallPeerFailure reason;
-  final String message;
+
+  /// Why, as a case. The screen says it in the reader's language.
+  final Failure failure;
 
   @override
-  String toString() => 'CallPeerException($reason): $message';
+  String toString() => 'CallPeerException($reason): ${failure.kind}';
 }
 
 /// The media half of a call, as the app needs it.

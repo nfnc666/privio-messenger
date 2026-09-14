@@ -5,6 +5,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/api_client.dart';
+import '../core/failure.dart';
 import '../crypto/padding.dart';
 import '../crypto/privio_crypto.dart';
 import '../media/attachment.dart';
@@ -19,12 +20,12 @@ import 'messaging_service.dart';
 /// mistake to be caught in review, it is somebody choosing a PDF, and the
 /// screen has to put a sentence in front of them.
 class ChannelAvatarRejected implements Exception {
-  const ChannelAvatarRejected(this.message);
+  const ChannelAvatarRejected(this.failure);
 
-  final String message;
+  final Failure failure;
 
   @override
-  String toString() => message;
+  String toString() => 'ChannelAvatarRejected($failure)';
 }
 
 /// A channel whose current key this device does not have.
@@ -50,15 +51,16 @@ class ChannelKeyPending implements Exception {
   /// when it exists and simply has not reached this device.
   final bool awaitingGeneration;
 
-  /// What to put in front of the person trying to post.
-  String get message => awaitingGeneration
-      ? 'This channel is changing its key after a member left. You can post '
-          'again once someone who manages the channel opens Privio.'
-      : 'Waiting for the new channel key to reach this device. Your post is '
-          'not lost — try again in a moment.';
+  /// What to put in front of the person trying to post — as a case, so the
+  /// screen can say it in the language that person reads.
+  Failure get failure => Failure(
+        awaitingGeneration
+            ? FailureKind.channelKeyAwaitingGeneration
+            : FailureKind.channelKeyPending,
+      );
 
   @override
-  String toString() => message;
+  String toString() => 'ChannelKeyPending($channelId, epoch: $epoch)';
 }
 
 /// Channels, sealed end to end.
@@ -561,7 +563,7 @@ class ChannelService {
     // a public channel's picture by magic number.
     final prepared = await AvatarImage.prepare(picked);
     if (prepared == null) {
-      throw const ChannelAvatarRejected('That file is not an image Privio can use.');
+      throw const ChannelAvatarRejected(Failure(FailureKind.notAnImage));
     }
 
     // One path for every channel, sealed for none.

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../media/avatar.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
@@ -130,7 +131,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).newChannelCouldNotCreate,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).newChannelCouldNotCreate,
           ),
         ),
       );
@@ -146,7 +147,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
       final ok = await controller.setAvatar(created, picture);
       if (!mounted) return;
       if (!ok) {
-        _say(controller.error ?? AppText.of(context).newChannelWithoutPicture);
+        _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).newChannelWithoutPicture);
       }
     }
     if (!mounted) return;

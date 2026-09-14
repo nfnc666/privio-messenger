@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -122,7 +123,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
     final started = await controller.startLive(channel.id);
     if (!mounted) return;
     if (started == null) {
-      _say(controller.error ?? text.livestreamCouldNotStart);
+      _say(controller.failure?.words(text) ?? text.livestreamCouldNotStart);
       return;
     }
     setState(() => _live = started);

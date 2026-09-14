@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
@@ -121,7 +122,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
         await controller.clearAvatar(channel);
       } else if (_pendingPicture != null) {
         if (!await controller.setAvatar(channel, _pendingPicture!)) {
-          _say(controller.error ?? text.editChannelCouldNotUsePicture);
+          _say(controller.failure?.words(text) ?? text.editChannelCouldNotUsePicture);
           return;
         }
       }
@@ -141,7 +142,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
       );
       if (!mounted) return;
       if (!saved) {
-        _say(controller.error ?? text.editChannelCouldNotSave);
+        _say(controller.failure?.words(text) ?? text.editChannelCouldNotSave);
         return;
       }
       Navigator.of(context).pop();

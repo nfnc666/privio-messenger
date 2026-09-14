@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
@@ -137,7 +138,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
           );
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? AppText.of(context).adminsCouldNotChange);
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).adminsCouldNotChange);
       return;
     }
     await controller.loadAdmins(channel.id);
@@ -163,7 +164,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
     final controller = PrivioScope.of(context).channels;
     final ok = await controller.saveSettings(_channel, showSenderName: on);
     if (!mounted) return;
-    if (!ok) _say(controller.error ?? AppText.of(context).adminsCouldNotChange);
+    if (!ok) _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).adminsCouldNotChange);
   }
 
   void _say(String message) {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/notice_text.dart';
 import '../data/message_store.dart';
 import '../theme/privio_colors.dart';
@@ -136,7 +137,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         content: Text(
           ok
               ? text.groupRenamed
-              : state.conversations.error ?? text.groupCouldNotRename,
+              : state.conversations.failure?.words(text) ?? text.groupCouldNotRename,
         ),
       ),
     );
@@ -158,7 +159,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     if (!mounted || ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(state.conversations.error ?? text.groupCouldNotRemove),
+        content: Text(state.conversations.failure?.words(text) ?? text.groupCouldNotRemove),
       ),
     );
   }

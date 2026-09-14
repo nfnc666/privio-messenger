@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:privio/app.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/locale_controller.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
@@ -14,6 +15,8 @@ import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/l10n/app_localizations.dart';
+import 'package:privio/l10n/chat_text.dart';
+import 'package:privio/l10n/failure_text.dart';
 import 'package:privio/screens/language_screen.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/screens/settings_screen.dart';
@@ -21,6 +24,7 @@ import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_theme.dart';
+import 'package:privio/widgets/chat_list_row.dart';
 import 'package:privio/widgets/message_bubble.dart';
 import 'package:privio/widgets/privio_back_button.dart';
 
@@ -357,5 +361,137 @@ void main() {
     state.locale.choose(AppLanguage.german);
     await tester.pumpAndSettle();
     expect(app().locale, const Locale('de'));
+  });
+
+  testWidgets('a failure is said in the language of whoever is reading it', (tester) async {
+    // The same typed failure, drawn twice. Nothing about it changes between the
+    // two — only the locale the widget is built in does, which is the whole
+    // point of storing the case instead of the sentence.
+    const failure = Failure(FailureKind.groupKeyMissing);
+
+    for (final (locale, expected) in const [
+      ('en', 'This device does not have the group key yet.'),
+      ('de', 'Dieses Gerät hat den Gruppenschlüssel noch nicht.'),
+      ('es', 'Este dispositivo aún no tiene la clave del grupo.'),
+      ('fr', "Cet appareil n'a pas encore la clé du groupe."),
+      ('it', 'Questo dispositivo non ha ancora la chiave del gruppo.'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          home: Builder(
+            builder: (context) => Text(failure.words(AppText.of(context))),
+          ),
+        ),
+      );
+      expect(find.text(expected), findsOneWidget, reason: 'in $locale');
+    }
+  });
+
+  testWidgets('a counted failure takes the plural rule of its language', (tester) async {
+    for (final (locale, count, expected) in const [
+      ('en', 1, 'A message could not be read'),
+      ('en', 4, '4 messages could not be read'),
+      ('de', 4, '4 Nachrichten konnten nicht gelesen werden'),
+      ('es', 4, 'No se han podido leer 4 mensajes'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          home: Builder(
+            builder: (context) => Text(
+              Failure(FailureKind.messagesUnreadable, count: count)
+                  .words(AppText.of(context)),
+            ),
+          ),
+        ),
+      );
+      expect(find.text(expected), findsOneWidget, reason: '$locale/$count');
+    }
+  });
+
+  testWidgets('wording the server sent is passed through, not invented', (tester) async {
+    // The one case this app cannot translate, and it must not pretend to: an
+    // error code it does not know arrives as a sentence the server wrote.
+    const failure = Failure.server('Admins only.');
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: Builder(builder: (context) => Text(failure.words(AppText.of(context)))),
+      ),
+    );
+    expect(find.text('Admins only.'), findsOneWidget);
+  });
+
+  testWidgets('a chat row says the app words and leaves the typed ones alone', (tester) async {
+    const chat = ChatSummary(
+      id: 'c',
+      title: 'Marta',
+      preview: ChatPreview(ChatPreviewKind.photo),
+      timestamp: ChatStamp.none,
+    );
+    const typed = ChatSummary(
+      id: 'd',
+      title: 'Marta',
+      // Written by a person. It stays exactly as it was written, in every
+      // language — choosing one does not translate anybody's messages.
+      preview: ChatPreview(ChatPreviewKind.body, text: 'Bis morgen!'),
+      timestamp: ChatStamp.none,
+    );
+
+    for (final (locale, expected) in const [
+      ('en', 'Photo'),
+      ('de', 'Foto'),
+      ('fr', 'Photo'),
+      ('it', 'Foto'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: PrivioTheme.dark(),
+          locale: Locale(locale),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          home: const Scaffold(
+            body: Column(children: [ChatListRow(chat: chat), ChatListRow(chat: typed)]),
+          ),
+        ),
+      );
+      expect(find.text(expected), findsOneWidget, reason: 'in $locale');
+      expect(find.text('Bis morgen!'), findsOneWidget, reason: 'in $locale');
+    }
+  });
+
+  testWidgets('a timestamp is written the way the language writes it', (tester) async {
+    final at = DateTime(2026, 3, 9, 14, 5);
+    final written = <String, String>{};
+
+    for (final locale in const ['en', 'de']) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(locale),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              // Through the same call the row makes, not DateFormat directly.
+              written[locale] =
+                  stampWords(AppText.of(context), ChatStamp(ChatStampKind.date, at: at));
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Month-first against day-first: one instant, ordered the way each language
+    // orders it. Asserting the exact strings would pin CLDR's punctuation.
+    expect(written['en']!.startsWith('3'), isTrue, reason: 'en: ${written['en']}');
+    expect(written['de']!.startsWith('9'), isTrue, reason: 'de: ${written['de']}');
   });
 }

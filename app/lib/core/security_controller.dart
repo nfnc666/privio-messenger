@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
+import 'failure.dart';
 
 /// A device signed in to this account.
 @immutable
@@ -71,7 +72,7 @@ class SecurityController extends ChangeNotifier {
   String _lastSeen = 'everyone';
   List<BlockedUser>? _blocked;
   bool _busy = false;
-  String? _error;
+  Failure? _failure;
 
   /// Null until the server has answered. The screen shows nothing rather than
   /// claiming a state it has not been told.
@@ -99,7 +100,9 @@ class SecurityController extends ChangeNotifier {
 
   bool get busy => _busy;
 
-  String? get error => _error;
+  /// The last failure, as a case. The screen turns it into a sentence in the
+  /// language of whoever is signed in.
+  Failure? get failure => _failure;
 
   /// The secret behind the QR code, held only while setup is in progress.
   ///
@@ -131,15 +134,15 @@ class SecurityController extends ChangeNotifier {
       final privacy = me['privacy'] as Map<String, dynamic>? ?? const {};
       _privacy = privacy;
       _lastSeen = privacy['lastSeen'] as String? ?? 'everyone';
-      _error = null;
+      _failure = null;
       // The blocked count belongs to the same screen, and a row that says
       // nothing until you open it is only marginally better than one that
       // said 3 whatever the truth was.
       await loadBlocks();
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
     }
     notifyListeners();
   }
@@ -154,7 +157,7 @@ class SecurityController extends ChangeNotifier {
     } on Object {
       // Put it back rather than show a setting the server did not accept.
       _lastSeen = previous;
-      _error = 'Could not save that. Check your connection.';
+      _failure = const Failure(FailureKind.couldNotSave);
       notifyListeners();
     }
   }
@@ -169,7 +172,7 @@ class SecurityController extends ChangeNotifier {
     required String? duressCode,
   }) async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
     try {
       final body = await _api.setDuressCode(
@@ -179,10 +182,10 @@ class SecurityController extends ChangeNotifier {
       _duressCodeSet = body['duressCodeSet'] as bool? ?? duressCode != null;
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       return false;
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -193,7 +196,7 @@ class SecurityController extends ChangeNotifier {
   /// Step one: ask the server for a secret to show as a QR code.
   Future<bool> beginTotpSetup() async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
     try {
       final body = await _api.setUpTotp();
@@ -201,10 +204,10 @@ class SecurityController extends ChangeNotifier {
       _setUpUrl = body['otpauthUrl'] as String?;
       return _setUpSecret != null;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       return false;
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -217,7 +220,7 @@ class SecurityController extends ChangeNotifier {
   /// enabled without proof locks out the person who set it up.
   Future<bool> confirmTotp(String code) async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
     try {
       await _api.enableTotp(code.trim());
@@ -225,10 +228,10 @@ class SecurityController extends ChangeNotifier {
       _forgetSetup();
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       return false;
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -238,7 +241,7 @@ class SecurityController extends ChangeNotifier {
 
   Future<bool> disableTotp(String currentPassword) async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
     try {
       await _api.disableTotp(currentPassword);
@@ -246,10 +249,10 @@ class SecurityController extends ChangeNotifier {
       _forgetSetup();
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       return false;
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -261,9 +264,9 @@ class SecurityController extends ChangeNotifier {
   /// secret it issued until the next setup replaces it, and it is not in force
   /// until a code has been confirmed, so leaving mid-way is safe.
   void cancelTotpSetup() {
-    if (_setUpSecret == null && _error == null) return;
+    if (_setUpSecret == null && _failure == null) return;
     _forgetSetup();
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -279,11 +282,11 @@ class SecurityController extends ChangeNotifier {
         for (final entry in body['devices'] as List<dynamic>? ?? const [])
           LinkedDevice.fromJson(entry as Map<String, dynamic>),
       ];
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
     }
     notifyListeners();
   }
@@ -295,11 +298,11 @@ class SecurityController extends ChangeNotifier {
     try {
       await _api.revokeDevice(deviceId);
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       notifyListeners();
       return false;
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
       notifyListeners();
       return false;
     }
@@ -315,11 +318,11 @@ class SecurityController extends ChangeNotifier {
         for (final entry in body['blocked'] as List<dynamic>? ?? const [])
           BlockedUser.fromJson(entry as Map<String, dynamic>),
       ];
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     } on Object {
-      _error = 'Could not reach Privio.';
+      _failure = const Failure(FailureKind.unreachable);
     }
     notifyListeners();
   }
@@ -332,27 +335,27 @@ class SecurityController extends ChangeNotifier {
       await _api.unblock(accountId);
     } on Object {
       _blocked = before;
-      _error = 'Could not lift that block.';
+      _failure = const Failure(FailureKind.couldNotLiftBlock);
       notifyListeners();
     }
   }
 
   void clearError() {
-    if (_error == null) return;
-    _error = null;
+    if (_failure == null) return;
+    _failure = null;
     notifyListeners();
   }
 
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'invalid_totp' => 'That code is not right. Check the clock on your phone and try again.',
-        'totp_already_enabled' => 'Two-factor is already on for this account.',
-        'totp_not_set_up' => 'Start the setup again — the secret is gone.',
-        'invalid_credentials' => 'That password is not right.',
-        'duress_code_matches_password' =>
-          'The duress code has to be different from your password, or an ordinary '
-              'sign-in would destroy the account.',
-        'rate_limited' => 'Too many attempts. Wait a few minutes.',
-        'device_not_found' => 'That device is already signed out.',
-        _ => failure.message,
+  /// The server's code as a case. Codes this app does not know fall back to the
+  /// server's own wording, which arrives in English.
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'invalid_totp' => const Failure(FailureKind.invalidTotp),
+        'totp_already_enabled' => const Failure(FailureKind.totpAlreadyEnabled),
+        'totp_not_set_up' => const Failure(FailureKind.totpNotSetUp),
+        'invalid_credentials' => const Failure(FailureKind.invalidPassword),
+        'duress_code_matches_password' => const Failure(FailureKind.duressMatchesPassword),
+        'rate_limited' => const Failure(FailureKind.tooManyAttempts),
+        'device_not_found' => const Failure(FailureKind.deviceNotFound),
+        _ => Failure.server(failure.message),
       };
 }

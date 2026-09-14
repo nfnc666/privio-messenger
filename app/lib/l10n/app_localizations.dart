@@ -5508,6 +5508,420 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Reactions'**
   String get feedReactionLimit;
+
+  /// No description provided for @failureUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Privio.'**
+  String get failureUnreachable;
+
+  /// No description provided for @failureUnreachableCheckConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Privio. Check your connection.'**
+  String get failureUnreachableCheckConnection;
+
+  /// No description provided for @failureUnreachableTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Privio. Check your connection and try again.'**
+  String get failureUnreachableTryAgain;
+
+  /// No description provided for @failureCouldNotSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save that. Check your connection.'**
+  String get failureCouldNotSave;
+
+  /// No description provided for @failureChangeNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Privio. The change has not been saved.'**
+  String get failureChangeNotSaved;
+
+  /// No description provided for @failureRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many requests. Wait a moment.'**
+  String get failureRateLimited;
+
+  /// No description provided for @failureTooManyAttempts.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Wait a few minutes.'**
+  String get failureTooManyAttempts;
+
+  /// No description provided for @failureLicenseRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Activate your license to send messages.'**
+  String get failureLicenseRequired;
+
+  /// No description provided for @failureIdentityChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The safety number changed. Nothing was sent — check it before you do.'**
+  String get failureIdentityChanged;
+
+  /// No description provided for @failureCouldNotSendMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not send message'**
+  String get failureCouldNotSendMessage;
+
+  /// No description provided for @failureCouldNotSendFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not send file'**
+  String get failureCouldNotSendFile;
+
+  /// No description provided for @failureCouldNotReadMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read a message'**
+  String get failureCouldNotReadMessage;
+
+  /// No description provided for @failureMessagesUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{A message could not be read} other{{count} messages could not be read}}'**
+  String failureMessagesUnreadable(int count);
+
+  /// No description provided for @failureCouldNotOpenFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open that file.'**
+  String get failureCouldNotOpenFile;
+
+  /// No description provided for @failureNotAnImage.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is not an image Privio can use.'**
+  String get failureNotAnImage;
+
+  /// No description provided for @failureCouldNotSetPicture.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not set the picture'**
+  String get failureCouldNotSetPicture;
+
+  /// No description provided for @failureDeletedHereOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted here. The request to delete it there did not go out.'**
+  String get failureDeletedHereOnly;
+
+  /// No description provided for @failureCouldNotCreateGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create the group'**
+  String get failureCouldNotCreateGroup;
+
+  /// No description provided for @failureNotAGroupLink.
+  ///
+  /// In en, this message translates to:
+  /// **'That does not look like a Privio group link.'**
+  String get failureNotAGroupLink;
+
+  /// No description provided for @failureGroupNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'That group does not exist, or the link is wrong.'**
+  String get failureGroupNotFound;
+
+  /// No description provided for @failureGroupKeyMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This device does not have the group key yet.'**
+  String get failureGroupKeyMissing;
+
+  /// No description provided for @failureNotAChannelLink.
+  ///
+  /// In en, this message translates to:
+  /// **'That does not look like a Privio channel link.'**
+  String get failureNotAChannelLink;
+
+  /// No description provided for @failureHandleTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'That handle is already in use.'**
+  String get failureHandleTaken;
+
+  /// No description provided for @failureChannelNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'That channel does not exist, or the link is wrong.'**
+  String get failureChannelNotFound;
+
+  /// No description provided for @failureNotAMember.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not in this channel.'**
+  String get failureNotAMember;
+
+  /// No description provided for @failureInsufficientPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'You do not have permission to do that.'**
+  String get failureInsufficientPermission;
+
+  /// No description provided for @failureCannotChangeOwnRole.
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot change your own role.'**
+  String get failureCannotChangeOwnRole;
+
+  /// No description provided for @failureOwnerIsFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'The channel owner cannot be changed or removed.'**
+  String get failureOwnerIsFixed;
+
+  /// No description provided for @failureTargetOutranksYou.
+  ///
+  /// In en, this message translates to:
+  /// **'That member holds permissions you do not.'**
+  String get failureTargetOutranksYou;
+
+  /// No description provided for @failureCannotGrantWhatYouLack.
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot grant a permission you do not hold yourself.'**
+  String get failureCannotGrantWhatYouLack;
+
+  /// No description provided for @failureOwnerCannotLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand the channel over or delete it instead.'**
+  String get failureOwnerCannotLeave;
+
+  /// No description provided for @failureUsernameTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'That username is already taken.'**
+  String get failureUsernameTaken;
+
+  /// No description provided for @failureInvalidCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Username or password is incorrect.'**
+  String get failureInvalidCredentials;
+
+  /// No description provided for @failureTotpRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your two-factor code.'**
+  String get failureTotpRequired;
+
+  /// No description provided for @failureInvalidTwoFactorCode.
+  ///
+  /// In en, this message translates to:
+  /// **'That two-factor code is not right.'**
+  String get failureInvalidTwoFactorCode;
+
+  /// No description provided for @failureTooManyDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'This account already has the maximum number of devices.'**
+  String get failureTooManyDevices;
+
+  /// The server said why the form was rejected; its wording is passed through.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the username and password: {detail}'**
+  String failureCheckUsernameAndPassword(String detail);
+
+  /// No description provided for @failureInvalidTotp.
+  ///
+  /// In en, this message translates to:
+  /// **'That code is not right. Check the clock on your phone and try again.'**
+  String get failureInvalidTotp;
+
+  /// No description provided for @failureTotpAlreadyEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Two-factor is already on for this account.'**
+  String get failureTotpAlreadyEnabled;
+
+  /// No description provided for @failureTotpNotSetUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the setup again — the secret is gone.'**
+  String get failureTotpNotSetUp;
+
+  /// No description provided for @failureInvalidPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'That password is not right.'**
+  String get failureInvalidPassword;
+
+  /// No description provided for @failureDuressMatchesPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'The duress code has to be different from your password, or an ordinary sign-in would destroy the account.'**
+  String get failureDuressMatchesPassword;
+
+  /// No description provided for @failureDeviceNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'That device is already signed out.'**
+  String get failureDeviceNotFound;
+
+  /// No description provided for @failureCouldNotLiftBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not lift that block.'**
+  String get failureCouldNotLiftBlock;
+
+  /// The shape a licence key has. Not translated: it is the literal pattern.
+  ///
+  /// In en, this message translates to:
+  /// **'That key is not complete. It looks like {format}.'**
+  String failureLicenseKeyIncomplete(String format);
+
+  /// No description provided for @failureNotALicenseKey.
+  ///
+  /// In en, this message translates to:
+  /// **'That does not look like a Privio license key.'**
+  String get failureNotALicenseKey;
+
+  /// No description provided for @failureLicenseNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No license matches that key. Check it and try again.'**
+  String get failureLicenseNotFound;
+
+  /// No description provided for @failureLicenseAlreadyRedeemed.
+  ///
+  /// In en, this message translates to:
+  /// **'That key has already been used by another account. A key can only be redeemed once.'**
+  String get failureLicenseAlreadyRedeemed;
+
+  /// No description provided for @failureLicenseRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'That license was revoked. Contact support if you paid for it.'**
+  String get failureLicenseRevoked;
+
+  /// No description provided for @failureAccountAlreadyLicensed.
+  ///
+  /// In en, this message translates to:
+  /// **'This account already has a license, so the key you entered has not been used.'**
+  String get failureAccountAlreadyLicensed;
+
+  /// No description provided for @failureNoPlayServices.
+  ///
+  /// In en, this message translates to:
+  /// **'This phone has no Google Play services, so Privio cannot be woken while it is closed. Messages arrive while Privio is open.'**
+  String get failureNoPlayServices;
+
+  /// No description provided for @failureNoApnsToken.
+  ///
+  /// In en, this message translates to:
+  /// **'iOS did not issue a push token for Privio, so it cannot be woken while it is closed. Messages arrive while Privio is open.'**
+  String get failureNoApnsToken;
+
+  /// No description provided for @failureNoPushService.
+  ///
+  /// In en, this message translates to:
+  /// **'No push service answered. Messages arrive while Privio is open.'**
+  String get failureNoPushService;
+
+  /// No description provided for @failureNoDistributor.
+  ///
+  /// In en, this message translates to:
+  /// **'No UnifiedPush distributor answered. Install one — ntfy, for example — and try again.'**
+  String get failureNoDistributor;
+
+  /// No description provided for @failureDistributorUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio cannot reach that distributor. It has to be an https address on the public internet.'**
+  String get failureDistributorUnreachable;
+
+  /// No description provided for @failureChannelKeyAwaitingGeneration.
+  ///
+  /// In en, this message translates to:
+  /// **'This channel is changing its key after a member left. You can post again once someone who manages the channel opens Privio.'**
+  String get failureChannelKeyAwaitingGeneration;
+
+  /// No description provided for @failureChannelKeyPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the new channel key to reach this device. Your post is not lost — try again in a moment.'**
+  String get failureChannelKeyPending;
+
+  /// No description provided for @failureUnexpected.
+  ///
+  /// In en, this message translates to:
+  /// **'Something did not work as expected. Try again.'**
+  String get failureUnexpected;
+
+  /// No description provided for @failureCallDevicesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio could not open the camera or microphone.'**
+  String get failureCallDevicesUnavailable;
+
+  /// No description provided for @failureCallMicrophoneUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio could not open the microphone.'**
+  String get failureCallMicrophoneUnavailable;
+
+  /// No description provided for @failureCallNotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was not open.'**
+  String get failureCallNotOpen;
+
+  /// No description provided for @deepLinkChannelGone.
+  ///
+  /// In en, this message translates to:
+  /// **'That link does not point at a channel any more. Ask whoever sent it for a new one.'**
+  String get deepLinkChannelGone;
+
+  /// No description provided for @chatsPreviewDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Message deleted'**
+  String get chatsPreviewDeleted;
+
+  /// No description provided for @chatsPreviewPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo'**
+  String get chatsPreviewPhoto;
+
+  /// No description provided for @chatsPreviewVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get chatsPreviewVideo;
+
+  /// No description provided for @chatsPreviewVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice message'**
+  String get chatsPreviewVoice;
+
+  /// No description provided for @chatsPreviewFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get chatsPreviewFile;
+
+  /// No description provided for @notificationsPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are turned off for Privio in your system settings. Messages still arrive while Privio is open — you will not be told about them, and a call will not ring.'**
+  String get notificationsPermissionDenied;
+
+  /// No description provided for @notificationsPermissionNotAsked.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio has not been allowed to notify you yet.'**
+  String get notificationsPermissionNotAsked;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

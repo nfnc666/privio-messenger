@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -50,7 +51,7 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(controller.error ?? AppText.of(context).membersCouldNotLift),
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).membersCouldNotLift),
         ),
       );
     }
@@ -79,7 +80,7 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).membersCouldNotChange,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).membersCouldNotChange,
           ),
         ),
       );

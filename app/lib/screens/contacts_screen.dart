@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
@@ -201,7 +202,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             } else {
               setSheetState(() {
                 busy = false;
-                failure = state.conversations.error ??
+                failure = state.conversations.failure?.words(AppText.of(sheetContext)) ??
                     AppText.of(sheetContext).contactsCouldNotAdd;
               });
             }

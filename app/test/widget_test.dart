@@ -282,12 +282,17 @@ void main() {
     const chat = ChatSummary(
       id: 'g',
       title: 'Project X',
-      preview: 'Bob: Document.pdf',
-      timestamp: '10:45',
+      preview: ChatPreview(ChatPreviewKind.body, text: 'Bob: Document.pdf'),
+      timestamp: ChatStamp.none,
       isGroup: true,
     );
     await tester.pumpWidget(
-      MaterialApp(theme: PrivioTheme.dark(), home: const Scaffold(body: ChatListRow(chat: chat))),
+      MaterialApp(
+        theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: const Scaffold(body: ChatListRow(chat: chat)),
+      ),
     );
     expect(find.byIcon(Icons.group_rounded), findsOneWidget);
   });

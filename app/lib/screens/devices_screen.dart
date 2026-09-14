@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -114,12 +115,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       ),
                 ],
               ),
-              if (security.error != null) ...[
+              if (security.failure != null) ...[
                 const SizedBox(height: PrivioSpacing.lg),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
                   child: Text(
-                    security.error!,
+                    security.failure!.words(text),
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall

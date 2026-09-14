@@ -3222,4 +3222,269 @@ class AppTextEs extends AppText {
 
   @override
   String get feedReactionLimit => 'Reacciones';
+
+  @override
+  String get failureUnreachable => 'No se ha podido conectar con Privio.';
+
+  @override
+  String get failureUnreachableCheckConnection =>
+      'No se ha podido conectar con Privio. Comprueba tu conexión.';
+
+  @override
+  String get failureUnreachableTryAgain =>
+      'No se ha podido conectar con Privio. Comprueba tu conexión e inténtalo de nuevo.';
+
+  @override
+  String get failureCouldNotSave =>
+      'No se ha podido guardar. Comprueba tu conexión.';
+
+  @override
+  String get failureChangeNotSaved =>
+      'No se ha podido conectar con Privio. El cambio no se ha guardado.';
+
+  @override
+  String get failureRateLimited => 'Demasiadas solicitudes. Espera un momento.';
+
+  @override
+  String get failureTooManyAttempts =>
+      'Demasiados intentos. Espera unos minutos.';
+
+  @override
+  String get failureLicenseRequired =>
+      'Activa tu licencia para enviar mensajes.';
+
+  @override
+  String get failureIdentityChanged =>
+      'El número de seguridad ha cambiado. No se ha enviado nada: compruébalo antes.';
+
+  @override
+  String get failureCouldNotSendMessage => 'No se ha podido enviar el mensaje';
+
+  @override
+  String get failureCouldNotSendFile => 'No se ha podido enviar el archivo';
+
+  @override
+  String get failureCouldNotReadMessage => 'No se ha podido leer un mensaje';
+
+  @override
+  String failureMessagesUnreadable(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'No se han podido leer $count mensajes',
+      one: 'No se ha podido leer un mensaje',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get failureCouldNotOpenFile => 'No se ha podido abrir ese archivo.';
+
+  @override
+  String get failureNotAnImage =>
+      'Ese archivo no es una imagen que Privio pueda usar.';
+
+  @override
+  String get failureCouldNotSetPicture =>
+      'No se ha podido establecer la imagen';
+
+  @override
+  String get failureDeletedHereOnly =>
+      'Eliminado aquí. La solicitud para eliminarlo allí no ha salido.';
+
+  @override
+  String get failureCouldNotCreateGroup => 'No se ha podido crear el grupo';
+
+  @override
+  String get failureNotAGroupLink =>
+      'Eso no parece un enlace de grupo de Privio.';
+
+  @override
+  String get failureGroupNotFound =>
+      'Ese grupo no existe o el enlace es incorrecto.';
+
+  @override
+  String get failureGroupKeyMissing =>
+      'Este dispositivo aún no tiene la clave del grupo.';
+
+  @override
+  String get failureNotAChannelLink =>
+      'Eso no parece un enlace de canal de Privio.';
+
+  @override
+  String get failureHandleTaken => 'Ese identificador ya está en uso.';
+
+  @override
+  String get failureChannelNotFound =>
+      'Ese canal no existe o el enlace es incorrecto.';
+
+  @override
+  String get failureNotAMember => 'No estás en este canal.';
+
+  @override
+  String get failureInsufficientPermission =>
+      'No tienes permiso para hacer eso.';
+
+  @override
+  String get failureCannotChangeOwnRole => 'No puedes cambiar tu propio rol.';
+
+  @override
+  String get failureOwnerIsFixed =>
+      'El propietario del canal no se puede cambiar ni eliminar.';
+
+  @override
+  String get failureTargetOutranksYou =>
+      'Ese miembro tiene permisos que tú no tienes.';
+
+  @override
+  String get failureCannotGrantWhatYouLack =>
+      'No puedes conceder un permiso que tú mismo no tienes.';
+
+  @override
+  String get failureOwnerCannotLeave =>
+      'Transfiere el canal o elimínalo en su lugar.';
+
+  @override
+  String get failureUsernameTaken => 'Ese nombre de usuario ya está en uso.';
+
+  @override
+  String get failureInvalidCredentials =>
+      'El nombre de usuario o la contraseña no son correctos.';
+
+  @override
+  String get failureTotpRequired => 'Introduce tu código de doble factor.';
+
+  @override
+  String get failureInvalidTwoFactorCode =>
+      'Ese código de doble factor no es correcto.';
+
+  @override
+  String get failureTooManyDevices =>
+      'Esta cuenta ya tiene el número máximo de dispositivos.';
+
+  @override
+  String failureCheckUsernameAndPassword(String detail) {
+    return 'Comprueba el nombre de usuario y la contraseña: $detail';
+  }
+
+  @override
+  String get failureInvalidTotp =>
+      'Ese código no es correcto. Comprueba la hora de tu teléfono e inténtalo de nuevo.';
+
+  @override
+  String get failureTotpAlreadyEnabled =>
+      'El doble factor ya está activado en esta cuenta.';
+
+  @override
+  String get failureTotpNotSetUp =>
+      'Vuelve a empezar la configuración: el secreto ya no está.';
+
+  @override
+  String get failureInvalidPassword => 'Esa contraseña no es correcta.';
+
+  @override
+  String get failureDuressMatchesPassword =>
+      'El código de coacción tiene que ser distinto de tu contraseña; de lo contrario, un inicio de sesión normal destruiría la cuenta.';
+
+  @override
+  String get failureDeviceNotFound => 'Ese dispositivo ya ha cerrado sesión.';
+
+  @override
+  String get failureCouldNotLiftBlock =>
+      'No se ha podido levantar ese bloqueo.';
+
+  @override
+  String failureLicenseKeyIncomplete(String format) {
+    return 'Esa clave está incompleta. Tiene el formato $format.';
+  }
+
+  @override
+  String get failureNotALicenseKey =>
+      'Eso no parece una clave de licencia de Privio.';
+
+  @override
+  String get failureLicenseNotFound =>
+      'Ninguna licencia coincide con esa clave. Compruébala e inténtalo de nuevo.';
+
+  @override
+  String get failureLicenseAlreadyRedeemed =>
+      'Esa clave ya la ha usado otra cuenta. Una clave solo se puede canjear una vez.';
+
+  @override
+  String get failureLicenseRevoked =>
+      'Esa licencia fue revocada. Contacta con soporte si la pagaste.';
+
+  @override
+  String get failureAccountAlreadyLicensed =>
+      'Esta cuenta ya tiene una licencia, así que la clave que has introducido no se ha usado.';
+
+  @override
+  String get failureNoPlayServices =>
+      'Este teléfono no tiene los servicios de Google Play, así que Privio no puede despertarse mientras está cerrado. Los mensajes llegan mientras Privio está abierto.';
+
+  @override
+  String get failureNoApnsToken =>
+      'iOS no ha emitido un token push para Privio, así que no puede despertarse mientras está cerrado. Los mensajes llegan mientras Privio está abierto.';
+
+  @override
+  String get failureNoPushService =>
+      'Ningún servicio push ha respondido. Los mensajes llegan mientras Privio está abierto.';
+
+  @override
+  String get failureNoDistributor =>
+      'Ningún distribuidor de UnifiedPush ha respondido. Instala uno, por ejemplo ntfy, e inténtalo de nuevo.';
+
+  @override
+  String get failureDistributorUnreachable =>
+      'Privio no puede conectar con ese distribuidor. Tiene que ser una dirección https en la internet pública.';
+
+  @override
+  String get failureChannelKeyAwaitingGeneration =>
+      'Este canal está cambiando su clave después de que se fuera un miembro. Podrás volver a publicar cuando alguien que gestione el canal abra Privio.';
+
+  @override
+  String get failureChannelKeyPending =>
+      'Esperando a que la nueva clave del canal llegue a este dispositivo. Tu publicación no se ha perdido: inténtalo de nuevo en un momento.';
+
+  @override
+  String get failureUnexpected =>
+      'Algo no ha funcionado como se esperaba. Inténtalo de nuevo.';
+
+  @override
+  String get failureCallDevicesUnavailable =>
+      'Privio no ha podido abrir la cámara o el micrófono.';
+
+  @override
+  String get failureCallMicrophoneUnavailable =>
+      'Privio no ha podido abrir el micrófono.';
+
+  @override
+  String get failureCallNotOpen => 'La llamada no estaba abierta.';
+
+  @override
+  String get deepLinkChannelGone =>
+      'Ese enlace ya no apunta a ningún canal. Pide uno nuevo a quien te lo envió.';
+
+  @override
+  String get chatsPreviewDeleted => 'Mensaje eliminado';
+
+  @override
+  String get chatsPreviewPhoto => 'Foto';
+
+  @override
+  String get chatsPreviewVideo => 'Vídeo';
+
+  @override
+  String get chatsPreviewVoice => 'Mensaje de voz';
+
+  @override
+  String get chatsPreviewFile => 'Archivo';
+
+  @override
+  String get notificationsPermissionDenied =>
+      'Las notificaciones están desactivadas para Privio en los ajustes del sistema. Los mensajes siguen llegando mientras Privio está abierto, pero no se te avisará y una llamada no sonará.';
+
+  @override
+  String get notificationsPermissionNotAsked =>
+      'Privio todavía no tiene permiso para enviarte notificaciones.';
 }

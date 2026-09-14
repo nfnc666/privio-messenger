@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../core/edition.dart';
 import '../core/license_controller.dart';
 import '../theme/privio_colors.dart';
@@ -164,7 +165,7 @@ class _Activation extends StatelessWidget {
           onChanged: license.clearError,
           onSubmitted: () => onActivate(license),
         ),
-        if (license.error != null) ...[
+        if (license.failure != null) ...[
           const SizedBox(height: PrivioSpacing.lg),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +174,7 @@ class _Activation extends StatelessWidget {
               const SizedBox(width: PrivioSpacing.sm),
               Expanded(
                 child: Text(
-                  license.error!,
+                  license.failure!.words(AppText.of(context)),
                   style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                 ),
               ),

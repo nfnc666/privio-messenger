@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
 import 'l10n/app_localizations.dart';
+import 'l10n/failure_text.dart';
 import 'models/channel.dart';
 import 'screens/channel_feed_screen.dart';
 import 'screens/activation_screen.dart';
@@ -169,13 +170,10 @@ class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
     _opening = false;
 
     if (channel == null) {
+      final text = AppText.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            controller.error ??
-                'That link does not point at a channel any more. Ask whoever '
-                    'sent it for a new one.',
-          ),
+          content: Text(controller.failure?.words(text) ?? text.deepLinkChannelGone),
         ),
       );
       return;
@@ -188,7 +186,7 @@ class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
   void _reportUnreadable(AppState state) {
     state.deepLinks.taken();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('That does not look like a Privio channel link.')),
+      SnackBar(content: Text(AppText.of(context).failureNotAChannelLink)),
     );
   }
 

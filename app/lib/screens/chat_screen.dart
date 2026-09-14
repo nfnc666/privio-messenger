@@ -11,6 +11,7 @@ import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
 import '../crypto/safety_number.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/models.dart';
 import '../media/voice.dart';
 import 'group_info_screen.dart';
@@ -746,9 +747,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   message: _replyingTo!,
                   onCancel: () => setState(() => _replyingTo = null),
                 ),
-              if (state.conversations.error != null)
+              if (state.conversations.failure != null)
                 _ErrorBanner(
-                  message: state.conversations.error!,
+                  message: state.conversations.failure!.words(text),
                   // The server refuses to relay for an unlicensed account, so
                   // a send that failed while one is unactivated has somewhere
                   // to go rather than just a red line.

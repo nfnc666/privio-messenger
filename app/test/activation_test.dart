@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/edition.dart';
@@ -183,7 +184,7 @@ void main() {
 
     expect(ok, isFalse);
     expect(state.stage, AppStage.activation);
-    expect(state.license.error, contains('No license matches'));
+    expect(state.license.failure?.kind, FailureKind.licenseNotFound);
   });
 
   test('"Not now" is remembered, so it is asked once and not every launch', () async {

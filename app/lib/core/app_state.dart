@@ -9,6 +9,7 @@ import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
+import 'failure.dart';
 import 'license_controller.dart';
 import '../services/push_wake.dart';
 import 'deep_links.dart';
@@ -123,7 +124,7 @@ class AppState extends ChangeNotifier {
   String? _disguiseError;
   double _textScale = 1;
   bool _busy = false;
-  String? _authError;
+  Failure? _authFailure;
 
   /// Which tab of the shell is showing.
   ///
@@ -213,8 +214,10 @@ class AppState extends ChangeNotifier {
   /// one for an account that does.
   bool get signedIn => _sessionToken != null;
 
-  /// The last authentication failure, in words a user can act on.
-  String? get authError => _authError;
+  /// The last authentication failure, as a case. Sign-in happens before there
+  /// is an account to have a language, so the screen says it in English — but
+  /// it is the same typed value everywhere, and the screen decides.
+  Failure? get authFailure => _authFailure;
 
   PrivioServices get services {
     final services = _services;
@@ -352,7 +355,7 @@ class AppState extends ChangeNotifier {
 
   Future<bool> _authenticate(Future<Map<String, dynamic>> Function() call) async {
     _busy = true;
-    _authError = null;
+    _authFailure = null;
     notifyListeners();
     try {
       final result = await call();
@@ -370,10 +373,10 @@ class AppState extends ChangeNotifier {
       _onSignedIn();
       return true;
     } on ApiException catch (failure) {
-      _authError = _explain(failure);
+      _authFailure = _explain(failure);
       return false;
     } on Object {
-      _authError = 'Could not reach Privio. Check your connection.';
+      _authFailure = const Failure(FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _busy = false;
@@ -381,16 +384,17 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Server error codes turned into something a person can act on.
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'username_taken' => 'That username is already taken.',
-        'invalid_credentials' => 'Username or password is incorrect.',
-        'totp_required' => 'Enter your two-factor code.',
-        'invalid_totp' => 'That two-factor code is not right.',
-        'invalid_request' => 'Check the username and password: ${failure.message}',
-        'rate_limited' => 'Too many attempts. Wait a few minutes.',
-        'too_many_devices' => 'This account already has the maximum number of devices.',
-        _ => failure.message,
+  /// Server error codes turned into cases a person can be told about.
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'username_taken' => const Failure(FailureKind.usernameTaken),
+        'invalid_credentials' => const Failure(FailureKind.invalidCredentials),
+        'totp_required' => const Failure(FailureKind.totpRequired),
+        'invalid_totp' => const Failure(FailureKind.invalidTwoFactorCode),
+        'invalid_request' =>
+          Failure(FailureKind.checkUsernameAndPassword, detail: failure.message),
+        'rate_limited' => const Failure(FailureKind.tooManyAttempts),
+        'too_many_devices' => const Failure(FailureKind.tooManyDevices),
+        _ => Failure.server(failure.message),
       };
 
   /// The public key material this device publishes when it registers.
@@ -748,14 +752,14 @@ class AppState extends ChangeNotifier {
   /// server has actually done it: a failed delete that had already wiped the
   /// phone would be the worst of both.
   ///
-  /// Returns null on success, or what to tell the user.
-  Future<String?> deleteAccount(String currentPassword) async {
+  /// Returns null on success, or the case to tell the user about.
+  Future<Failure?> deleteAccount(String currentPassword) async {
     try {
       await services.api.deleteAccount(currentPassword);
     } on ApiException catch (failure) {
-      return failure.message;
+      return Failure.server(failure.message);
     } on Object {
-      return 'Could not reach the server.';
+      return const Failure(FailureKind.unreachable);
     }
 
     _conversations?.stop();

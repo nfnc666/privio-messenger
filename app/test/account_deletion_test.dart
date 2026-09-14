@@ -97,7 +97,9 @@ void main() {
     final (state, server, services, archive) = await build();
 
     final failure = await state.deleteAccount('not-the-password');
-    expect(failure, contains('password'));
+    // The server said why, and its wording is passed through rather than
+    // replaced by a sentence this app made up.
+    expect(failure?.detail, contains('password'));
     expect(server.calls, contains('DELETE /v1/accounts/me'));
     expect(
       services.store.conversationWith('acc-bob'),

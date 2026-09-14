@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/linked_text.dart';
@@ -60,7 +61,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
     if (ok) {
       _composer.clear();
     } else {
-      _say(controller.error ?? AppText.of(context).threadCouldNotPost);
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).threadCouldNotPost);
     }
   }
 
@@ -72,7 +73,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
       comment.id,
     );
     if (!mounted) return;
-    if (!ok) _say(controller.error ?? AppText.of(context).threadCouldNotRemove);
+    if (!ok) _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).threadCouldNotRemove);
   }
 
   /// Silencing somebody from the thread they are speaking in, which is where an
@@ -111,7 +112,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
     _say(
       ok
           ? text.threadStoppedToast(comment.authorUsername ?? text.threadThem)
-          : controller.error ?? text.threadCouldNotDoThat,
+          : controller.failure?.words(text) ?? text.threadCouldNotDoThat,
     );
   }
 
@@ -182,11 +183,11 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
                         ),
                       ),
               ),
-              if (controller.error != null)
+              if (controller.failure != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                   child: Text(
-                    controller.error!,
+                    controller.failure!.words(AppText.of(context)),
                     style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                   ),
                 ),

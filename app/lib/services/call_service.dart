@@ -8,6 +8,7 @@ import '../calls/call.dart';
 import '../calls/ice_servers.dart';
 import '../calls/call_peer.dart';
 import '../calls/call_signal.dart';
+import '../core/failure.dart';
 import '../core/secure_store.dart';
 import '../media/attachment.dart';
 import 'messaging_service.dart';
@@ -87,7 +88,7 @@ class CallService extends ChangeNotifier {
   final List<String> _earlyCandidates = [];
 
   List<CallRecord> _history = const [];
-  String? _error;
+  Failure? _failure;
 
   ActiveCall? get current => _call;
 
@@ -98,7 +99,8 @@ class CallService extends ChangeNotifier {
   Widget? get remoteVideo => _peer?.remoteView();
   Widget? get localVideo => _peer?.localView();
   List<CallRecord> get history => List.unmodifiable(_history);
-  String? get error => _error;
+  /// Why the last call could not be opened, as a case for the screen to say.
+  Failure? get failure => _failure;
 
   /// True when a new call cannot be started because one is already up.
   bool get isBusy => _call?.isLive ?? false;
@@ -126,7 +128,7 @@ class CallService extends ChangeNotifier {
   /// microphone" before anyone's phone rings is better than after.
   Future<void> place(CallParty party, {CallMedia media = CallMedia.audio}) async {
     if (isBusy) return;
-    _error = null;
+    _failure = null;
     final call = ActiveCall(
       id: _newCallId(),
       party: party,
@@ -449,7 +451,7 @@ class CallService extends ChangeNotifier {
     try {
       await peer.open(media: media);
     } on CallPeerException catch (failure) {
-      _error = failure.message;
+      _failure = failure.failure;
       await peer.close();
       await _finish(CallEnding.failed, tell: CallAction.hangUp);
       return null;

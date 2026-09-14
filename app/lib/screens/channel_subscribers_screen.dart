@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
@@ -120,7 +121,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
     final result = await state.channels.addMembers(_channel.id, chosen);
     if (!mounted) return;
     if (result == null) {
-      _say(state.channels.error ?? text.subscribersCouldNotAddAnybody);
+      _say(state.channels.failure?.words(text) ?? text.subscribersCouldNotAddAnybody);
       return;
     }
     if (result.invite.isEmpty) {
@@ -235,7 +236,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
     };
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? text.subscribersCouldNotDoThat);
+      _say(controller.failure?.words(text) ?? text.subscribersCouldNotDoThat);
       return;
     }
     await controller.loadBans(channel.id);

@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/message_search.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
+import '../l10n/chat_text.dart';
 import '../models/models.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -186,7 +188,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   /// Filtering and search both run on already-decrypted local data — no query
   /// ever reaches the server.
-  List<ChatSummary> _visible(List<ChatSummary> chats) {
+  List<ChatSummary> _visible(AppText text, List<ChatSummary> chats) {
     final query = _query.trim().toLowerCase();
     return chats.where((chat) {
       final matchesFilter = switch (_filter) {
@@ -196,7 +198,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       };
       final matchesQuery = query.isEmpty ||
           chat.title.toLowerCase().contains(query) ||
-          chat.preview.toLowerCase().contains(query);
+          previewWords(text, chat.preview).toLowerCase().contains(query);
       return matchesFilter && matchesQuery;
     }).toList();
   }
@@ -297,7 +299,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (groupId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(state.conversations.error ?? text.chatsCouldNotOpenLink),
+          content: Text(state.conversations.failure?.words(text) ?? text.chatsCouldNotOpenLink),
         ),
       );
       return;
@@ -327,7 +329,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     return ListenableBuilder(
       listenable: state.conversations,
       builder: (context, _) {
-        final chats = _visible(state.conversations.chats);
+        final chats = _visible(AppText.of(context), state.conversations.chats);
 
         return Scaffold(
           appBar: AppBar(

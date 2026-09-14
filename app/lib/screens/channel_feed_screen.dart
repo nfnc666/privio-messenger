@@ -8,6 +8,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
@@ -150,7 +151,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       SnackBar(
         content: Text(
           !ok
-              ? controller.error ?? text.feedCouldNotAskForKey
+              ? controller.failure?.words(text) ?? text.feedCouldNotAskForKey
               : fresh?.hasCurrentKey ?? false
                   ? text.feedKeyArrived
                   : text.feedAskedAgain,
@@ -165,7 +166,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? AppText.of(context).feedCouldNotJoin)),
+        SnackBar(content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotJoin)),
       );
       return;
     }
@@ -255,7 +256,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final ok = await controller.publish(_channel.id, '', poll: draft);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (!ok) _say(controller.error ?? AppText.of(context).feedCouldNotPublishPoll);
+    if (!ok) _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublishPoll);
   }
 
   Future<void> _schedule() async {
@@ -291,7 +292,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(controller.error ?? AppText.of(context).feedCouldNotPublish),
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublish),
         ),
       );
     }
@@ -344,7 +345,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final text = AppText.of(context);
     _say(
       !ok
-          ? controller.error ?? text.feedCouldNotChangeLink
+          ? controller.failure?.words(text) ?? text.feedCouldNotChangeLink
           : action.rotate
               ? text.feedOldLinkDead
               : text.feedSaved,
@@ -381,7 +382,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).feedCouldNotChangeReactions,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotChangeReactions,
           ),
         ),
       );
@@ -407,7 +408,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).feedCouldNotChangePost,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotChangePost,
           ),
         ),
       );
@@ -429,7 +430,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         content: Text(
           ok
               ? AppText.of(context).feedPublished
-              : controller.error ?? AppText.of(context).feedCouldNotPublishIt,
+              : controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublishIt,
         ),
       ),
     );
@@ -467,7 +468,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final text = AppText.of(context);
     _say(
       !ok
-          ? controller.error ?? text.feedCouldNotChangeThat
+          ? controller.failure?.words(text) ?? text.feedCouldNotChangeThat
           : turningOn
               ? text.feedCommentsOn
               : text.feedCommentsOff,
@@ -488,7 +489,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     final stats = controller.statsFor(_channel.id);
     if (stats == null) {
-      _say(controller.error ?? AppText.of(context).feedCouldNotReadNumbers);
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotReadNumbers);
       return;
     }
     await showModalBottomSheet<void>(
@@ -544,7 +545,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     _say(
       ok
           ? text.feedOwnsNow(chosen.label)
-          : controller.error ?? text.feedCouldNotHandOn,
+          : controller.failure?.words(text) ?? text.feedCouldNotHandOn,
     );
   }
 
@@ -561,7 +562,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final ok = await controller.report(_channel.id, reason);
     if (!mounted) return;
     final text = AppText.of(context);
-    _say(ok ? text.feedReported : controller.error ?? text.feedCouldNotSendThat);
+    _say(ok ? text.feedReported : controller.failure?.words(text) ?? text.feedCouldNotSendThat);
   }
 
   /// Gives the channel a picture, or takes the one it has away.
@@ -614,7 +615,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     }
     final text = AppText.of(context);
     _say(
-      ok ? text.feedPictureRemoved : controller.error ?? text.feedCouldNotRemovePicture,
+      ok ? text.feedPictureRemoved : controller.failure?.words(text) ?? text.feedCouldNotRemovePicture,
     );
   }
 
@@ -672,7 +673,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final ok = await controller.setAvatar(channel, bytes);
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? AppText.of(context).feedCouldNotSetPicture);
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotSetPicture);
       return;
     }
     // Adopt the channel the controller handed back, the same way leaving,
@@ -716,7 +717,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).feedCouldNotDeleteChannel,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotDeleteChannel,
           ),
         ),
       );
@@ -733,7 +734,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).feedCouldNotLeaveChannel,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotLeaveChannel,
           ),
         ),
       );
@@ -2365,7 +2366,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     if (bytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(controller.error ?? AppText.of(context).feedCouldNotOpenFile),
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotOpenFile),
         ),
       );
     }

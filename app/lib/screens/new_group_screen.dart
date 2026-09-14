@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -51,7 +52,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
       setState(() => _creating = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(controller.error ?? AppText.of(context).groupCouldNotCreate),
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).groupCouldNotCreate),
         ),
       );
       return;

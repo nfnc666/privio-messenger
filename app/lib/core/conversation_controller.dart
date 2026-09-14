@@ -18,6 +18,7 @@ import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
 import '../models/models.dart';
 import 'api_client.dart';
+import 'failure.dart';
 import 'privio_services.dart';
 
 /// Drives the chat and contact screens from real data.
@@ -80,7 +81,7 @@ class ConversationController extends ChangeNotifier {
   bool _draining = false;
 
   List<Contact> _contacts = const [];
-  String? _error;
+  Failure? _failure;
 
   /// Devices whose identity key stopped matching what was pinned, by account.
   ///
@@ -96,7 +97,10 @@ class ConversationController extends ChangeNotifier {
   List<Contact> get contacts => _contacts;
 
   /// The last failure worth showing, or null. Cleared when the next call works.
-  String? get error => _error;
+  ///
+  /// A case, never a sentence: this class cannot know which of the five
+  /// languages the person holding the phone reads.
+  Failure? get failure => _failure;
 
   /// Whether this conversation is waiting on the user to review a changed key.
   bool hasIdentityChange(String accountId) =>
@@ -152,7 +156,7 @@ class ConversationController extends ChangeNotifier {
       await _services.crypto.acceptIdentityChange(accountId, index);
     }
     _identityChanges.remove(accountId);
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -184,9 +188,9 @@ class ConversationController extends ChangeNotifier {
       avatarBytes: _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
       // one line, and what someone is doing now beats what they said before.
-      preview: isTyping(conversation.id) ? 'typing…' : _previewOf(last),
+      preview: isTyping(conversation.id) ? const ChatPreview(ChatPreviewKind.typing) : _previewOf(last),
       typing: isTyping(conversation.id),
-      timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
+      timestamp: last == null ? ChatStamp.none : _stampFor(last.sentAt),
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
       previewKind: last?.kind ?? MessageKind.text,
@@ -195,34 +199,42 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// A file with no caption still needs a line in the list.
-  static String _previewOf(Message? message) {
-    if (message == null) return '';
+  ///
+  /// Returns the case, not the words: "Photo" has five spellings here and this
+  /// class has no way of knowing which one the reader wants.
+  static ChatPreview _previewOf(Message? message) {
+    if (message == null) return ChatPreview.empty;
     // A tombstone has no body, and an empty last line in the chat list would
     // read as a conversation with nothing in it.
-    if (message.kind == MessageKind.deleted) return 'Message deleted';
-    if (message.body.isNotEmpty) return message.body;
+    if (message.kind == MessageKind.deleted) {
+      return const ChatPreview(ChatPreviewKind.deleted);
+    }
+    final notice = message.notice;
+    if (notice != null) return ChatPreview(ChatPreviewKind.notice, notice: notice);
+    if (message.body.isNotEmpty) {
+      return ChatPreview(ChatPreviewKind.body, text: message.body);
+    }
     final attachment = message.attachment;
-    if (attachment == null) return '';
-    return attachment.fileName ??
-        switch (message.kind) {
-          MessageKind.photo => 'Photo',
-          MessageKind.video => 'Video',
-          MessageKind.voice => 'Voice message',
-          _ => 'File',
-        };
+    if (attachment == null) return ChatPreview.empty;
+    final fileName = attachment.fileName;
+    if (fileName != null) return ChatPreview(ChatPreviewKind.body, text: fileName);
+    return ChatPreview(switch (message.kind) {
+      MessageKind.photo => ChatPreviewKind.photo,
+      MessageKind.video => ChatPreviewKind.video,
+      MessageKind.voice => ChatPreviewKind.voice,
+      _ => ChatPreviewKind.file,
+    });
   }
 
-  static String _formatTimestamp(DateTime when) {
+  static ChatStamp _stampFor(DateTime when) {
     final now = DateTime.now();
     final sameDay = when.year == now.year && when.month == now.month && when.day == now.day;
-    if (sameDay) {
-      return '${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
-    }
+    if (sameDay) return ChatStamp(ChatStampKind.time, at: when);
     final yesterday = now.subtract(const Duration(days: 1));
     if (when.year == yesterday.year && when.month == yesterday.month && when.day == yesterday.day) {
-      return 'Yesterday';
+      return const ChatStamp(ChatStampKind.yesterday);
     }
-    return '${when.day.toString().padLeft(2, '0')}.${when.month.toString().padLeft(2, '0')}.';
+    return ChatStamp(ChatStampKind.date, at: when);
   }
 
   /// Called with whatever channel posts the archive held, on restore.
@@ -347,7 +359,7 @@ class ConversationController extends ChangeNotifier {
       await _fileResult(result);
       if (result.highestHandled > 0) _realtime?.acknowledge(result.highestHandled);
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not read a message';
+      _failure = Failure.of(failure, FailureKind.couldNotReadMessage);
       notifyListeners();
     }
   }
@@ -400,9 +412,9 @@ class ConversationController extends ChangeNotifier {
         );
       }
       detached(_loadAvatars());
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     }
     notifyListeners();
   }
@@ -435,7 +447,7 @@ class ConversationController extends ChangeNotifier {
       await refreshContacts();
       return true;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -457,7 +469,7 @@ class ConversationController extends ChangeNotifier {
       detached(_loadAvatars());
       return conversation.id;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return null;
     }
@@ -523,22 +535,21 @@ class ConversationController extends ChangeNotifier {
         await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
       _markSent(conversationId, clientId, timer);
-      _error = null;
+      _failure = null;
       _persist();
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
       _noteIdentityChange(failure);
-      _error = switch (failure) {
+      _failure = switch (failure) {
         // The one send failure the user can do something about, so it says
         // what rather than repeating the server's wording.
-        ApiException(code: 'license_required') => 'Activate your license to send messages.',
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
         // Refused on purpose: the key on the server is not the key that was
         // pinned. Sending anyway would seal it to whoever holds the new one.
-        IdentityChangedException() =>
-          'The safety number changed. Nothing was sent — check it before you do.',
-        ApiException(:final message) => message,
-        _ => 'Could not send message',
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
       };
     }
     notifyListeners();
@@ -559,7 +570,7 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return created.groupId;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not create the group';
+      _failure = Failure.of(failure, FailureKind.couldNotCreateGroup);
       notifyListeners();
       return null;
     }
@@ -572,11 +583,11 @@ class ConversationController extends ChangeNotifier {
       for (final group in await _services.messaging.listGroups(_services.store)) {
         _services.store.upsertGroup(group);
       }
-      _error = null;
+      _failure = null;
       notifyListeners();
       unawaited(_maintainGroupKeys());
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
     }
   }
@@ -611,7 +622,7 @@ class ConversationController extends ChangeNotifier {
   Future<String?> joinGroupByLink(String link) async {
     final invite = ChannelService.parseInviteLink(link);
     if (invite == null || invite.kind != InviteKind.group) {
-      _error = 'That does not look like a Privio group link.';
+      _failure = const Failure(FailureKind.notAGroupLink);
       notifyListeners();
       return null;
     }
@@ -621,9 +632,9 @@ class ConversationController extends ChangeNotifier {
       await refreshGroups();
       return group.groupId;
     } on ApiException catch (failure) {
-      _error = failure.code == 'group_not_found'
-          ? 'That group does not exist, or the link is wrong.'
-          : failure.message;
+      _failure = failure.code == 'group_not_found'
+          ? const Failure(FailureKind.groupNotFound)
+          : Failure.server(failure.message);
       notifyListeners();
       return null;
     }
@@ -654,7 +665,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.api.leaveGroup(groupId, me);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -671,7 +682,7 @@ class ConversationController extends ChangeNotifier {
       await _services.api.leaveGroup(groupId, memberAccountId);
       return true;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -686,14 +697,14 @@ class ConversationController extends ChangeNotifier {
     final group = groupInfo(groupId);
     final key = group?.groupKey;
     if (group == null || key == null) {
-      _error = 'This device does not have the group key yet.';
+      _failure = const Failure(FailureKind.groupKeyMissing);
       notifyListeners();
       return false;
     }
     try {
       await _services.messaging.renameGroup(groupId, name, key);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -717,7 +728,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.api.deleteGroup(groupId);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -803,17 +814,16 @@ class ConversationController extends ChangeNotifier {
           ),
         ),
       );
-      _error = null;
+      _failure = null;
       _persist();
       notifyListeners();
       return report.report;
     } on Object catch (failure) {
       _noteIdentityChange(failure);
-      _error = switch (failure) {
-        ApiException(:final message) => message,
-        IdentityChangedException() =>
-          'The safety number changed. Nothing was sent — check it before you do.',
-        _ => 'Could not send file',
+      _failure = switch (failure) {
+        ApiException(:final message) => Failure.server(message),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        _ => const Failure(FailureKind.couldNotSendFile),
       };
       notifyListeners();
       return null;
@@ -842,7 +852,7 @@ class ConversationController extends ChangeNotifier {
       );
       return _attachmentCache[attachment.mediaId] = bytes;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not open the file';
+      _failure = Failure.of(failure, FailureKind.couldNotOpenFile);
       notifyListeners();
       return null;
     }
@@ -915,7 +925,7 @@ class ConversationController extends ChangeNotifier {
     _attachmentCache.clear();
     _services.store.clear();
     await _services.archive.clear();
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -1004,7 +1014,7 @@ class ConversationController extends ChangeNotifier {
       }
     } on Object catch (failure) {
       _noteIdentityChange(failure);
-      _error = 'Deleted here. The request to delete it there did not go out.';
+      _failure = const Failure(FailureKind.deletedHereOnly);
       notifyListeners();
     }
   }
@@ -1403,10 +1413,9 @@ class ConversationController extends ChangeNotifier {
         }
         _setVoiceState(pending.conversationId, pending.clientId, DeliveryState.queued);
         _noteIdentityChange(failure);
-        _error = switch (failure) {
-          ApiException(:final message) => message,
-          IdentityChangedException() =>
-            'The safety number changed. Nothing was sent — check it before you do.',
+        _failure = switch (failure) {
+          ApiException(:final message) => Failure.server(message),
+          IdentityChangedException() => const Failure(FailureKind.identityChanged),
           _ => null,
         };
         break;
@@ -1736,7 +1745,7 @@ class ConversationController extends ChangeNotifier {
       detached(flushOutbox());
       return result.messages.isNotEmpty;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       rethrow;
     } finally {
@@ -1811,9 +1820,7 @@ class ConversationController extends ChangeNotifier {
         count: entry.value,
       );
     }
-    _error = failures.length == 1
-        ? 'A message could not be read'
-        : '${failures.length} messages could not be read';
+    _failure = Failure(FailureKind.messagesUnreadable, count: failures.length);
     _persist();
 
     for (final failure in failures) {
@@ -1829,15 +1836,13 @@ class ConversationController extends ChangeNotifier {
   }) {
     if (_services.store.conversationWith(conversationId) == null) return;
     final who = _services.store.conversationWith(senderAccountId)?.user?.label;
-    final subject = count == 1 ? 'A message' : '$count messages';
-    final from = who == null ? '' : ' from $who';
     _services.store.append(
       conversationId,
       Message(
         id: 'unreadable-${DateTime.now().microsecondsSinceEpoch}',
-        // As above: the sentence is for everything that is not the bubble.
-        body: '$subject$from could not be read. '
-            'It was sealed to a key this device no longer has.',
+        // No body: the notice below carries the fact, and the screen writes the
+        // sentence in the language of whoever is looking at it.
+        body: '',
         sentAt: DateTime.now(),
         isMine: false,
         kind: MessageKind.undelivered,
@@ -2315,7 +2320,7 @@ class ConversationController extends ChangeNotifier {
   Future<bool> setOwnAvatar(Uint8List picked) async {
     final prepared = await AvatarImage.prepare(picked);
     if (prepared == null) {
-      _error = 'That file is not an image Privio can use.';
+      _failure = const Failure(FailureKind.notAnImage);
       notifyListeners();
       return false;
     }
@@ -2323,11 +2328,11 @@ class ConversationController extends ChangeNotifier {
       await _services.messaging.uploadAvatar(prepared);
       ownAvatar = prepared;
       _ownAvatarKnown = true;
-      _error = null;
+      _failure = null;
       notifyListeners();
       return true;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not set the picture';
+      _failure = Failure.of(failure, FailureKind.couldNotSetPicture);
       notifyListeners();
       return false;
     }
@@ -2338,9 +2343,9 @@ class ConversationController extends ChangeNotifier {
       await _services.api.clearAvatar();
       ownAvatar = null;
       _ownAvatarKnown = true;
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     }
     notifyListeners();
   }
@@ -2393,7 +2398,7 @@ class ConversationController extends ChangeNotifier {
       // do on a schedule, and called by nothing.
       await _services.messaging.rotateSignedPreKeyIfDue();
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
     }
   }

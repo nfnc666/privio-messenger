@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../core/edition.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/license_key_field.dart';
@@ -100,9 +101,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   onChanged: license.clearError,
                   onSubmitted: () => _activate(state),
                 ),
-                if (license.error != null) ...[
+                if (license.failure != null) ...[
                   const SizedBox(height: PrivioSpacing.lg),
-                  _Failure(message: license.error!),
+                  _Failure(message: license.failure!.words(AppText.of(context))),
                 ],
                 const SizedBox(height: PrivioSpacing.xl),
                 FilledButton(

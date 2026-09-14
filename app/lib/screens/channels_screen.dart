@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -78,7 +79,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            controller.error ?? AppText.of(context).channelsCouldNotOpenLink,
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).channelsCouldNotOpenLink,
           ),
         ),
       );
@@ -143,7 +144,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
                   if (_tabs.index == 1) controller.search(query: value);
                 },
               ),
-              if (controller.error != null) _ErrorBanner(message: controller.error!),
+              if (controller.failure != null) _ErrorBanner(message: controller.failure!.words(text)),
               Expanded(
                 child: TabBarView(
                   controller: _tabs,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../core/edition.dart';
 import '../services/wake_up.dart';
 import '../theme/privio_colors.dart';
@@ -112,12 +113,12 @@ class _Delivery extends StatelessWidget {
             PrivioSpacing.lg,
           ),
           child: Text(
-            wakeUp.error ??
+            wakeUp.failure?.words(text) ??
                 (wakeUp.distributorAvailable
                     ? text.notificationsDistributorFound(PrivioEdition.current.name)
                     : text.notificationsNoDistributor),
             style: theme.textTheme.labelSmall?.copyWith(
-              color: wakeUp.error != null ? PrivioColors.danger : PrivioColors.textTertiary,
+              color: wakeUp.failure != null ? PrivioColors.danger : PrivioColors.textTertiary,
             ),
           ),
         ),

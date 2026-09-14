@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
@@ -58,7 +59,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final ok = await controller.setOwnAvatar(bytes);
     if (!mounted) return;
     setState(() => _uploading = false);
-    if (!ok) _showMessage(controller.error ?? text.accountCouldNotSetPicture);
+    if (!ok) _showMessage(controller.failure?.words(text) ?? text.accountCouldNotSetPicture);
   }
 
   Future<void> _removeAvatar() async {
@@ -263,7 +264,9 @@ class _AccountScreenState extends State<AccountScreen> {
 
     final failure = await state.deleteAccount(password.text);
     if (failure == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(failure.words(AppText.of(context)))),
+    );
   }
 
   void _confirmSignOut(BuildContext context) {

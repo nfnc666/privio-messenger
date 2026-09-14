@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../l10n/passcode_text.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
@@ -285,7 +286,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
               onSubmitted: (_) => _save(security),
               decoration: InputDecoration(hintText: text.duressCodeAgain),
             ),
-            if (_localError != null || security.error != null) ...[
+            if (_localError != null || security.failure != null) ...[
               const SizedBox(height: PrivioSpacing.lg),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,7 +296,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
                   Expanded(
                     child: Text(
                       _localError == null
-                          ? security.error!
+                          ? security.failure!.words(text)
                           : _duressErrorText(text, _localError!),
                       style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                     ),

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 
+import '../core/failure.dart';
 import 'call_peer.dart';
 import 'call_signal.dart';
 
@@ -80,9 +81,11 @@ class WebRtcCallPeer implements CallPeer {
     } on Object catch (error) {
       throw CallPeerException(
         _failureFrom(error, media),
-        media.isVideo
-            ? 'Privio could not open the camera or microphone.'
-            : 'Privio could not open the microphone.',
+        Failure(
+          media.isVideo
+              ? FailureKind.callDevicesUnavailable
+              : FailureKind.callMicrophoneUnavailable,
+        ),
       );
     }
 
@@ -260,7 +263,7 @@ class WebRtcCallPeer implements CallPeer {
     if (connection == null) {
       throw const CallPeerException(
         CallPeerFailure.unavailable,
-        'The call was not open.',
+        Failure(FailureKind.callNotOpen),
       );
     }
     return connection;

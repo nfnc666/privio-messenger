@@ -328,6 +328,45 @@ class Message {
       );
 }
 
+/// What the last line of a chat row says, as a case.
+///
+/// The controller cannot write it: "Photo" is a word, and which word depends on
+/// the reader. [text] is the one part that is never translated — a message
+/// somebody wrote, or the name they gave a file.
+enum ChatPreviewKind { empty, typing, deleted, body, notice, photo, video, voice, file }
+
+@immutable
+class ChatPreview {
+  const ChatPreview(this.kind, {this.text, this.notice});
+
+  static const ChatPreview empty = ChatPreview(ChatPreviewKind.empty);
+
+  final ChatPreviewKind kind;
+
+  /// Written by a person: a message body or a file name. Shown as it was typed.
+  final String? text;
+
+  /// Set when [kind] is [ChatPreviewKind.notice] — the stored event, said in
+  /// the reader's language at the moment the row is drawn.
+  final SystemNotice? notice;
+}
+
+/// When the last message arrived, as a case rather than a formatted string.
+///
+/// "Yesterday" is a word, and 04.09. is one language's idea of a date. Both
+/// belong to the screen.
+enum ChatStampKind { none, time, yesterday, date }
+
+@immutable
+class ChatStamp {
+  const ChatStamp(this.kind, {this.at});
+
+  static const ChatStamp none = ChatStamp(ChatStampKind.none);
+
+  final ChatStampKind kind;
+  final DateTime? at;
+}
+
 @immutable
 class ChatSummary {
   const ChatSummary({
@@ -346,11 +385,11 @@ class ChatSummary {
 
   final String id;
   final String title;
-  final String preview;
+  final ChatPreview preview;
 
-  /// Pre-formatted for the list, exactly as the mockups show it ("11:32",
-  /// "Yesterday"). Formatting belongs to the data layer so the row stays dumb.
-  final String timestamp;
+  /// When, as a case. The row formats it for the locale it is drawn in — the
+  /// same message reads "11:32" and "Gestern" on two phones in one chat.
+  final ChatStamp timestamp;
   final int unreadCount;
   final bool isGroup;
   final bool pinned;
