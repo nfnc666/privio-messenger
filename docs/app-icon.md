@@ -121,25 +121,34 @@ restart, the launcher winning a disagreement, the disguise interaction in both
 directions, an account switch leaving the icon alone, and the section's
 swatches, tick, reset and unavailable line.
 
-**The native code has not been compiled, let alone run.** This work was done on
-Linux in a container with **no Android SDK and no Xcode** — `flutter doctor`
-reports both toolchains absent. `MainActivity.kt` and `LauncherIcon.swift` have
-therefore never been through a compiler, and the `project.pbxproj` edits have
-only been checked for balanced braces and matching names.
+**The native code was not compiled here; it was compiled by CI.** This work was
+written on Linux in a container with **no Android SDK and no Xcode** —
+`flutter doctor` reports both toolchains absent — so nothing native could be
+built on the machine that wrote it. The pipeline has since built both sides on
+their own runners, and both passed:
 
-That is why `test/app_icon_assets_test.dart` exists: it reads the manifest, the
-Kotlin, the Swift and both asset catalogues and checks that every colour is
-named identically in all of them. A typo there would otherwise not fail
-anything on this machine — it would fail once, on a phone, as an icon that did
-not change. The test catches the likeliest mistake; it cannot catch a
-compilation error.
+* `Android — libre APK`, `direct APK` and `play APK` each run
+  `flutter build apk --release`. That compiles `MainActivity.kt`, merges the
+  manifest with the seven `activity-alias` entries, resolves each alias's
+  `android:targetActivity`, and resolves every `@mipmap` the aliases and the
+  adaptive-icon XMLs point at. A misspelt alias, a missing density or a stray
+  reference would have failed the build.
+* `iOS — unsigned build` runs a full `xcodebuild -configuration Release -sdk
+  iphoneos` on a macOS runner. That compiles `LauncherIcon.swift`, accepts the
+  edited `project.pbxproj`, and runs `actool` over the asset catalogue with
+  `ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES` and
+  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS` — so the seven alternate
+  icon sets are compiled into the bundle, not merely listed in a setting.
 
-None of the following has been observed:
+That is also why `test/app_icon_assets_test.dart` exists: it reads the manifest,
+the Kotlin, the Swift and both asset catalogues and checks that every colour is
+named identically in all of them. A compiler will not catch a name that is
+spelt consistently but differs between Dart and the platform — that would fail
+once, on a phone, as an icon that did not change.
 
-* that the Kotlin and the Swift compile;
+Compiling is not running. None of the following has been observed:
+
 * that the icon on a real home screen actually changes, on either platform;
-* that Xcode accepts the two build settings and compiles the seven alternate
-  sets;
 * that launching the app from a changed icon works;
 * that no duplicate launcher entry is left on any particular Android skin;
 * how long a given launcher takes to redraw its grid;

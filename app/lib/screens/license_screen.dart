@@ -218,7 +218,7 @@ class _Licensed extends StatelessWidget {
           padding: const EdgeInsets.all(PrivioSpacing.lg),
           decoration: BoxDecoration(
             color: context.accents.surface,
-            borderRadius: BorderRadius.all(PrivioRadius.card),
+            borderRadius: const BorderRadius.all(PrivioRadius.card),
           ),
           child: Row(
             children: [

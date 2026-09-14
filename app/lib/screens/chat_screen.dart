@@ -1124,7 +1124,7 @@ class _ReplyBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: PrivioColors.surface,
         border: Border(
-          top: BorderSide(color: PrivioColors.border),
+          top: const BorderSide(color: PrivioColors.border),
           left: BorderSide(color: context.accents.accent, width: 3),
         ),
       ),

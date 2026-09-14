@@ -410,7 +410,7 @@ void substitution() {
 
     // Alice writes to Bob once. Bob's device pins her identity key — this is
     // the ordinary trust-on-first-use the whole app runs on.
-    await alice.messaging.sendPayload('bob', MessagePayload.text('hello'));
+    await alice.messaging.sendPayload('bob', const MessagePayload.text('hello'));
     final first = await bob.messaging.receive();
     expect(first.messages.single.senderAccountId, 'account-alice');
     expect(first.messages.single.senderTrust, PeerTrust.firstContact);

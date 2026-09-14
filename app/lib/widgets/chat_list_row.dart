@@ -112,7 +112,7 @@ class ChatListRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: context.accents.accent,
-                      borderRadius: BorderRadius.all(PrivioRadius.pill),
+                      borderRadius: const BorderRadius.all(PrivioRadius.pill),
                     ),
                     child: Text(
                       '${chat.unreadCount}',

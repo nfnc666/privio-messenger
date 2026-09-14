@@ -355,7 +355,7 @@ class EncryptionNotice extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: context.accents.surface,
-        borderRadius: BorderRadius.all(PrivioRadius.card),
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
