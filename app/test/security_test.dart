@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/core/security_controller.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
@@ -207,7 +209,7 @@ void main() {
 
       expect(await security.confirmTotp('000000'), isFalse);
       expect(security.twoFactorEnabled, isFalse);
-      expect(security.error, contains('not right'));
+      expect(security.failure?.kind, FailureKind.invalidTotp);
       expect(server.twoFactorEnabled, isFalse);
     });
 
@@ -266,7 +268,7 @@ void main() {
         isFalse,
       );
       expect(server.duressCode, isNull);
-      expect(security.error, contains('different from your password'));
+      expect(security.failure?.kind, FailureKind.duressMatchesPassword);
     });
 
     test('the wrong password changes nothing', () async {
@@ -278,7 +280,7 @@ void main() {
         isFalse,
       );
       expect(server.duressCode, isNull);
-      expect(security.error, contains('not right'));
+      expect(security.failure?.kind, FailureKind.invalidPassword);
     });
 
     test('removing it needs the password too', () async {
@@ -311,7 +313,10 @@ void main() {
 
       await security.setLastSeen('contacts');
       expect(server.lastSeen, 'contacts');
-      expect(SecurityController.labelForLastSeen(security.lastSeen), 'My contacts');
+      // The value, not a word for it: the controller deals in what the server
+      // stores, and the screen is where that becomes a sentence in somebody's
+      // language.
+      expect(security.lastSeen, 'contacts');
     });
 
     test('a value the server would not take is put back', () async {
@@ -422,13 +427,15 @@ void main() {
 
       expect(await security.revokeDevice('dev-9'), isFalse);
       expect(security.devices, hasLength(1));
-      expect(security.error, contains('already signed out'));
+      expect(security.failure?.kind, FailureKind.deviceNotFound);
     });
   });
 
   group('the screens', () {
     Widget wrap(Widget child, AppState state) => MaterialApp(
           theme: PrivioTheme.dark(),
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
           home: PrivioScope(notifier: state, child: child),
         );
 

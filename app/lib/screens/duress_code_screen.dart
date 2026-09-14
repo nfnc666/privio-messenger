@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
+import '../l10n/passcode_text.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -22,7 +25,8 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
   final _password = TextEditingController();
   final _code = TextEditingController();
   final _confirm = TextEditingController();
-  String? _localError;
+  /// What is wrong with what was typed, as a case rather than a sentence.
+  _DuressError? _localError;
 
   /// Whether what has been typed into the password field is too short to be an
   /// account password. Sign-up has required ten characters since before this
@@ -58,26 +62,15 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     return state.screenLockSet && kind != null && kind.accepts(code);
   }
 
-  String _lockScreenNote(AppState state) {
+  String _lockScreenNote(AppText text, AppState state) {
     final kind = state.passcodeKind;
-    if (!state.screenLockSet || kind == null) {
-      return 'At the lock screen it does nothing yet, because there is no app lock on '
-          'this device. Turn one on under Screen Lock, and a duress code shaped like '
-          'that lock works there too — which is where a phone that is already signed '
-          'in gets taken.';
-    }
+    if (!state.screenLockSet || kind == null) return text.duressNoLockNote;
+    final shape = passcodeKindLabel(text, kind).toLowerCase();
     final code = _code.text;
-    if (code.isEmpty) {
-      return 'This device unlocks with ${kind.label.toLowerCase()}. A duress code of '
-          'the same shape can be typed at the lock screen, where it destroys instead '
-          'of unlocking. Any other shape works at sign-in only.';
-    }
+    if (code.isEmpty) return text.duressShapeNote(shape);
     return _worksAtTheLockScreen(code, state)
-        ? 'This one matches the lock on this device, so it works at the lock screen '
-            'as well as at sign-in.'
-        : 'This one does not match the lock on this device '
-            '(${kind.label.toLowerCase()}), so it works at sign-in only — the lock '
-            'screen has nowhere to type it.';
+        ? text.duressMatchesLock
+        : text.duressDoesNotMatchLock(shape);
   }
 
   void _clearErrors(SecurityController security) {
@@ -91,11 +84,11 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     // Checked here rather than at the server, because a mistyped duress code is
     // one you find out about at the worst possible moment.
     if (_code.text.length < 4) {
-      setState(() => _localError = 'Use at least four characters.');
+      setState(() => _localError = _DuressError.tooShort);
       return;
     }
     if (_code.text != _confirm.text) {
-      setState(() => _localError = 'The two codes are not the same.');
+      setState(() => _localError = _DuressError.codesDiffer);
       return;
     }
     setState(() => _localError = null);
@@ -110,12 +103,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     // the one moment it can still be refused.
     if (state.screenLockSet && await state.isScreenLockPasscode(code)) {
       if (!mounted) return;
-      setState(
-        () => _localError = 'That is the code that unlocks this device. A duress '
-            'code has to be different: the lock screen checks it first, so the '
-            'two being the same would destroy the account every time you '
-            'unlocked — without saying so.',
-      );
+      setState(() => _localError = _DuressError.sameAsUnlock);
       return;
     }
     if (!mounted) return;
@@ -138,8 +126,8 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
       SnackBar(
         content: Text(
           _worksAtTheLockScreen(code, state)
-              ? 'Duress code set. It destroys the account at sign-in and at the lock screen.'
-              : 'Duress code set. Typing it at sign-in destroys the account.',
+              ? AppText.of(context).duressSetBoth
+              : AppText.of(context).duressSetSignInOnly,
         ),
       ),
     );
@@ -154,32 +142,33 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     await state.rememberDuressCode(null);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Duress code removed.')),
+      SnackBar(content: Text(AppText.of(context).duressRemoved)),
     );
   }
 
   Future<String?> _askForPassword() {
+    final text = AppText.of(context);
     final field = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Remove the duress code'),
+        title: Text(text.duressRemoveTitle),
         content: TextField(
           controller: field,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Your password'),
+          decoration: InputDecoration(hintText: text.accountYourPassword),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(field.text),
-            child: const Text('Remove'),
+            child: Text(text.commonRemove),
           ),
         ],
       ),
@@ -191,11 +180,12 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     final state = PrivioScope.of(context);
     final security = state.security;
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Duress Code'),
+        title: Text(text.privacyDuressCode),
       ),
       body: ListenableBuilder(
         listenable: Listenable.merge([state, security]),
@@ -221,10 +211,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
                   const SizedBox(width: PrivioSpacing.md),
                   Expanded(
                     child: Text(
-                      'Typing this code instead of your password at sign-in destroys the '
-                      'account: every device, every message still waiting, your contacts, '
-                      'your group memberships, your backup. There is no undo, and no '
-                      'confirmation — that is the point.',
+                      text.duressWarning,
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -233,25 +220,24 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
             ),
             const SizedBox(height: PrivioSpacing.xl),
             if (security.duressCodeSet) ...[
-              Text('A duress code is set', style: theme.textTheme.titleMedium),
+              Text(text.duressIsSet, style: theme.textTheme.titleMedium),
               const SizedBox(height: PrivioSpacing.sm),
               Text(
-                'Privio cannot show it to you — it is stored the way a password is. '
-                'Setting a new one below replaces it.',
+                text.duressCannotShow,
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: PrivioSpacing.lg),
               OutlinedButton(
                 onPressed: security.busy ? null : () => _remove(security),
                 style: OutlinedButton.styleFrom(foregroundColor: PrivioColors.danger),
-                child: const Text('Remove it'),
+                child: Text(text.duressRemoveIt),
               ),
               const SizedBox(height: PrivioSpacing.xl),
               const Divider(height: 1, color: PrivioColors.border),
               const SizedBox(height: PrivioSpacing.xl),
             ],
             Text(
-              security.duressCodeSet ? 'Replace it' : 'Set a duress code',
+              security.duressCodeSet ? text.duressReplaceIt : text.duressSetOne,
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: PrivioSpacing.lg),
@@ -266,7 +252,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
               obscureText: true,
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
-              decoration: const InputDecoration(hintText: 'Your Privio account password'),
+              decoration: InputDecoration(hintText: text.duressAccountPassword),
             ),
             // Said before the request rather than after it. The server's answer
             // to a PIN typed here is "That password is not right", which is true
@@ -279,9 +265,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
             if (_looksLikeAPin) ...[
               const SizedBox(height: PrivioSpacing.xs),
               Text(
-                'That is shorter than an account password. This field wants the '
-                'password you chose when you created the account — not the PIN '
-                'that unlocks the app.',
+                text.duressLooksLikePin,
                 style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
               ),
             ],
@@ -291,7 +275,7 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
               obscureText: true,
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
-              decoration: const InputDecoration(hintText: 'Duress code'),
+              decoration: InputDecoration(hintText: text.duressCodeField),
             ),
             const SizedBox(height: PrivioSpacing.md),
             TextField(
@@ -300,9 +284,9 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
               enabled: !security.busy,
               onChanged: (_) => _clearErrors(security),
               onSubmitted: (_) => _save(security),
-              decoration: const InputDecoration(hintText: 'Duress code again'),
+              decoration: InputDecoration(hintText: text.duressCodeAgain),
             ),
-            if (_localError != null || security.error != null) ...[
+            if (_localError != null || security.failure != null) ...[
               const SizedBox(height: PrivioSpacing.lg),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,7 +295,9 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
                   const SizedBox(width: PrivioSpacing.sm),
                   Expanded(
                     child: Text(
-                      _localError ?? security.error!,
+                      _localError == null
+                          ? security.failure!.words(text)
+                          : _duressErrorText(text, _localError!),
                       style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                     ),
                   ),
@@ -331,21 +317,22 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
                         color: PrivioColors.textPrimary,
                       ),
                     )
-                  : Text(security.duressCodeSet ? 'Replace the code' : 'Set the code'),
+                  : Text(
+                      security.duressCodeSet
+                          ? text.duressReplaceCode
+                          : text.duressSetCode,
+                    ),
             ),
             const SizedBox(height: PrivioSpacing.xxl),
             const Divider(height: 1, color: PrivioColors.border),
             const SizedBox(height: PrivioSpacing.lg),
             Text(
-              _lockScreenNote(state),
+              _lockScreenNote(text, state),
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'What it does not do: the account name stays taken, so nobody can claim '
-              'it afterwards, and it cannot reach a different device that is already '
-              'signed in somewhere else. Anyone watching sees the attempt refused '
-              'exactly as a mistyped password or PIN is refused.',
+              text.duressWhatItDoesNotDo,
               style: theme.textTheme.labelSmall,
             ),
           ],
@@ -354,3 +341,12 @@ class _DuressCodeScreenState extends State<DuressCodeScreen> {
     );
   }
 }
+
+/// What is wrong with a duress code somebody typed here.
+enum _DuressError { tooShort, codesDiffer, sameAsUnlock }
+
+String _duressErrorText(AppText text, _DuressError failure) => switch (failure) {
+      _DuressError.tooShort => text.duressAtLeastFour,
+      _DuressError.codesDiffer => text.duressCodesDiffer,
+      _DuressError.sameAsUnlock => text.duressSameAsUnlock,
+    };

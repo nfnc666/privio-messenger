@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/edition.dart';
 import 'package:privio/core/license_controller.dart';
@@ -85,7 +86,7 @@ void main() {
 
       expect(await license.redeem('PRIVIO-2345'), isFalse);
       expect(seen, isEmpty);
-      expect(license.error, contains('not complete'));
+      expect(license.failure?.kind, FailureKind.licenseKeyIncomplete);
     });
 
     test('a redeemed key leaves the account licensed', () async {
@@ -103,7 +104,7 @@ void main() {
 
       expect(await license.redeem('privio 2345 6789 abcd efgh'), isTrue);
       expect(license.state?.licensed, isTrue);
-      expect(license.error, isNull);
+      expect(license.failure, isNull);
 
       // The canonical form goes on the wire, whatever was typed.
       expect(
@@ -124,7 +125,7 @@ void main() {
 
       expect(await license.redeem('PRIVIO-2345-6789-ABCD-EFGH'), isFalse);
       expect(license.state?.licensed, isNot(true));
-      expect(license.error, contains('only be redeemed once'));
+      expect(license.failure?.kind, FailureKind.licenseAlreadyRedeemed);
     });
 
     test('an already-licensed account is told its key was not consumed', () async {
@@ -140,7 +141,7 @@ void main() {
       );
 
       expect(await license.redeem('PRIVIO-2345-6789-ABCD-EFGH'), isFalse);
-      expect(license.error, contains('has not been used'));
+      expect(license.failure?.kind, FailureKind.accountAlreadyLicensed);
     });
   });
 
@@ -222,7 +223,7 @@ void main() {
 
       expect(await license.hold('PRIVIO-2345'), isFalse);
       expect(await store.readPendingLicenseKey(), isNull);
-      expect(license.error, contains('not complete'));
+      expect(license.failure?.kind, FailureKind.licenseKeyIncomplete);
     });
 
     test('nothing held means nothing to redeem', () async {
@@ -346,7 +347,7 @@ void main() {
 
       expect(license.state?.enforced, isFalse);
       expect(license.isOffered, isFalse);
-      expect(license.error, isNull);
+      expect(license.failure, isNull);
     });
 
     test('any other failure leaves the last known answer alone', () async {

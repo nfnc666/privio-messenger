@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
+import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -59,12 +62,13 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
     // Anybody in the channel who is not already running it.
     await controller.loadMembers(_channel.id);
     if (!mounted) return;
+    final text = AppText.of(context);
     final candidates = [
       for (final member in controller.membersOf(_channel.id))
         if (!member.isAdmin) member,
     ];
     if (candidates.isEmpty) {
-      _say('Everybody in this channel is already an admin.');
+      _say(text.adminsEverybodyAlready);
       return;
     }
 
@@ -79,7 +83,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
             Padding(
               padding: const EdgeInsets.all(PrivioSpacing.gutter),
               child: Text(
-                'Who should be an admin?',
+                text.adminsWhoShouldBe,
                 style: Theme.of(sheetContext).textTheme.titleMedium,
               ),
             ),
@@ -134,7 +138,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
           );
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? 'Could not change that.');
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).adminsCouldNotChange);
       return;
     }
     await controller.loadAdmins(channel.id);
@@ -147,7 +151,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
         if (!member.isOwner) member,
     ];
     if (admins.isEmpty) {
-      _say('Make somebody an admin first.');
+      _say(AppText.of(context).adminsMakeSomebodyFirst);
       return;
     }
     // The screen that already asks for the password and says what is
@@ -160,7 +164,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
     final controller = PrivioScope.of(context).channels;
     final ok = await controller.saveSettings(_channel, showSenderName: on);
     if (!mounted) return;
-    if (!ok) _say(controller.error ?? 'Could not change that.');
+    if (!ok) _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).adminsCouldNotChange);
   }
 
   void _say(String message) {
@@ -177,6 +181,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
       listenable: controller,
       builder: (context, _) {
         final channel = _channel;
+        final text = AppText.of(context);
         final needle = _query.trim().toLowerCase();
         final admins = [
           for (final member in controller.adminsOf(channel.id))
@@ -194,7 +199,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
           appBar: AppBar(
             backgroundColor: PrivioColors.background,
             leading: const PrivioBackButton(),
-            title: const Text('Admins'),
+            title: Text(text.adminsTitle),
             actions: [
               if (_mayAppoint)
                 Padding(
@@ -209,7 +214,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                         vertical: PrivioSpacing.sm,
                       ),
                     ),
-                    child: Text(_editing ? 'Done' : 'Edit'),
+                    child: Text(_editing ? text.commonDone : text.commonEdit),
                   ),
                 ),
             ],
@@ -223,7 +228,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
               children: [
                 PrivioSearchField(
                   controller: _search,
-                  hintText: 'Search admins',
+                  hintText: text.adminsSearch,
                   onChanged: (value) => setState(() => _query = value),
                 ),
                 Padding(
@@ -234,7 +239,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                     PrivioSpacing.sm,
                   ),
                   child: Text(
-                    'CHANNEL ADMINISTRATORS',
+                    text.adminsSectionHeader,
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -251,20 +256,20 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                             Icons.person_add_alt_1_rounded,
                             color: PrivioColors.accent,
                           ),
-                          title: const Text(
-                            'Add admin',
-                            style: TextStyle(color: PrivioColors.accent),
+                          title: Text(
+                            text.adminsAdd,
+                            style: const TextStyle(color: PrivioColors.accent),
                           ),
                           onTap: () => unawaited(_add()),
                         ),
                         const _Hairline(),
                       ],
                       if (admins.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(PrivioSpacing.xl),
+                        Padding(
+                          padding: const EdgeInsets.all(PrivioSpacing.xl),
                           child: Text(
-                            'Nobody yet.',
-                            style: TextStyle(color: PrivioColors.textTertiary),
+                            text.adminsNobodyYet,
+                            style: const TextStyle(color: PrivioColors.textTertiary),
                           ),
                         ),
                       for (var i = 0; i < admins.length; i++) ...[
@@ -288,10 +293,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                     0,
                   ),
                   child: Text(
-                    _mayAppoint
-                        ? 'Administrators help you run your channel.'
-                        : 'Administrators help run this channel. Only somebody '
-                            'who may appoint admins can change this list.',
+                    _mayAppoint ? text.adminsHelpOwner : text.adminsHelpMember,
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -306,10 +308,10 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                   child: _Card(
                     children: [
                       SettingsRow(
-                        label: 'Show sender name',
+                        label: text.adminsShowSenderName,
                         subtitle: channel.permissions.canEditChannel
-                            ? 'New posts carry the name of whoever wrote them'
-                            : 'Only an admin who may edit the channel can change this',
+                            ? text.adminsShowSenderNameOn
+                            : text.adminsShowSenderNameLocked,
                         enabled: channel.permissions.canEditChannel,
                         trailing: Switch(
                           value: channel.showSenderName,
@@ -325,9 +327,7 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xl),
                   child: Text(
-                    'With it off, everything the channel publishes is published '
-                    'by the channel — no admin name is attached, and readers see '
-                    'one voice.',
+                    text.adminsShowSenderNameNote,
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -345,8 +345,8 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                         SettingsRow(
                           icon: Icons.swap_horiz_rounded,
                           iconTint: const Color(0xFFD97706),
-                          label: 'Transfer ownership',
-                          subtitle: 'Asks for your password, and cannot be undone',
+                          label: text.adminsTransfer,
+                          subtitle: text.adminsTransferNote,
                           onTap: () => unawaited(_transferOwnership()),
                         ),
                       ],
@@ -373,13 +373,14 @@ class _AdminRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final presence = member.presenceLabel();
+    final text = AppText.of(context);
+    final presence = presenceText(text, member.presence());
     // Who made them an admin, which is the second line in the template. The
     // owner has nobody above them, so their row shows presence instead.
     final second = member.isOwner
         ? presence
         : member.promotedByName != null
-            ? 'promoted by ${member.promotedByName}'
+            ? text.adminsPromotedBy(member.promotedByName!)
             : presence;
 
     return ListTile(
@@ -431,7 +432,9 @@ class _RoleBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(100),
       ),
       child: Text(
-        owner ? 'Owner' : 'Admin',
+        owner
+            ? AppText.of(context).adminsRoleOwner
+            : AppText.of(context).adminsRoleAdmin,
         style: TextStyle(color: colour, fontSize: 12),
       ),
     );
@@ -513,6 +516,7 @@ class _PermissionSheetState extends State<_PermissionSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     // Nobody may rewrite somebody who already holds more than they do. Checked
     // here so the sheet says so, and again on the server, which is what
     // actually enforces it.
@@ -531,20 +535,17 @@ class _PermissionSheetState extends State<_PermissionSheet> {
               const SizedBox(height: PrivioSpacing.md),
               if (widget.isOwner)
                 Text(
-                  'The owner holds every permission, and that is not editable — '
-                  'not here and not on the server.',
+                  text.adminsOwnerFixed,
                   style: theme.textTheme.bodySmall,
                 )
               else if (outranksMe)
                 Text(
-                  'They hold permissions you do not, so you cannot change what '
-                  'they may do.',
+                  text.adminsOutranksYou,
                   style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.warning),
                 )
               else
                 Text(
-                  'You can only hand out what you hold yourself. Anything you '
-                  'do not have is off and cannot be switched on.',
+                  text.adminsOnlyWhatYouHold,
                   style: theme.textTheme.bodySmall,
                 ),
               const SizedBox(height: PrivioSpacing.md),
@@ -552,25 +553,24 @@ class _PermissionSheetState extends State<_PermissionSheet> {
               for (final permission in ChannelPermissions.all)
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(permission.label),
+                  title: Text(permissionLabel(text, permission)),
                   subtitle: Text(
-                    widget.actor.has(permission.key)
-                        ? permission.detail
-                        : 'You do not hold this yourself',
+                    widget.actor.has(permission)
+                        ? permissionDetail(text, permission)
+                        : text.adminsYouDoNotHold,
                     style: TextStyle(
-                      color: widget.actor.has(permission.key)
+                      color: widget.actor.has(permission)
                           ? PrivioColors.textTertiary
                           : PrivioColors.warning,
                     ),
                   ),
-                  value: widget.isOwner || _granted.has(permission.key),
-                  onChanged: widget.isOwner ||
-                          outranksMe ||
-                          !widget.actor.has(permission.key)
-                      ? null
-                      : (on) => setState(
-                            () => _granted = _granted.withFlag(permission.key, on: on),
-                          ),
+                  value: widget.isOwner || _granted.has(permission),
+                  onChanged:
+                      widget.isOwner || outranksMe || !widget.actor.has(permission)
+                          ? null
+                          : (on) => setState(
+                                () => _granted = _granted.withFlag(permission, on: on),
+                              ),
                 ),
 
               const SizedBox(height: PrivioSpacing.md),
@@ -581,21 +581,23 @@ class _PermissionSheetState extends State<_PermissionSheet> {
                       onPressed: () => Navigator.of(context).pop(
                         _AdminChange(permissions: _granted, dismiss: true),
                       ),
-                      child: const Text(
-                        'Dismiss as admin',
-                        style: TextStyle(color: PrivioColors.danger),
+                      child: Text(
+                        text.adminsDismiss,
+                        style: const TextStyle(color: PrivioColors.danger),
                       ),
                     ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(text.commonCancel),
                   ),
                   if (!widget.isOwner && !outranksMe)
                     FilledButton(
                       onPressed: () => Navigator.of(context)
                           .pop(_AdminChange(permissions: _granted)),
-                      child: Text(widget.appointing ? 'Appoint' : 'Save'),
+                      child: Text(
+                        widget.appointing ? text.adminsAppoint : text.commonSave,
+                      ),
                     ),
                 ],
               ),

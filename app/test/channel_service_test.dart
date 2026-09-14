@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
@@ -608,12 +609,12 @@ void main() {
         handle: 'privio_news',
       );
       expect(channel.memberCount, 1);
-      expect(channel.memberLabel, '1 member');
 
       final joiner = await _serviceOn(server);
       final joined = await joiner.join(channel);
       expect(joined.memberCount, 2);
-      expect(joined.memberLabel, '2 members');
+      // The count, not a sentence about it: the words are the screen's job now,
+      // and their plural rule differs per language.
       expect(joined.role, 'subscriber');
     });
   });
@@ -965,8 +966,9 @@ void main() {
             (_) => null,
             onError: (Object e) => e,
           );
-      expect((failure! as ChannelKeyPending).awaitingGeneration, isTrue);
-      expect(failure.toString(), contains('after a member left'));
+      var pending = failure! as ChannelKeyPending;
+      expect(pending.awaitingGeneration, isTrue);
+      expect(pending.failure.kind, FailureKind.channelKeyAwaitingGeneration);
 
       // Now it exists, and this device is simply waiting for it to arrive.
       await admin.completeRotation(channel.id);
@@ -974,8 +976,9 @@ void main() {
             (_) => null,
             onError: (Object e) => e,
           );
-      expect((failure! as ChannelKeyPending).awaitingGeneration, isFalse);
-      expect(failure.toString(), contains('reach this device'));
+      pending = failure! as ChannelKeyPending;
+      expect(pending.awaitingGeneration, isFalse);
+      expect(pending.failure.kind, FailureKind.channelKeyPending);
     });
 
     test('an existing channel migrates without losing anything', () async {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/edition.dart';
 import 'package:privio/services/notification_permission.dart';
@@ -100,7 +101,7 @@ void main() {
     expect(await wakeUp.useUnifiedPush(), isFalse);
     expect(seen, isEmpty);
     expect(wakeUp.method, WakeUpMethod.socket);
-    expect(wakeUp.error, contains('distributor'));
+    expect(wakeUp.failure?.kind, FailureKind.noDistributor);
   });
 
   test('an endpoint the server refuses leaves nothing half-registered', () async {
@@ -124,7 +125,7 @@ void main() {
     expect(await wakeUp.useUnifiedPush(), isFalse);
     expect(distributor.unregistered, isTrue);
     expect(wakeUp.method, WakeUpMethod.socket);
-    expect(wakeUp.error, contains('public internet'));
+    expect(wakeUp.failure?.kind, FailureKind.distributorUnreachable);
   });
 
   test('turning it off clears the server first, then the distributor', () async {
@@ -152,7 +153,7 @@ void main() {
     // Start from the unified state without going through the network.
     await wakeUp.useSocketOnly();
 
-    expect(wakeUp.error, contains('has not been saved'));
+    expect(wakeUp.failure?.kind, FailureKind.changeNotSaved);
   });
 
   group('the store builds, which register themselves', () {
@@ -217,8 +218,7 @@ void main() {
 
       expect(seen, hasLength(1), reason: 'a push still wakes the process');
       expect(wakeUp.permission, NotificationPermission.denied);
-      expect(wakeUp.permissionWarning, contains('system settings'));
-      expect(wakeUp.permissionWarning, contains('while Privio is open'));
+      expect(wakeUp.permissionWarning, NotificationWarning.turnedOff);
     });
 
     test('a phone with no push service is told so, and nothing is sent', () async {
@@ -233,8 +233,7 @@ void main() {
 
       expect(seen, isEmpty, reason: 'there is no token to register');
       expect(wakeUp.method, WakeUpMethod.socket);
-      expect(wakeUp.error, contains('Google Play services'));
-      expect(wakeUp.error, contains('while Privio is open'));
+      expect(wakeUp.failure?.kind, FailureKind.noPlayServices);
     });
 
     test('a server that will not take the token leaves the socket working', () async {

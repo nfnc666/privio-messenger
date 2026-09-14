@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/widgets/linked_text.dart';
 
 /// The link runs in what [LinkedText] rendered, in order.
@@ -26,7 +27,13 @@ List<TextSpan> linkSpansIn(WidgetTester tester) {
 }
 
 Future<void> pumpText(WidgetTester tester, String text) => tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: LinkedText(text))),
+      MaterialApp(
+        // The dialog this opens reads its words from the translations, so the
+        // delegates have to be above it — as they are in the app.
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: Scaffold(body: LinkedText(text)),
+      ),
     );
 
 void main() {

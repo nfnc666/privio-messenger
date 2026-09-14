@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 
 /// What "encrypted at rest" is worth in a browser.
 ///
@@ -47,16 +48,8 @@ class WebStorageNotice extends StatelessWidget {
           Expanded(
             child: Text(
               compact
-                  ? 'In a browser, this device’s history is only as private as '
-                      'this browser profile. Messages in transit are encrypted '
-                      'either way.'
-                  : 'You are using Privio in a browser. Messages are still '
-                      'end-to-end encrypted in transit — but a browser has no '
-                      'keystore, so the history kept on this device is only as '
-                      'private as this browser profile. Anyone who can read it '
-                      '— a shared computer, an extension, a copy of the profile '
-                      '— can read your chats. The phone apps do not have this '
-                      'problem.',
+                  ? AppText.of(context).webStorageShort
+                  : AppText.of(context).webStorageLong,
               style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
             ),
           ),

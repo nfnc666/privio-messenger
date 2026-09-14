@@ -10,6 +10,7 @@ import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/models/models.dart';
 import 'package:flutter/services.dart';
@@ -63,7 +64,15 @@ Future<PrivioServices> quietServices() async {
 /// which is a property of this helper and not of the app.
 Widget wrap(Widget child, AppState state) => PrivioScope(
       notifier: state,
-      child: MaterialApp(theme: PrivioTheme.dark(), home: child),
+      child: MaterialApp(
+        theme: PrivioTheme.dark(),
+        // As in `app.dart`: a screen that asks for a translated string needs
+        // the delegates above it, and a helper without them fails on the
+        // lookup rather than on anything the test is about.
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: child,
+      ),
     );
 
 void main() {
@@ -273,12 +282,17 @@ void main() {
     const chat = ChatSummary(
       id: 'g',
       title: 'Project X',
-      preview: 'Bob: Document.pdf',
-      timestamp: '10:45',
+      preview: ChatPreview(ChatPreviewKind.body, text: 'Bob: Document.pdf'),
+      timestamp: ChatStamp.none,
       isGroup: true,
     );
     await tester.pumpWidget(
-      MaterialApp(theme: PrivioTheme.dark(), home: const Scaffold(body: ChatListRow(chat: chat))),
+      MaterialApp(
+        theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
+        home: const Scaffold(body: ChatListRow(chat: chat)),
+      ),
     );
     expect(find.byIcon(Icons.group_rounded), findsOneWidget);
   });

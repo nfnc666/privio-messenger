@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -75,7 +77,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
     if (!mounted) return;
     if (channel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not open that link')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).channelsCouldNotOpenLink,
+          ),
+        ),
       );
       return;
     }
@@ -97,42 +103,48 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final controller = state.channels;
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Channels'),
+            title: Text(text.navChannels),
             actions: [
               IconButton(
                 onPressed: _joinByLink,
                 icon: const Icon(Icons.link_rounded),
-                tooltip: 'Join with a link',
+                tooltip: text.channelsJoinWithLink,
               ),
               IconButton(
                 onPressed: _create,
                 icon: const Icon(Icons.add_rounded),
-                tooltip: 'New channel',
+                tooltip: text.channelsNewChannel,
               ),
               const SizedBox(width: PrivioSpacing.xs),
             ],
             bottom: TabBar(
               controller: _tabs,
-              tabs: const [Tab(text: 'Following'), Tab(text: 'Discover')],
+              tabs: [
+                Tab(text: text.channelsTabFollowing),
+                Tab(text: text.channelsTabDiscover),
+              ],
             ),
           ),
           body: Column(
             children: [
               PrivioSearchField(
                 controller: _search,
-                hintText: _tabs.index == 0 ? 'Search your channels' : 'Search public channels',
+                hintText: _tabs.index == 0
+                    ? text.channelsSearchMine
+                    : text.channelsSearchPublic,
                 onChanged: (value) {
                   setState(() => _query = value);
                   if (_tabs.index == 1) controller.search(query: value);
                 },
               ),
-              if (controller.error != null) _ErrorBanner(message: controller.error!),
+              if (controller.failure != null) _ErrorBanner(message: controller.failure!.words(text)),
               Expanded(
                 child: TabBarView(
                   controller: _tabs,
@@ -142,10 +154,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
                       onRefresh: controller.refresh,
                       onTap: _open,
                       pictureOf: controller.avatarFor,
-                      empty: const _Empty(
+                      empty: _Empty(
                         icon: Icons.campaign_outlined,
-                        title: 'No channels yet',
-                        body: 'Create one, or find a public channel under Discover.',
+                        title: text.channelsEmptyTitle,
+                        body: text.channelsEmptyBody,
                       ),
                     ),
                     _ChannelList(
@@ -153,11 +165,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> with SingleTickerProvid
                       onRefresh: () => controller.search(query: _query),
                       onTap: _open,
                       pictureOf: controller.avatarFor,
-                      empty: const _Empty(
+                      empty: _Empty(
                         icon: Icons.search_rounded,
-                        title: 'Nothing found',
-                        body: 'Search public channels by name, handle or description. '
-                            'Private channels never appear here.',
+                        title: text.channelsNothingFound,
+                        body: text.channelsDiscoverEmptyBody,
                       ),
                     ),
                   ],
@@ -228,9 +239,11 @@ class ChannelListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
+    final members = text.channelMembers(channel.memberCount);
     final subtitle = channel.handle != null
-        ? '@${channel.handle}  ·  ${channel.memberLabel}'
-        : channel.memberLabel;
+        ? text.channelsHandleAndMembers(channel.handle!, members)
+        : members;
 
     return ListTile(
       onTap: onTap,
@@ -296,7 +309,7 @@ class _JoinByLinkDialogState extends State<_JoinByLinkDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Join a channel'),
+      title: Text(AppText.of(context).channelsJoinTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,18 +323,19 @@ class _JoinByLinkDialogState extends State<_JoinByLinkDialog> {
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'Paste a channel link. It shows you the channel; joining is a '
-            'button there. Joining does not hand you the key either — a member '
-            'who has it sends it to your device, encrypted, right after.',
+            AppText.of(context).channelsJoinNote,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppText.of(context).commonCancel),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_link.text),
-          child: const Text('Join'),
+          child: Text(AppText.of(context).chatsJoin),
         ),
       ],
     );

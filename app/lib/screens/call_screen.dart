@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 
 /// The screen a call happens on.
@@ -105,7 +106,7 @@ class _CallScreenState extends State<CallScreen> {
                 ],
                 Text(call.party.username, style: theme.textTheme.headlineSmall),
                 const SizedBox(height: PrivioSpacing.sm),
-                Text(_status(call), style: theme.textTheme.bodyMedium),
+                Text(_status(AppText.of(context), call), style: theme.textTheme.bodyMedium),
                 const SizedBox(height: PrivioSpacing.md),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -120,7 +121,7 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                     const SizedBox(width: PrivioSpacing.xs),
                     Text(
-                      'End-to-end encrypted',
+                      AppText.of(context).chatEncrypted,
                       style: remote == null
                           ? theme.textTheme.labelSmall
                           : theme.textTheme.labelSmall?.copyWith(color: Colors.white70),
@@ -169,12 +170,13 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   /// What is actually true right now, in as many words as that takes.
-  String _status(ActiveCall call) => switch (call.state) {
-        CallState.dialling => 'Calling…',
-        CallState.ringing => call.isVideo ? 'Incoming video call' : 'Incoming call',
-        CallState.connecting => 'Connecting…',
+  String _status(AppText text, ActiveCall call) => switch (call.state) {
+        CallState.dialling => text.callCalling,
+        CallState.ringing =>
+          call.isVideo ? text.callIncomingVideo : text.callIncoming,
+        CallState.connecting => text.callConnecting,
         CallState.connected => _elapsed(call),
-        CallState.ended => _ended(call.ending),
+        CallState.ended => _ended(text, call.ending),
       };
 
   String _elapsed(ActiveCall call) {
@@ -184,12 +186,12 @@ class _CallScreenState extends State<CallScreen> {
     return '$minutes:$seconds';
   }
 
-  String _ended(CallEnding? ending) => switch (ending) {
-        CallEnding.declined => 'Declined',
-        CallEnding.busy => 'Busy',
-        CallEnding.unanswered => 'No answer',
-        CallEnding.failed => 'Could not connect',
-        _ => 'Call ended',
+  String _ended(AppText text, CallEnding? ending) => switch (ending) {
+        CallEnding.declined => text.callsDeclined,
+        CallEnding.busy => text.callsBusy,
+        CallEnding.unanswered => text.callsNoAnswer,
+        CallEnding.failed => text.callsCouldNotConnect,
+        _ => text.callEnded,
       };
 }
 
@@ -206,13 +208,13 @@ class _RingingControls extends StatelessWidget {
       children: [
         _CallButton(
           icon: Icons.call_end_rounded,
-          label: 'Decline',
+          label: AppText.of(context).callDecline,
           colour: PrivioColors.danger,
           onTap: onDecline,
         ),
         _CallButton(
           icon: Icons.call_rounded,
-          label: 'Accept',
+          label: AppText.of(context).callAccept,
           colour: PrivioColors.accent,
           onTap: onAccept,
         ),
@@ -254,26 +256,30 @@ class _InCallControls extends StatelessWidget {
       children: [
         _CallButton(
           icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-          label: muted ? 'Unmute' : 'Mute',
+          label: muted
+              ? AppText.of(context).callUnmute
+              : AppText.of(context).callMute,
           colour: muted ? PrivioColors.accent : PrivioColors.surface,
           onTap: onMute,
         ),
         if (video)
           _CallButton(
             icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-            label: cameraOn ? 'Camera' : 'Camera off',
+            label: cameraOn
+                ? AppText.of(context).callCamera
+                : AppText.of(context).callCameraOff,
             colour: cameraOn ? PrivioColors.surface : PrivioColors.accent,
             onTap: onCamera,
           ),
         _CallButton(
           icon: Icons.call_end_rounded,
-          label: 'End',
+          label: AppText.of(context).callEnd,
           colour: PrivioColors.danger,
           onTap: onHangUp,
         ),
         _CallButton(
           icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-          label: 'Speaker',
+          label: AppText.of(context).callSpeaker,
           colour: speakerOn ? PrivioColors.accent : PrivioColors.surface,
           onTap: onSpeaker,
         ),

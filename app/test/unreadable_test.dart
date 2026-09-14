@@ -42,8 +42,12 @@ void main() {
 
       await controller.drain();
 
-      expect(holes(store, 'account-bob').single.body, contains('could not be read'));
-      expect(holes(store, 'account-bob').single.body, contains('bob'));
+      // Stored as the event, not as a finished sentence: the words are written
+      // when the bubble is drawn, in the language of whoever is looking.
+      final notice = holes(store, 'account-bob').single.notice;
+      expect(notice?.kind, NoticeKind.unreadable);
+      expect(notice?.who, 'bob');
+      expect(notice?.count, 1);
     });
 
     test('a batch from one sender is one line, with the count', () async {
@@ -58,7 +62,7 @@ void main() {
       await controller.drain();
 
       final line = holes(store, 'account-bob').single;
-      expect(line.body, startsWith('3 messages'));
+      expect(line.notice?.count, 3);
     });
 
     test('lands in the group it came through, not in a private chat', () async {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/conversation_controller.dart';
 import 'package:privio/core/privio_services.dart';
@@ -289,8 +290,8 @@ void main() {
         MessageKind.deleted,
       );
       expect(
-        controller.error,
-        contains('did not go out'),
+        controller.failure?.kind,
+        FailureKind.deletedHereOnly,
         reason: 'the user has to know the other side still has it',
       );
     });

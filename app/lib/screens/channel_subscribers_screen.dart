@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
+import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -88,9 +91,10 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
 
   Future<void> _add() async {
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
     final contacts = state.conversations.contacts;
     if (contacts.isEmpty) {
-      _say('No contacts to add yet.');
+      _say(text.subscribersNoContacts);
       return;
     }
     final already = {for (final m in state.channels.membersOf(_channel.id)) m.id};
@@ -117,11 +121,15 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
     final result = await state.channels.addMembers(_channel.id, chosen);
     if (!mounted) return;
     if (result == null) {
-      _say(state.channels.error ?? 'Could not add anybody.');
+      _say(state.channels.failure?.words(text) ?? text.subscribersCouldNotAddAnybody);
       return;
     }
     if (result.invite.isEmpty) {
-      _say(result.added.length == 1 ? 'Added.' : 'Added ${result.added.length} people.');
+      _say(
+        result.added.length == 1
+            ? text.subscribersAddedOne
+            : text.subscribersAddedMany(result.added.length),
+      );
       return;
     }
     // The honest half: their own privacy setting refused, so a link is the only
@@ -130,30 +138,31 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
   }
 
   Future<void> _offerInvite(int added, int needInvite) async {
+    final text = AppText.of(context);
     final link = ChannelService.shareLinkFor(_channel);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text(added == 0 ? 'Nobody could be added' : 'Added $added'),
-        content: Text(
-          '$needInvite ${needInvite == 1 ? 'person has' : 'people have'} set '
-          'their account so only their own contacts can add them to things. '
-          'Send them the link instead and let them decide.',
+        title: Text(
+          added == 0
+              ? text.subscribersNobodyAdded
+              : text.subscribersAddedCount(added),
         ),
+        content: Text(text.subscribersNeedInvite(needInvite)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+            child: Text(text.commonClose),
           ),
           if (link != null)
             FilledButton(
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: link));
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                _say('Link copied.');
+                _say(text.channelLinkCopied);
               },
-              child: const Text('Copy the link'),
+              child: Text(text.subscribersCopyTheLink),
             ),
         ],
       ),
@@ -162,9 +171,10 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
 
   Future<void> _actOn(ChannelMember member) async {
     final channel = _channel;
+    final text = AppText.of(context);
     if (!channel.permissions.canManageMembers) return;
     if (member.isOwner) {
-      _say('The owner cannot be removed.');
+      _say(text.subscribersOwnerCannotBeRemoved);
       return;
     }
 
@@ -193,23 +203,23 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
               leading: Icon(
                 silenced ? Icons.volume_up_rounded : Icons.volume_off_rounded,
               ),
-              title: Text(silenced ? 'Let them speak again' : 'Silence them'),
+              title: Text(
+                silenced ? text.subscribersUnsilence : text.subscribersSilence,
+              ),
               subtitle: Text(
                 silenced
-                    ? 'They can comment again'
-                    : 'They stay subscribed and stop being able to comment',
+                    ? text.subscribersUnsilenceDetail
+                    : text.subscribersSilenceDetail,
               ),
               onTap: () => Navigator.of(sheetContext).pop(silenced ? 'unsilence' : 'silence'),
             ),
             ListTile(
               leading: const Icon(Icons.person_remove_outlined, color: PrivioColors.danger),
-              title: const Text(
-                'Remove from the channel',
-                style: TextStyle(color: PrivioColors.danger),
+              title: Text(
+                text.subscribersRemoveFromChannel,
+                style: const TextStyle(color: PrivioColors.danger),
               ),
-              subtitle: const Text(
-                'The channel moves to a new key, so they cannot read what comes next',
-              ),
+              subtitle: Text(text.subscribersRemoveDetail),
               onTap: () => Navigator.of(sheetContext).pop('remove'),
             ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -226,7 +236,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
     };
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? 'Could not do that.');
+      _say(controller.failure?.words(text) ?? text.subscribersCouldNotDoThat);
       return;
     }
     await controller.loadBans(channel.id);
@@ -246,6 +256,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
       listenable: controller,
       builder: (context, _) {
         final channel = _channel;
+        final text = AppText.of(context);
         final members = controller.membersOf(channel.id);
         final complete = controller.membersAreComplete(channel.id);
         final mayManage = channel.permissions.canManageMembers;
@@ -261,7 +272,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
           appBar: AppBar(
             backgroundColor: PrivioColors.background,
             leading: const PrivioBackButton(),
-            title: const Text('Subscribers'),
+            title: Text(text.subscribersTitle),
             actions: [
               if (mayManage)
                 Padding(
@@ -276,7 +287,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                         vertical: PrivioSpacing.sm,
                       ),
                     ),
-                    child: Text(_editing ? 'Done' : 'Edit'),
+                    child: Text(_editing ? text.commonDone : text.commonEdit),
                   ),
                 ),
             ],
@@ -291,7 +302,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
               children: [
                 PrivioSearchField(
                   controller: _search,
-                  hintText: 'Search subscribers',
+                  hintText: text.subscribersSearch,
                   onChanged: _onQuery,
                 ),
                 if (mayManage) ...[
@@ -305,9 +316,9 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                             Icons.person_add_alt_1_rounded,
                             color: PrivioColors.accent,
                           ),
-                          title: const Text(
-                            'Add subscribers',
-                            style: TextStyle(color: PrivioColors.accent),
+                          title: Text(
+                            text.subscribersAdd,
+                            style: const TextStyle(color: PrivioColors.accent),
                           ),
                           onTap: () => unawaited(_add()),
                         ),
@@ -322,7 +333,7 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                       0,
                     ),
                     child: Text(
-                      'Only channel administrators see this list.',
+                      text.subscribersAdminsOnlyNote,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -337,10 +348,8 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                     ),
                     child: Text(
                       complete
-                          ? 'Everybody in this channel.'
-                          : 'This is not the whole list. Only channel '
-                              'administrators can see who is subscribed — what '
-                              'you see here is the people running it, and you.',
+                          ? text.subscribersCompleteNote
+                          : text.subscribersPartialNote,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -349,18 +358,18 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                   ),
 
                 if (members.isEmpty && !controller.loading)
-                  const Padding(
-                    padding: EdgeInsets.all(PrivioSpacing.xxl),
+                  Padding(
+                    padding: const EdgeInsets.all(PrivioSpacing.xxl),
                     child: Center(
                       child: Text(
-                        'Nobody found.',
-                        style: TextStyle(color: PrivioColors.textTertiary),
+                        text.subscribersNobodyFound,
+                        style: const TextStyle(color: PrivioColors.textTertiary),
                       ),
                     ),
                   ),
 
                 if (contacts.isNotEmpty) ...[
-                  const _SectionLabel(text: 'CONTACTS IN THIS CHANNEL'),
+                  _SectionLabel(text: text.subscribersContactsSection),
                   Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
@@ -383,7 +392,11 @@ class _ChannelSubscribersScreenState extends State<ChannelSubscribersScreen> {
                 ],
 
                 if (others.isNotEmpty) ...[
-                  _SectionLabel(text: contacts.isEmpty ? 'SUBSCRIBERS' : 'OTHER SUBSCRIBERS'),
+                  _SectionLabel(
+                    text: contacts.isEmpty
+                        ? text.subscribersOnlySection
+                        : text.subscribersOthersSection,
+                  ),
                   Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
@@ -463,7 +476,9 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final presence = member.presenceLabel();
+    final words = AppText.of(context);
+    final state = member.presence();
+    final presence = presenceText(words, state);
     return ListTile(
       onTap: onTap,
       leading: PrivioAvatar(label: member.label, size: 40),
@@ -471,13 +486,16 @@ class _MemberRow extends StatelessWidget {
       // Nothing rather than a guess where they do not share it: not knowing is
       // not the same as knowing it was a long time ago.
       subtitle: silenced
-          ? const Text('Silenced', style: TextStyle(color: PrivioColors.warning))
+          ? Text(
+              words.subscribersSilenced,
+              style: const TextStyle(color: PrivioColors.warning),
+            )
           : presence.isEmpty
               ? null
               : Text(
                   presence,
                   style: TextStyle(
-                    color: presence == 'online'
+                    color: state.isOnline
                         ? PrivioColors.accent
                         : PrivioColors.textSecondary,
                   ),
@@ -511,7 +529,12 @@ class _RoleBadge extends StatelessWidget {
         color: colour.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(owner ? 'Owner' : 'Admin', style: TextStyle(color: colour, fontSize: 12)),
+      child: Text(
+        owner
+            ? AppText.of(context).adminsRoleOwner
+            : AppText.of(context).adminsRoleAdmin,
+        style: TextStyle(color: colour, fontSize: 12),
+      ),
     );
   }
 }
@@ -569,7 +592,7 @@ class _PickPeopleSheetState extends State<_PickPeopleSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Add subscribers',
+                      AppText.of(context).subscribersAdd,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
@@ -577,7 +600,7 @@ class _PickPeopleSheetState extends State<_PickPeopleSheet> {
                     onPressed: _chosen.isEmpty
                         ? null
                         : () => Navigator.of(context).pop(_chosen.toList()),
-                    child: Text('Add ${_chosen.length}'),
+                    child: Text(AppText.of(context).subscribersAddCount(_chosen.length)),
                   ),
                 ],
               ),
@@ -587,11 +610,11 @@ class _PickPeopleSheetState extends State<_PickPeopleSheet> {
                 shrinkWrap: true,
                 children: [
                   if (widget.people.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(PrivioSpacing.xl),
+                    Padding(
+                      padding: const EdgeInsets.all(PrivioSpacing.xl),
                       child: Text(
-                        'Everybody in your contacts is already here.',
-                        style: TextStyle(color: PrivioColors.textTertiary),
+                        AppText.of(context).subscribersEverybodyHere,
+                        style: const TextStyle(color: PrivioColors.textTertiary),
                       ),
                     ),
                   for (final person in widget.people)

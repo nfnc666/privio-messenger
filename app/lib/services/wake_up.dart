@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../core/api_client.dart';
 import '../core/edition.dart';
+import '../core/failure.dart';
 import 'notification_permission.dart';
 
 /// How this device expects to be told that something arrived.
@@ -178,6 +179,12 @@ class ChannelVendorPush implements PushDistributor {
 /// `play` and `appstore` have a vendor service the operating system already
 /// runs, so there is nothing for the user to pick and registration happens on
 /// sign-in without asking.
+/// Why notifications would not reach this phone, as a case.
+///
+/// Both halves of it are genuinely different, so the screen says which: Privio
+/// can still receive while it is running, and it cannot tell you about it.
+enum NotificationWarning { turnedOff, notAskedYet }
+
 class WakeUpController extends ChangeNotifier {
   WakeUpController(
     this._api, {
@@ -199,7 +206,7 @@ class WakeUpController extends ChangeNotifier {
   WakeUpMethod _method = WakeUpMethod.socket;
   bool _distributorAvailable = false;
   bool _busy = false;
-  String? _error;
+  Failure? _failure;
   NotificationPermission _permission = NotificationPermission.notRequested;
 
   WakeUpMethod get method => _method;
@@ -209,7 +216,8 @@ class WakeUpController extends ChangeNotifier {
 
   bool get busy => _busy;
 
-  String? get error => _error;
+  /// Why the last change did not take, as a case for the screen to say.
+  Failure? get failure => _failure;
 
   /// What the operating system last said about showing notifications.
   NotificationPermission get permission => _permission;
@@ -230,13 +238,9 @@ class WakeUpController extends ChangeNotifier {
   /// halves of it are genuinely different: Privio can still *receive* while it
   /// is running, and it cannot *tell you* about it at all. The way back is the
   /// system settings — neither platform shows its prompt twice.
-  String? get permissionWarning => switch (_permission) {
-        NotificationPermission.denied =>
-          'Notifications are turned off for Privio in your system settings. '
-              'Messages still arrive while Privio is open — you will not be '
-              'told about them, and a call will not ring.',
-        NotificationPermission.notRequested when isVendorPush =>
-          'Privio has not been allowed to notify you yet.',
+  NotificationWarning? get permissionWarning => switch (_permission) {
+        NotificationPermission.denied => NotificationWarning.turnedOff,
+        NotificationPermission.notRequested when isVendorPush => NotificationWarning.notAskedYet,
         _ => null,
       };
 
@@ -280,7 +284,7 @@ class WakeUpController extends ChangeNotifier {
     // what the user asked for.
     final token = await _distributor.register();
     if (token == null) {
-      _error = _unavailableMessage;
+      _failure = _unavailable;
       notifyListeners();
       return;
     }
@@ -288,7 +292,7 @@ class WakeUpController extends ChangeNotifier {
     try {
       await _api.registerPushToken(provider: provider, token: token);
       _method = provider == 'fcm' ? WakeUpMethod.fcm : WakeUpMethod.apns;
-      _error = null;
+      _failure = null;
     } on Object {
       // Left on the socket. The next sign-in tries again, and a token that was
       // never registered is one the server will not post to — which is right,
@@ -312,7 +316,7 @@ class WakeUpController extends ChangeNotifier {
         'apns' => WakeUpMethod.apns,
         _ => WakeUpMethod.unifiedPush,
       };
-      _error = null;
+      _failure = null;
       notifyListeners();
       return true;
     } on Object {
@@ -344,7 +348,7 @@ class WakeUpController extends ChangeNotifier {
       // Same.
     }
     _method = WakeUpMethod.socket;
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -356,29 +360,27 @@ class WakeUpController extends ChangeNotifier {
   /// there rather than here.
   Future<bool> useUnifiedPush() async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
 
     try {
       final endpoint = await _distributor.register();
       if (endpoint == null) {
-        _error = 'No UnifiedPush distributor answered. Install one — ntfy, for '
-            'example — and try again.';
+        _failure = const Failure(FailureKind.noDistributor);
         return false;
       }
       await _api.registerPushToken(provider: 'unifiedpush', token: endpoint);
       _method = WakeUpMethod.unifiedPush;
       return true;
     } on ApiException catch (failure) {
-      _error = failure.code == 'invalid_push_config'
-          ? 'Privio cannot reach that distributor. It has to be an https address '
-              'on the public internet.'
-          : failure.message;
+      _failure = failure.code == 'invalid_push_config'
+          ? const Failure(FailureKind.distributorUnreachable)
+          : Failure.server(failure.message);
       // The server did not take it, so nothing should think it did.
       await _distributor.unregister();
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection and try again.';
+      _failure = const Failure(FailureKind.unreachableTryAgain);
       return false;
     } finally {
       _busy = false;
@@ -392,7 +394,7 @@ class WakeUpController extends ChangeNotifier {
   /// left the endpoint registered would have the relay posting into the void.
   Future<void> useSocketOnly() async {
     _busy = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
 
     try {
@@ -400,18 +402,16 @@ class WakeUpController extends ChangeNotifier {
       await _distributor.unregister();
       _method = WakeUpMethod.socket;
     } on Object {
-      _error = 'Could not reach Privio. The change has not been saved.';
+      _failure = const Failure(FailureKind.changeNotSaved);
     } finally {
       _busy = false;
       notifyListeners();
     }
   }
 
-  String get _unavailableMessage => switch (provider) {
-        'fcm' => 'This phone has no Google Play services, so Privio cannot be '
-            'woken while it is closed. Messages arrive while Privio is open.',
-        'apns' => 'iOS did not issue a push token for Privio, so it cannot be '
-            'woken while it is closed. Messages arrive while Privio is open.',
-        _ => 'No push service answered. Messages arrive while Privio is open.',
+  Failure get _unavailable => switch (provider) {
+        'fcm' => const Failure(FailureKind.noPlayServices),
+        'apns' => const Failure(FailureKind.noApnsToken),
+        _ => const Failure(FailureKind.noPushService),
       };
 }

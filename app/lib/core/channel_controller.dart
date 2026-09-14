@@ -5,11 +5,13 @@ import 'package:flutter/foundation.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import 'api_client.dart';
+import 'failure.dart';
 import 'privio_services.dart';
 
 /// Drives the channel screens.
 ///
-/// Holds the lists the UI shows and turns server error codes into sentences.
+/// Holds the lists the UI shows and turns server error codes into cases the
+/// screen can say in any of the languages Privio speaks.
 /// Keys never leave [ChannelService]; this class only knows whether a channel
 /// has one, which is all the UI needs to decide between a feed and a padlock.
 class ChannelController extends ChangeNotifier {
@@ -54,14 +56,17 @@ class ChannelController extends ChangeNotifier {
   static const int _memberPage = 60;
 
   bool _loading = false;
-  String? _error;
+  Failure? _failure;
 
   List<ChannelInfo> get mine => _mine;
   List<ChannelInfo> get discovered => _discovered;
   bool get loading => _loading;
 
   /// The last failure worth showing, cleared by the next call that works.
-  String? get error => _error;
+  ///
+  /// A case, not a sentence: the words are chosen by the screen, in the
+  /// language of whoever is signed in.
+  Failure? get failure => _failure;
 
   List<ChannelPost> postsIn(String channelId) => _posts[channelId] ?? const [];
 
@@ -82,8 +87,8 @@ class ChannelController extends ChangeNotifier {
   }
 
   void clearError() {
-    if (_error == null) return;
-    _error = null;
+    if (_failure == null) return;
+    _failure = null;
     notifyListeners();
   }
 
@@ -383,9 +388,9 @@ class ChannelController extends ChangeNotifier {
     try {
       return await _channels.openAttachment(channelId, post);
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
     } on Object {
-      _error = 'Could not open that file.';
+      _failure = const Failure(FailureKind.couldNotOpenFile);
     }
     notifyListeners();
     return null;
@@ -422,7 +427,7 @@ class ChannelController extends ChangeNotifier {
   Future<ChannelInfo?> openInvite(String link) async {
     final target = ChannelService.parseLink(link);
     if (target == null) {
-      _error = 'That does not look like a Privio channel link.';
+      _failure = const Failure(FailureKind.notAChannelLink);
       notifyListeners();
       return null;
     }
@@ -672,15 +677,15 @@ class ChannelController extends ChangeNotifier {
           else
             post,
       ];
-      _error = null;
+      _failure = null;
       notifyListeners();
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       notifyListeners();
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection.';
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -892,15 +897,15 @@ class ChannelController extends ChangeNotifier {
         for (final post in postsIn(channelId))
           if (post.id == postId) post.withReactions(counts, mine) else post,
       ];
-      _error = null;
+      _failure = null;
       notifyListeners();
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       notifyListeners();
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection.';
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -1009,28 +1014,28 @@ class ChannelController extends ChangeNotifier {
 
   Future<bool> _run(Future<void> Function() action) async {
     _loading = true;
-    _error = null;
+    _failure = null;
     notifyListeners();
     try {
       await action();
       return true;
     } on ApiException catch (failure) {
-      _error = _explain(failure);
+      _failure = _explain(failure);
       return false;
-    } on StateError catch (failure) {
-      _error = failure.message;
+    } on StateError {
+      _failure = const Failure(FailureKind.unexpected);
       return false;
-    } on ChannelAvatarRejected catch (failure) {
+    } on ChannelAvatarRejected catch (rejected) {
       // Somebody picked a PDF. That is not a connection problem, and saying it
       // is one sends them to check their wifi over a file they can simply
       // choose again.
-      _error = failure.message;
+      _failure = rejected.failure;
       return false;
-    } on ChannelKeyPending catch (failure) {
-      _error = failure.message;
+    } on ChannelKeyPending catch (pending) {
+      _failure = pending.failure;
       return false;
     } on Object {
-      _error = 'Could not reach Privio. Check your connection.';
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _loading = false;
@@ -1040,18 +1045,19 @@ class ChannelController extends ChangeNotifier {
 
   /// The permission failures deserve plain wording: they are the rules working,
   /// and a user who hits one should learn what the rule is.
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'handle_taken' => 'That handle is already in use.',
-        'channel_not_found' => 'That channel does not exist, or the link is wrong.',
-        'not_a_member' => 'You are not in this channel.',
-        'insufficient_permission' => 'You do not have permission to do that.',
-        'cannot_change_own_role' => 'You cannot change your own role.',
-        'owner_is_fixed' => 'The channel owner cannot be changed or removed.',
-        'target_outranks_you' => 'That member holds permissions you do not.',
-        'cannot_grant_what_you_lack' => 'You cannot grant a permission you do not hold yourself.',
-        'owner_cannot_leave' => 'Hand the channel over or delete it instead.',
-        'invalid_request' => failure.message,
-        'rate_limited' => 'Too many requests. Wait a moment.',
-        _ => failure.message,
+  /// The server's code as a case this app can say in five languages. Codes it
+  /// does not know fall back to the server's own wording, which is English.
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'handle_taken' => const Failure(FailureKind.handleTaken),
+        'channel_not_found' => const Failure(FailureKind.channelNotFound),
+        'not_a_member' => const Failure(FailureKind.notAMember),
+        'insufficient_permission' => const Failure(FailureKind.insufficientPermission),
+        'cannot_change_own_role' => const Failure(FailureKind.cannotChangeOwnRole),
+        'owner_is_fixed' => const Failure(FailureKind.ownerIsFixed),
+        'target_outranks_you' => const Failure(FailureKind.targetOutranksYou),
+        'cannot_grant_what_you_lack' => const Failure(FailureKind.cannotGrantWhatYouLack),
+        'owner_cannot_leave' => const Failure(FailureKind.ownerCannotLeave),
+        'rate_limited' => const Failure(FailureKind.rateLimited),
+        _ => Failure.server(failure.message),
       };
 }

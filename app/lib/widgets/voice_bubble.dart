@@ -7,6 +7,7 @@ import '../core/app_state.dart';
 import '../media/voice_player.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 import 'waveform.dart';
 
 /// A voice message in the conversation.
@@ -35,7 +36,12 @@ class _VoiceBubbleState extends State<VoiceBubble> {
   double _progress = 0;
   bool _playing = false;
   bool _loading = false;
-  String? _error;
+  /// What went wrong, not the sentence about it.
+  ///
+  /// A stored sentence would still be in the old language after somebody
+  /// switched with the error on screen — which is exactly the kind of thing
+  /// nobody thinks to check and everybody notices.
+  _VoiceError? _error;
 
   @override
   void dispose() {
@@ -84,7 +90,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
     if (bytes == null) {
       setState(() {
         _loading = false;
-        _error = 'Could not open this recording.';
+        _error = _VoiceError.couldNotOpen;
       });
       return;
     }
@@ -97,7 +103,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'This device cannot play that recording.';
+          _error = _VoiceError.cannotPlay;
         });
       }
     }
@@ -146,7 +152,9 @@ class _VoiceBubbleState extends State<VoiceBubble> {
                         size: 18,
                         color: PrivioColors.background,
                       ),
-                      tooltip: _playing ? 'Pause' : 'Play',
+                      tooltip: _playing
+                          ? AppText.of(context).commonPause
+                          : AppText.of(context).commonPlay,
                     ),
             ),
             const SizedBox(width: PrivioSpacing.sm),
@@ -175,7 +183,10 @@ class _VoiceBubbleState extends State<VoiceBubble> {
           Padding(
             padding: const EdgeInsets.only(top: PrivioSpacing.xs),
             child: Text(
-              _error!,
+              switch (_error!) {
+                _VoiceError.couldNotOpen => AppText.of(context).voiceCouldNotOpen,
+                _VoiceError.cannotPlay => AppText.of(context).voiceCannotPlay,
+              },
               style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
             ),
           ),
@@ -214,3 +225,7 @@ class _SpeedChip extends StatelessWidget {
     );
   }
 }
+
+/// Why a recording would not play. Two cases, and neither is a sentence until
+/// the bubble draws it.
+enum _VoiceError { couldNotOpen, cannotPlay }

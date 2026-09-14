@@ -37,6 +37,18 @@ abstract interface class SecureStore {
   Future<double?> readTextScale();
   Future<void> writeTextScale(double scale);
 
+  /// Which language an account reads the interface in.
+  ///
+  /// Keyed by account rather than by device: two people sharing a phone do not
+  /// share a language, and signing in to a second account must not inherit the
+  /// first one's choice. Absent means English, which is what a new account gets.
+  Future<String?> readLanguage(String accountId);
+  Future<void> writeLanguage(String accountId, String code);
+
+  /// There is no `clearLanguage`: every path that ends an account's use of this
+  /// device — sign-out, deletion, the duress wipe — calls [wipe], which takes
+  /// the language with everything else.
+
   /// Which calculator skin the disguise wears, or null when it is off.
   ///
   /// Stored beside the passcode rather than in a settings file, because it is
@@ -271,6 +283,15 @@ class KeystoreSecureStore implements SecureStore {
   @override
   Future<void> writeTextScale(double scale) => _write(_textScaleKey, '$scale');
 
+  static String _languageKey(String accountId) => 'privio.language.$accountId';
+
+  @override
+  Future<String?> readLanguage(String accountId) => _read(_languageKey(accountId));
+
+  @override
+  Future<void> writeLanguage(String accountId, String code) =>
+      _write(_languageKey(accountId), code);
+
   @override
   Future<String?> readDisguise() => _read(_disguiseKey);
 
@@ -469,6 +490,13 @@ class InMemorySecureStore implements SecureStore {
 
   @override
   Future<void> writeTextScale(double scale) async => _entries['textScale'] = '$scale';
+
+  @override
+  Future<String?> readLanguage(String accountId) async => _entries['language.$accountId'];
+
+  @override
+  Future<void> writeLanguage(String accountId, String code) async =>
+      _entries['language.$accountId'] = code;
 
   @override
   Future<String?> readDisguise() async => _entries['disguise'];

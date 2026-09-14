@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../core/passcode.dart';
 import '../theme/privio_colors.dart';
 
@@ -70,6 +71,7 @@ class _PinScreenState extends State<PinScreen> {
     // it is what every lock was before the shapes existed.
     final kind = PrivioScope.of(context).passcodeKind ?? PasscodeKind.digits4;
     final length = kind.length;
+    final text = AppText.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -77,7 +79,7 @@ class _PinScreenState extends State<PinScreen> {
           children: [
             const Spacer(flex: 2),
             Text(
-              length == null ? 'Enter your passphrase' : 'Enter your passcode',
+              length == null ? text.pinEnterPassphrase : text.pinEnterPasscode,
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: PrivioSpacing.xxl),
@@ -93,8 +95,8 @@ class _PinScreenState extends State<PinScreen> {
                   },
                   onSubmitted: _submit,
                   decoration: InputDecoration(
-                    hintText: 'Passphrase',
-                    errorText: _error ? 'That is not it.' : null,
+                    hintText: text.pinPassphrase,
+                    errorText: _error ? text.pinWrong : null,
                   ),
                 ),
               )
@@ -128,7 +130,7 @@ class _PinScreenState extends State<PinScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
                 child: FilledButton(
                   onPressed: () => _submit(_phrase.text),
-                  child: const Text('Unlock'),
+                  child: Text(text.pinUnlock),
                 ),
               )
             else

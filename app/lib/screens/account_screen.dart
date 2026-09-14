@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
@@ -28,13 +30,14 @@ class _AccountScreenState extends State<AccountScreen> {
   /// The server ends up holding an image it cannot open — which is the whole
   /// point of doing this rather than posting a JPEG.
   Future<void> _pickAvatar() async {
+    final text = AppText.of(context);
     PlatformFile? picked;
     try {
       picked = await FilePicker.pickFile(
         type: FileType.image,
       ).timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
-      if (mounted) _showMessage('Could not open the picker: $failure');
+      if (mounted) _showMessage(text.accountPickerFailed('$failure'));
       return;
     }
     if (picked == null || !mounted) return;
@@ -46,7 +49,7 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       bytes = await picked.readAsBytes();
     } on Object catch (failure) {
-      if (mounted) _showMessage('Could not read ${picked.name}: $failure');
+      if (mounted) _showMessage(text.accountCouldNotReadFile(picked.name, '$failure'));
       return;
     }
     if (!mounted) return;
@@ -56,7 +59,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final ok = await controller.setOwnAvatar(bytes);
     if (!mounted) return;
     setState(() => _uploading = false);
-    if (!ok) _showMessage(controller.error ?? 'Could not set the picture');
+    if (!ok) _showMessage(controller.failure?.words(text) ?? text.accountCouldNotSetPicture);
   }
 
   Future<void> _removeAvatar() async {
@@ -71,20 +74,21 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final username = PrivioScope.of(context).username ?? 'privio_user';
     final accountId = PrivioScope.of(context).accountId;
     final ownAvatar = PrivioScope.of(context).conversations.ownAvatar;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account'),
+        title: Text(text.navAccount),
         actions: [
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             ),
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
+            tooltip: text.settingsTitle,
           ),
           const SizedBox(width: PrivioSpacing.xs),
         ],
@@ -140,8 +144,8 @@ class _AccountScreenState extends State<AccountScreen> {
                 const SizedBox(height: PrivioSpacing.xs),
                 Text(
                   ownAvatar == null
-                      ? 'Tap to add a picture'
-                      : 'Encrypted — only your contacts can see it',
+                      ? text.accountTapToAddPicture
+                      : text.accountPictureEncrypted,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: ownAvatar == null
                         ? PrivioColors.textTertiary
@@ -154,15 +158,19 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: PrivioSpacing.xxl),
           SettingsSection(
             children: [
-              SettingsRow(icon: Icons.alternate_email_rounded, label: 'Username', value: username),
-              const SettingsRow(
+              SettingsRow(
+                icon: Icons.alternate_email_rounded,
+                label: text.accountUsername,
+                value: username,
+              ),
+              SettingsRow(
                 icon: Icons.mood_rounded,
-                label: 'Status',
-                value: 'Hey there! I am using Privio.',
+                label: text.accountStatus,
+                value: text.accountStatusDefault,
               ),
               SettingsRow(
                 icon: Icons.fingerprint_rounded,
-                label: 'Account ID',
+                label: text.accountId,
                 value: accountId == null ? '—' : '${accountId.substring(0, 8)}…',
               ),
             ],
@@ -176,14 +184,14 @@ class _AccountScreenState extends State<AccountScreen> {
               // and this one sat on a screen about trust.
               SettingsRow(
                 icon: Icons.backup_outlined,
-                label: 'Backup',
+                label: text.settingsBackup,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const BackupScreen()),
                 ),
               ),
               SettingsRow(
                 icon: Icons.qr_code_rounded,
-                label: 'Invite link / QR code',
+                label: text.accountInviteRow,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const InviteScreen()),
                 ),
@@ -194,7 +202,7 @@ class _AccountScreenState extends State<AccountScreen> {
           SettingsSection(
             children: [
               SettingsRow(
-                label: 'Log Out',
+                label: text.accountLogOut,
                 destructive: true,
                 onTap: () => _confirmSignOut(context),
               ),
@@ -202,7 +210,7 @@ class _AccountScreenState extends State<AccountScreen> {
               // and nothing in the app could ask for it. An account you cannot
               // end is not an account you own.
               SettingsRow(
-                label: 'Delete account',
+                label: text.accountDelete,
                 destructive: true,
                 onTap: () => unawaited(_confirmDelete(context)),
               ),
@@ -218,44 +226,36 @@ class _AccountScreenState extends State<AccountScreen> {
   Future<void> _confirmDelete(BuildContext context) async {
     final state = PrivioScope.of(context);
     final password = TextEditingController();
+    final text = AppText.of(context);
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Delete this account?'),
+        title: Text(text.accountDeleteTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Your devices, your keys, the messages still waiting to be '
-              'delivered, your contacts, your group memberships and your '
-              'backup are all deleted on the server. Everything on this phone '
-              'goes with them.\n\n'
-              'It cannot reach what other people have already received, and '
-              'your username becomes free for somebody else to take.\n\n'
-              'There is no undo and no recovery — not with the recovery key, '
-              'not by writing to anybody.',
-            ),
+            Text(text.accountDeleteBody),
             const SizedBox(height: PrivioSpacing.lg),
             TextField(
               controller: password,
               obscureText: true,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Your password'),
+              decoration: InputDecoration(labelText: text.accountYourPassword),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete it'),
+            child: Text(text.accountDeleteIt),
           ),
         ],
       ),
@@ -264,7 +264,9 @@ class _AccountScreenState extends State<AccountScreen> {
 
     final failure = await state.deleteAccount(password.text);
     if (failure == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failure)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(failure.words(AppText.of(context)))),
+    );
   }
 
   void _confirmSignOut(BuildContext context) {
@@ -272,15 +274,12 @@ class _AccountScreenState extends State<AccountScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Log out?'),
-        content: const Text(
-          'Your messages stay encrypted on this device until you delete them. '
-          'You will need your password to sign back in.',
-        ),
+        title: Text(AppText.of(dialogContext).accountLogOutQuestion),
+        content: Text(AppText.of(dialogContext).accountLogOutBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(AppText.of(dialogContext).commonCancel),
           ),
           TextButton(
             onPressed: () {
@@ -288,7 +287,7 @@ class _AccountScreenState extends State<AccountScreen> {
               PrivioScope.of(context).signOut();
             },
             style: TextButton.styleFrom(foregroundColor: PrivioColors.danger),
-            child: const Text('Log out'),
+            child: Text(AppText.of(dialogContext).accountLogOut),
           ),
         ],
       ),

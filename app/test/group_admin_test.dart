@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/conversation_controller.dart';
 import 'package:privio/core/privio_services.dart';
@@ -149,7 +150,7 @@ void main() {
 
     expect(await controller.leaveGroup('g1'), isFalse);
     expect(store.conversationWith('g1'), isNotNull);
-    expect(controller.error, isNotNull);
+    expect(controller.failure, isNotNull);
   });
 
   test('removing somebody else is the same call, aimed elsewhere', () async {
@@ -173,7 +174,11 @@ void main() {
     final controller = ConversationController(services)..accountId = 'me';
 
     expect(await controller.removeFromGroup('g1', 'them'), isFalse);
-    expect(controller.error, contains('Admins only'));
+    expect(
+      controller.failure?.detail,
+      contains('Admins only'),
+      reason: 'the server said why, and its wording is passed through',
+    );
     expect(store.conversationWith('g1'), isNotNull);
   });
 
@@ -203,7 +208,7 @@ void main() {
 
     expect(await controller.renameGroup('g2', 'Gipfeltour'), isFalse);
     expect(server.patches, isEmpty);
-    expect(controller.error, contains('group key'));
+    expect(controller.failure?.kind, FailureKind.groupKeyMissing);
   });
 
   group('the group key', () {

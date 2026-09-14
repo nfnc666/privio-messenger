@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../media/avatar.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
@@ -26,6 +28,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   final TextEditingController _handle = TextEditingController();
   final TextEditingController _description = TextEditingController();
 
+  /// What is *stored* on the channel, unchanged. These are values the server
+  /// keeps and other clients read, so they stay as they are; only the word on
+  /// the chip is translated, by [_categoryLabel].
   static const List<String> _categories = [
     'News',
     'Technology',
@@ -33,6 +38,15 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     'Education',
     'Culture',
   ];
+
+  static String _categoryLabel(AppText text, String category) => switch (category) {
+        'News' => text.categoryNews,
+        'Technology' => text.categoryTechnology,
+        'Community' => text.categoryCommunity,
+        'Education' => text.categoryEducation,
+        'Culture' => text.categoryCulture,
+        _ => category,
+      };
 
   ChannelVisibility _visibility = ChannelVisibility.private;
   String? _category;
@@ -68,7 +82,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
         type: FileType.image,
       ).timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
-      if (mounted) _say('Could not open the picker: $failure');
+      if (mounted) _say(AppText.of(context).accountPickerFailed('$failure'));
       return;
     }
     if (picked == null || !mounted) return;
@@ -77,7 +91,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     try {
       bytes = await picked.readAsBytes();
     } on Object catch (failure) {
-      if (mounted) _say('Could not read ${picked.name}: $failure');
+      if (mounted) {
+        _say(AppText.of(context).accountCouldNotReadFile(picked.name, '$failure'));
+      }
       return;
     }
     if (!mounted) return;
@@ -86,8 +102,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     // refused while the person is still looking at the picker they chose it
     // from — not a minute later, after a channel has already been created.
     final prepared = await AvatarImage.prepare(bytes);
+    if (!mounted) return;
     if (prepared == null) {
-      _say('Privio could not read ${picked.name}. Try a different picture.');
+      _say(AppText.of(context).newChannelPictureUnreadable(picked.name));
       return;
     }
     setState(() => _picture = prepared);
@@ -112,7 +129,11 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     if (created == null) {
       setState(() => _creating = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not create the channel')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).newChannelCouldNotCreate,
+          ),
+        ),
       );
       return;
     }
@@ -125,7 +146,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
     if (picture != null) {
       final ok = await controller.setAvatar(created, picture);
       if (!mounted) return;
-      if (!ok) _say(controller.error ?? 'The channel was created without the picture.');
+      if (!ok) {
+        _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).newChannelWithoutPicture);
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pop(created);
@@ -134,12 +157,13 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final isPublic = _visibility == ChannelVisibility.public;
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('New channel'),
+        title: Text(text.channelsNewChannel),
         actions: [
           TextButton(
             onPressed: _ready && !_creating ? _create : null,
@@ -149,7 +173,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Create'),
+                : Text(text.newChannelCreate),
           ),
           const SizedBox(width: PrivioSpacing.xs),
         ],
@@ -171,7 +195,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
                   controller: _title,
                   onChanged: (_) => setState(() {}),
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Channel name'),
+                  decoration: InputDecoration(labelText: text.editChannelName),
                 ),
               ),
             ],
@@ -179,9 +203,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
           if (_picture != null && isPublic) ...[
             const SizedBox(height: PrivioSpacing.sm),
             Text(
-              'A public channel\'s picture is shown on its web page and in link '
-              'previews, so it is stored unencrypted — the same as its name, '
-              'handle and description.',
+              text.newChannelPublicPictureNote,
               style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
             ),
           ],
@@ -197,10 +219,10 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             TextField(
               controller: _handle,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Handle',
+              decoration: InputDecoration(
+                labelText: text.newChannelHandle,
                 prefixText: '@',
-                helperText: '3-32 characters: a-z, 0-9, underscore or dot',
+                helperText: text.newChannelHandleRule,
               ),
             ),
             const SizedBox(height: PrivioSpacing.lg),
@@ -208,10 +230,10 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
               controller: _description,
               maxLines: 3,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Description'),
+              decoration: InputDecoration(labelText: text.channelDescription),
             ),
             const SizedBox(height: PrivioSpacing.lg),
-            Text('Category', style: theme.textTheme.labelLarge),
+            Text(text.newChannelCategory, style: theme.textTheme.labelLarge),
             const SizedBox(height: PrivioSpacing.sm),
             Wrap(
               spacing: PrivioSpacing.sm,
@@ -219,7 +241,7 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
               children: [
                 for (final category in _categories)
                   ChoiceChip(
-                    label: Text(category),
+                    label: Text(_categoryLabel(text, category)),
                     selected: _category == category,
                     onSelected: (selected) =>
                         setState(() => _category = selected ? category : null),
@@ -234,10 +256,9 @@ class _NewChannelScreenState extends State<NewChannelScreen> {
             onChanged: (value) => setState(() => _restrictSaving = value),
             contentPadding: EdgeInsets.zero,
             activeThumbColor: PrivioColors.accent,
-            title: const Text('Restrict saving'),
+            title: Text(text.newChannelRestrictSaving),
             subtitle: Text(
-              'Asks readers’ apps not to save or forward posts. A request, not '
-              'a guarantee — anyone who can read a post can photograph it.',
+              text.newChannelRestrictNote,
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -266,18 +287,16 @@ class _VisibilityCard extends StatelessWidget {
             selected: visibility == ChannelVisibility.private,
             onTap: () => onChanged(ChannelVisibility.private),
             icon: Icons.lock_rounded,
-            title: 'Private',
-            body: 'Reachable only with an invite link. The name is uploaded '
-                'encrypted, so the server stores a channel it cannot name.',
+            title: AppText.of(context).channelPrivate,
+            body: AppText.of(context).newChannelPrivateBody,
           ),
           const Divider(height: 1, color: PrivioColors.border),
           _Option(
             selected: visibility == ChannelVisibility.public,
             onTap: () => onChanged(ChannelVisibility.public),
             icon: Icons.public_rounded,
-            title: 'Public',
-            body: 'Listed and searchable. The name, handle and description are '
-                'public by definition; the posts stay end-to-end encrypted.',
+            title: AppText.of(context).channelPublic,
+            body: AppText.of(context).newChannelPublicBody,
           ),
         ],
       ),

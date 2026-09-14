@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/failure.dart';
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import 'backup_screen.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -78,7 +81,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     // The server asks for a second factor only once it knows the password was
     // right, so the field appears at exactly that point.
-    if (state.authError == 'Enter your two-factor code.') {
+    if (state.authFailure?.kind == FailureKind.totpRequired) {
       setState(() => _needsTotp = true);
     }
   }
@@ -87,6 +90,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(leading: const PrivioBackButton()),
@@ -102,16 +106,13 @@ class _AuthScreenState extends State<AuthScreen> {
                 const Center(child: PrivioMark(size: 56)),
                 const SizedBox(height: PrivioSpacing.xl),
                 Text(
-                  _isSignUp ? 'Create your account' : 'Welcome back',
+                  _isSignUp ? text.authCreateTitle : text.authWelcomeBack,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge,
                 ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Text(
-                  _isSignUp
-                      ? 'Pick a username. No phone number, no email — nothing to '
-                          'link this account to anything else.'
-                      : 'Sign in with your username and password.',
+                  _isSignUp ? text.authCreateNote : text.authSignInNote,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall,
                 ),
@@ -121,11 +122,14 @@ class _AuthScreenState extends State<AuthScreen> {
                   autocorrect: false,
                   enableSuggestions: false,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(hintText: 'username', prefixText: '@ '),
+                  decoration: InputDecoration(
+                    hintText: text.contactsUsernameHint,
+                    prefixText: '@ ',
+                  ),
                   validator: (value) {
                     final username = (value ?? '').trim().toLowerCase();
                     if (!RegExp(r'^[a-z0-9_.]{3,32}$').hasMatch(username)) {
-                      return '3–32 characters: a–z, 0–9, dot or underscore';
+                      return text.authUsernameRule;
                     }
                     return null;
                   },
@@ -153,9 +157,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     // Only enforced on sign-up: an existing shorter password
                     // must still be able to get in and change itself.
                     if (_isSignUp && (value ?? '').length < 10) {
-                      return 'At least 10 characters — this one protects everything';
+                      return text.authPasswordRule;
                     }
-                    if ((value ?? '').isEmpty) return 'Enter your password';
+                    if ((value ?? '').isEmpty) return text.authPasswordRequired;
                     return null;
                   },
                 ),
@@ -164,10 +168,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   TextFormField(
                     controller: _totp,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(hintText: 'two-factor code'),
+                    decoration: InputDecoration(hintText: text.authTotpHint),
                   ),
                 ],
-                if (state.authError != null) ...[
+                if (state.authFailure != null) ...[
                   const SizedBox(height: PrivioSpacing.lg),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,7 +180,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(width: PrivioSpacing.sm),
                       Expanded(
                         child: Text(
-                          state.authError!,
+                          state.authFailure!.words(text),
                           style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                         ),
                       ),
@@ -195,7 +199,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             color: PrivioColors.background,
                           ),
                         )
-                      : Text(_isSignUp ? 'Create account' : 'Sign in'),
+                      : Text(_isSignUp ? text.authCreateAccount : text.authSignIn),
                 ),
                 const SizedBox(height: PrivioSpacing.sm),
                 TextButton(
@@ -206,15 +210,13 @@ class _AuthScreenState extends State<AuthScreen> {
                             _needsTotp = false;
                           }),
                   child: Text(
-                    _isSignUp ? 'I already have an account' : 'Create a new account',
+                    _isSignUp ? text.welcomeHaveAccount : text.authCreateNew,
                   ),
                 ),
                 if (_isSignUp) ...[
                   const SizedBox(height: PrivioSpacing.lg),
                   Text(
-                    'Your password is the only way into this account. Privio '
-                    'cannot reset it, because Privio cannot read anything it '
-                    'would unlock.',
+                    text.authPasswordOnlyWay,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall,
                   ),

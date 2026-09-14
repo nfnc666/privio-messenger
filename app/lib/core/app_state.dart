@@ -9,12 +9,14 @@ import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
+import 'failure.dart';
 import 'license_controller.dart';
 import '../services/push_wake.dart';
 import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
+import 'locale_controller.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
@@ -100,6 +102,16 @@ class AppState extends ChangeNotifier {
   /// outlive whatever is on screen when it does.
   final DeepLinkController deepLinks;
 
+  /// Which language the interface is in.
+  ///
+  /// Its own notifier rather than a field here, because the `MaterialApp` has
+  /// to rebuild on a change and nothing else does: a language change is not a
+  /// reason to rebuild every listener of [AppState].
+  ///
+  /// Loaded per account in [_onSignedIn] and reset by the sign-out and wipe
+  /// paths, which is the same rule as the rest of the per-account state.
+  late final LocaleController locale = LocaleController(_store);
+
   AppStage _stage = AppStage.splash;
   String? _username;
   String? _accountId;
@@ -112,7 +124,7 @@ class AppState extends ChangeNotifier {
   String? _disguiseError;
   double _textScale = 1;
   bool _busy = false;
-  String? _authError;
+  Failure? _authFailure;
 
   /// Which tab of the shell is showing.
   ///
@@ -167,17 +179,22 @@ class AppState extends ChangeNotifier {
   double get textScale => _textScale;
 
   /// The sizes offered, as multipliers of the design.
+  ///
+  /// Keyed by an id rather than by the word on the row: the word is different
+  /// in each of the app's five languages, and a map keyed by "Large" would have
+  /// stopped matching the moment somebody switched.
   static const Map<String, double> textScales = {
-    'Small': 0.9,
-    'Medium': 1,
-    'Large': 1.15,
-    'Larger': 1.3,
+    'small': 0.9,
+    'medium': 1,
+    'large': 1.15,
+    'larger': 1.3,
   };
 
-  String get textScaleLabel => textScales.entries
+  /// Which of [textScales] is in force. The screen turns it into a word.
+  String get textScaleId => textScales.entries
       .firstWhere(
         (entry) => (entry.value - _textScale).abs() < 0.01,
-        orElse: () => const MapEntry('Medium', 1),
+        orElse: () => const MapEntry('medium', 1),
       )
       .key;
 
@@ -197,8 +214,10 @@ class AppState extends ChangeNotifier {
   /// one for an account that does.
   bool get signedIn => _sessionToken != null;
 
-  /// The last authentication failure, in words a user can act on.
-  String? get authError => _authError;
+  /// The last authentication failure, as a case. Sign-in happens before there
+  /// is an account to have a language, so the screen says it in English — but
+  /// it is the same typed value everywhere, and the screen decides.
+  Failure? get authFailure => _authFailure;
 
   PrivioServices get services {
     final services = _services;
@@ -336,7 +355,7 @@ class AppState extends ChangeNotifier {
 
   Future<bool> _authenticate(Future<Map<String, dynamic>> Function() call) async {
     _busy = true;
-    _authError = null;
+    _authFailure = null;
     notifyListeners();
     try {
       final result = await call();
@@ -354,10 +373,10 @@ class AppState extends ChangeNotifier {
       _onSignedIn();
       return true;
     } on ApiException catch (failure) {
-      _authError = _explain(failure);
+      _authFailure = _explain(failure);
       return false;
     } on Object {
-      _authError = 'Could not reach Privio. Check your connection.';
+      _authFailure = const Failure(FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _busy = false;
@@ -365,16 +384,17 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Server error codes turned into something a person can act on.
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'username_taken' => 'That username is already taken.',
-        'invalid_credentials' => 'Username or password is incorrect.',
-        'totp_required' => 'Enter your two-factor code.',
-        'invalid_totp' => 'That two-factor code is not right.',
-        'invalid_request' => 'Check the username and password: ${failure.message}',
-        'rate_limited' => 'Too many attempts. Wait a few minutes.',
-        'too_many_devices' => 'This account already has the maximum number of devices.',
-        _ => failure.message,
+  /// Server error codes turned into cases a person can be told about.
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'username_taken' => const Failure(FailureKind.usernameTaken),
+        'invalid_credentials' => const Failure(FailureKind.invalidCredentials),
+        'totp_required' => const Failure(FailureKind.totpRequired),
+        'invalid_totp' => const Failure(FailureKind.invalidTwoFactorCode),
+        'invalid_request' =>
+          Failure(FailureKind.checkUsernameAndPassword, detail: failure.message),
+        'rate_limited' => const Failure(FailureKind.tooManyAttempts),
+        'too_many_devices' => const Failure(FailureKind.tooManyDevices),
+        _ => Failure.server(failure.message),
       };
 
   /// The public key material this device publishes when it registers.
@@ -402,6 +422,13 @@ class AppState extends ChangeNotifier {
   }
 
   void _onSignedIn() {
+    // The interface language, before anything else is read: it decides what
+    // every screen that is about to appear is written in. `load` resets to
+    // English first and notifies again when the stored choice arrives, so a
+    // slow keystore shows English for a frame rather than the last account's
+    // language.
+    final account = _accountId;
+    if (account != null) detached(locale.load(account));
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
@@ -643,6 +670,9 @@ class AppState extends ChangeNotifier {
       unawaited(_wipeOnServer(services, code));
     }
     await _store.wipe();
+    // Silently: see [LocaleController.signedOut]. Everything else here is
+    // equally quiet, for the same reason.
+    locale.signedOut(notify: false);
     _conversations?.dispose();
     _conversations = null;
     _channels?.dispose();
@@ -722,14 +752,14 @@ class AppState extends ChangeNotifier {
   /// server has actually done it: a failed delete that had already wiped the
   /// phone would be the worst of both.
   ///
-  /// Returns null on success, or what to tell the user.
-  Future<String?> deleteAccount(String currentPassword) async {
+  /// Returns null on success, or the case to tell the user about.
+  Future<Failure?> deleteAccount(String currentPassword) async {
     try {
       await services.api.deleteAccount(currentPassword);
     } on ApiException catch (failure) {
-      return failure.message;
+      return Failure.server(failure.message);
     } on Object {
-      return 'Could not reach the server.';
+      return const Failure(FailureKind.unreachable);
     }
 
     _conversations?.stop();
@@ -761,6 +791,7 @@ class AppState extends ChangeNotifier {
     _wakeUp?.dispose();
     _wakeUp = null;
     await _store.wipe();
+    locale.signedOut();
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
@@ -839,6 +870,7 @@ class AppState extends ChangeNotifier {
       // belonging to an account they have just left.
     }
     await _store.wipe();
+    locale.signedOut();
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;
@@ -848,6 +880,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     deepLinks.dispose();
+    locale.dispose();
     _security?.dispose();
     _license?.dispose();
     _channels?.dispose();

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/calls/ice_servers.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/calls/call.dart';
@@ -267,7 +268,7 @@ void main() {
       store: InMemorySecureStore(),
       peerFails: const CallPeerException(
         CallPeerFailure.permissionDenied,
-        'Privio cannot use the microphone.',
+        Failure(FailureKind.callMicrophoneUnavailable),
       ),
     );
     addTearDown(refused.calls.dispose);
@@ -276,7 +277,7 @@ void main() {
 
     expect(refused.calls.current!.state, CallState.ended);
     expect(refused.calls.current!.ending, CallEnding.failed);
-    expect(refused.calls.error, contains('microphone'));
+    expect(refused.calls.failure?.kind, FailureKind.callMicrophoneUnavailable);
     await settle();
     expect(bob.calls.current, isNull, reason: 'nobody was ever rung');
   });

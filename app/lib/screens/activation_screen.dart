@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../core/edition.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/license_key_field.dart';
@@ -80,18 +82,15 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 const Center(child: PrivioMark(size: 56, glow: true)),
                 const SizedBox(height: PrivioSpacing.xl),
                 Text(
-                  'Activate Privio',
+                  AppText.of(context).activationTitle,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge,
                 ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Text(
                   state.signedIn
-                      ? 'Your account is ready. This server asks for a license key '
-                          'before it will relay your messages.'
-                      : 'This server asks for a license key before it will relay '
-                          'messages. Enter yours now and it is activated as soon as '
-                          'your account exists.',
+                      ? AppText.of(context).activationSignedInNote
+                      : AppText.of(context).activationNewNote,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall,
                 ),
@@ -102,9 +101,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   onChanged: license.clearError,
                   onSubmitted: () => _activate(state),
                 ),
-                if (license.error != null) ...[
+                if (license.failure != null) ...[
                   const SizedBox(height: PrivioSpacing.lg),
-                  _Failure(message: license.error!),
+                  _Failure(message: license.failure!.words(AppText.of(context))),
                 ],
                 const SizedBox(height: PrivioSpacing.xl),
                 FilledButton(
@@ -118,28 +117,30 @@ class _ActivationScreenState extends State<ActivationScreen> {
                             color: PrivioColors.background,
                           ),
                         )
-                      : const Text('Activate'),
+                      : Text(AppText.of(context).activationActivate),
                 ),
                 const SizedBox(height: PrivioSpacing.md),
                 TextButton(
                   onPressed: license.busy ? null : () => state.leaveActivation(),
-                  child: Text(state.signedIn ? 'Not now' : 'I do not have a key yet'),
+                  child: Text(
+                    state.signedIn
+                        ? AppText.of(context).commonNotNow
+                        : AppText.of(context).activationNoKeyYet,
+                  ),
                 ),
                 const SizedBox(height: PrivioSpacing.xl),
                 const Divider(height: 1, color: PrivioColors.border),
                 const SizedBox(height: PrivioSpacing.lg),
                 Text(
-                  'Without a key you can create an account, sign in and read what '
-                  'arrives, but not send. You can enter it later under '
-                  'Settings › Privio License.',
+                  AppText.of(context).activationWithoutKeyNote,
                   style: theme.textTheme.labelSmall,
                 ),
                 const SizedBox(height: PrivioSpacing.md),
                 Text(
-                  '${edition.name} is free software under ${PrivioEdition.licenseSpdxId}. '
-                  'The key does not unlock the app — you already have all of it, and can '
-                  'build it yourself. It pays for the hosted service that relays your '
-                  'messages.',
+                  AppText.of(context).activationFreeSoftwareNote(
+                    edition.name,
+                    PrivioEdition.licenseSpdxId,
+                  ),
                   style: theme.textTheme.labelSmall,
                 ),
               ],

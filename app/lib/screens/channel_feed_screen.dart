@@ -7,6 +7,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
+import '../l10n/channel_text.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
@@ -139,6 +142,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   /// indistinguishable from a broken button.
   Future<void> _retryKey(String channelId) async {
     final controller = PrivioScope.of(context).channels;
+    final text = AppText.of(context);
     final ok = await controller.retryKey(channelId);
     if (!mounted) return;
     final fresh = controller.channelById(channelId);
@@ -147,11 +151,10 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       SnackBar(
         content: Text(
           !ok
-              ? controller.error ?? 'Could not ask for the key.'
+              ? controller.failure?.words(text) ?? text.feedCouldNotAskForKey
               : fresh?.hasCurrentKey ?? false
-                  ? 'The key arrived. You can post again.'
-                  : 'Asked again. The key is delivered by another member, so it '
-                      'arrives when one of them is online.',
+                  ? text.feedKeyArrived
+                  : text.feedAskedAgain,
         ),
       ),
     );
@@ -163,7 +166,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not join')),
+        SnackBar(content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotJoin)),
       );
       return;
     }
@@ -185,7 +188,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     try {
       picked = await FilePicker.pickFile().timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
-      if (mounted) _say('Could not open the picker: $failure');
+      if (mounted) _say(AppText.of(context).accountPickerFailed('$failure'));
       return;
     }
     if (picked == null || !mounted) return;
@@ -193,7 +196,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     try {
       bytes = await picked.readAsBytes();
     } on Object catch (failure) {
-      if (mounted) _say('Could not read ${picked.name}: $failure');
+      if (mounted) {
+        _say(AppText.of(context).accountCouldNotReadFile(picked.name, '$failure'));
+      }
       return;
     }
     if (!mounted) return;
@@ -228,7 +233,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
 
     final when = DateTime(day.year, day.month, day.day, time.hour, time.minute);
     if (!when.isAfter(now)) {
-      _say('Pick a time that has not gone yet.');
+      _say(AppText.of(context).feedPickFutureTime);
       return null;
     }
     return when;
@@ -251,7 +256,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final ok = await controller.publish(_channel.id, '', poll: draft);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (!ok) _say(controller.error ?? 'Could not publish that poll.');
+    if (!ok) _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublishPoll);
   }
 
   Future<void> _schedule() async {
@@ -281,12 +286,14 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       setState(() => _pending = null);
       if (publishAt != null) {
         // It is not in the feed, so without this the send looks like it failed.
-        _say('Scheduled for ${_whenLabel(publishAt)}. It is under "Scheduled" '
-            'until then.');
+        final text = AppText.of(context);
+        _say(text.feedScheduledFor(_whenLabel(text, publishAt)));
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not publish')),
+        SnackBar(
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublish),
+        ),
       );
     }
   }
@@ -335,12 +342,13 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     final fresh = controller.channelById(_channel.id);
     if (fresh != null) setState(() => _channel = fresh);
+    final text = AppText.of(context);
     _say(
       !ok
-          ? controller.error ?? 'Could not change the link.'
+          ? controller.failure?.words(text) ?? text.feedCouldNotChangeLink
           : action.rotate
-              ? 'The old link is dead. Anyone holding it will need the new one.'
-              : 'Saved.',
+              ? text.feedOldLinkDead
+              : text.feedSaved,
     );
   }
 
@@ -372,7 +380,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (fresh != null) setState(() => _channel = fresh);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not change the reactions.')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotChangeReactions,
+          ),
+        ),
       );
     }
   }
@@ -394,7 +406,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not change the post.')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotChangePost,
+          ),
+        ),
       );
     }
   }
@@ -411,7 +427,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Published.' : controller.error ?? 'Could not publish it.'),
+        content: Text(
+          ok
+              ? AppText.of(context).feedPublished
+              : controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotPublishIt,
+        ),
       ),
     );
   }
@@ -445,12 +465,13 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     final fresh = controller.channelById(_channel.id);
     if (fresh != null) setState(() => _channel = fresh);
+    final text = AppText.of(context);
     _say(
       !ok
-          ? controller.error ?? 'Could not change that.'
+          ? controller.failure?.words(text) ?? text.feedCouldNotChangeThat
           : turningOn
-              ? 'Readers can comment on posts now.'
-              : 'Comments are off. Existing threads are hidden, not deleted.',
+              ? text.feedCommentsOn
+              : text.feedCommentsOff,
     );
   }
 
@@ -468,7 +489,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     final stats = controller.statsFor(_channel.id);
     if (stats == null) {
-      _say(controller.error ?? 'Could not read the numbers.');
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotReadNumbers);
       return;
     }
     await showModalBottomSheet<void>(
@@ -494,7 +515,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         if (!member.isOwner) member,
     ];
     if (candidates.isEmpty) {
-      _say('There is nobody else in this channel to hand it to.');
+      _say(AppText.of(context).feedNobodyToHandTo);
       return;
     }
 
@@ -520,10 +541,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     if (!mounted) return;
     final fresh = controller.channelById(_channel.id);
     if (fresh != null) setState(() => _channel = fresh);
+    final text = AppText.of(context);
     _say(
       ok
-          ? '${chosen.label} owns this channel now. You are an admin in it.'
-          : controller.error ?? 'Could not hand the channel on.',
+          ? text.feedOwnsNow(chosen.label)
+          : controller.failure?.words(text) ?? text.feedCouldNotHandOn,
     );
   }
 
@@ -539,7 +561,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final controller = PrivioScope.of(context).channels;
     final ok = await controller.report(_channel.id, reason);
     if (!mounted) return;
-    _say(ok ? 'Reported. Thank you.' : controller.error ?? 'Could not send that.');
+    final text = AppText.of(context);
+    _say(ok ? text.feedReported : controller.failure?.words(text) ?? text.feedCouldNotSendThat);
   }
 
   /// Gives the channel a picture, or takes the one it has away.
@@ -562,14 +585,14 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('Change picture'),
+              title: Text(AppText.of(context).editChannelChangePicture),
               onTap: () => Navigator.of(sheetContext).pop('change'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded, color: PrivioColors.danger),
-              title: const Text(
-                'Remove picture',
-                style: TextStyle(color: PrivioColors.danger),
+              title: Text(
+                AppText.of(context).feedRemovePicture,
+                style: const TextStyle(color: PrivioColors.danger),
               ),
               onTap: () => Navigator.of(sheetContext).pop('remove'),
             ),
@@ -590,7 +613,10 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       final updated = controller.lastAvatarChange;
       if (updated != null) setState(() => _channel = updated);
     }
-    _say(ok ? 'Picture removed.' : controller.error ?? 'Could not remove the picture.');
+    final text = AppText.of(context);
+    _say(
+      ok ? text.feedPictureRemoved : controller.failure?.words(text) ?? text.feedCouldNotRemovePicture,
+    );
   }
 
   Future<void> _pickPicture() async {
@@ -600,7 +626,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         type: FileType.image,
       ).timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
-      if (mounted) _say('Could not open the picker: $failure');
+      if (mounted) _say(AppText.of(context).accountPickerFailed('$failure'));
       return;
     }
     if (picked == null || !mounted) return;
@@ -609,7 +635,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     try {
       bytes = await picked.readAsBytes();
     } on Object catch (failure) {
-      if (mounted) _say('Could not read ${picked.name}: $failure');
+      if (mounted) {
+        _say(AppText.of(context).accountCouldNotReadFile(picked.name, '$failure'));
+      }
       return;
     }
     if (!mounted) return;
@@ -625,20 +653,16 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           backgroundColor: PrivioColors.surfaceRaised,
-          title: const Text('This picture will be public'),
-          content: const Text(
-            'A public channel\'s picture is shown on its web page and in link '
-            'previews, so it is stored unencrypted — the same as its name, '
-            'handle and description. Posts stay end-to-end encrypted.',
-          ),
+          title: Text(AppText.of(context).editChannelPublicPictureTitle),
+          content: Text(AppText.of(context).editChannelPublicPictureBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(AppText.of(context).commonCancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Use it'),
+              child: Text(AppText.of(context).editChannelUseIt),
             ),
           ],
         ),
@@ -649,7 +673,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final ok = await controller.setAvatar(channel, bytes);
     if (!mounted) return;
     if (!ok) {
-      _say(controller.error ?? 'Could not set the picture.');
+      _say(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotSetPicture);
       return;
     }
     // Adopt the channel the controller handed back, the same way leaving,
@@ -659,7 +683,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
     final updated = controller.lastAvatarChange;
     if (updated != null) setState(() => _channel = updated);
     // Said out loud, because the whole failure mode here was silence.
-    _say('Channel picture updated.');
+    _say(AppText.of(context).feedPictureUpdated);
   }
 
   Future<void> _confirmDelete() async {
@@ -667,20 +691,17 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surfaceRaised,
-        title: const Text('Delete channel?'),
-        content: const Text(
-          'The channel and every post in it are removed for everyone. '
-          'Nothing undoes this.',
-        ),
+        title: Text(AppText.of(context).feedDeleteChannelTitle),
+        content: Text(AppText.of(context).feedDeleteChannelBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppText.of(context).commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
+            child: Text(AppText.of(context).commonDelete),
           ),
         ],
       ),
@@ -694,7 +715,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       Navigator.of(context).pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not delete the channel')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotDeleteChannel,
+          ),
+        ),
       );
     }
   }
@@ -707,7 +732,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       Navigator.of(context).pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not leave the channel')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotLeaveChannel,
+          ),
+        ),
       );
     }
   }
@@ -796,6 +825,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final controller = state.channels;
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: controller,
@@ -840,8 +870,8 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                '${channel.isPublic ? 'Public' : 'Private'} · '
-                                '${channel.memberLabel}',
+                                '${channel.isPublic ? text.channelPublic : text.channelPrivate}'
+                                ' · ${text.channelMembers(channel.memberCount)}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall,
@@ -869,55 +899,68 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                 IconButton(
                   onPressed: _toggleSearch,
                   icon: Icon(_query == null ? Icons.search_rounded : Icons.close_rounded),
-                  tooltip: _query == null ? 'Search this channel' : 'Close search',
+                  tooltip: _query == null ? text.searchThisChannel : text.searchClose,
                 ),
               if (channel.isMember)
                 PopupMenuButton<String>(
                   onSelected: _onMenu,
                   color: PrivioColors.surfaceRaised,
                   itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'profile', child: Text('Channel info')),
+                    PopupMenuItem(value: 'profile', child: Text(text.channelInfo)),
                     if (channel.inviteCode != null)
-                      const PopupMenuItem(value: 'invite', child: Text('Invite link')),
+                      PopupMenuItem(value: 'invite', child: Text(text.chatInviteLink)),
                     if (channel.permissions.canPost)
-                      const PopupMenuItem(value: 'scheduled', child: Text('Scheduled')),
+                      PopupMenuItem(value: 'scheduled', child: Text(text.feedScheduled)),
                     if (channel.permissions.canManageMembers && channel.invite.needsApproval)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'requests',
-                        child: Text('Requests to join'),
+                        child: Text(text.feedRequestsToJoin),
                       ),
                     if (channel.permissions.canEditChannel)
                       PopupMenuItem(
                         value: 'picture',
                         child: Text(
-                          channel.hasAvatar ? 'Channel picture' : 'Add a picture',
+                          channel.hasAvatar
+                              ? text.feedChannelPicture
+                              : text.feedAddPicture,
                         ),
                       ),
                     if (channel.permissions.canEditChannel)
-                      const PopupMenuItem(value: 'reactions', child: Text('Reactions')),
+                      PopupMenuItem(
+                        value: 'reactions',
+                        child: Text(text.editChannelReactions),
+                      ),
                     if (channel.permissions.canEditChannel)
                       PopupMenuItem(
                         value: 'comments',
                         child: Text(
-                          channel.commentsEnabled ? 'Turn comments off' : 'Turn comments on',
+                          channel.commentsEnabled
+                              ? text.feedTurnCommentsOff
+                              : text.feedTurnCommentsOn,
                         ),
                       ),
-                    const PopupMenuItem(value: 'members', child: Text('Members')),
+                    PopupMenuItem(value: 'members', child: Text(text.membersTitle)),
                     if (channel.permissions.canEditChannel)
-                      const PopupMenuItem(value: 'stats', child: Text('Statistics')),
+                      PopupMenuItem(
+                        value: 'stats',
+                        child: Text(text.channelStatistics),
+                      ),
                     if (channel.role == 'owner')
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'transfer',
-                        child: Text('Hand this channel on'),
+                        child: Text(text.feedHandChannelOn),
                       ),
                     if (channel.isMember && channel.role != 'owner')
-                      const PopupMenuItem(value: 'report', child: Text('Report channel')),
+                      PopupMenuItem(value: 'report', child: Text(text.channelReport)),
                     if (channel.role != 'owner')
-                      const PopupMenuItem(value: 'leave', child: Text('Leave channel')),
+                      PopupMenuItem(value: 'leave', child: Text(text.channelLeave)),
                     if (channel.permissions.canDeleteChannel)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'delete',
-                        child: Text('Delete channel', style: TextStyle(color: PrivioColors.danger)),
+                        child: Text(
+                          text.feedDeleteChannel,
+                          style: const TextStyle(color: PrivioColors.danger),
+                        ),
                       ),
                   ],
                 ),
@@ -938,9 +981,9 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                     controller: _search,
                     autofocus: true,
                     onChanged: (value) => setState(() => _query = value),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded, size: 18),
-                      hintText: 'Search posts you can read',
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      hintText: text.searchPostsHint,
                       isDense: true,
                     ),
                   ),
@@ -1048,22 +1091,19 @@ class _DayDivider extends StatelessWidget {
 
   final DateTime day;
 
-  static const List<String> _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
-  String get _label {
+  /// The month name comes from `intl` rather than a list of twelve English
+  /// words: every language names and orders them differently, and `intl`
+  /// already knows how each one does.
+  String _label(AppText text) {
     final today = DateUtils.dateOnly(DateTime.now());
     final difference = today.difference(day).inDays;
-    if (difference == 0) return 'Today';
-    if (difference == 1) return 'Yesterday';
-    final month = _months[day.month - 1];
+    if (difference == 0) return text.dayToday;
+    if (difference == 1) return text.dayYesterday;
     // The year only where it is not this one: a feed of last week's posts does
     // not need telling which year it is.
     return day.year == today.year
-        ? '${day.day} $month'
-        : '${day.day} $month ${day.year}';
+        ? formatDayAndMonth(text, day)
+        : formatDayMonthYear(text, day);
   }
 
   @override
@@ -1079,7 +1119,10 @@ class _DayDivider extends StatelessWidget {
               color: PrivioColors.surfaceRaised,
               borderRadius: BorderRadius.all(PrivioRadius.pill),
             ),
-            child: Text(_label, style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              _label(AppText.of(context)),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         ),
       );
@@ -1104,12 +1147,10 @@ class _NoSearchResults extends StatelessWidget {
           children: [
             const Icon(Icons.search_off_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('Nothing matches', style: theme.textTheme.titleMedium),
+            Text(AppText.of(context).searchNoResults, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'The search runs on this device, over the posts it has already '
-              'loaded and could open. The server cannot search them: it holds '
-              'them sealed.',
+              AppText.of(context).feedNoSearchResultsBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -1182,7 +1223,7 @@ class _PostCard extends StatelessWidget {
               ],
               Expanded(
                 child: Text(
-                  post.authorUsername ?? 'Unknown',
+                  post.authorUsername ?? AppText.of(context).threadUnknown,
                   style: theme.textTheme.labelLarge?.copyWith(color: PrivioColors.accentBright),
                 ),
               ),
@@ -1191,7 +1232,7 @@ class _PostCard extends StatelessWidget {
               // version is entitled to know it is not the one in front of them.
               if (post.isEdited) ...[
                 const SizedBox(width: PrivioSpacing.xs),
-                Text('· edited', style: theme.textTheme.bodySmall),
+                Text(AppText.of(context).feedEdited, style: theme.textTheme.bodySmall),
               ],
               if (canModerate)
                 PopupMenuButton<String>(
@@ -1205,13 +1246,26 @@ class _PostCard extends StatelessWidget {
                   },
                   itemBuilder: (_) => [
                     if (mine && channel.permissions.canPost)
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text(AppText.of(context).commonEdit),
+                      ),
                     if (channel.permissions.canEditChannel)
-                      PopupMenuItem(value: 'pin', child: Text(post.pinned ? 'Unpin' : 'Pin')),
+                      PopupMenuItem(
+                        value: 'pin',
+                        child: Text(
+                          post.pinned
+                              ? AppText.of(context).feedUnpin
+                              : AppText.of(context).feedPin,
+                        ),
+                      ),
                     if (channel.permissions.canDeletePosts)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'delete',
-                        child: Text('Delete', style: TextStyle(color: PrivioColors.danger)),
+                        child: Text(
+                          AppText.of(context).commonDelete,
+                          style: const TextStyle(color: PrivioColors.danger),
+                        ),
                       ),
                   ],
                 ),
@@ -1263,10 +1317,7 @@ class _PostCard extends StatelessWidget {
                       ),
                       const SizedBox(width: PrivioSpacing.xs),
                       Text(
-                        post.commentCount == 0
-                            ? 'Comment'
-                            : '${post.commentCount} '
-                                'comment${post.commentCount == 1 ? '' : 's'}',
+                        AppText.of(context).feedCommentCount(post.commentCount),
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -1281,7 +1332,7 @@ class _PostCard extends StatelessWidget {
                 const SizedBox(width: PrivioSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Encrypted — this device has no key for it.',
+                    AppText.of(context).threadEncryptedNoKey,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -1355,7 +1406,8 @@ class _Composer extends StatelessWidget {
                     const SizedBox(width: PrivioSpacing.xs),
                     Expanded(
                       child: Text(
-                        '${pending!.name ?? 'File'} · ${_readableSize(pending!.bytes.length)}',
+                        '${pending!.name ?? AppText.of(context).commonFile}'
+                        ' · ${_readableSize(pending!.bytes.length)}',
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
@@ -1363,7 +1415,7 @@ class _Composer extends StatelessWidget {
                     IconButton(
                       onPressed: sending ? null : onDropAttachment,
                       icon: const Icon(Icons.close_rounded, size: 16),
-                      tooltip: 'Remove the file',
+                      tooltip: AppText.of(context).feedRemoveFile,
                     ),
                   ],
                 ),
@@ -1375,19 +1427,19 @@ class _Composer extends StatelessWidget {
                 IconButton(
                   onPressed: enabled && !sending ? onAttach : null,
                   icon: const Icon(Icons.attach_file_rounded),
-                  tooltip: 'Attach a picture or a file',
+                  tooltip: AppText.of(context).feedAttach,
                 ),
                 if (onSchedule != null)
                   IconButton(
                     onPressed: enabled && !sending ? onSchedule : null,
                     icon: const Icon(Icons.schedule_rounded),
-                    tooltip: 'Publish later',
+                    tooltip: AppText.of(context).feedPublishLater,
                   ),
                 if (onPoll != null)
                   IconButton(
                     onPressed: enabled && !sending ? onPoll : null,
                     icon: const Icon(Icons.poll_outlined),
-                    tooltip: 'Ask a question',
+                    tooltip: AppText.of(context).feedAskQuestion,
                   ),
                 Expanded(
               child: TextField(
@@ -1397,7 +1449,9 @@ class _Composer extends StatelessWidget {
                 maxLines: 5,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: enabled ? 'Write a post' : 'No key for this channel',
+                  hintText: enabled
+                      ? AppText.of(context).feedWritePost
+                      : AppText.of(context).threadNoKeyForChannel,
                   isDense: true,
                 ),
               ),
@@ -1451,7 +1505,7 @@ class _EditPostDialogState extends State<_EditPostDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Edit post'),
+      title: Text(AppText.of(context).feedEditPost),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1463,15 +1517,13 @@ class _EditPostDialogState extends State<_EditPostDialog> {
               minLines: 3,
               maxLines: 10,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Post'),
+              decoration: InputDecoration(hintText: AppText.of(context).feedPost),
             ),
             const SizedBox(height: PrivioSpacing.md),
             Text(
               widget.post.isScheduled
-                  ? 'Nobody has seen this yet, so it will not be marked as '
-                      'edited.'
-                  : 'The post will be marked as edited. Its file, if it has '
-                      'one, stays as it is.',
+                  ? AppText.of(context).feedEditUnseenNote
+                  : AppText.of(context).feedEditSeenNote,
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -1480,7 +1532,7 @@ class _EditPostDialogState extends State<_EditPostDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppText.of(context).commonCancel),
         ),
         FilledButton(
           onPressed: () {
@@ -1490,7 +1542,7 @@ class _EditPostDialogState extends State<_EditPostDialog> {
             if (text.isEmpty) return;
             Navigator.of(context).pop(text);
           },
-          child: const Text('Save'),
+          child: Text(AppText.of(context).commonSave),
         ),
       ],
     );
@@ -1522,7 +1574,7 @@ class _ScheduledScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: const Text('Scheduled'),
+            title: Text(AppText.of(context).feedScheduled),
           ),
           body: waiting.isEmpty
               ? const _NothingScheduled()
@@ -1553,8 +1605,11 @@ class _ScheduledScreen extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   post.publishAt == null
-                                      ? 'Waiting'
-                                      : _whenLabel(post.publishAt!),
+                                      ? AppText.of(context).feedWaiting
+                                      : _whenLabel(
+                                          AppText.of(context),
+                                          post.publishAt!,
+                                        ),
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
@@ -1562,7 +1617,9 @@ class _ScheduledScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: PrivioSpacing.sm),
                           Text(
-                            post.opened ? post.body : 'Encrypted — no key on this device.',
+                            post.opened
+                                ? post.body
+                                : AppText.of(context).feedEncryptedNoKeyHere,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: PrivioSpacing.sm),
@@ -1571,15 +1628,15 @@ class _ScheduledScreen extends StatelessWidget {
                             children: [
                               TextButton(
                                 onPressed: () => onDelete(post),
-                                child: const Text(
-                                  'Discard',
-                                  style: TextStyle(color: PrivioColors.danger),
+                                child: Text(
+                                  AppText.of(context).feedDiscard,
+                                  style: const TextStyle(color: PrivioColors.danger),
                                 ),
                               ),
                               const SizedBox(width: PrivioSpacing.sm),
                               FilledButton(
                                 onPressed: () => onPublishNow(post),
-                                child: const Text('Publish now'),
+                                child: Text(AppText.of(context).feedPublishNow),
                               ),
                             ],
                           ),
@@ -1608,11 +1665,10 @@ class _NothingScheduled extends StatelessWidget {
           children: [
             const Icon(Icons.schedule_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('Nothing waiting', style: theme.textTheme.titleMedium),
+            Text(AppText.of(context).feedNothingWaiting, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'Posts you schedule wait here until their time comes. Nobody '
-              'else can see them, or that they exist.',
+              AppText.of(context).feedNothingWaitingBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -1624,15 +1680,16 @@ class _NothingScheduled extends StatelessWidget {
 }
 
 /// "Today at 18:30", "Tomorrow at 09:00", or the date.
-String _whenLabel(DateTime when) {
+String _whenLabel(AppText text, DateTime when) {
   final today = DateUtils.dateOnly(DateTime.now());
   final day = DateUtils.dateOnly(when);
   final hh = when.hour.toString().padLeft(2, '0');
   final mm = when.minute.toString().padLeft(2, '0');
+  final clock = '$hh:$mm';
   final difference = day.difference(today).inDays;
-  if (difference == 0) return 'today at $hh:$mm';
-  if (difference == 1) return 'tomorrow at $hh:$mm';
-  return '${when.day}.${when.month}. at $hh:$mm';
+  if (difference == 0) return text.feedTodayAt(clock);
+  if (difference == 1) return text.feedTomorrowAt(clock);
+  return text.feedDateAt(formatDayAndMonth(text, when), clock);
 }
 
 /// Which emojis a channel offers under its posts.
@@ -1671,15 +1728,14 @@ class _ReactionSetDialogState extends State<_ReactionSetDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Reactions'),
+      title: Text(AppText.of(context).editChannelReactions),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'What readers can put under a post. Reactions already on a post '
-              'stay, even if you take the emoji off this list.',
+              AppText.of(context).feedReactionsNote,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.md),
@@ -1703,7 +1759,8 @@ class _ReactionSetDialogState extends State<_ReactionSetDialog> {
             ),
             const SizedBox(height: PrivioSpacing.sm),
             Text(
-              '${_chosen.length} of ${_ReactionSetDialog.limit}',
+              AppText.of(context)
+                  .feedChosenOfLimit(_chosen.length, _ReactionSetDialog.limit),
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -1712,7 +1769,7 @@ class _ReactionSetDialogState extends State<_ReactionSetDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppText.of(context).commonCancel),
         ),
         FilledButton(
           // An empty bar is not a state the server accepts, and it is not one
@@ -1720,7 +1777,7 @@ class _ReactionSetDialogState extends State<_ReactionSetDialog> {
           onPressed: _chosen.isEmpty
               ? null
               : () => Navigator.of(context).pop(_chosen.toList()),
-          child: const Text('Save'),
+          child: Text(AppText.of(context).commonSave),
         ),
       ],
     );
@@ -1818,6 +1875,7 @@ class _PollCardState extends State<_PollCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final poll = widget.poll;
     final content = poll.content;
 
@@ -1836,7 +1894,7 @@ class _PollCardState extends State<_PollCard> {
             const SizedBox(width: PrivioSpacing.sm),
             Expanded(
               child: Text(
-                'A poll this device has no key for.',
+                AppText.of(context).feedPollNoKey,
                 style: theme.textTheme.bodySmall,
               ),
             ),
@@ -1863,14 +1921,14 @@ class _PollCardState extends State<_PollCard> {
           Text(
             [
               if (poll.takesSeveral)
-                'Pick up to ${poll.maxChoices}'
+                text.feedPollPickUpTo(poll.maxChoices)
               else
-                'Pick one',
+                text.feedPollPickOne,
               if (poll.isClosed)
-                'closed'
+                text.feedPollClosed
               else if (poll.closesAt != null)
-                'closes ${_whenLabel(poll.closesAt!)}',
-              '${poll.voters} ${poll.voters == 1 ? 'vote' : 'votes'}',
+                text.feedPollCloses(_whenLabel(text, poll.closesAt!)),
+              text.feedPollVoters(poll.voters),
             ].join(' · '),
             style: theme.textTheme.bodySmall,
           ),
@@ -1893,7 +1951,11 @@ class _PollCardState extends State<_PollCard> {
               alignment: Alignment.centerRight,
               child: FilledButton(
                 onPressed: _busy ? null : () => _send(_selected.toList()),
-                child: Text(_selected.isEmpty ? 'Clear my answer' : 'Answer'),
+                child: Text(
+                  _selected.isEmpty
+                      ? AppText.of(context).feedPollClearAnswer
+                      : AppText.of(context).feedPollAnswer,
+                ),
               ),
             ),
           ],
@@ -2017,7 +2079,7 @@ class _NewPollDialogState extends State<_NewPollDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Ask a question'),
+      title: Text(AppText.of(context).feedAskQuestion),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2028,7 +2090,7 @@ class _NewPollDialogState extends State<_NewPollDialog> {
               autofocus: true,
               onChanged: (_) => setState(() {}),
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Question'),
+              decoration: InputDecoration(hintText: AppText.of(context).feedPollQuestion),
             ),
             const SizedBox(height: PrivioSpacing.md),
             for (var index = 0; index < _options.length; index++)
@@ -2041,14 +2103,16 @@ class _NewPollDialogState extends State<_NewPollDialog> {
                         controller: _options[index],
                         onChanged: (_) => setState(() {}),
                         textCapitalization: TextCapitalization.sentences,
-                        decoration: InputDecoration(hintText: 'Answer ${index + 1}'),
+                        decoration: InputDecoration(
+                          hintText: AppText.of(context).feedPollAnswerN(index + 1),
+                        ),
                       ),
                     ),
                     if (_options.length > 2)
                       IconButton(
                         onPressed: () => setState(() => _options.removeAt(index).dispose()),
                         icon: const Icon(Icons.close_rounded, size: 18),
-                        tooltip: 'Remove',
+                        tooltip: AppText.of(context).commonRemove,
                       ),
                   ],
                 ),
@@ -2058,19 +2122,20 @@ class _NewPollDialogState extends State<_NewPollDialog> {
                 onPressed: () =>
                     setState(() => _options.add(TextEditingController())),
                 icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add an answer'),
+                label: Text(AppText.of(context).feedPollAddAnswer),
               ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _several,
               onChanged: (value) => setState(() => _several = value),
               activeThumbColor: PrivioColors.accent,
-              title: Text('Several answers', style: theme.textTheme.bodyMedium),
+              title: Text(
+                AppText.of(context).feedPollSeveral,
+                style: theme.textTheme.bodyMedium,
+              ),
             ),
             Text(
-              'The question and the answers are encrypted with the channel key, '
-              'like a post. The server counts the votes without ever learning '
-              'what any of them say.',
+              AppText.of(context).feedPollNote,
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -2079,7 +2144,7 @@ class _NewPollDialogState extends State<_NewPollDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppText.of(context).commonCancel),
         ),
         FilledButton(
           onPressed: !_ready
@@ -2096,7 +2161,7 @@ class _NewPollDialogState extends State<_NewPollDialog> {
                     ),
                   );
                 },
-          child: const Text('Ask'),
+          child: Text(AppText.of(context).feedPollAsk),
         ),
       ],
     );
@@ -2300,7 +2365,9 @@ class _AttachmentTileState extends State<_AttachmentTile> {
     });
     if (bytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not open that file.')),
+        SnackBar(
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).feedCouldNotOpenFile),
+        ),
       );
     }
   }
@@ -2347,14 +2414,19 @@ class _AttachmentTileState extends State<_AttachmentTile> {
             const SizedBox(width: PrivioSpacing.md),
             Expanded(
               child: Text(
-                attachment.name ?? (attachment.isImage ? 'Picture' : 'File'),
+                attachment.name ??
+                    (attachment.isImage
+                        ? AppText.of(context).channelPicture
+                        : AppText.of(context).commonFile),
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
             const SizedBox(width: PrivioSpacing.sm),
             Text(
-              opened != null ? 'Opened' : _readableSize(attachment.bytes),
+              opened != null
+                  ? AppText.of(context).feedOpened
+                  : _readableSize(attachment.bytes),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -2389,7 +2461,7 @@ class _ImageViewer extends StatelessWidget {
         backgroundColor: PrivioColors.background,
         leading: const PrivioBackButton(),
         title: Text(
-          name ?? 'Picture',
+          name ?? AppText.of(context).channelPicture,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.titleSmall,
@@ -2418,6 +2490,7 @@ class _StatsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(PrivioSpacing.gutter),
@@ -2426,25 +2499,22 @@ class _StatsSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Statistics', style: theme.textTheme.titleMedium),
+              Text(text.channelStatistics, style: theme.textTheme.titleMedium),
               const SizedBox(height: PrivioSpacing.md),
-              _StatRow(label: 'Subscribers', value: stats.members),
-              _StatRow(label: 'Posts', value: stats.posts),
-              if (stats.scheduled > 0) _StatRow(label: 'Waiting to publish', value: stats.scheduled),
-              _StatRow(label: 'Reactions', value: stats.reactions),
-              _StatRow(label: 'Comments', value: stats.comments),
-              if (stats.pollVoters > 0) _StatRow(label: 'People who voted', value: stats.pollVoters),
-              if (stats.silenced > 0) _StatRow(label: 'Stopped from posting', value: stats.silenced),
-              if (stats.waiting > 0) _StatRow(label: 'Waiting to join', value: stats.waiting),
+              _StatRow(label: text.channelSubscribersRow, value: stats.members),
+              _StatRow(label: text.statsPosts, value: stats.posts),
+              if (stats.scheduled > 0)
+                _StatRow(label: text.statsWaitingToPublish, value: stats.scheduled),
+              _StatRow(label: text.editChannelReactions, value: stats.reactions),
+              _StatRow(label: text.threadTitle, value: stats.comments),
+              if (stats.pollVoters > 0)
+                _StatRow(label: text.statsPeopleWhoVoted, value: stats.pollVoters),
+              if (stats.silenced > 0)
+                _StatRow(label: text.membersStoppedFromPosting, value: stats.silenced),
+              if (stats.waiting > 0)
+                _StatRow(label: text.statsWaitingToJoin, value: stats.waiting),
               const SizedBox(height: PrivioSpacing.lg),
-              Text(
-                'There is no view count, and that is a decision rather than a '
-                'gap. Counting who has read a post — without counting anybody '
-                'twice — means keeping a row for every reader of every post, '
-                'which is a record of what each person read. Everything above '
-                'is counted from something somebody chose to do.',
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(text.statsNoViewCountNote, style: theme.textTheme.bodySmall),
             ],
           ),
         ),
@@ -2490,11 +2560,13 @@ class _PickNewOwnerSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Hand this channel on', style: theme.textTheme.titleMedium),
+            Text(
+              AppText.of(context).feedHandChannelOn,
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'Only somebody already in the channel. Handing it to a stranger '
-              'would put them in charge of a key they do not hold.',
+              AppText.of(context).feedPickNewOwnerNote,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.md),
@@ -2506,7 +2578,9 @@ class _PickNewOwnerSheet extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   title: Text(members[index].label),
                   subtitle: Text(
-                    members[index].isAdmin ? 'Admin' : 'Subscriber',
+                    members[index].isAdmin
+                        ? AppText.of(context).adminsRoleAdmin
+                        : AppText.of(context).membersSubscriber,
                     style: theme.textTheme.bodySmall,
                   ),
                   onTap: () => Navigator.of(context).pop(members[index]),
@@ -2544,18 +2618,14 @@ class _ConfirmTransferDialogState extends State<_ConfirmTransferDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: Text('Give the channel to ${widget.member.label}?'),
+      title: Text(AppText.of(context).feedTransferTitle(widget.member.label)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'They will own it. You stay on as an admin with everything you '
-              'have now except the right to delete the channel — and they can '
-              'remove you afterwards.\n\n'
-              'You cannot undo this yourself. That is why it asks for your '
-              'password rather than trusting an unlocked phone.',
+              AppText.of(context).feedTransferBody,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.md),
@@ -2564,7 +2634,9 @@ class _ConfirmTransferDialogState extends State<_ConfirmTransferDialog> {
               autofocus: true,
               obscureText: true,
               onSubmitted: (value) => Navigator.of(context).pop(value),
-              decoration: const InputDecoration(hintText: 'Your Privio password'),
+              decoration: InputDecoration(
+                hintText: AppText.of(context).feedYourPrivioPassword,
+              ),
             ),
           ],
         ),
@@ -2572,12 +2644,12 @@ class _ConfirmTransferDialogState extends State<_ConfirmTransferDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(AppText.of(context).commonCancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
           onPressed: () => Navigator.of(context).pop(_password.text),
-          child: const Text('Hand it on'),
+          child: Text(AppText.of(context).feedHandItOn),
         ),
       ],
     );
@@ -2601,32 +2673,27 @@ class _ReportSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Report this channel', style: theme.textTheme.titleMedium),
+              Text(
+                AppText.of(context).feedReportTitle,
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: PrivioSpacing.xs),
               Text(
                 channel.isPublic
-                    ? 'The report carries this channel and the reason you pick. '
-                        'Whoever runs the server can see a public channel\'s name '
-                        'and description, because those are how it is searched '
-                        'for — but not its posts, which are encrypted.'
-                    : 'The report carries this channel and the reason you pick, '
-                        'and nothing else. Its name and its posts are encrypted, '
-                        'so whoever runs the server cannot read them. That is the '
-                        'honest limit of what reporting a private channel does.',
+                    ? AppText.of(context).feedReportPublicNote
+                    : AppText.of(context).feedReportPrivateNote,
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: PrivioSpacing.md),
               for (final reason in ChannelReportReason.values)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(reason.label),
+                  title: Text(reportReasonLabel(AppText.of(context), reason)),
                   onTap: () => Navigator.of(context).pop(reason),
                 ),
               const SizedBox(height: PrivioSpacing.sm),
               Text(
-                'There is no message box on purpose: it would be the one place '
-                'in Privio where somebody pastes the encrypted thing they are '
-                'reporting into a field the server can read.',
+                AppText.of(context).feedReportNoMessageNote,
                 style: theme.textTheme.bodySmall,
               ),
             ],
@@ -2704,7 +2771,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
     final when = DateTime(day.year, day.month, day.day, time.hour, time.minute);
     if (!when.isAfter(now)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pick a time that has not gone yet.')),
+        SnackBar(content: Text(AppText.of(context).feedPickFutureTime)),
       );
       return;
     }
@@ -2716,22 +2783,17 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surfaceRaised,
-        title: const Text('Replace the link?'),
-        content: const Text(
-          'The link you have shared stops working immediately — in messages, '
-          'on posters, wherever it was pasted. Nobody holding it can join.\n\n'
-          'People already in the channel stay in. There is no way to bring the '
-          'old link back.',
-        ),
+        title: Text(AppText.of(context).inviteReplaceTitle),
+        content: Text(AppText.of(context).inviteReplaceBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppText.of(context).commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Replace it'),
+            child: Text(AppText.of(context).inviteReplaceIt),
           ),
         ],
       ),
@@ -2744,6 +2806,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(PrivioSpacing.gutter),
@@ -2752,7 +2815,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Invite link', style: theme.textTheme.titleMedium),
+              Text(text.chatInviteLink, style: theme.textTheme.titleMedium),
               const SizedBox(height: PrivioSpacing.md),
 
               SwitchListTile(
@@ -2760,42 +2823,46 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
                 value: _needsApproval,
                 onChanged: (value) => setState(() => _needsApproval = value),
                 activeThumbColor: PrivioColors.accent,
-                title: Text('Ask me first', style: theme.textTheme.bodyMedium),
+                title: Text(text.inviteAskMeFirst, style: theme.textTheme.bodyMedium),
                 subtitle: Text(
-                  'People who follow the link wait for your approval instead of '
-                  'walking in. They hold no key until you let them in.',
+                  text.inviteAskMeFirstNote,
                   style: theme.textTheme.bodySmall,
                 ),
               ),
 
               const SizedBox(height: PrivioSpacing.md),
-              Text('Expires', style: theme.textTheme.labelLarge),
+              Text(text.inviteExpiresLabel, style: theme.textTheme.labelLarge),
               const SizedBox(height: PrivioSpacing.xs),
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      _expiresAt == null ? 'Never' : _whenLabel(_expiresAt!),
+                      _expiresAt == null
+                          ? text.inviteNever
+                          : _whenLabel(text, _expiresAt!),
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
                   if (_expiresAt != null)
                     TextButton(
                       onPressed: () => setState(() => _expiresAt = null),
-                      child: const Text('Never'),
+                      child: Text(text.inviteNever),
                     ),
-                  TextButton(onPressed: _pickExpiry, child: const Text('Pick a time')),
+                  TextButton(
+                    onPressed: _pickExpiry,
+                    child: Text(text.invitePickATime),
+                  ),
                 ],
               ),
 
               const SizedBox(height: PrivioSpacing.md),
-              Text('How many can join on it', style: theme.textTheme.labelLarge),
+              Text(text.inviteHowMany, style: theme.textTheme.labelLarge),
               const SizedBox(height: PrivioSpacing.xs),
               Wrap(
                 spacing: PrivioSpacing.sm,
                 children: [
                   ChoiceChip(
-                    label: const Text('No limit'),
+                    label: Text(text.inviteNoLimit),
                     selected: _maxUses == null,
                     onSelected: (_) => setState(() => _maxUses = null),
                   ),
@@ -2810,8 +2877,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
               if (widget.channel.invite.maxUses != null) ...[
                 const SizedBox(height: PrivioSpacing.xs),
                 Text(
-                  '${widget.channel.invite.uses} have joined on this link so far. '
-                  'Opening it and walking away does not count.',
+                  text.inviteJoinedSoFar(widget.channel.invite.uses),
                   style: theme.textTheme.bodySmall,
                 ),
               ],
@@ -2820,13 +2886,12 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
               OutlinedButton.icon(
                 onPressed: _confirmRotate,
                 icon: const Icon(Icons.link_off_rounded, size: 18),
-                label: const Text('Replace the link'),
+                label: Text(text.inviteReplaceLink),
                 style: OutlinedButton.styleFrom(foregroundColor: PrivioColors.danger),
               ),
               const SizedBox(height: PrivioSpacing.xs),
               Text(
-                'Replacing is how a link is revoked: the old one stops working '
-                'at once, everywhere. There is no half-working link left behind.',
+                text.inviteReplaceNote,
                 style: theme.textTheme.bodySmall,
               ),
 
@@ -2836,7 +2901,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(text.commonCancel),
                   ),
                   const SizedBox(width: PrivioSpacing.sm),
                   FilledButton(
@@ -2849,7 +2914,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
                         needsApproval: _needsApproval,
                       ),
                     ),
-                    child: const Text('Save'),
+                    child: Text(text.commonSave),
                   ),
                 ],
               ),
@@ -2875,6 +2940,7 @@ class _JoinRequestsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = PrivioScope.of(context).channels;
+    final text = AppText.of(context);
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
@@ -2882,7 +2948,7 @@ class _JoinRequestsScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: const Text('Requests to join'),
+            title: Text(text.feedRequestsToJoin),
           ),
           body: waiting.isEmpty
               ? const _NobodyWaiting()
@@ -2897,7 +2963,9 @@ class _JoinRequestsScreen extends StatelessWidget {
                       ),
                       title: Text(request.label),
                       subtitle: Text(
-                        'Asked ${_whenLabel(request.requestedAt)}',
+                        text.requestsAsked(
+                          _whenLabel(AppText.of(context), request.requestedAt),
+                        ),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       trailing: Row(
@@ -2909,9 +2977,9 @@ class _JoinRequestsScreen extends StatelessWidget {
                               request.accountId,
                               admit: false,
                             ),
-                            child: const Text(
-                              'No',
-                              style: TextStyle(color: PrivioColors.danger),
+                            child: Text(
+                              text.requestsNo,
+                              style: const TextStyle(color: PrivioColors.danger),
                             ),
                           ),
                           const SizedBox(width: PrivioSpacing.xs),
@@ -2921,7 +2989,7 @@ class _JoinRequestsScreen extends StatelessWidget {
                               request.accountId,
                               admit: true,
                             ),
-                            child: const Text('Let in'),
+                            child: Text(text.requestsLetIn),
                           ),
                         ],
                       ),
@@ -2948,11 +3016,13 @@ class _NobodyWaiting extends StatelessWidget {
           children: [
             const Icon(Icons.door_front_door_outlined, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('Nobody waiting', style: theme.textTheme.titleMedium),
+            Text(
+              AppText.of(context).requestsNobodyWaiting,
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'People who follow the invite link appear here while the link is '
-              'set to ask you first.',
+              AppText.of(context).requestsNobodyWaitingBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -2973,26 +3043,29 @@ class _InviteDialog extends StatelessWidget {
   final VoidCallback? onManage;
 
   /// What the link is currently good for, in one line.
-  String get _state {
+  String _state(AppText text) {
     final invite = channel.invite;
-    if (invite.hasExpired) return 'This link has expired — nobody can join on it.';
-    if (invite.isUsedUp) return 'This link has been used up.';
+    if (invite.hasExpired) return text.inviteExpired;
+    if (invite.isUsedUp) return text.inviteUsedUp;
     return [
       if (invite.needsApproval)
-        'Joining needs your approval'
+        text.inviteNeedsApproval
       else
-        'Anyone with it joins straight away',
-      if (invite.maxUses != null) '${invite.uses} of ${invite.maxUses} used',
-      if (invite.expiresAt != null) 'expires ${_whenLabel(invite.expiresAt!)}',
+        text.inviteOpenJoin,
+      if (invite.maxUses != null)
+        text.inviteUsedOf(invite.uses, invite.maxUses!),
+      if (invite.expiresAt != null)
+        text.inviteExpires(_whenLabel(text, invite.expiresAt!)),
     ].join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Invite link'),
+      title: Text(text.chatInviteLink),
       // Scrollable: the QR code plus the link plus the explanation is taller
       // than a dialog on a small phone in landscape.
       content: SingleChildScrollView(
@@ -3029,14 +3102,12 @@ class _InviteDialog extends StatelessWidget {
           SelectableText(link, style: theme.textTheme.bodySmall),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'Share this anywhere — it carries no key. Whoever opens it joins the '
-            'channel, and the key to read it is sent to their device afterwards, '
-            'encrypted, by someone who already has it.',
+            text.inviteShareNote,
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: PrivioSpacing.sm),
           Text(
-            _state,
+            _state(text),
             style: theme.textTheme.bodySmall?.copyWith(
               color: channel.invite.isSpent ? PrivioColors.warning : PrivioColors.textSecondary,
             ),
@@ -3051,15 +3122,18 @@ class _InviteDialog extends StatelessWidget {
               Navigator.of(context).pop();
               onManage!();
             },
-            child: const Text('Settings'),
+            child: Text(text.feedSettings),
           ),
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(text.commonClose),
+        ),
         FilledButton(
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: link));
             if (context.mounted) Navigator.of(context).pop();
           },
-          child: const Text('Copy'),
+          child: Text(text.commonCopy),
         ),
       ],
     );
@@ -3099,12 +3173,8 @@ class _MissingKeyBanner extends StatelessWidget {
           Expanded(
             child: Text(
               rotating
-                  ? 'Someone left this channel, so it is changing its key '
-                      '(version $epoch). Posts from before are still readable. '
-                      'New ones open once the new key reaches this device.'
-                  : 'Waiting for the key. It is sent to this device, encrypted, '
-                      'by someone already in the channel — the server never '
-                      'holds it.',
+                  ? AppText.of(context).feedKeyRotating(epoch)
+                  : AppText.of(context).feedWaitingForKey,
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -3112,7 +3182,7 @@ class _MissingKeyBanner extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             TextButton(
               onPressed: onRetry,
-              child: const Text('Try again'),
+              child: Text(AppText.of(context).commonRetry),
             ),
           ],
         ],
@@ -3149,13 +3219,15 @@ class _JoinPrompt extends StatelessWidget {
             ],
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'Joining gets you the posts. The key that opens them is sent to '
-              'your device afterwards by a member, never by the server.',
+              AppText.of(context).feedJoinNote,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.xl),
-            FilledButton(onPressed: onJoin, child: const Text('Join channel')),
+            FilledButton(
+              onPressed: onJoin,
+              child: Text(AppText.of(context).feedJoinChannel),
+            ),
           ],
         ),
       ),
@@ -3177,7 +3249,7 @@ class _EmptyFeed extends StatelessWidget {
           children: [
             const Icon(Icons.article_outlined, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('No posts yet', style: theme.textTheme.titleMedium),
+            Text(AppText.of(context).channelNoPosts, style: theme.textTheme.titleMedium),
           ],
         ),
       ),

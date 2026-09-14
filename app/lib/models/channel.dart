@@ -63,15 +63,18 @@ class ChannelPermissions {
 
   /// Every permission, in the order the admin screen lists them, with the label
   /// it shows. One list so the screen cannot quietly omit one.
-  static const List<({String key, String label, String detail})> all = [
-    (key: 'canEditChannel', label: 'Edit the channel', detail: 'Name, picture, description and settings'),
-    (key: 'canPost', label: 'Publish posts', detail: 'And edit or schedule their own'),
-    (key: 'canDeletePosts', label: 'Delete posts', detail: "Including other people's"),
-    (key: 'canModerateDiscussion', label: 'Moderate the discussion', detail: 'Remove comments and silence people'),
-    (key: 'canManageMembers', label: 'Manage subscribers', detail: 'Add, remove and silence'),
-    (key: 'canManageInvites', label: 'Manage invites', detail: 'The link, its limits, and who is waiting'),
-    (key: 'canManageLivestreams', label: 'Manage livestreams', detail: 'Start and end them'),
-    (key: 'canAppointAdmins', label: 'Appoint admins', detail: 'Hand this authority to somebody else'),
+  /// Keys only. The wording that went with each one moved to the translations
+  /// — see `l10n/channel_text.dart` — because a list of English sentences in a
+  /// model cannot be read by somebody whose app is in French.
+  static const List<String> all = [
+    'canEditChannel',
+    'canPost',
+    'canDeletePosts',
+    'canModerateDiscussion',
+    'canManageMembers',
+    'canManageInvites',
+    'canManageLivestreams',
+    'canAppointAdmins',
   ];
 
   bool has(String key) => switch (key) {
@@ -105,7 +108,7 @@ class ChannelPermissions {
   /// The same rule the server enforces, checked here too so the screen greys
   /// out what it would refuse rather than offering it and then failing.
   bool covers(ChannelPermissions granted) =>
-      all.every((p) => !granted.has(p.key) || has(p.key));
+      all.every((key) => !granted.has(key) || has(key));
 }
 
 /// What a channel's invite link is allowed to do.
@@ -298,16 +301,17 @@ class ChannelStats {
 /// content they are reporting, which would put the very thing the encryption
 /// protects into a column the server can read.
 enum ChannelReportReason {
-  spam('spam', 'Spam'),
-  abuse('abuse', 'Abuse or harassment'),
-  illegal('illegal', 'Illegal content'),
-  impersonation('impersonation', 'Pretending to be someone else'),
-  other('other', 'Something else');
+  spam('spam'),
+  abuse('abuse'),
+  illegal('illegal'),
+  impersonation('impersonation'),
+  other('other');
 
-  const ChannelReportReason(this.wire, this.label);
+  const ChannelReportReason(this.wire);
 
+  /// What the server is told. The word a person reads is a translation, and it
+  /// lives in `l10n/channel_text.dart`; this value never changes.
   final String wire;
-  final String label;
 }
 
 /// Somebody waiting at the door of a channel that asks first.
@@ -508,7 +512,10 @@ class ChannelInfo {
       '$memberCount subscriber${memberCount == 1 ? '' : 's'}';
 
   /// "1 member", not "1 members".
-  String get memberLabel => '$memberCount member${memberCount == 1 ? '' : 's'}';
+  // No `memberLabel` here. It built "2 members" inside a model, where there is
+  // no way to know which language is being read — and the plural rule is not
+  // English's in every one of the five. `AppText.channelMembers(count)` does
+  // it, where the reader is known.
 
   bool get isMember => role != null;
   bool get isPublic => visibility == ChannelVisibility.public;
@@ -1067,21 +1074,20 @@ class ChannelMember {
   ///
   /// Empty rather than "last seen a long time ago": not knowing is not the same
   /// as knowing it was long ago, and the row shows nothing instead of guessing.
-  String presenceLabel({DateTime? now}) {
+  /// How long ago they were seen, as a case the screen turns into words.
+  ///
+  /// The sentence used to be built here, in English, by a model that has no
+  /// way to know which of the app's five languages is on screen.
+  /// `l10n/channel_text.dart` turns this into the wording.
+  ChannelPresence presence({DateTime? now}) {
     final seen = lastSeenAt;
-    if (seen == null) return '';
-    final asOf = now ?? DateTime.now();
-    final ago = asOf.difference(seen);
-    if (ago.inMinutes < 2) return 'online';
-    if (ago.inMinutes < 60) return 'last seen ${ago.inMinutes} minutes ago';
-    if (ago.inHours < 24) {
-      return 'last seen ${ago.inHours} hour${ago.inHours == 1 ? '' : 's'} ago';
-    }
-    if (ago.inDays < 7) {
-      return 'last seen ${ago.inDays} day${ago.inDays == 1 ? '' : 's'} ago';
-    }
-    return 'last seen ${seen.day.toString().padLeft(2, '0')}.'
-        '${seen.month.toString().padLeft(2, '0')}.${seen.year % 100}';
+    if (seen == null) return const ChannelPresence.unknown();
+    final ago = (now ?? DateTime.now()).difference(seen);
+    if (ago.inMinutes < 2) return const ChannelPresence.online();
+    if (ago.inMinutes < 60) return ChannelPresence.minutes(ago.inMinutes);
+    if (ago.inHours < 24) return ChannelPresence.hours(ago.inHours);
+    if (ago.inDays < 7) return ChannelPresence.days(ago.inDays);
+    return ChannelPresence.on(seen);
   }
 
   ChannelMember copyWith({String? role, ChannelPermissions? permissions}) => ChannelMember(
@@ -1140,3 +1146,33 @@ class ChannelLinkByHandle extends ChannelLinkTarget {
 
   final String handle;
 }
+
+/// When somebody was last seen, so far as they let anyone see it.
+///
+/// A fact with a shape, not a sentence: the words differ per language and per
+/// reader, and this is produced by a model that knows neither.
+@immutable
+class ChannelPresence {
+  const ChannelPresence.unknown() : kind = ChannelPresenceKind.unknown, count = 0, at = null;
+  const ChannelPresence.online() : kind = ChannelPresenceKind.online, count = 0, at = null;
+  const ChannelPresence.minutes(this.count) : kind = ChannelPresenceKind.minutes, at = null;
+  const ChannelPresence.hours(this.count) : kind = ChannelPresenceKind.hours, at = null;
+  const ChannelPresence.days(this.count) : kind = ChannelPresenceKind.days, at = null;
+  const ChannelPresence.on(DateTime this.at) : kind = ChannelPresenceKind.onDate, count = 0;
+
+  final ChannelPresenceKind kind;
+  final int count;
+  final DateTime? at;
+
+  /// True when they share nothing. Not knowing is not the same as knowing it
+  /// was long ago, so the row shows nothing rather than a guess.
+  bool get isUnknown => kind == ChannelPresenceKind.unknown;
+  bool get isOnline => kind == ChannelPresenceKind.online;
+  bool get isMinutes => kind == ChannelPresenceKind.minutes;
+  bool get isHours => kind == ChannelPresenceKind.hours;
+  bool get isDays => kind == ChannelPresenceKind.days;
+}
+
+/// Public only because it names [ChannelPresence.kind]; nothing outside
+/// switches on it.
+enum ChannelPresenceKind { unknown, online, minutes, hours, days, onDate }

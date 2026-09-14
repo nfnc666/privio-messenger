@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/edition.dart';
@@ -17,6 +18,7 @@ import 'package:privio/screens/license_screen.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/widgets/license_key_field.dart';
 
@@ -182,7 +184,7 @@ void main() {
 
     expect(ok, isFalse);
     expect(state.stage, AppStage.activation);
-    expect(state.license.error, contains('No license matches'));
+    expect(state.license.failure?.kind, FailureKind.licenseNotFound);
   });
 
   test('"Not now" is remembered, so it is asked once and not every launch', () async {
@@ -304,6 +306,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const ActivationScreen()),
       ),
     );
@@ -339,6 +343,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const LicenseScreen()),
       ),
     );
@@ -356,6 +362,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const ActivationScreen()),
       ),
     );

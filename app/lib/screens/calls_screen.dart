@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 
 /// Screen 7: calls.
@@ -32,10 +33,11 @@ class _CallsScreenState extends State<CallsScreen> {
   @override
   Widget build(BuildContext context) {
     final calls = PrivioScope.of(context).services.calls;
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Calls'),
+        title: Text(text.navCalls),
         actions: [
           ListenableBuilder(
             listenable: calls,
@@ -44,7 +46,7 @@ class _CallsScreenState extends State<CallsScreen> {
                 : IconButton(
                     onPressed: () => _confirmClear(context, calls.clearHistory),
                     icon: const Icon(Icons.delete_outline_rounded),
-                    tooltip: 'Clear call history',
+                    tooltip: text.callsClearHistory,
                   ),
           ),
         ],
@@ -58,23 +60,24 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 
   Future<void> _confirmClear(BuildContext context, Future<void> Function() clear) async {
+    final text = AppText.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Clear call history?'),
-        content: const Text(
-          'This list is only on this device — clearing it removes it from here '
-          'and from nowhere else, because it was never anywhere else.',
-        ),
+        title: Text(text.callsClearTitle),
+        content: Text(text.callsClearBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Clear', style: TextStyle(color: PrivioColors.danger)),
+            child: Text(
+              text.callsClear,
+              style: const TextStyle(color: PrivioColors.danger),
+            ),
           ),
         ],
       ),
@@ -100,9 +103,7 @@ class _History extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.all(PrivioSpacing.xxl),
             child: Text(
-              'This list never leaves the device. The server routes a call\'s '
-              'setup the way it routes a message — sealed, and unreadable to it '
-              '— so it holds no record of who called whom.',
+              AppText.of(context).callsNeverLeavesNote,
               style: Theme.of(context).textTheme.labelSmall,
             ),
           );
@@ -121,12 +122,12 @@ class _History extends StatelessWidget {
             children: [
               Icon(_icon(record), size: 14, color: _colour(record)),
               const SizedBox(width: PrivioSpacing.xs),
-              Text(_describe(record)),
+              Text(_describe(AppText.of(context), record)),
             ],
           ),
           trailing: IconButton(
             icon: const Icon(Icons.call_outlined, color: PrivioColors.accent),
-            tooltip: 'Call ${record.username}',
+            tooltip: AppText.of(context).callsCallSomeone(record.username),
             onPressed: () => calls.place(
               CallParty(accountId: record.accountId, username: record.username),
             ),
@@ -147,16 +148,20 @@ class _History extends StatelessWidget {
 
   /// What happened, plainly. A call that never connected says so rather than
   /// showing "0:00", which reads as a call that was answered and said nothing.
-  String _describe(CallRecord record) {
+  String _describe(AppText text, CallRecord record) {
     final when = _when(record.at);
     if (!record.wasAnswered) {
-      return switch (record.ending) {
-        CallEnding.declined =>
-          record.direction == CallDirection.incoming ? 'Declined · $when' : 'Not taken · $when',
-        CallEnding.busy => 'Busy · $when',
-        CallEnding.failed => 'Could not connect · $when',
-        _ => record.direction == CallDirection.incoming ? 'Missed · $when' : 'No answer · $when',
+      final what = switch (record.ending) {
+        CallEnding.declined => record.direction == CallDirection.incoming
+            ? text.callsDeclined
+            : text.callsNotTaken,
+        CallEnding.busy => text.callsBusy,
+        CallEnding.failed => text.callsCouldNotConnect,
+        _ => record.direction == CallDirection.incoming
+            ? text.callsMissed
+            : text.callsNoAnswer,
       };
+      return '$what · $when';
     }
     final minutes = record.duration.inMinutes;
     final seconds = record.duration.inSeconds % 60;
@@ -187,12 +192,10 @@ class _Empty extends StatelessWidget {
           children: [
             const Icon(Icons.phone_outlined, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.lg),
-            Text('No calls yet', style: theme.textTheme.titleMedium),
+            Text(AppText.of(context).callsEmptyTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.sm),
             Text(
-              'Start one from a chat. The call is set up over the Signal session '
-              'that chat already uses, so the addresses your two devices swap to '
-              'find each other are sealed to each other and not to the server.',
+              AppText.of(context).callsEmptyBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
