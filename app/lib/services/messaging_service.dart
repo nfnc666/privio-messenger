@@ -19,10 +19,31 @@ class IncomingMessage {
     required this.payload,
     required this.receivedAt,
     this.groupId,
+    this.senderDeviceIndex,
+    this.senderIdentityKey,
+    this.senderTrust = PeerTrust.pinned,
   });
 
   final int envelopeId;
+
+  /// Who the server says sent it.
+  ///
+  /// Good enough to file a message under, and not good enough to hand a
+  /// microphone to: see [senderIdentityKey].
   final String senderAccountId;
+
+  /// Which of their devices, as the envelope named it.
+  final int? senderDeviceIndex;
+
+  /// The identity key that actually opened this envelope, base64.
+  ///
+  /// This one is not the server's word. Decryption succeeded against the
+  /// session pinned to this key, so it is the only part of "who sent this"
+  /// that a malicious relay cannot write.
+  final String? senderIdentityKey;
+
+  /// Whether that key was already known, brand new, or a replacement.
+  final PeerTrust senderTrust;
 
   /// Text or an attachment pointer — the server cannot tell which.
   final MessagePayload payload;
@@ -601,7 +622,7 @@ class MessagingService {
       }
 
       try {
-        final body = await _crypto.openEnvelope(
+        final opened = await _crypto.openEnvelope(
           senderAccountId: senderAccountId,
           senderDeviceIndex: senderDeviceIndex,
           type: type,
@@ -611,7 +632,10 @@ class MessagingService {
           IncomingMessage(
             envelopeId: envelopeId,
             senderAccountId: senderAccountId,
-            payload: MessagePayload.decode(body),
+            senderDeviceIndex: senderDeviceIndex,
+            senderIdentityKey: opened.identityKey,
+            senderTrust: opened.trust,
+            payload: MessagePayload.decode(opened.body),
             receivedAt: DateTime.parse(envelope['createdAt'] as String),
             groupId: envelope['groupId'] as String?,
           ),

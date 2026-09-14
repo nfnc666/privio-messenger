@@ -321,7 +321,7 @@ void main() {
       type: sealed.single.type,
       content: sealed.single.content,
     );
-    expect(opened, 'Im Tunnel geschrieben');
+    expect(opened.body, 'Im Tunnel geschrieben');
   });
   test('a photo arrives with its metadata stripped', () async {
     final photo = File('test/fixtures/photo_with_exif.jpg').readAsBytesSync();

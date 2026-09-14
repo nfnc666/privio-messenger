@@ -3502,4 +3502,47 @@ class AppTextIt extends AppText {
   @override
   String get notificationsPermissionNotAsked =>
       'Privio non ha ancora il permesso di inviarti notifiche.';
+
+  @override
+  String get failureCallMediaNotEncrypted =>
+      'La chiamata è stata interrotta: l\'altra parte ha richiesto una connessione che Privio non può cifrare. Privio non ripiega mai su una chiamata non cifrata.';
+
+  @override
+  String get failureCallFarEndNotBound =>
+      'La chiamata è stata interrotta: nella negoziazione non era dimostrato chi fosse dall\'altra parte. Privio non collega una chiamata che non può legare a una chiave.';
+
+  @override
+  String get failureCallCertificateChanged =>
+      'La chiamata è stata interrotta: l\'altro capo è cambiato a metà negoziazione. Una chiamata ha un solo altro capo, questa ne aveva due.';
+
+  @override
+  String failureCallIdentityChanged(String who) {
+    return 'La chiamata è stata interrotta: il numero di sicurezza di $who non è quello che Privio aveva. Confrontalo con questa persona per un\'altra via prima di richiamare.';
+  }
+
+  @override
+  String get failureCallWrongParty =>
+      'La chiamata è stata interrotta: è arrivato un messaggio al riguardo da qualcuno che non ne fa parte.';
+
+  @override
+  String failureCallNotVerified(String who) {
+    return 'La chiamata è stata interrotta: accetti solo chiamate da persone di cui hai confermato il numero di sicurezza, e quello di $who non è confermato su questo dispositivo.';
+  }
+
+  @override
+  String get callEncrypted => 'Crittografato end-to-end';
+
+  @override
+  String get callEncryptedVerified => 'Crittografato end-to-end · verificato';
+
+  @override
+  String get securityVerifiedCallsOnly =>
+      'Solo chiamate da contatti verificati';
+
+  @override
+  String get securityVerifiedCallsOnlyBody =>
+      'Ogni chiamata è comunque crittografata end-to-end. Con questa opzione attiva, Privio rifiuta inoltre una chiamata finché non hai confrontato il numero di sicurezza con quella persona e non l\'hai confermato: una chiave che questo dispositivo ha semplicemente incontrato per prima non basta. Le chiamate di chiunque altro terminano con una spiegazione, da entrambe le parti.';
+
+  @override
+  String get privacyCalls => 'Chiamate';
 }

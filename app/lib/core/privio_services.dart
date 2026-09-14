@@ -5,6 +5,7 @@ import '../calls/ice_servers.dart';
 import '../calls/webrtc_call_peer.dart';
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
+import '../crypto/safety_number.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
 import '../media/voice_player.dart';
@@ -47,6 +48,18 @@ class PrivioServices {
           lookUp: (accountId) async {
             final known = store.conversationWith(accountId)?.user;
             return known == null ? null : CallParty(accountId: accountId, username: known.username);
+          },
+          // What the user has made of that account's safety number. Read from
+          // the same place the chat header reads it, so a call and a chat never
+          // disagree about whether a key has been checked.
+          verificationOf: (accountId) async {
+            final me = await secureStore.readAccountId();
+            if (me == null) return VerificationState.unverified;
+            final numbers = await crypto.safetyNumbers(
+              localAccountId: me,
+              remoteAccountId: accountId,
+            );
+            return numbers.state;
           },
           store: secureStore,
         );

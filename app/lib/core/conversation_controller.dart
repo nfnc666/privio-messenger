@@ -1901,6 +1901,12 @@ class ConversationController extends ChangeNotifier {
         // The envelope’s own timestamp: an offer drained from a queue after a
         // night asleep is not a phone that should ring now.
         sentAt: incoming.receivedAt,
+        // Who the session says it was, as opposed to who the server labelled
+        // it. A call is the one thing in this app that must not act on the
+        // second when it can have the first.
+        senderIdentityKey: incoming.senderIdentityKey,
+        senderTrust: incoming.senderTrust,
+        senderDeviceIndex: incoming.senderDeviceIndex,
       );
       return;
     }

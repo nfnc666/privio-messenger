@@ -428,7 +428,13 @@ class AppState extends ChangeNotifier {
     // slow keystore shows English for a frame rather than the last account's
     // language.
     final account = _accountId;
-    if (account != null) detached(locale.load(account));
+    if (account != null) {
+      detached(locale.load(account));
+      // Whether this account takes calls only from confirmed contacts. Read at
+      // sign-in rather than at the first call: a security setting that waits
+      // for a restart is one somebody will believe is on when it is not.
+      detached(services.calls.loadSettings(account));
+    }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;

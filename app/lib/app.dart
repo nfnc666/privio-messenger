@@ -280,8 +280,31 @@ class _CallOverlay extends StatelessWidget {
     return ListenableBuilder(
       listenable: state.services.calls,
       builder: (context, under) {
-        final call = state.services.calls.current;
-        if (call == null || !call.isLive) return under!;
+        final calls = state.services.calls;
+        final call = calls.current;
+        if (call == null || !call.isLive) {
+          // A call refused on security grounds never gets a call screen — it
+          // is turned away before the phone rings. The reason still has to
+          // reach the person, so it goes here, over whatever is open.
+          final failure = calls.failure;
+          if (failure == null) return under!;
+          return Stack(
+            children: [
+              under!,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  child: _CallRefusedBanner(
+                    message: failure.words(AppText.of(context)),
+                    onDismiss: calls.clearFailure,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
         return Stack(
           children: [
             under!,
@@ -345,4 +368,51 @@ class _NeutralCover extends StatelessWidget {
     color: PrivioColors.background,
     child: Center(child: PrivioMark(size: 72)),
   );
+}
+
+/// Why a call did not happen, in front of whoever it did not happen to.
+///
+/// Deliberately not a snackbar: a snackbar times out, and somebody whose phone
+/// quietly refused a call from a name they know should find the reason still
+/// there when they pick the phone up. It stays until dismissed.
+class _CallRefusedBanner extends StatelessWidget {
+  const _CallRefusedBanner({required this.message, required this.onDismiss});
+
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(PrivioSpacing.md),
+      child: Material(
+        color: PrivioColors.surface,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.lg),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.gpp_bad_rounded, color: PrivioColors.danger, size: 20),
+              const SizedBox(width: PrivioSpacing.md),
+              Expanded(
+                child: Text(
+                  message,
+                  key: const ValueKey('call-refused'),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: PrivioSpacing.sm),
+              IconButton(
+                onPressed: onDismiss,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: AppText.of(context).commonClose,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

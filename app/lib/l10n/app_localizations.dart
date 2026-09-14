@@ -5922,6 +5922,72 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Privio has not been allowed to notify you yet.'**
   String get notificationsPermissionNotAsked;
+
+  /// No description provided for @failureCallMediaNotEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the other side asked for a connection Privio cannot encrypt. Privio never falls back to an unencrypted call.'**
+  String get failureCallMediaNotEncrypted;
+
+  /// No description provided for @failureCallFarEndNotBound.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: nothing in the setup proved who was at the other end. Privio does not connect a call it cannot tie to a key.'**
+  String get failureCallFarEndNotBound;
+
+  /// No description provided for @failureCallCertificateChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the other end changed midway through. A call has one other end, and this one had two.'**
+  String get failureCallCertificateChanged;
+
+  /// The other person, by username. Never translated.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: the security number for {who} is not the one Privio had. Compare it with them on another channel before calling again.'**
+  String failureCallIdentityChanged(String who);
+
+  /// No description provided for @failureCallWrongParty.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: a message about it came from someone who is not on it.'**
+  String get failureCallWrongParty;
+
+  /// No description provided for @failureCallNotVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'The call was ended: you only take calls from people whose security number you have confirmed, and {who}\'s is not confirmed on this device.'**
+  String failureCallNotVerified(String who);
+
+  /// No description provided for @callEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'End-to-end encrypted'**
+  String get callEncrypted;
+
+  /// No description provided for @callEncryptedVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'End-to-end encrypted · verified'**
+  String get callEncryptedVerified;
+
+  /// No description provided for @securityVerifiedCallsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Only calls from verified contacts'**
+  String get securityVerifiedCallsOnly;
+
+  /// No description provided for @securityVerifiedCallsOnlyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Every call is end-to-end encrypted either way. With this on, Privio also refuses a call unless you have compared the security number with that person and marked it confirmed — so a key this device merely met first is not enough. Calls from anyone else end with an explanation, on both sides.'**
+  String get securityVerifiedCallsOnlyBody;
+
+  /// No description provided for @privacyCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get privacyCalls;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

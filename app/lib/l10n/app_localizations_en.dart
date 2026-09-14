@@ -3457,4 +3457,46 @@ class AppTextEn extends AppText {
   @override
   String get notificationsPermissionNotAsked =>
       'Privio has not been allowed to notify you yet.';
+
+  @override
+  String get failureCallMediaNotEncrypted =>
+      'The call was ended: the other side asked for a connection Privio cannot encrypt. Privio never falls back to an unencrypted call.';
+
+  @override
+  String get failureCallFarEndNotBound =>
+      'The call was ended: nothing in the setup proved who was at the other end. Privio does not connect a call it cannot tie to a key.';
+
+  @override
+  String get failureCallCertificateChanged =>
+      'The call was ended: the other end changed midway through. A call has one other end, and this one had two.';
+
+  @override
+  String failureCallIdentityChanged(String who) {
+    return 'The call was ended: the security number for $who is not the one Privio had. Compare it with them on another channel before calling again.';
+  }
+
+  @override
+  String get failureCallWrongParty =>
+      'The call was ended: a message about it came from someone who is not on it.';
+
+  @override
+  String failureCallNotVerified(String who) {
+    return 'The call was ended: you only take calls from people whose security number you have confirmed, and $who\'s is not confirmed on this device.';
+  }
+
+  @override
+  String get callEncrypted => 'End-to-end encrypted';
+
+  @override
+  String get callEncryptedVerified => 'End-to-end encrypted · verified';
+
+  @override
+  String get securityVerifiedCallsOnly => 'Only calls from verified contacts';
+
+  @override
+  String get securityVerifiedCallsOnlyBody =>
+      'Every call is end-to-end encrypted either way. With this on, Privio also refuses a call unless you have compared the security number with that person and marked it confirmed — so a key this device merely met first is not enough. Calls from anyone else end with an explanation, on both sides.';
+
+  @override
+  String get privacyCalls => 'Calls';
 }
