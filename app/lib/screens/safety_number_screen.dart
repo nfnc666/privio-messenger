@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../crypto/safety_number.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -98,13 +99,12 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('The new key is trusted. Compare the number again before you rely on it.'),
-      ),
+      SnackBar(content: Text(AppText.of(context).safetyTrustedToast)),
     );
   }
 
   void _runComparison() {
+    final text = AppText.of(context);
     final numbers = _numbers;
     final typed = _compare.text;
     if (numbers == null || typed.trim().isEmpty) {
@@ -114,9 +114,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     final matched = numbers.numbers.any((n) => n.matches(typed));
     setState(() {
       _comparisonMatched = matched;
-      _comparison = matched
-          ? 'That matches one of the numbers below.'
-          : 'That matches none of the numbers below.';
+      _comparison = matched ? text.safetyMatches : text.safetyNoMatch;
     });
   }
 
@@ -125,12 +123,13 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     final theme = Theme.of(context);
     final state = PrivioScope.of(context);
     final numbers = _numbers;
+    final text = AppText.of(context);
     final pending = state.conversations.identityChangesFor(widget.accountId);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Safety number'),
+        title: Text(text.chatSafetyNumber),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
@@ -140,20 +139,11 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                 if (pending.isNotEmpty) _ChangedBanner(onAccept: _acceptChange),
                 if (pending.isEmpty && _arrivedAfterChange) const _ReceivedChangeNotice(),
                 if (numbers != null && numbers.isEmpty)
-                  _Explainer(
-                    'There is nothing to compare yet. A number exists once you '
-                    'and ${widget.title} have exchanged a message, because only '
-                    'then has this device pinned a key of theirs.',
-                  )
+                  _Explainer(text.safetyNothingYet(widget.title))
                 else ...[
                   _StateChip(state: numbers?.state ?? VerificationState.unverified),
                   const SizedBox(height: PrivioSpacing.lg),
-                  _Explainer(
-                    'Read these digits to ${widget.title} — on a call, or in '
-                    'person. If they see the same ones, no one is sitting '
-                    'between you. If they do not, stop using this chat for '
-                    'anything you would not say in public.',
-                  ),
+                  _Explainer(text.safetyReadThese(widget.title)),
                   const SizedBox(height: PrivioSpacing.xl),
                   for (final number in numbers!.numbers)
                     _NumberCard(number: number, showDevice: numbers.numbers.length > 1),
@@ -177,8 +167,8 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                         unawaited(_setVerified(numbers.state != VerificationState.verified)),
                     child: Text(
                       numbers.state == VerificationState.verified
-                          ? 'Mark as not verified'
-                          : 'Mark as verified',
+                          ? text.safetyMarkNotVerified
+                          : text.safetyMarkVerified,
                       style: TextStyle(
                         color: numbers.state == VerificationState.verified
                             ? PrivioColors.textPrimary
@@ -188,11 +178,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                   ),
                   const SizedBox(height: PrivioSpacing.md),
                   Text(
-                    'Marking this verified records the exact keys on screen. If '
-                    'any of them changes, or a new device joins '
-                    '${widget.title}, the mark goes back to changed on its own '
-                    '— it is a record of what you checked, not a promise about '
-                    'what happens next.',
+                    text.safetyMarkNote(widget.title),
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: PrivioColors.textTertiary),
                   ),
@@ -210,13 +196,14 @@ class _StateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = AppText.of(context);
     final (label, colour, icon) = switch (state) {
       VerificationState.verified =>
-        ('Verified', PrivioColors.accent, Icons.verified_user_outlined),
+        (text.safetyVerified, PrivioColors.accent, Icons.verified_user_outlined),
       VerificationState.changed =>
-        ('Changed since you checked', PrivioColors.warning, Icons.error_outline),
+        (text.safetyChangedSince, PrivioColors.warning, Icons.error_outline),
       VerificationState.unverified =>
-        ('Not verified', PrivioColors.textSecondary, Icons.help_outline),
+        (text.safetyNotVerified, PrivioColors.textSecondary, Icons.help_outline),
     };
     return Row(
       key: const Key('safety-state'),
@@ -251,7 +238,7 @@ class _NumberCard extends StatelessWidget {
         children: [
           if (showDevice) ...[
             Text(
-              'Their device ${number.deviceIndex}',
+              AppText.of(context).safetyTheirDevice(number.deviceIndex),
               style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.textTertiary),
             ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -306,8 +293,8 @@ class _CompareBox extends StatelessWidget {
           style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
           keyboardType: TextInputType.number,
           inputFormatters: [LengthLimitingTextInputFormatter(120)],
-          decoration: const InputDecoration(
-            labelText: 'Compare a number they sent you',
+          decoration: InputDecoration(
+            labelText: AppText.of(context).safetyCompareTitle,
             hintText: '12345 67890 …',
           ),
           onSubmitted: (_) => onCompare(),
@@ -318,7 +305,7 @@ class _CompareBox extends StatelessWidget {
           child: TextButton(
             key: const Key('safety-compare'),
             onPressed: onCompare,
-            child: const Text('Compare'),
+            child: Text(AppText.of(context).safetyCompare),
           ),
         ),
         if (result != null)
@@ -359,18 +346,14 @@ class _ChangedBanner extends StatelessWidget {
               const Icon(Icons.error_outline, color: PrivioColors.warning, size: 18),
               const SizedBox(width: PrivioSpacing.sm),
               Text(
-                'The key on the server is not the one you had',
+                AppText.of(context).safetyKeyNotYours,
                 style: theme.textTheme.titleSmall?.copyWith(color: PrivioColors.warning),
               ),
             ],
           ),
           const SizedBox(height: PrivioSpacing.sm),
           Text(
-            'Messages to this chat are refused until you decide. Reinstalling '
-            'Privio, or signing in on a new device, does this legitimately and '
-            'is the usual reason. So does a server handing you a key of its '
-            'own, which looks exactly the same from here — which is why the '
-            'number below is worth comparing again afterwards.',
+            AppText.of(context).safetyRefusedUntilDecide,
             style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
           ),
           const SizedBox(height: PrivioSpacing.md),
@@ -381,9 +364,9 @@ class _ChangedBanner extends StatelessWidget {
               minimumSize: const Size.fromHeight(44),
             ),
             onPressed: () => unawaited(onAccept()),
-            child: const Text(
-              'Trust the new key',
-              style: TextStyle(color: PrivioColors.background),
+            child: Text(
+              AppText.of(context).safetyTrustNewKey,
+              style: const TextStyle(color: PrivioColors.background),
             ),
           ),
         ],
@@ -422,7 +405,7 @@ class _ReceivedChangeNotice extends StatelessWidget {
               const SizedBox(width: PrivioSpacing.sm),
               Expanded(
                 child: Text(
-                  'Their key changed, and a message with it arrived',
+                  AppText.of(context).safetyKeyChangedArrived,
                   style: theme.textTheme.titleSmall?.copyWith(color: PrivioColors.warning),
                 ),
               ),
@@ -430,11 +413,7 @@ class _ReceivedChangeNotice extends StatelessWidget {
           ),
           const SizedBox(height: PrivioSpacing.sm),
           Text(
-            'The new key is already in use — a message that brings one cannot '
-            'be turned away without handing anyone a way to silence a chat. '
-            'Reinstalling does this. So does someone stepping in. The number '
-            'below is the difference, and it is only worth anything compared '
-            'out loud.',
+            AppText.of(context).safetyKeyChangedBody,
             style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
           ),
         ],

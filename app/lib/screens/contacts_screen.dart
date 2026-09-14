@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/channel_text.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -74,24 +76,25 @@ class _ContactsScreenState extends State<ContactsScreen> {
   /// The server reports a moment, so this reports a moment. It does not say
   /// "online": that would be this app inferring a state from a timestamp and
   /// presenting the guess as a fact about somebody else.
-  static String _subtitleFor(Contact contact) {
+  static String _subtitleFor(AppText text, Contact contact) {
     final seen = contact.lastSeenAt;
     if (seen == null) return '@${contact.username}';
-    return '@${contact.username} · last seen ${_when(seen)}';
+    return text.contactsLastSeen(contact.username, _when(text, seen));
   }
 
-  static String _when(DateTime at) {
+  static String _when(AppText text, DateTime at) {
     final now = DateTime.now();
     final difference = now.difference(at);
-    if (difference.inMinutes < 1) return 'just now';
-    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    if (difference.inMinutes < 1) return text.contactsSeenJustNow;
+    if (difference.inMinutes < 60) return text.contactsSeenMinutes(difference.inMinutes);
     final sameDay = at.year == now.year && at.month == now.month && at.day == now.day;
     final time = '${at.hour.toString().padLeft(2, '0')}:'
         '${at.minute.toString().padLeft(2, '0')}';
-    if (sameDay) return 'at $time';
-    if (difference.inDays < 7) return '${difference.inDays}d ago';
-    return '${at.day.toString().padLeft(2, '0')}.'
-        '${at.month.toString().padLeft(2, '0')}.${at.year}';
+    if (sameDay) return text.contactsSeenAtTime(time);
+    if (difference.inDays < 7) return text.contactsSeenDays(difference.inDays);
+    // Written the way the reader's language writes a date rather than always
+    // as dd.mm.yyyy, which is one language's habit.
+    return formatDate(text, at);
   }
 
   @override
@@ -114,7 +117,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             leading: Navigator.of(context).canPop()
                 ? const PrivioBackButton()
                 : null,
-            title: const Text('Contacts'),
+            title: Text(AppText.of(context).contactsTitle),
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () => _showAddContact(context),
@@ -125,7 +128,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           body: Column(
             children: [
               PrivioSearchField(
-                hintText: 'Search contacts',
+                hintText: AppText.of(context).contactsSearch,
                 onChanged: (value) => setState(() => _query = value),
               ),
               Expanded(
@@ -150,7 +153,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             subtitle: Text(
-                              _subtitleFor(contact),
+                              _subtitleFor(AppText.of(context), contact),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             trailing: const Icon(
@@ -198,7 +201,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
             } else {
               setSheetState(() {
                 busy = false;
-                failure = state.conversations.error ?? 'Could not add that user';
+                failure = state.conversations.error ??
+                    AppText.of(sheetContext).contactsCouldNotAdd;
               });
             }
           }
@@ -214,11 +218,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Add contact', style: Theme.of(sheetContext).textTheme.titleLarge),
+                Text(
+                  AppText.of(sheetContext).contactsAddTitle,
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Text(
-                  'Enter their exact Privio username. Nothing is uploaded from '
-                  'your address book, and nobody can find you by browsing.',
+                  AppText.of(sheetContext).contactsAddNote,
                   style: Theme.of(sheetContext).textTheme.bodySmall,
                 ),
                 const SizedBox(height: PrivioSpacing.xl),
@@ -227,7 +233,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   autofocus: true,
                   autocorrect: false,
                   onSubmitted: (_) => add(),
-                  decoration: const InputDecoration(hintText: 'username', prefixText: '@ '),
+                  decoration: InputDecoration(
+                    hintText: AppText.of(sheetContext).contactsUsernameHint,
+                    prefixText: '@ ',
+                  ),
                 ),
                 if (failure.isNotEmpty) ...[
                   const SizedBox(height: PrivioSpacing.md),
@@ -251,7 +260,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             color: PrivioColors.background,
                           ),
                         )
-                      : const Text('Add'),
+                      : Text(AppText.of(sheetContext).commonAdd),
                 ),
               ],
             ),
@@ -276,11 +285,10 @@ class _EmptyContacts extends StatelessWidget {
           children: [
             const Icon(Icons.people_outline_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('No contacts yet', style: theme.textTheme.titleMedium),
+            Text(AppText.of(context).contactsEmptyTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'Add someone by their exact username, or share your invite link '
-              'from the Account tab.',
+              AppText.of(context).contactsEmptyBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),

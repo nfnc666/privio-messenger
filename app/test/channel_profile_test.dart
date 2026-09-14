@@ -9,6 +9,7 @@ import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/l10n/app_localizations.dart';
+import 'package:privio/l10n/channel_text.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
@@ -163,7 +164,7 @@ void main() {
 
   group('what a permission set can say about itself', () {
     test('lists every permission exactly once, so no screen can omit one', () {
-      final keys = ChannelPermissions.all.map((p) => p.key).toList();
+      const keys = ChannelPermissions.all;
       expect(keys.toSet(), hasLength(keys.length));
       expect(keys, contains('canAppointAdmins'));
       expect(keys, contains('canModerateDiscussion'));
@@ -203,22 +204,28 @@ void main() {
   });
 
   group('presence is the member own setting, never a guess', () {
-    test('says nothing at all where they do not share it', () {
+    test('says nothing at all where they do not share it', () async {
       const member = ChannelMember(id: 'a', username: 'bob');
       expect(
-        member.presenceLabel(),
-        '',
+        member.presence().isUnknown,
+        isTrue,
         reason: 'not knowing is not the same as knowing it was long ago',
       );
+      final text = await AppText.delegate.load(const Locale('en'));
+      expect(presenceText(text, member.presence()), '');
     });
 
-    test('reads back the way a person would say it', () {
+    test('reads back the way a person would say it', () async {
       final now = DateTime(2026, 9, 11, 12);
-      String at(Duration ago) => ChannelMember(
-            id: 'a',
-            username: 'bob',
-            lastSeenAt: now.subtract(ago),
-          ).presenceLabel(now: now);
+      final text = await AppText.delegate.load(const Locale('en'));
+      String at(Duration ago) => presenceText(
+            text,
+            ChannelMember(
+              id: 'a',
+              username: 'bob',
+              lastSeenAt: now.subtract(ago),
+            ).presence(now: now),
+          );
 
       expect(at(const Duration(seconds: 30)), 'online');
       expect(at(const Duration(minutes: 20)), 'last seen 20 minutes ago');

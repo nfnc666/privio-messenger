@@ -1209,4 +1209,2019 @@ class AppTextDe extends AppText {
   @override
   String get blockedEmptyNote =>
       'Blockiere jemanden aus dem Chat heraus, dann taucht die Person hier auf.';
+
+  @override
+  String get chatsSectionChats => 'Chats';
+
+  @override
+  String get chatsSectionMessages => 'Nachrichten';
+
+  @override
+  String get chatsYouPrefix => 'Du: ';
+
+  @override
+  String get chatsNoSearchResults =>
+      'Hier passt nichts. Gefragt wurde nur dieses Gerät — der Server hält Nachrichten, die er nicht lesen kann, er hätte also gar nicht antworten können.';
+
+  @override
+  String get chatsFilterAll => 'Alle';
+
+  @override
+  String get chatsFilterUnread => 'Ungelesen';
+
+  @override
+  String get chatsFilterGroups => 'Gruppen';
+
+  @override
+  String get chatsPin => 'Oben anheften';
+
+  @override
+  String get chatsUnpin => 'Lösen';
+
+  @override
+  String get chatsPinNote => 'Nur auf diesem Gerät. Es wird nichts gesendet.';
+
+  @override
+  String get chatsGroupFallbackName => 'Gruppe';
+
+  @override
+  String get chatsCouldNotOpenLink => 'Dieser Link ließ sich nicht öffnen';
+
+  @override
+  String get chatsJoinGroupTooltip => 'Mit einem Link einer Gruppe beitreten';
+
+  @override
+  String get chatsNewGroupTooltip => 'Neue Gruppe';
+
+  @override
+  String get chatsNewChatTooltip => 'Neuer Chat';
+
+  @override
+  String get chatsEmptyTitle => 'Noch keine Chats';
+
+  @override
+  String get chatsEmptyBody =>
+      'Füge jemanden über den genauen Benutzernamen hinzu, um loszulegen.';
+
+  @override
+  String get chatsAddContact => 'Kontakt hinzufügen';
+
+  @override
+  String get chatsJoinGroupTitle => 'Gruppe beitreten';
+
+  @override
+  String get chatsJoinGroupNote =>
+      'Der Link bringt dich hinein. Den Schlüssel zum Gruppennamen schickt dir danach jemand aus der Gruppe verschlüsselt auf dein Gerät.';
+
+  @override
+  String get chatsJoin => 'Beitreten';
+
+  @override
+  String get commonGotIt => 'Verstanden';
+
+  @override
+  String get commonPause => 'Pause';
+
+  @override
+  String get commonPlay => 'Abspielen';
+
+  @override
+  String get commonOpen => 'Öffnen';
+
+  @override
+  String get commonReply => 'Antworten';
+
+  @override
+  String get commonFile => 'Datei';
+
+  @override
+  String get scrubRemoved => 'Metadaten entfernt';
+
+  @override
+  String get scrubNothingToRemove => 'Nichts zu entfernen';
+
+  @override
+  String get scrubCouldNotClean => 'Konnte nicht bereinigt werden';
+
+  @override
+  String get scrubRemovedBody =>
+      'Das wurde entfernt, bevor die Datei verschlüsselt und gesendet wurde. Die empfangende Person bekommt es nie.';
+
+  @override
+  String get scrubNothingBody =>
+      'Diese Datei enthielt von vornherein keine identifizierenden Metadaten.';
+
+  @override
+  String scrubNoCleanerBody(String type) {
+    return 'Privio hat noch keinen Reiniger für $type, die Datei wurde also unverändert gesendet. Sie ist weiterhin Ende-zu-Ende verschlüsselt, aber alle Metadaten darin erreichen die empfangende Person.';
+  }
+
+  @override
+  String get webStorageShort =>
+      'Im Browser ist der Verlauf dieses Geräts nur so privat wie dieses Browserprofil. Nachrichten unterwegs sind so oder so verschlüsselt.';
+
+  @override
+  String get webStorageLong =>
+      'Du benutzt Privio in einem Browser. Nachrichten sind unterwegs weiterhin Ende-zu-Ende verschlüsselt — aber ein Browser hat keinen Schlüsselspeicher, der auf diesem Gerät gehaltene Verlauf ist also nur so privat wie dieses Browserprofil. Wer es lesen kann — ein gemeinsam genutzter Computer, eine Erweiterung, eine Kopie des Profils — kann deine Chats lesen. Die Telefon-Apps haben dieses Problem nicht.';
+
+  @override
+  String get voiceCouldNotOpen => 'Diese Aufnahme ließ sich nicht öffnen.';
+
+  @override
+  String get voiceCannotPlay =>
+      'Dieses Gerät kann diese Aufnahme nicht abspielen.';
+
+  @override
+  String get voiceMicUnavailable => 'Das Mikrofon ist gerade nicht verfügbar.';
+
+  @override
+  String get voiceCouldNotSave =>
+      'Diese Aufnahme konnte nicht gespeichert werden.';
+
+  @override
+  String get voiceSlideToCancel => 'Zum Abbrechen wischen';
+
+  @override
+  String get voiceResume => 'Fortsetzen';
+
+  @override
+  String get voiceStop => 'Stopp';
+
+  @override
+  String get voiceDeleteRecording => 'Aufnahme löschen';
+
+  @override
+  String get voiceListenBack => 'Anhören';
+
+  @override
+  String get bubbleYouDeleted => 'Du hast diese Nachricht gelöscht';
+
+  @override
+  String get bubbleMessageDeleted => 'Diese Nachricht wurde gelöscht';
+
+  @override
+  String get bubbleCouldNotOpen => 'Konnte nicht geöffnet werden';
+
+  @override
+  String get bubbleEncryptedNotice =>
+      'Nachrichten und Anrufe sind Ende-zu-Ende verschlüsselt. Niemand außerhalb dieses Chats kann sie lesen oder mithören, auch Privio nicht.';
+
+  @override
+  String get linkNotWebAddress => 'Dieser Link ist keine Webadresse.';
+
+  @override
+  String get linkNothingCanOpen =>
+      'Auf diesem Gerät konnte nichts diesen Link öffnen.';
+
+  @override
+  String get linkOpenTitle => 'Diesen Link öffnen?';
+
+  @override
+  String get linkOpenBody =>
+      'Das öffnet sich in deinem Browser, außerhalb von Privio. Die Seite sieht deine Verbindung so, wie es jede besuchte Seite tut.';
+
+  @override
+  String timerBadgeDays(int count) {
+    return '$count T';
+  }
+
+  @override
+  String timerBadgeHours(int count) {
+    return '$count Std';
+  }
+
+  @override
+  String timerBadgeMinutes(int count) {
+    return '$count Min';
+  }
+
+  @override
+  String timerBadgeSeconds(int count) {
+    return '$count Sek';
+  }
+
+  @override
+  String get chatSafetyNumberChanged => 'Sicherheitsnummer geändert';
+
+  @override
+  String get chatEncrypted => 'Ende-zu-Ende verschlüsselt';
+
+  @override
+  String get chatEncryptedVerified => 'Ende-zu-Ende verschlüsselt · bestätigt';
+
+  @override
+  String get chatEncryptedNumberChanged =>
+      'Ende-zu-Ende verschlüsselt · Nummer geändert';
+
+  @override
+  String get chatWaitingGroupKey => 'Warte auf den Gruppenschlüssel';
+
+  @override
+  String chatMembersEncrypted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Mitglieder',
+      one: '1 Mitglied',
+    );
+    return '$_temp0 · verschlüsselt';
+  }
+
+  @override
+  String get chatRetrySendTitle => 'Erneut versuchen';
+
+  @override
+  String get chatRetryFailed => 'Sie ging nicht raus. Jetzt senden.';
+
+  @override
+  String get chatRetryQueued =>
+      'Wartet auf ein Netz. Trotzdem jetzt versuchen.';
+
+  @override
+  String get chatCopyText => 'Text kopieren';
+
+  @override
+  String get chatDeleteForMe => 'Für mich löschen';
+
+  @override
+  String get chatDeleteForMeNote =>
+      'Weg von diesem Gerät. Andere Geräte behalten sie.';
+
+  @override
+  String get chatDeleteForEveryone => 'Für alle löschen';
+
+  @override
+  String get chatDeleteForEveryoneNote =>
+      'Bittet ihre App, sie zu vergessen. Es kann nicht zurückholen, was schon gelesen, abfotografiert oder aus einer Sicherung wiederhergestellt wurde.';
+
+  @override
+  String get chatPickerNoResponse => 'Die Dateiauswahl hat nicht geantwortet.';
+
+  @override
+  String chatPickerFailed(String reason) {
+    return 'Die Dateiauswahl ließ sich nicht öffnen: $reason';
+  }
+
+  @override
+  String chatCouldNotReadFile(String name) {
+    return '$name ließ sich nicht lesen.';
+  }
+
+  @override
+  String chatBlockTitle(String name) {
+    return '$name blockieren?';
+  }
+
+  @override
+  String get chatBlockBody =>
+      'Ihre Nachrichten kommen nicht mehr an. Sie erfahren nichts davon, und für sie sieht es aus, als hätte sich nichts geändert. Du kannst es unter Privatsphäre & Sicherheit aufheben.';
+
+  @override
+  String get chatBlock => 'Blockieren';
+
+  @override
+  String chatBlocked(String name) {
+    return '$name ist blockiert.';
+  }
+
+  @override
+  String get chatCouldNotBlock => 'Blockieren war nicht möglich.';
+
+  @override
+  String get chatMicrophoneDenied =>
+      'Privio kann ohne Mikrofonzugriff nicht aufnehmen. Du kannst ihn in den Geräteeinstellungen erteilen.';
+
+  @override
+  String get chatNoGroupLink =>
+      'Noch kein Link für diese Gruppe — zum Aktualisieren ziehen.';
+
+  @override
+  String get chatInviteLink => 'Einladungslink';
+
+  @override
+  String get chatInviteLinkNote =>
+      'Teile ihn überall — er trägt keinen Schlüssel. Wer ihn öffnet, tritt der Gruppe bei, und der Schlüssel zu ihrem Namen erreicht das Gerät verschlüsselt.';
+
+  @override
+  String get chatTyping => 'tippt …';
+
+  @override
+  String get chatVideoCall => 'Videoanruf';
+
+  @override
+  String get chatVoiceCall => 'Sprachanruf';
+
+  @override
+  String get chatMore => 'Mehr';
+
+  @override
+  String get chatGroupInfo => 'Gruppeninfo';
+
+  @override
+  String get chatSafetyNumber => 'Sicherheitsnummer';
+
+  @override
+  String get chatActivate => 'Aktivieren';
+
+  @override
+  String get chatSend => 'Senden';
+
+  @override
+  String get chatHoldToRecord =>
+      'Halte das Mikrofon gedrückt, um eine Sprachnachricht aufzunehmen.';
+
+  @override
+  String get chatReplyingToYourself => 'Antwort auf dich selbst';
+
+  @override
+  String chatReplyingTo(String name) {
+    return 'Antwort an $name';
+  }
+
+  @override
+  String get chatReplying => 'Antwort';
+
+  @override
+  String get chatCancelReply => 'Antwort verwerfen';
+
+  @override
+  String get contactsTitle => 'Kontakte';
+
+  @override
+  String get contactsSearch => 'Kontakte durchsuchen';
+
+  @override
+  String contactsLastSeen(String username, String when) {
+    return '@$username · zuletzt online $when';
+  }
+
+  @override
+  String get contactsSeenJustNow => 'gerade eben';
+
+  @override
+  String contactsSeenMinutes(int count) {
+    return 'vor $count Min.';
+  }
+
+  @override
+  String contactsSeenAtTime(String time) {
+    return 'um $time';
+  }
+
+  @override
+  String contactsSeenDays(int count) {
+    return 'vor $count T.';
+  }
+
+  @override
+  String get contactsCouldNotAdd => 'Diese Person ließ sich nicht hinzufügen';
+
+  @override
+  String get contactsAddTitle => 'Kontakt hinzufügen';
+
+  @override
+  String get contactsAddNote =>
+      'Gib den genauen Privio-Benutzernamen ein. Aus deinem Adressbuch wird nichts hochgeladen, und niemand kann dich durch Stöbern finden.';
+
+  @override
+  String get contactsUsernameHint => 'Benutzername';
+
+  @override
+  String get contactsEmptyTitle => 'Noch keine Kontakte';
+
+  @override
+  String get contactsEmptyBody =>
+      'Füge jemanden über den genauen Benutzernamen hinzu oder teile deinen Einladungslink aus dem Konto-Tab.';
+
+  @override
+  String get groupCouldNotCreate => 'Die Gruppe ließ sich nicht erstellen';
+
+  @override
+  String get groupNewTitle => 'Neue Gruppe';
+
+  @override
+  String get groupCreate => 'Erstellen';
+
+  @override
+  String get groupName => 'Gruppenname';
+
+  @override
+  String get groupNameEncryptedNote =>
+      'Der Name ist verschlüsselt. Privio speichert eine Gruppe, die es nicht benennen kann.';
+
+  @override
+  String get groupChooseMembers => 'Mitglieder wählen';
+
+  @override
+  String groupSelectedCount(int count) {
+    return '$count ausgewählt';
+  }
+
+  @override
+  String get groupAddContactsFirst =>
+      'Füge erst Kontakte hinzu — eine Gruppe braucht Leute darin.';
+
+  @override
+  String get groupInfoCouldNotRead =>
+      'Wer in dieser Gruppe ist, ließ sich nicht lesen.';
+
+  @override
+  String get groupAdminOnly => 'Nur ein Admin kann das ändern';
+
+  @override
+  String get groupRename => 'Gruppe umbenennen';
+
+  @override
+  String get groupRenameAction => 'Umbenennen';
+
+  @override
+  String get groupRenamed =>
+      'Umbenannt. Alle anderen öffnen den neuen Namen mit dem Schlüssel, den sie schon haben.';
+
+  @override
+  String get groupCouldNotRename => 'Die Gruppe ließ sich nicht umbenennen.';
+
+  @override
+  String groupRemoveTitle(String name) {
+    return '$name entfernen?';
+  }
+
+  @override
+  String get groupRemoveBody =>
+      'Sie bekommen ab jetzt nichts mehr, was gesendet wird. Was sie schon bekommen haben, bleibt auf ihrem Gerät — von hier aus ist das nicht erreichbar.';
+
+  @override
+  String get groupCouldNotRemove => 'Entfernen war nicht möglich.';
+
+  @override
+  String get groupLeaveTitle => 'Diese Gruppe verlassen?';
+
+  @override
+  String get groupLeaveBody =>
+      'Du bekommst nichts mehr, was dorthin gesendet wird, und die Unterhaltung verschwindet mit allem darin von diesem Gerät. Niemand wird benachrichtigt; die anderen sehen dich aus der Mitgliederliste verschwinden.';
+
+  @override
+  String get groupLeave => 'Verlassen';
+
+  @override
+  String get groupLeaveRow => 'Gruppe verlassen';
+
+  @override
+  String get groupDeleteTitle => 'Diese Gruppe löschen?';
+
+  @override
+  String get groupDeleteBody =>
+      'Sie verschwindet für alle: Niemand kann mehr dorthin senden. Was schon zugestellt wurde, bleibt auf den Geräten, die es empfangen haben — also jede Nachricht, die jemand gelesen hat.';
+
+  @override
+  String get groupDeleteRow => 'Gruppe für alle löschen';
+
+  @override
+  String get groupYouSuffix => 'Du';
+
+  @override
+  String get groupAdminSuffix => 'Admin';
+
+  @override
+  String get navChats => 'Chats';
+
+  @override
+  String get navChannels => 'Kanäle';
+
+  @override
+  String get navCalls => 'Anrufe';
+
+  @override
+  String get navContacts => 'Kontakte';
+
+  @override
+  String get navAccount => 'Konto';
+
+  @override
+  String get splashTagline => 'Sicherer Messenger';
+
+  @override
+  String get splashPromise => 'Verschlüsselt. Privat. Deins.';
+
+  @override
+  String get splashInitialising => 'Sichere Umgebung wird vorbereitet';
+
+  @override
+  String accountPickerFailed(String reason) {
+    return 'Die Auswahl ließ sich nicht öffnen: $reason';
+  }
+
+  @override
+  String accountCouldNotReadFile(String name, String reason) {
+    return '$name ließ sich nicht lesen: $reason';
+  }
+
+  @override
+  String get accountCouldNotSetPicture => 'Das Bild ließ sich nicht setzen';
+
+  @override
+  String get accountTapToAddPicture => 'Antippen, um ein Bild hinzuzufügen';
+
+  @override
+  String get accountPictureEncrypted =>
+      'Verschlüsselt — nur deine Kontakte sehen es';
+
+  @override
+  String get accountUsername => 'Benutzername';
+
+  @override
+  String get accountStatus => 'Status';
+
+  @override
+  String get accountStatusDefault => 'Hallo! Ich benutze Privio.';
+
+  @override
+  String get accountId => 'Konto-ID';
+
+  @override
+  String get accountInviteRow => 'Einladungslink / QR-Code';
+
+  @override
+  String get accountLogOut => 'Abmelden';
+
+  @override
+  String get accountLogOutQuestion => 'Abmelden?';
+
+  @override
+  String get accountLogOutBody =>
+      'Deine Nachrichten bleiben auf diesem Gerät verschlüsselt, bis du sie löschst. Zum erneuten Anmelden brauchst du dein Passwort.';
+
+  @override
+  String get accountDelete => 'Konto löschen';
+
+  @override
+  String get accountDeleteTitle => 'Dieses Konto löschen?';
+
+  @override
+  String get accountDeleteBody =>
+      'Deine Geräte, deine Schlüssel, die noch auf Zustellung wartenden Nachrichten, deine Kontakte, deine Gruppenmitgliedschaften und deine Sicherung werden alle auf dem Server gelöscht. Alles auf diesem Telefon geht mit.\n\nEs erreicht nicht, was andere schon empfangen haben, und dein Benutzername wird frei für jemand anderen.\n\nEs gibt kein Zurück und keine Wiederherstellung — nicht mit dem Wiederherstellungsschlüssel, nicht durch Anschreiben irgendeiner Stelle.';
+
+  @override
+  String get accountYourPassword => 'Dein Passwort';
+
+  @override
+  String get accountDeleteIt => 'Löschen';
+
+  @override
+  String get inviteTitle => 'Einladen';
+
+  @override
+  String get inviteTabLink => 'Einladungslink';
+
+  @override
+  String get inviteTabQr => 'QR-Code';
+
+  @override
+  String get inviteYourLink => 'Dein Einladungslink';
+
+  @override
+  String get inviteCopied => 'Einladungslink kopiert';
+
+  @override
+  String get inviteCopyLink => 'Link kopieren';
+
+  @override
+  String get inviteCopyInviteLink => 'Einladungslink kopieren';
+
+  @override
+  String get inviteNote =>
+      'Teile diesen Link, um andere zu Privio einzuladen. Er verrät deinen Benutzernamen und sonst nichts.';
+
+  @override
+  String inviteScanToConnect(String username) {
+    return 'Scannen, um sich mit @$username zu verbinden';
+  }
+
+  @override
+  String get callsClearHistory => 'Anrufliste leeren';
+
+  @override
+  String get callsClearTitle => 'Anrufliste leeren?';
+
+  @override
+  String get callsClearBody =>
+      'Diese Liste liegt nur auf diesem Gerät — sie zu leeren entfernt sie von hier und von sonst nirgends, weil sie nie woanders war.';
+
+  @override
+  String get callsClear => 'Leeren';
+
+  @override
+  String get callsNeverLeavesNote =>
+      'Diese Liste verlässt das Gerät nie. Der Server leitet den Aufbau eines Anrufs weiter wie eine Nachricht — versiegelt und für ihn unlesbar — er hält also keine Aufzeichnung darüber, wer wen angerufen hat.';
+
+  @override
+  String callsCallSomeone(String name) {
+    return '$name anrufen';
+  }
+
+  @override
+  String get callsDeclined => 'Abgelehnt';
+
+  @override
+  String get callsNotTaken => 'Nicht angenommen';
+
+  @override
+  String get callsBusy => 'Besetzt';
+
+  @override
+  String get callsCouldNotConnect => 'Verbindung nicht möglich';
+
+  @override
+  String get callsMissed => 'Verpasst';
+
+  @override
+  String get callsNoAnswer => 'Keine Antwort';
+
+  @override
+  String get callsEmptyTitle => 'Noch keine Anrufe';
+
+  @override
+  String get callsEmptyBody =>
+      'Starte einen aus einem Chat heraus. Der Anruf wird über die Signal-Sitzung aufgebaut, die dieser Chat ohnehin nutzt, die Adressen, die eure beiden Geräte zum Finden austauschen, sind also füreinander versiegelt und nicht für den Server.';
+
+  @override
+  String get callCalling => 'Ruft an …';
+
+  @override
+  String get callIncomingVideo => 'Eingehender Videoanruf';
+
+  @override
+  String get callIncoming => 'Eingehender Anruf';
+
+  @override
+  String get callConnecting => 'Verbinde …';
+
+  @override
+  String get callEnded => 'Anruf beendet';
+
+  @override
+  String get callDecline => 'Ablehnen';
+
+  @override
+  String get callAccept => 'Annehmen';
+
+  @override
+  String get callMute => 'Stumm';
+
+  @override
+  String get callUnmute => 'Ton an';
+
+  @override
+  String get callCamera => 'Kamera';
+
+  @override
+  String get callCameraOff => 'Kamera aus';
+
+  @override
+  String get callEnd => 'Beenden';
+
+  @override
+  String get callSpeaker => 'Lautsprecher';
+
+  @override
+  String get welcomePromiseEncrypted => 'Ende-zu-Ende verschlüsselt';
+
+  @override
+  String get welcomePromiseNoPhone => 'Keine Telefonnummer nötig';
+
+  @override
+  String get welcomePromiseControl => 'Du hast die Kontrolle';
+
+  @override
+  String get welcomePromiseByDesign => 'Datenschutz von Grund auf';
+
+  @override
+  String get welcomeTo => 'Willkommen bei';
+
+  @override
+  String get welcomeGetStarted => 'Loslegen';
+
+  @override
+  String get welcomeHaveAccount => 'Ich habe schon ein Konto';
+
+  @override
+  String get welcomeImportBackup => 'Aus Sicherung importieren';
+
+  @override
+  String get authCreateTitle => 'Konto erstellen';
+
+  @override
+  String get authWelcomeBack => 'Willkommen zurück';
+
+  @override
+  String get authCreateNote =>
+      'Wähle einen Benutzernamen. Keine Telefonnummer, keine E-Mail — nichts, was dieses Konto mit etwas anderem verbindet.';
+
+  @override
+  String get authSignInNote => 'Melde dich mit Benutzername und Passwort an.';
+
+  @override
+  String get authUsernameRule =>
+      '3–32 Zeichen: a–z, 0–9, Punkt oder Unterstrich';
+
+  @override
+  String get authPasswordRule => 'Mindestens 10 Zeichen — dieses schützt alles';
+
+  @override
+  String get authPasswordRequired => 'Gib dein Passwort ein';
+
+  @override
+  String get authTotpHint => 'Zwei-Faktor-Code';
+
+  @override
+  String get authCreateAccount => 'Konto erstellen';
+
+  @override
+  String get authSignIn => 'Anmelden';
+
+  @override
+  String get authCreateNew => 'Neues Konto erstellen';
+
+  @override
+  String get authPasswordOnlyWay =>
+      'Dein Passwort ist der einzige Weg in dieses Konto. Privio kann es nicht zurücksetzen, weil Privio nichts lesen kann, was es aufschließen würde.';
+
+  @override
+  String get pinEnterPassphrase => 'Passphrase eingeben';
+
+  @override
+  String get pinEnterPasscode => 'Code eingeben';
+
+  @override
+  String get pinPassphrase => 'Passphrase';
+
+  @override
+  String get pinWrong => 'Das ist es nicht.';
+
+  @override
+  String get pinUnlock => 'Entsperren';
+
+  @override
+  String get activationTitle => 'Privio aktivieren';
+
+  @override
+  String get activationSignedInNote =>
+      'Dein Konto ist bereit. Dieser Server verlangt einen Lizenzschlüssel, bevor er deine Nachrichten weiterleitet.';
+
+  @override
+  String get activationNewNote =>
+      'Dieser Server verlangt einen Lizenzschlüssel, bevor er Nachrichten weiterleitet. Gib deinen jetzt ein, dann wird er aktiviert, sobald dein Konto existiert.';
+
+  @override
+  String get activationActivate => 'Aktivieren';
+
+  @override
+  String get activationNoKeyYet => 'Ich habe noch keinen Schlüssel';
+
+  @override
+  String get activationWithoutKeyNote =>
+      'Ohne Schlüssel kannst du ein Konto anlegen, dich anmelden und Eingehendes lesen, aber nicht senden. Du kannst ihn später unter Einstellungen › Privio-Lizenz eingeben.';
+
+  @override
+  String activationFreeSoftwareNote(String name, String license) {
+    return '$name ist freie Software unter $license. Der Schlüssel schaltet die App nicht frei — du hast sie bereits vollständig und kannst sie selbst bauen. Er bezahlt den gehosteten Dienst, der deine Nachrichten weiterleitet.';
+  }
+
+  @override
+  String get backupCouldNotReach =>
+      'Privio war nicht erreichbar, um die Sicherung zu prüfen.';
+
+  @override
+  String get backupDone => 'Gesichert. Privio kann sie nicht lesen.';
+
+  @override
+  String get backupUploadFailed =>
+      'Die Sicherung konnte nicht hochgeladen werden.';
+
+  @override
+  String get backupBadKey =>
+      'Das sieht nicht nach einem Wiederherstellungsschlüssel aus.';
+
+  @override
+  String backupRestored(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Unterhaltungen wiederhergestellt.',
+      one: '1 Unterhaltung wiederhergestellt.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get backupKeyDidNotOpen =>
+      'Dieser Schlüssel hat die Sicherung nicht geöffnet, oder es gibt keine zu öffnen.';
+
+  @override
+  String get backupLast => 'Letzte Sicherung';
+
+  @override
+  String get backupOnServer => 'Auf dem Server';
+
+  @override
+  String get backupNothingYet => 'Noch nichts';
+
+  @override
+  String get backupAlways => 'Immer';
+
+  @override
+  String get backupNow => 'Jetzt sichern';
+
+  @override
+  String get backupAutomatic => 'Automatische Sicherung';
+
+  @override
+  String get backupIntervalDaily => 'Täglich';
+
+  @override
+  String get backupIntervalWeekly => 'Wöchentlich';
+
+  @override
+  String get backupRecoveryKey => 'Wiederherstellungsschlüssel';
+
+  @override
+  String get backupRestoreRow => 'Aus Sicherung wiederherstellen';
+
+  @override
+  String get backupSealedNote =>
+      'Sicherungen werden auf diesem Gerät mit deinem Wiederherstellungsschlüssel versiegelt. Privio kann sie nicht öffnen und den Schlüssel nicht zurücksetzen — wenn du ihn verlierst, ist die Sicherung weg. Schreib ihn an einem sicheren Ort auf.\n\nEine Sicherung enthält deine Unterhaltungen, nicht deine Schlüssel: Wiederherstellen auf einem neuen Gerät gibt dir deinen Verlauf, und dieses Gerät richtet für alles Weitere seine eigene Identität ein.';
+
+  @override
+  String get backupNever => 'Nie';
+
+  @override
+  String backupToday(String time) {
+    return 'Heute, $time';
+  }
+
+  @override
+  String get backupWriteItDown =>
+      'Schreib das auf. Es ist das Einzige, was deine Sicherungen öffnet, und niemand — auch Privio nicht — kann es dir noch einmal erzeugen.';
+
+  @override
+  String get backupRestoreReplacesNote =>
+      'Das ersetzt alles auf diesem Gerät durch das, was in der Sicherung steht.';
+
+  @override
+  String get backupRestore => 'Wiederherstellen';
+
+  @override
+  String get twoFactorOnToast =>
+      'Zwei-Faktor ist an. Bewahre die Wiederherstellung deiner Authenticator-App sicher auf.';
+
+  @override
+  String get twoFactorOffToast => 'Zwei-Faktor ist aus.';
+
+  @override
+  String get twoFactorTurnOffTitle => 'Zwei-Faktor ausschalten';
+
+  @override
+  String get twoFactorTurnOff => 'Ausschalten';
+
+  @override
+  String get twoFactorTurnOn => 'Einschalten';
+
+  @override
+  String get twoFactorServerNote =>
+      'Der Code wird beim Anmelden auf dem Server geprüft. Er schützt das Konto selbst — wer dein Passwort erfährt, kann trotzdem kein neues Gerät anmelden. Er verschlüsselt nicht deine Nachrichten: Das tut der Schlüssel auf diesem Gerät, und kein Code kann ihn ersetzen.';
+
+  @override
+  String get twoFactorOffBody =>
+      'Mit Zwei-Faktor braucht das Anmelden zusätzlich zum Passwort einen sechsstelligen Code aus deiner Authenticator-App.';
+
+  @override
+  String get twoFactorSetUp => 'Einrichten';
+
+  @override
+  String get twoFactorScanThis => 'Das hier scannen';
+
+  @override
+  String get twoFactorScanNote =>
+      'Füge es deiner Authenticator-App hinzu und tippe dann den angezeigten Code ein. Zwei-Faktor ist erst an, wenn dieser Code geprüft wurde.';
+
+  @override
+  String get twoFactorTypeKey => 'Oder diesen Schlüssel eintippen';
+
+  @override
+  String get twoFactorKeyCopied => 'Schlüssel kopiert.';
+
+  @override
+  String get twoFactorOnBody =>
+      'Beim Anmelden wird ein Code aus deiner Authenticator-App verlangt.';
+
+  @override
+  String get passcodeFourDigits => '4 Ziffern';
+
+  @override
+  String get passcodeSixDigits => '6 Ziffern';
+
+  @override
+  String get passcodeFourDigitsNote =>
+      'Zehntausend Kombinationen. Schnell, und genug gegen jemanden, der das Telefon aufhebt.';
+
+  @override
+  String get passcodeSixDigitsNote =>
+      'Eine Million Kombinationen, und immer noch ein Ziffernblock.';
+
+  @override
+  String get passcodePhraseNote =>
+      'Buchstaben, dazu Ziffern oder Zeichen, wenn du magst. Als einzige der drei hält sie jemandem stand, der das Telefon und Zeit hat.';
+
+  @override
+  String get passcodeNeedsFourDigits => 'Vier Ziffern.';
+
+  @override
+  String get passcodeNeedsSixDigits => 'Sechs Ziffern.';
+
+  @override
+  String passcodePhraseTooShort(int count) {
+    return 'Mindestens $count Zeichen.';
+  }
+
+  @override
+  String get passcodePhraseNeedsLetter =>
+      'Eine Passphrase braucht mindestens einen Buchstaben. Ziffern und Zeichen sind daneben willkommen.';
+
+  @override
+  String get lockEntriesDiffer => 'Die beiden Eingaben sind nicht gleich.';
+
+  @override
+  String get lockOnToast =>
+      'App-Sperre an. Privio fragt danach, wenn es zurückkommt.';
+
+  @override
+  String get lockOffToast => 'App-Sperre aus.';
+
+  @override
+  String get lockTurnOffTitle => 'App-Sperre ausschalten?';
+
+  @override
+  String get lockTurnOffBody =>
+      'Wer ein entsperrtes Telefon in der Hand hält, kommt an deine Nachrichten. Ein für den Sperrbildschirm gesetzter Notfallcode wird mit entfernt.';
+
+  @override
+  String get lockTurnOffRow => 'App-Sperre ausschalten';
+
+  @override
+  String get lockWhatItIsNote =>
+      'Ein Code auf diesem Gerät, der abgefragt wird, sobald Privio wieder in den Vordergrund kommt. Er ist nicht dein Kontopasswort und verlässt das Telefon nie — er schützt den darauf bereits verschlüsselten Verlauf.';
+
+  @override
+  String get lockNoBiometricsNote =>
+      'Es gibt keine Gesichts- oder Fingerabdruckoption. Das sind die einzigen Merkmale, für die jemand dir ein Telefon vors Gesicht halten oder deinen Finger im Schlaf darauflegen kann — und an mehreren Orten kann ein Gericht sie anordnen, wo es einen Code nicht anordnen kann.';
+
+  @override
+  String get lockChangePasscode => 'Code ändern';
+
+  @override
+  String get lockChoosePasscode => 'Code wählen';
+
+  @override
+  String get lockAgain => 'Noch einmal';
+
+  @override
+  String get lockChangeIt => 'Ändern';
+
+  @override
+  String get lockTurnItOn => 'Einschalten';
+
+  @override
+  String get lockForgettingNote =>
+      'Ihn zu vergessen bedeutet, sich neu anzumelden, was für den Server ein neues Gerät ist: Was hier schon zugestellt wurde, ist weg, wenn es nicht in einer Sicherung liegt. Es gibt kein Zurücksetzen, denn ein Zurücksetzen, das jeder verlangen könnte, wäre keine Sperre.';
+
+  @override
+  String get duressNoLockNote =>
+      'Am Sperrbildschirm bewirkt er noch nichts, weil es auf diesem Gerät keine App-Sperre gibt. Schalte eine unter Bildschirmsperre ein, dann wirkt ein Notfallcode in der Form dieser Sperre auch dort — und genau dort wird ein bereits angemeldetes Telefon weggenommen.';
+
+  @override
+  String duressShapeNote(String kind) {
+    return 'Dieses Gerät entsperrt mit $kind. Ein Notfallcode derselben Form kann am Sperrbildschirm eingegeben werden, wo er zerstört statt zu entsperren. Jede andere Form wirkt nur bei der Anmeldung.';
+  }
+
+  @override
+  String get duressMatchesLock =>
+      'Dieser passt zur Sperre auf diesem Gerät, er wirkt also am Sperrbildschirm wie bei der Anmeldung.';
+
+  @override
+  String duressDoesNotMatchLock(String kind) {
+    return 'Dieser passt nicht zur Sperre auf diesem Gerät ($kind), er wirkt also nur bei der Anmeldung — am Sperrbildschirm gibt es kein Feld dafür.';
+  }
+
+  @override
+  String get duressAtLeastFour => 'Verwende mindestens vier Zeichen.';
+
+  @override
+  String get duressCodesDiffer => 'Die beiden Codes sind nicht gleich.';
+
+  @override
+  String get duressSameAsUnlock =>
+      'Das ist der Code, der dieses Gerät entsperrt. Ein Notfallcode muss anders sein: Der Sperrbildschirm prüft ihn zuerst, wären beide gleich, würde jedes Entsperren das Konto zerstören — ohne es zu sagen.';
+
+  @override
+  String get duressSetBoth =>
+      'Notfallcode gesetzt. Er zerstört das Konto bei der Anmeldung und am Sperrbildschirm.';
+
+  @override
+  String get duressSetSignInOnly =>
+      'Notfallcode gesetzt. Ihn bei der Anmeldung einzugeben zerstört das Konto.';
+
+  @override
+  String get duressRemoved => 'Notfallcode entfernt.';
+
+  @override
+  String get duressRemoveTitle => 'Notfallcode entfernen';
+
+  @override
+  String get duressWarning =>
+      'Diesen Code statt deines Passworts bei der Anmeldung einzugeben zerstört das Konto: jedes Gerät, jede noch wartende Nachricht, deine Kontakte, deine Gruppenmitgliedschaften, deine Sicherung. Es gibt kein Zurück und keine Bestätigung — das ist der Sinn.';
+
+  @override
+  String get duressIsSet => 'Ein Notfallcode ist gesetzt';
+
+  @override
+  String get duressCannotShow =>
+      'Privio kann ihn dir nicht zeigen — er ist gespeichert wie ein Passwort. Einen neuen unten zu setzen ersetzt ihn.';
+
+  @override
+  String get duressRemoveIt => 'Entfernen';
+
+  @override
+  String get duressReplaceIt => 'Ersetzen';
+
+  @override
+  String get duressSetOne => 'Notfallcode setzen';
+
+  @override
+  String get duressAccountPassword => 'Dein Privio-Kontopasswort';
+
+  @override
+  String get duressLooksLikePin =>
+      'Das ist kürzer als ein Kontopasswort. Dieses Feld will das Passwort, das du bei der Kontoerstellung gewählt hast — nicht die PIN, die die App entsperrt.';
+
+  @override
+  String get duressCodeField => 'Notfallcode';
+
+  @override
+  String get duressCodeAgain => 'Notfallcode wiederholen';
+
+  @override
+  String get duressReplaceCode => 'Code ersetzen';
+
+  @override
+  String get duressSetCode => 'Code setzen';
+
+  @override
+  String get duressWhatItDoesNotDo =>
+      'Was er nicht tut: Der Kontoname bleibt vergeben, niemand kann ihn danach beanspruchen, und er erreicht kein anderes Gerät, das anderswo schon angemeldet ist. Wer zusieht, sieht den Versuch genauso abgelehnt wie ein falsch getipptes Passwort oder eine falsche PIN.';
+
+  @override
+  String get disguiseIntro =>
+      'Ein gesperrtes Privio öffnet sich als funktionierender Taschenrechner statt als Sperrbildschirm. Jede Rechnung, die deinen Code ergibt, öffnet Privio, wenn du = drückst — der Code selbst muss also nie auf dem Bildschirm erscheinen. Jede andere Rechnung ist einfach eine Rechnung.';
+
+  @override
+  String get disguiseOpenTo => 'Öffnen als';
+
+  @override
+  String get disguiseLockScreen => 'Den Sperrbildschirm';
+
+  @override
+  String disguiseCalculatorNamed(String name) {
+    return 'Taschenrechner ($name)';
+  }
+
+  @override
+  String get disguisePickNote =>
+      'Wähle die, die dein Telefon ohnehin mitbringt. Ein Taschenrechner, der nicht wie der übliche aussieht, ist genau das, was jemandem auffällt.';
+
+  @override
+  String get disguiseSeeIt => 'Ansehen';
+
+  @override
+  String disguiseErrorSuffix(String reason) {
+    return '$reason Der Sperrbildschirm hat sich trotzdem geändert; der Startbildschirm nicht.';
+  }
+
+  @override
+  String get disguiseNoLock =>
+      'Auf diesem Gerät gibt es noch keine Bildschirmsperre, es gibt also keinen Code, den man in einen Taschenrechner tippen könnte.';
+
+  @override
+  String get disguisePhraseLock =>
+      'Deine Bildschirmsperre ist eine Passphrase. Ein Taschenrechner hat zehn Tasten und keine Buchstaben, sie lässt sich also nicht eingeben. Stelle die Sperre auf 4 oder 6 Ziffern um, damit eine Tarnung möglich ist.';
+
+  @override
+  String get disguiseOnHomeScreen => 'Auf dem Startbildschirm';
+
+  @override
+  String get disguiseWhatItDoesNotDo => 'Was das nicht leistet';
+
+  @override
+  String get disguiseNotADefence =>
+      'Es ist kein Schutz gegen jemanden, der das Telefon länger hat. Die App ist weiterhin installiert, und ihre Größe, ihre Dateien und ihr Netzwerkverkehr sind für jeden auffindbar, der richtig hinsieht. Gut ist sie im Alltagsfall — ein flüchtiger Blick auf den Bildschirm oder ein entsperrt weitergereichtes Telefon.';
+
+  @override
+  String get disguiseHomeScreenChanges =>
+      'Auf dem Startbildschirm und in der App-Übersicht wird Privio zu einem Taschenrechner-Symbol namens „Rechner\". Dein Launcher braucht vielleicht ein paar Sekunden zum Neuzeichnen, und ein von dir selbst angeheftetes Symbol muss eventuell neu angeheftet werden. Die Tarnung auszuschalten setzt es zurück.\n\nAndroids eigene App-Liste — Einstellungen, App-Info, der Name bei einer Berechtigungsanfrage — sagt weiterhin Privio. Dieser Name wird beim Bauen der App festgelegt, und keine App kann ihn zur Laufzeit ändern.';
+
+  @override
+  String get disguiseIconUnchanged =>
+      'Auf diesem Gerät ändern sich Symbol und Name nicht — nur das, worauf die App sich öffnet. Wer den Startbildschirm durchgeht, findet Privio weiterhin am Namen.';
+
+  @override
+  String get disguiseClosePreview => 'Vorschau schließen';
+
+  @override
+  String get licenseActivatedToast =>
+      'Aktiviert. Diese Lizenz gehört jetzt zu deinem Konto.';
+
+  @override
+  String get licenseNotCheckedTitle => 'Noch nicht geprüft';
+
+  @override
+  String get licenseNotCheckedBody =>
+      'Privio konnte den Server zu diesem Konto noch nicht fragen. Bring die App wieder online und öffne diesen Bildschirm erneut.';
+
+  @override
+  String get licenseNotNeededTitle => 'Hier ist keine Lizenz nötig';
+
+  @override
+  String get licenseNotNeededBody =>
+      'Dieser Server verlangt keine. Lizenzen sind für den gehosteten Privio-Dienst da — eine Lizenz für Infrastruktur, die du selbst betreibst, würde nichts bedeuten.';
+
+  @override
+  String get licenseStoreTitle => 'Über den Store geregelt';
+
+  @override
+  String licenseStoreBody(String store) {
+    return 'Dieser Build wurde über den App-Store bezahlt, aus dem er stammt, es gibt also keinen Schlüssel einzugeben. Wenn er nicht aktiv ist, stelle deinen Kauf in $store wieder her.';
+  }
+
+  @override
+  String get licenseOnePurchaseNote =>
+      'Ein Kauf, ein Schlüssel, ein Konto, für immer. Ein eingelöster Schlüssel ist an das einlösende Konto gebunden und kann nicht verschoben oder erneut benutzt werden.';
+
+  @override
+  String get licenseEnterTitle => 'Lizenzschlüssel eingeben';
+
+  @override
+  String get licenseEnterBody =>
+      'Kauf einen Schlüssel auf getprivio.com/license und tippe ihn hier ein. Bis er aktiviert ist, kann sich dieses Konto anmelden und Eingegangenes lesen, aber nicht senden.';
+
+  @override
+  String get licenseActivated => 'Aktiviert';
+
+  @override
+  String licenseRedeemedOn(String date) {
+    return 'Eingelöst am $date.';
+  }
+
+  @override
+  String get licenseFromAppStore => 'Über den App Store gekauft.';
+
+  @override
+  String get licenseFromPlay => 'Über Google Play gekauft.';
+
+  @override
+  String get licenseFromKey =>
+      'Mit einem Lizenzschlüssel aktiviert. Lebenslanger Zugang, keine Verlängerungen.';
+
+  @override
+  String get safetyTrustedToast =>
+      'Der neue Schlüssel gilt als vertrauenswürdig. Vergleiche die Nummer noch einmal, bevor du dich darauf verlässt.';
+
+  @override
+  String get safetyMatches => 'Das stimmt mit einer der Nummern unten überein.';
+
+  @override
+  String get safetyNoMatch =>
+      'Das stimmt mit keiner der Nummern unten überein.';
+
+  @override
+  String safetyNothingYet(String name) {
+    return 'Es gibt noch nichts zu vergleichen. Eine Nummer entsteht, sobald du und $name eine Nachricht ausgetauscht habt, denn erst dann hat dieses Gerät einen Schlüssel von ihnen festgehalten.';
+  }
+
+  @override
+  String safetyReadThese(String name) {
+    return 'Lies $name diese Ziffern vor — am Telefon oder persönlich. Sieht die andere Seite dieselben, sitzt niemand dazwischen. Wenn nicht, benutze diesen Chat für nichts, was du nicht auch öffentlich sagen würdest.';
+  }
+
+  @override
+  String get safetyMarkNotVerified => 'Als nicht bestätigt markieren';
+
+  @override
+  String get safetyMarkVerified => 'Als bestätigt markieren';
+
+  @override
+  String safetyMarkNote(String name) {
+    return 'Als bestätigt zu markieren hält genau die Schlüssel fest, die auf dem Bildschirm stehen. Ändert sich einer davon oder kommt bei $name ein neues Gerät dazu, springt die Markierung von selbst auf „geändert\" — sie ist eine Aufzeichnung dessen, was du geprüft hast, kein Versprechen über das, was danach kommt.';
+  }
+
+  @override
+  String get safetyVerified => 'Bestätigt';
+
+  @override
+  String get safetyChangedSince => 'Seit deiner Prüfung geändert';
+
+  @override
+  String get safetyNotVerified => 'Nicht bestätigt';
+
+  @override
+  String safetyTheirDevice(int index) {
+    return 'Ihr Gerät $index';
+  }
+
+  @override
+  String get safetyCompareTitle =>
+      'Eine Nummer vergleichen, die man dir geschickt hat';
+
+  @override
+  String get safetyCompare => 'Vergleichen';
+
+  @override
+  String get safetyKeyNotYours =>
+      'Der Schlüssel auf dem Server ist nicht der, den du hattest';
+
+  @override
+  String get safetyRefusedUntilDecide =>
+      'Nachrichten in diesen Chat werden abgelehnt, bis du entscheidest. Privio neu zu installieren oder sich auf einem neuen Gerät anzumelden löst das legitim aus und ist der übliche Grund. Ein Server, der dir einen eigenen Schlüssel unterschiebt, ebenfalls — und von hier aus sieht das genau gleich aus, weshalb es sich lohnt, die Nummer unten danach noch einmal zu vergleichen.';
+
+  @override
+  String get safetyTrustNewKey => 'Dem neuen Schlüssel vertrauen';
+
+  @override
+  String get safetyKeyChangedArrived =>
+      'Ihr Schlüssel hat sich geändert, und damit kam eine Nachricht';
+
+  @override
+  String get safetyKeyChangedBody =>
+      'Der neue Schlüssel ist bereits im Einsatz — eine Nachricht, die einen mitbringt, lässt sich nicht abweisen, ohne jedem einen Weg zu geben, einen Chat stillzulegen. Eine Neuinstallation löst das aus. Jemand, der sich dazwischenschiebt, auch. Die Nummer unten ist der Unterschied, und sie ist nur etwas wert, wenn sie laut verglichen wird.';
+
+  @override
+  String get channelsCouldNotOpenLink => 'Dieser Link ließ sich nicht öffnen';
+
+  @override
+  String get channelsJoinWithLink => 'Mit einem Link beitreten';
+
+  @override
+  String get channelsNewChannel => 'Neuer Kanal';
+
+  @override
+  String get channelsTabFollowing => 'Abonniert';
+
+  @override
+  String get channelsTabDiscover => 'Entdecken';
+
+  @override
+  String get channelsSearchMine => 'Deine Kanäle durchsuchen';
+
+  @override
+  String get channelsSearchPublic => 'Öffentliche Kanäle durchsuchen';
+
+  @override
+  String get channelsEmptyTitle => 'Noch keine Kanäle';
+
+  @override
+  String get channelsEmptyBody =>
+      'Erstelle einen oder finde unter Entdecken einen öffentlichen Kanal.';
+
+  @override
+  String get channelsNothingFound => 'Nichts gefunden';
+
+  @override
+  String get channelsDiscoverEmptyBody =>
+      'Durchsuche öffentliche Kanäle nach Name, Handle oder Beschreibung. Private Kanäle tauchen hier nie auf.';
+
+  @override
+  String channelsHandleAndMembers(String handle, String members) {
+    return '@$handle  ·  $members';
+  }
+
+  @override
+  String get channelsJoinTitle => 'Kanal beitreten';
+
+  @override
+  String get channelsJoinNote =>
+      'Füge einen Kanal-Link ein. Er zeigt dir den Kanal; der Beitritt ist ein Knopf dort. Auch der Beitritt gibt dir nicht den Schlüssel — ein Mitglied, das ihn hat, schickt ihn gleich danach verschlüsselt an dein Gerät.';
+
+  @override
+  String get categoryNews => 'Nachrichten';
+
+  @override
+  String get categoryTechnology => 'Technik';
+
+  @override
+  String get categoryCommunity => 'Gemeinschaft';
+
+  @override
+  String get categoryEducation => 'Bildung';
+
+  @override
+  String get categoryCulture => 'Kultur';
+
+  @override
+  String newChannelPictureUnreadable(String name) {
+    return 'Privio konnte $name nicht lesen. Probier ein anderes Bild.';
+  }
+
+  @override
+  String get newChannelCouldNotCreate => 'Der Kanal ließ sich nicht erstellen';
+
+  @override
+  String get newChannelWithoutPicture =>
+      'Der Kanal wurde ohne das Bild erstellt.';
+
+  @override
+  String get newChannelCreate => 'Erstellen';
+
+  @override
+  String get newChannelPublicPictureNote =>
+      'Das Bild eines öffentlichen Kanals erscheint auf seiner Webseite und in Linkvorschauen, es wird also unverschlüsselt gespeichert — genau wie Name, Handle und Beschreibung.';
+
+  @override
+  String get newChannelHandle => 'Handle';
+
+  @override
+  String get newChannelHandleRule =>
+      '3–32 Zeichen: a–z, 0–9, Unterstrich oder Punkt';
+
+  @override
+  String get newChannelCategory => 'Kategorie';
+
+  @override
+  String get newChannelRestrictSaving => 'Speichern einschränken';
+
+  @override
+  String get newChannelRestrictNote =>
+      'Bittet die Apps der Lesenden, Beiträge nicht zu speichern oder weiterzuleiten. Eine Bitte, keine Garantie — wer einen Beitrag lesen kann, kann ihn abfotografieren.';
+
+  @override
+  String get newChannelPrivateBody =>
+      'Nur über einen Einladungslink erreichbar. Der Name wird verschlüsselt hochgeladen, der Server speichert also einen Kanal, den er nicht benennen kann.';
+
+  @override
+  String get newChannelPublicBody =>
+      'Gelistet und durchsuchbar. Name, Handle und Beschreibung sind per Definition öffentlich; die Beiträge bleiben Ende-zu-Ende verschlüsselt.';
+
+  @override
+  String get membersCouldNotLift => 'Das ließ sich nicht aufheben.';
+
+  @override
+  String get membersCouldNotChange => 'Dieses Mitglied ließ sich nicht ändern';
+
+  @override
+  String get membersTitle => 'Mitglieder';
+
+  @override
+  String get membersWhoRuns => 'Wer diesen Kanal führt';
+
+  @override
+  String get membersSilencedCanRead =>
+      'Kann lesen, nicht posten oder reagieren';
+
+  @override
+  String get membersAllowAgain => 'Wieder erlauben';
+
+  @override
+  String get membersRoleAndPermissions => 'Rolle und Rechte';
+
+  @override
+  String get membersOwnerEverything => 'Eigentümer · alles';
+
+  @override
+  String get membersSubscriberReadOnly => 'Abonnent · nur lesen';
+
+  @override
+  String get membersGrantPost => 'posten';
+
+  @override
+  String get membersGrantEdit => 'bearbeiten';
+
+  @override
+  String get membersGrantDeletePosts => 'Beiträge löschen';
+
+  @override
+  String get membersGrantManageMembers => 'Mitglieder verwalten';
+
+  @override
+  String get membersGrantDeleteChannel => 'Kanal löschen';
+
+  @override
+  String membersRoleLine(String role, String granted) {
+    return '$role · $granted';
+  }
+
+  @override
+  String get membersSubscriber => 'Abonnent';
+
+  @override
+  String get membersTogglePost => 'Posten';
+
+  @override
+  String get membersToggleEditChannel => 'Kanal bearbeiten';
+
+  @override
+  String get membersToggleDeletePosts => 'Beiträge löschen';
+
+  @override
+  String get membersToggleManageMembers => 'Mitglieder verwalten';
+
+  @override
+  String get membersToggleDeleteChannel => 'Kanal löschen';
+
+  @override
+  String get membersGreyedOutNote =>
+      'Ausgegraute Rechte sind welche, die du selbst nicht hast. Niemand kann mehr vergeben, als er hat.';
+
+  @override
+  String get membersSubscriberNote =>
+      'Ein Abonnent liest den Kanal und sonst nichts.';
+
+  @override
+  String get membersRemoveFromChannel => 'Aus dem Kanal entfernen';
+
+  @override
+  String get membersStoppedFromPosting => 'Vom Posten ausgeschlossen';
+
+  @override
+  String get membersAudienceNote =>
+      'Aufgeführt sind nur die Personen, die diesen Kanal führen. Wer ihn liest, wird anderen Lesenden nicht gezeigt — dir eingeschlossen.';
+
+  @override
+  String get channelPicture => 'Bild';
+
+  @override
+  String get channelLinkCopied => 'Link kopiert.';
+
+  @override
+  String get adminsMakeSomebodyFirst => 'Mach zuerst jemanden zum Admin.';
+
+  @override
+  String get subscribersCouldNotAddAnybody =>
+      'Es ließ sich niemand hinzufügen.';
+
+  @override
+  String subscribersAddCount(int count) {
+    return '$count hinzufügen';
+  }
+
+  @override
+  String get threadCouldNotPost => 'Dieser Kommentar ließ sich nicht senden.';
+
+  @override
+  String get threadCouldNotRemove =>
+      'Dieser Kommentar ließ sich nicht entfernen.';
+
+  @override
+  String threadStopTitle(String name) {
+    return '$name am Posten hindern?';
+  }
+
+  @override
+  String get threadStopBody =>
+      'Die Person bleibt im Kanal und kann weiterlesen. Kommentieren oder reagieren kann sie nicht, bis du das zurücknimmst.\n\nSie aus dem Kanal zu entfernen ist die andere, schwerere Sache: Das wechselt den Schlüssel und nimmt ihr das Lesen mit.';
+
+  @override
+  String get threadStopThem => 'Stoppen';
+
+  @override
+  String get threadStopThemPosting => 'Am Posten hindern';
+
+  @override
+  String get threadCouldNotDoThat => 'Das war nicht möglich.';
+
+  @override
+  String get threadTitle => 'Kommentare';
+
+  @override
+  String get threadUnknown => 'Unbekannt';
+
+  @override
+  String get threadEncryptedNoKey =>
+      'Verschlüsselt — dieses Gerät hat keinen Schlüssel dafür.';
+
+  @override
+  String get threadCommentHint => 'Kommentieren';
+
+  @override
+  String get threadNoKeyForChannel => 'Kein Schlüssel für diesen Kanal';
+
+  @override
+  String get threadDeletedAccount => 'Gelöschtes Konto';
+
+  @override
+  String get threadEncryptedNoKeyHere =>
+      'Verschlüsselt — auf diesem Gerät kein Schlüssel dafür.';
+
+  @override
+  String get threadEmptyTitle => 'Noch keine Kommentare';
+
+  @override
+  String get threadEmptyBody =>
+      'Kommentare sind wie die Beiträge mit dem Kanalschlüssel verschlüsselt. Der Server speichert sie und kann sie nicht lesen.';
+
+  @override
+  String threadStoppedToast(String name) {
+    return '$name kann den Kanal weiter lesen, aber nicht darin posten.';
+  }
+
+  @override
+  String get threadThem => 'Die Person';
+
+  @override
+  String get threadThemObject => 'diese Person';
+
+  @override
+  String get feedCouldNotAskForKey =>
+      'Der Schlüssel ließ sich nicht anfordern.';
+
+  @override
+  String get feedKeyArrived => 'Der Schlüssel ist da. Du kannst wieder posten.';
+
+  @override
+  String get feedAskedAgain =>
+      'Erneut angefragt. Den Schlüssel liefert ein anderes Mitglied, er kommt also an, sobald eines davon online ist.';
+
+  @override
+  String get feedCouldNotJoin => 'Beitritt nicht möglich';
+
+  @override
+  String get feedPickFutureTime =>
+      'Wähle einen Zeitpunkt, der noch nicht vorbei ist.';
+
+  @override
+  String get feedCouldNotPublishPoll =>
+      'Diese Umfrage ließ sich nicht veröffentlichen.';
+
+  @override
+  String feedScheduledFor(String when) {
+    return 'Geplant für $when. Bis dahin steht es unter „Geplant\".';
+  }
+
+  @override
+  String get feedCouldNotPublish => 'Veröffentlichen nicht möglich';
+
+  @override
+  String get feedCouldNotChangeLink => 'Der Link ließ sich nicht ändern.';
+
+  @override
+  String get feedOldLinkDead =>
+      'Der alte Link ist tot. Wer ihn hat, braucht den neuen.';
+
+  @override
+  String get feedSaved => 'Gespeichert.';
+
+  @override
+  String get feedCouldNotChangeReactions =>
+      'Die Reaktionen ließen sich nicht ändern.';
+
+  @override
+  String get feedCouldNotChangePost => 'Der Beitrag ließ sich nicht ändern.';
+
+  @override
+  String get feedPublished => 'Veröffentlicht.';
+
+  @override
+  String get feedCouldNotPublishIt => 'Es ließ sich nicht veröffentlichen.';
+
+  @override
+  String get feedCouldNotChangeThat => 'Das ließ sich nicht ändern.';
+
+  @override
+  String get feedCommentsOn => 'Lesende können Beiträge jetzt kommentieren.';
+
+  @override
+  String get feedCommentsOff =>
+      'Kommentare sind aus. Vorhandene Threads sind ausgeblendet, nicht gelöscht.';
+
+  @override
+  String get feedCouldNotReadNumbers => 'Die Zahlen ließen sich nicht lesen.';
+
+  @override
+  String get feedNobodyToHandTo =>
+      'In diesem Kanal ist niemand sonst, dem man ihn übergeben könnte.';
+
+  @override
+  String feedOwnsNow(String name) {
+    return '$name besitzt diesen Kanal jetzt. Du bist darin Admin.';
+  }
+
+  @override
+  String get feedCouldNotHandOn => 'Der Kanal ließ sich nicht übergeben.';
+
+  @override
+  String get feedReported => 'Gemeldet. Danke.';
+
+  @override
+  String get feedCouldNotSendThat => 'Das ließ sich nicht senden.';
+
+  @override
+  String get feedRemovePicture => 'Bild entfernen';
+
+  @override
+  String get feedPictureRemoved => 'Bild entfernt.';
+
+  @override
+  String get feedCouldNotRemovePicture => 'Das Bild ließ sich nicht entfernen.';
+
+  @override
+  String get feedCouldNotSetPicture => 'Das Bild ließ sich nicht setzen.';
+
+  @override
+  String get feedPictureUpdated => 'Kanalbild aktualisiert.';
+
+  @override
+  String get feedDeleteChannelTitle => 'Kanal löschen?';
+
+  @override
+  String get feedDeleteChannelBody =>
+      'Der Kanal und jeder Beitrag darin werden für alle entfernt. Das macht nichts rückgängig.';
+
+  @override
+  String get feedCouldNotDeleteChannel => 'Der Kanal ließ sich nicht löschen';
+
+  @override
+  String get feedCouldNotLeaveChannel => 'Der Kanal ließ sich nicht verlassen';
+
+  @override
+  String get feedScheduled => 'Geplant';
+
+  @override
+  String get feedRequestsToJoin => 'Beitrittsanfragen';
+
+  @override
+  String get feedChannelPicture => 'Kanalbild';
+
+  @override
+  String get feedAddPicture => 'Bild hinzufügen';
+
+  @override
+  String get feedTurnCommentsOff => 'Kommentare ausschalten';
+
+  @override
+  String get feedTurnCommentsOn => 'Kommentare einschalten';
+
+  @override
+  String get feedHandChannelOn => 'Diesen Kanal übergeben';
+
+  @override
+  String get feedDeleteChannel => 'Kanal löschen';
+
+  @override
+  String get dayToday => 'Heute';
+
+  @override
+  String get dayYesterday => 'Gestern';
+
+  @override
+  String get feedNoSearchResultsBody =>
+      'Die Suche läuft auf diesem Gerät, über die Beiträge, die es bereits geladen und öffnen konnte. Der Server kann sie nicht durchsuchen: Er hält sie versiegelt.';
+
+  @override
+  String get feedEdited => '· bearbeitet';
+
+  @override
+  String feedCommentCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Kommentare',
+      one: '1 Kommentar',
+      zero: 'Kommentieren',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedUnpin => 'Lösen';
+
+  @override
+  String get feedPin => 'Anheften';
+
+  @override
+  String get feedRemoveFile => 'Datei entfernen';
+
+  @override
+  String get feedAttach => 'Bild oder Datei anhängen';
+
+  @override
+  String get feedPublishLater => 'Später veröffentlichen';
+
+  @override
+  String get feedAskQuestion => 'Eine Frage stellen';
+
+  @override
+  String get feedWritePost => 'Beitrag schreiben';
+
+  @override
+  String get feedEditPost => 'Beitrag bearbeiten';
+
+  @override
+  String get feedPost => 'Beitrag';
+
+  @override
+  String get feedEditUnseenNote =>
+      'Das hat noch niemand gesehen, es wird also nicht als bearbeitet markiert.';
+
+  @override
+  String get feedEditSeenNote =>
+      'Der Beitrag wird als bearbeitet markiert. Seine Datei, falls vorhanden, bleibt wie sie ist.';
+
+  @override
+  String get feedWaiting => 'Wartet';
+
+  @override
+  String get feedEncryptedNoKeyHere =>
+      'Verschlüsselt — kein Schlüssel auf diesem Gerät.';
+
+  @override
+  String get feedDiscard => 'Verwerfen';
+
+  @override
+  String get feedPublishNow => 'Jetzt veröffentlichen';
+
+  @override
+  String get feedNothingWaiting => 'Nichts in der Warteschlange';
+
+  @override
+  String get feedNothingWaitingBody =>
+      'Beiträge, die du planst, warten hier, bis ihre Zeit kommt. Niemand sonst kann sie sehen oder wissen, dass es sie gibt.';
+
+  @override
+  String feedTodayAt(String time) {
+    return 'heute um $time';
+  }
+
+  @override
+  String feedTomorrowAt(String time) {
+    return 'morgen um $time';
+  }
+
+  @override
+  String feedDateAt(String date, String time) {
+    return '$date um $time';
+  }
+
+  @override
+  String get feedReactionsNote =>
+      'Was Lesende unter einen Beitrag setzen können. Reaktionen, die schon an einem Beitrag hängen, bleiben, auch wenn du das Emoji von dieser Liste nimmst.';
+
+  @override
+  String feedChosenOfLimit(int chosen, int limit) {
+    return '$chosen von $limit';
+  }
+
+  @override
+  String get feedPollNoKey =>
+      'Eine Umfrage, für die dieses Gerät keinen Schlüssel hat.';
+
+  @override
+  String feedPollPickUpTo(int count) {
+    return 'Bis zu $count auswählen';
+  }
+
+  @override
+  String get feedPollPickOne => 'Eines auswählen';
+
+  @override
+  String feedPollCloses(String when) {
+    return 'schließt $when';
+  }
+
+  @override
+  String feedPollVoters(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Stimmen',
+      one: '1 Stimme',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get feedPollClearAnswer => 'Meine Antwort zurücknehmen';
+
+  @override
+  String get feedPollAnswer => 'Antworten';
+
+  @override
+  String get feedPollQuestion => 'Frage';
+
+  @override
+  String feedPollAnswerN(int index) {
+    return 'Antwort $index';
+  }
+
+  @override
+  String get feedPollAddAnswer => 'Antwort hinzufügen';
+
+  @override
+  String get feedPollSeveral => 'Mehrere Antworten';
+
+  @override
+  String get feedPollNote =>
+      'Frage und Antworten sind wie ein Beitrag mit dem Kanalschlüssel verschlüsselt. Der Server zählt die Stimmen, ohne je zu erfahren, was in einer davon steht.';
+
+  @override
+  String get feedPollAsk => 'Fragen';
+
+  @override
+  String get feedCouldNotOpenFile => 'Diese Datei ließ sich nicht öffnen.';
+
+  @override
+  String get feedOpened => 'Geöffnet';
+
+  @override
+  String get statsPosts => 'Beiträge';
+
+  @override
+  String get statsWaitingToPublish => 'Wartet auf Veröffentlichung';
+
+  @override
+  String get statsPeopleWhoVoted => 'Personen, die abgestimmt haben';
+
+  @override
+  String get statsWaitingToJoin => 'Wartet auf Beitritt';
+
+  @override
+  String get statsNoViewCountNote =>
+      'Es gibt keine Aufrufzahl, und das ist eine Entscheidung, keine Lücke. Zu zählen, wer einen Beitrag gelesen hat — ohne jemanden doppelt zu zählen — heißt, eine Zeile für jede lesende Person und jeden Beitrag zu führen, und das ist eine Aufzeichnung dessen, was jede Person gelesen hat. Alles oben wird aus etwas gezählt, das jemand aktiv getan hat.';
+
+  @override
+  String get feedPollClosed => 'geschlossen';
+
+  @override
+  String get inviteNever => 'Nie';
+
+  @override
+  String inviteExpires(String when) {
+    return 'läuft $when ab';
+  }
+
+  @override
+  String requestsAsked(String when) {
+    return 'Gefragt $when';
+  }
+
+  @override
+  String get inviteAskMeFirst => 'Erst mich fragen';
+
+  @override
+  String get inviteAskMeFirstNote =>
+      'Wer dem Link folgt, wartet auf deine Zustimmung, statt einfach hereinzuspazieren. Bis du sie hereinlässt, haben sie keinen Schlüssel.';
+
+  @override
+  String get inviteExpiresLabel => 'Läuft ab';
+
+  @override
+  String get invitePickATime => 'Zeitpunkt wählen';
+
+  @override
+  String get inviteHowMany => 'Wie viele damit beitreten können';
+
+  @override
+  String get inviteNoLimit => 'Kein Limit';
+
+  @override
+  String inviteJoinedSoFar(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sind bisher über diesen Link beigetreten.',
+      one: '1 Person ist bisher über diesen Link beigetreten.',
+    );
+    return '$_temp0 Ihn zu öffnen und wieder wegzugehen zählt nicht.';
+  }
+
+  @override
+  String get inviteReplaceLink => 'Link ersetzen';
+
+  @override
+  String get inviteReplaceNote =>
+      'Ersetzen ist die Art, einen Link zu widerrufen: Der alte funktioniert sofort überall nicht mehr. Es bleibt kein halb funktionierender Link zurück.';
+
+  @override
+  String get inviteReplaceTitle => 'Link ersetzen?';
+
+  @override
+  String get inviteReplaceBody =>
+      'Der Link, den du geteilt hast, funktioniert sofort nicht mehr — in Nachrichten, auf Plakaten, überall, wo er eingefügt wurde. Niemand, der ihn hat, kann damit beitreten.\n\nWer schon im Kanal ist, bleibt drin. Der alte Link lässt sich nicht zurückholen.';
+
+  @override
+  String get inviteReplaceIt => 'Ersetzen';
+
+  @override
+  String get inviteExpired =>
+      'Dieser Link ist abgelaufen — damit kann niemand beitreten.';
+
+  @override
+  String get inviteUsedUp => 'Dieser Link ist aufgebraucht.';
+
+  @override
+  String get inviteNeedsApproval => 'Beitritt braucht deine Zustimmung';
+
+  @override
+  String get inviteOpenJoin => 'Wer ihn hat, tritt sofort bei';
+
+  @override
+  String inviteUsedOf(int used, int max) {
+    return '$used von $max genutzt';
+  }
+
+  @override
+  String get inviteShareNote =>
+      'Teile ihn überall — er trägt keinen Schlüssel. Wer ihn öffnet, tritt dem Kanal bei, und den Schlüssel zum Lesen schickt danach jemand, der ihn schon hat, verschlüsselt an das Gerät.';
+
+  @override
+  String get requestsNobodyWaiting => 'Niemand wartet';
+
+  @override
+  String get requestsNobodyWaitingBody =>
+      'Wer dem Einladungslink folgt, erscheint hier, solange der Link auf „erst mich fragen\" steht.';
+
+  @override
+  String get requestsNo => 'Nein';
+
+  @override
+  String get requestsLetIn => 'Einlassen';
+
+  @override
+  String get feedSettings => 'Einstellungen';
+
+  @override
+  String feedKeyRotating(int epoch) {
+    return 'Jemand hat diesen Kanal verlassen, deshalb wechselt er seinen Schlüssel (Version $epoch). Beiträge von vorher bleiben lesbar. Neue öffnen sich, sobald der neue Schlüssel dieses Gerät erreicht.';
+  }
+
+  @override
+  String get feedWaitingForKey =>
+      'Warte auf den Schlüssel. Ihn schickt jemand aus dem Kanal verschlüsselt an dieses Gerät — der Server hält ihn nie.';
+
+  @override
+  String get feedJoinNote =>
+      'Beitreten bringt dir die Beiträge. Den Schlüssel, der sie öffnet, schickt danach ein Mitglied an dein Gerät, nie der Server.';
+
+  @override
+  String get feedJoinChannel => 'Kanal beitreten';
+
+  @override
+  String get feedNoPostsYet => 'Noch keine Beiträge';
+
+  @override
+  String get feedPickNewOwnerNote =>
+      'Nur jemand, der schon im Kanal ist. Ihn einer fremden Person zu übergeben, würde sie über einen Schlüssel bestimmen lassen, den sie nicht hat.';
+
+  @override
+  String feedTransferTitle(String name) {
+    return 'Den Kanal an $name geben?';
+  }
+
+  @override
+  String get feedTransferBody =>
+      'Die Person wird Eigentümer. Du bleibst als Admin mit allem, was du jetzt hast, außer dem Recht, den Kanal zu löschen — und sie kann dich danach entfernen.\n\nDu kannst das nicht selbst rückgängig machen. Deshalb fragt es nach deinem Passwort, statt einem entsperrten Telefon zu vertrauen.';
+
+  @override
+  String get feedYourPrivioPassword => 'Dein Privio-Passwort';
+
+  @override
+  String get feedHandItOn => 'Übergeben';
+
+  @override
+  String get feedReportTitle => 'Diesen Kanal melden';
+
+  @override
+  String get feedReportPublicNote =>
+      'Die Meldung trägt diesen Kanal und den Grund, den du wählst. Wer den Server betreibt, sieht bei einem öffentlichen Kanal Name und Beschreibung, weil man danach sucht — aber nicht seine Beiträge, die sind verschlüsselt.';
+
+  @override
+  String get feedReportPrivateNote =>
+      'Die Meldung trägt diesen Kanal und den Grund, den du wählst, und sonst nichts. Sein Name und seine Beiträge sind verschlüsselt, wer den Server betreibt, kann sie also nicht lesen. Das ist die ehrliche Grenze dessen, was das Melden eines privaten Kanals bewirkt.';
+
+  @override
+  String get feedReportNoMessageNote =>
+      'Es gibt absichtlich kein Nachrichtenfeld: Es wäre die eine Stelle in Privio, an der jemand das verschlüsselte Ding, das er meldet, in ein Feld einfügt, das der Server lesen kann.';
+
+  @override
+  String get reportSpam => 'Spam';
+
+  @override
+  String get reportAbuse => 'Missbrauch oder Belästigung';
+
+  @override
+  String get reportIllegal => 'Illegale Inhalte';
+
+  @override
+  String get reportImpersonation => 'Gibt sich als jemand anderes aus';
+
+  @override
+  String get reportOther => 'Etwas anderes';
+
+  @override
+  String get feedReactionLimit => 'Reaktionen';
 }

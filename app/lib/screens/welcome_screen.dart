@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_logo.dart';
 
@@ -21,16 +22,22 @@ class WelcomeScreen extends StatelessWidget {
   final VoidCallback onSignIn;
   final VoidCallback onImportBackup;
 
-  static const List<(IconData, String)> _promises = [
-    (Icons.lock_rounded, 'End-to-end encrypted'),
-    (Icons.phone_disabled_rounded, 'No phone number required'),
-    (Icons.verified_user_outlined, "You're in control"),
-    (Icons.shield_outlined, 'Privacy by design'),
-  ];
+  /// The four lines under the mark, paired with their icons.
+  ///
+  /// Built here rather than held in a const list: a const list would have to
+  /// hold the English sentence, and these are read at the one moment the app
+  /// is making its case.
+  static List<(IconData, String)> _promises(AppText text) => [
+        (Icons.lock_rounded, text.welcomePromiseEncrypted),
+        (Icons.phone_disabled_rounded, text.welcomePromiseNoPhone),
+        (Icons.verified_user_outlined, text.welcomePromiseControl),
+        (Icons.shield_outlined, text.welcomePromiseByDesign),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       body: SafeArea(
@@ -42,13 +49,13 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(flex: 2),
               const PrivioMark(size: 72, glow: true),
               const SizedBox(height: PrivioSpacing.xl),
-              Text('Welcome to', style: theme.textTheme.bodyMedium),
+              Text(text.welcomeTo, style: theme.textTheme.bodyMedium),
               Text(
                 'Privio',
                 style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: PrivioSpacing.xxxl),
-              for (final (icon, label) in _promises)
+              for (final (icon, label) in _promises(text))
                 Padding(
                   padding: const EdgeInsets.only(bottom: PrivioSpacing.lg),
                   child: Row(
@@ -68,17 +75,17 @@ class WelcomeScreen extends StatelessWidget {
                 const WebStorageNotice(compact: true),
                 const SizedBox(height: PrivioSpacing.lg),
               ],
-              FilledButton(onPressed: onGetStarted, child: const Text('Get Started')),
+              FilledButton(onPressed: onGetStarted, child: Text(text.welcomeGetStarted)),
               const SizedBox(height: PrivioSpacing.sm),
               // Somebody who already has an account is not a new user, and had
               // to work that out for themselves: the only ways in were a button
               // that says it creates an account, and one that says it imports a
               // backup. Reinstalling, or adding a second device, is not an
               // unusual thing to be doing on this screen.
-              TextButton(onPressed: onSignIn, child: const Text('I already have an account')),
+              TextButton(onPressed: onSignIn, child: Text(text.welcomeHaveAccount)),
               TextButton(
                 onPressed: onImportBackup,
-                child: const Text('Import from backup'),
+                child: Text(text.welcomeImportBackup),
               ),
               const Spacer(flex: 2),
             ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../media/metadata_scrubber.dart';
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 
 /// Tells the user what was stripped out of the file they just sent.
 ///
@@ -27,6 +28,7 @@ class ScrubNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final cleaned = report.recognised;
     final removedAnything = report.changedAnything;
 
@@ -48,9 +50,9 @@ class ScrubNotice extends StatelessWidget {
                 child: Text(
                   cleaned
                       ? removedAnything
-                          ? 'Metadata removed'
-                          : 'Nothing to remove'
-                      : 'Could not be cleaned',
+                          ? text.scrubRemoved
+                          : text.scrubNothingToRemove
+                      : text.scrubCouldNotClean,
                   style: theme.textTheme.titleMedium,
                 ),
               ),
@@ -60,12 +62,9 @@ class ScrubNotice extends StatelessWidget {
           Text(
             cleaned
                 ? removedAnything
-                    ? 'This was stripped out before the file was encrypted and '
-                        'sent. The recipient never receives it.'
-                    : 'This file carried no identifying metadata to begin with.'
-                : 'Privio has no cleaner for ${report.mediaType} yet, so the file '
-                    'was sent as it is. It is still end-to-end encrypted, but any '
-                    'metadata inside it reaches the recipient.',
+                    ? text.scrubRemovedBody
+                    : text.scrubNothingBody
+                : text.scrubNoCleanerBody(report.mediaType),
             style: theme.textTheme.bodySmall,
           ),
           if (removedAnything) ...[
@@ -86,7 +85,7 @@ class ScrubNotice extends StatelessWidget {
           const SizedBox(height: PrivioSpacing.lg),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
+            child: Text(text.commonGotIt),
           ),
         ],
       ),

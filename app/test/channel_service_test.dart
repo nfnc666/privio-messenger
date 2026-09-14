@@ -608,12 +608,12 @@ void main() {
         handle: 'privio_news',
       );
       expect(channel.memberCount, 1);
-      expect(channel.memberLabel, '1 member');
 
       final joiner = await _serviceOn(server);
       final joined = await joiner.join(channel);
       expect(joined.memberCount, 2);
-      expect(joined.memberLabel, '2 members');
+      // The count, not a sentence about it: the words are the screen's job now,
+      // and their plural rule differs per language.
       expect(joined.role, 'subscriber');
     });
   });

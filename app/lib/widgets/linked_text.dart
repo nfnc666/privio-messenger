@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 
 /// Text with the links in it made tappable.
 ///
@@ -130,9 +131,10 @@ class _LinkedTextState extends State<LinkedText> {
   }
 
   Future<void> _confirmAndOpen(String raw) async {
+    final text = AppText.of(context);
     final uri = _target(raw);
     if (uri == null) {
-      _say('That link is not a web address.');
+      _say(text.linkNotWebAddress);
       return;
     }
     final open = await showDialog<bool>(
@@ -146,7 +148,7 @@ class _LinkedTextState extends State<LinkedText> {
     } on Object {
       launched = false;
     }
-    if (!launched && mounted) _say('Nothing on this device could open that link.');
+    if (!launched && mounted) _say(text.linkNothingCanOpen);
   }
 
   void _say(String message) =>
@@ -200,9 +202,10 @@ class _OpenLinkDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Open this link?'),
+      title: Text(text.linkOpenTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,8 +222,7 @@ class _OpenLinkDialog extends StatelessWidget {
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'This opens in your browser, outside Privio. The site sees your '
-            'connection the way any site you visit does.',
+            text.linkOpenBody,
             style: theme.textTheme.bodySmall,
           ),
         ],
@@ -228,11 +230,11 @@ class _OpenLinkDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(text.commonCancel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Open'),
+          child: Text(text.commonOpen),
         ),
       ],
     );

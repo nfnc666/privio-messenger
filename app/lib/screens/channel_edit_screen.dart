@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
@@ -77,20 +78,24 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
       Navigator.of(context).pop();
       return;
     }
+    final text = AppText.of(context);
     final discard = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Discard your changes?'),
-        content: const Text('Nothing here has been saved yet.'),
+        title: Text(text.editChannelDiscardTitle),
+        content: Text(text.editChannelDiscardBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep editing'),
+            child: Text(text.editChannelKeepEditing),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Discard', style: TextStyle(color: PrivioColors.danger)),
+            child: Text(
+              text.editChannelDiscard,
+              style: const TextStyle(color: PrivioColors.danger),
+            ),
           ),
         ],
       ),
@@ -101,9 +106,10 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
   Future<void> _save() async {
     final channel = _channel;
     final controller = PrivioScope.of(context).channels;
+    final text = AppText.of(context);
     final title = _title.text.trim();
     if (title.isEmpty) {
-      _say('A channel needs a name.');
+      _say(text.editChannelNeedsName);
       return;
     }
 
@@ -115,7 +121,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
         await controller.clearAvatar(channel);
       } else if (_pendingPicture != null) {
         if (!await controller.setAvatar(channel, _pendingPicture!)) {
-          _say(controller.error ?? 'Could not use that picture.');
+          _say(controller.error ?? text.editChannelCouldNotUsePicture);
           return;
         }
       }
@@ -135,7 +141,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
       );
       if (!mounted) return;
       if (!saved) {
-        _say(controller.error ?? 'Could not save those changes.');
+        _say(controller.error ?? text.editChannelCouldNotSave);
         return;
       }
       Navigator.of(context).pop();
@@ -145,6 +151,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
   }
 
   Future<void> _choosePicture() async {
+    final text = AppText.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -154,13 +161,16 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose a picture'),
+              title: Text(text.editChannelChoosePicture),
               onTap: () => Navigator.of(sheetContext).pop('pick'),
             ),
             if (_channel.hasAvatar || _pendingPicture != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded, color: PrivioColors.danger),
-                title: const Text('Remove it', style: TextStyle(color: PrivioColors.danger)),
+                title: Text(
+                  text.editChannelRemovePicture,
+                  style: const TextStyle(color: PrivioColors.danger),
+                ),
                 onTap: () => Navigator.of(sheetContext).pop('remove'),
               ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -183,7 +193,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
       picked = await FilePicker.pickFile(type: FileType.image)
           .timeout(const Duration(minutes: 2));
     } on Object catch (failure) {
-      if (mounted) _say('Could not open the picker: $failure');
+      if (mounted) _say(text.accountPickerFailed('$failure'));
       return;
     }
     if (picked == null || !mounted) return;
@@ -192,7 +202,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
     try {
       bytes = await picked.readAsBytes();
     } on Object catch (failure) {
-      if (mounted) _say('Could not read ${picked.name}: $failure');
+      if (mounted) _say(text.accountCouldNotReadFile(picked.name, '$failure'));
       return;
     }
     if (!mounted) return;
@@ -206,20 +216,16 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           backgroundColor: PrivioColors.surfaceRaised,
-          title: const Text('This picture will be public'),
-          content: const Text(
-            "A public channel's picture is shown on its web page and in link "
-            'previews, so it is stored unencrypted — the same as its name, '
-            'handle and description. Posts stay end-to-end encrypted.',
-          ),
+          title: Text(text.editChannelPublicPictureTitle),
+          content: Text(text.editChannelPublicPictureBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(text.commonCancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Use it'),
+              child: Text(text.editChannelUseIt),
             ),
           ],
         ),
@@ -248,6 +254,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
       builder: (context, _) {
         final channel = _channel;
         final theme = Theme.of(context);
+        final text = AppText.of(context);
 
         return Scaffold(
           backgroundColor: PrivioColors.background,
@@ -256,7 +263,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
             automaticallyImplyLeading: false,
             leading: TextButton(
               onPressed: _saving ? null : () => unawaited(_cancel()),
-              child: const Text('Cancel'),
+              child: Text(text.commonCancel),
             ),
             leadingWidth: 96,
             actions: [
@@ -278,7 +285,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Done'),
+                      : Text(text.commonDone),
                 ),
               ),
             ],
@@ -309,7 +316,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
               Center(
                 child: TextButton(
                   onPressed: () => unawaited(_choosePicture()),
-                  child: const Text('Change picture'),
+                  child: Text(text.editChannelChangePicture),
                 ),
               ),
               const SizedBox(height: PrivioSpacing.md),
@@ -328,8 +335,8 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                         controller: _title,
                         textCapitalization: TextCapitalization.sentences,
                         maxLength: 64,
-                        decoration: const InputDecoration(
-                          hintText: 'Channel name',
+                        decoration: InputDecoration(
+                          hintText: text.editChannelName,
                           border: InputBorder.none,
                           counterText: '',
                         ),
@@ -347,8 +354,8 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                         maxLines: 4,
                         minLines: 1,
                         maxLength: 512,
-                        decoration: const InputDecoration(
-                          hintText: 'Description',
+                        decoration: InputDecoration(
+                          hintText: text.editChannelDescriptionHint,
                           border: InputBorder.none,
                           counterText: '',
                         ),
@@ -358,17 +365,19 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                 ),
               ),
               if (!channel.isPublic)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
                     PrivioSpacing.xl,
                     PrivioSpacing.sm,
                     PrivioSpacing.xl,
                     0,
                   ),
                   child: Text(
-                    'This channel is private, so its name is encrypted with the '
-                    'channel key. Renaming it re-seals that for every member.',
-                    style: TextStyle(color: PrivioColors.textTertiary, fontSize: 12),
+                    text.editChannelPrivateNameNote,
+                    style: const TextStyle(
+                      color: PrivioColors.textTertiary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               const SizedBox(height: PrivioSpacing.lg),
@@ -381,56 +390,58 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                     SettingsRow(
                       icon: Icons.campaign_rounded,
                       iconTint: const Color(0xFF2563EB),
-                      label: 'Channel type',
-                      value: channel.isPublic ? 'Public' : 'Private',
+                      label: text.editChannelType,
+                      value: channel.isPublic ? text.channelPublic : text.channelPrivate,
                       onTap: () => unawaited(_openVisibility()),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.forum_rounded,
                       iconTint: PrivioColors.accent,
-                      label: 'Discussion',
-                      value: channel.commentsEnabled ? 'On' : 'Add',
+                      label: text.editChannelDiscussion,
+                      value: channel.commentsEnabled ? text.commonOn : text.commonAdd,
                       onTap: () => unawaited(_openDiscussion()),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.favorite_rounded,
                       iconTint: const Color(0xFFE11D48),
-                      label: 'Reactions',
-                      value: '${channel.reactionEmojis.length} emoji',
+                      label: text.editChannelReactions,
+                      value: text.editChannelReactionsValue(channel.reactionEmojis.length),
                       onTap: () => Navigator.of(context).pop('reactions'),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.waving_hand_rounded,
                       iconTint: const Color(0xFF7C3AED),
-                      label: 'Welcome message',
-                      value: _welcomeEnabled ? 'On' : 'Off',
+                      label: text.editChannelWelcome,
+                      value: _welcomeEnabled ? text.commonOn : text.commonOff,
                       onTap: () => unawaited(_openWelcome()),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.brush_rounded,
                       iconTint: const Color(0xFFD97706),
-                      label: 'Appearance',
-                      value: _accent == null && _background == null ? 'Default' : 'Custom',
+                      label: text.editChannelAppearance,
+                      value: _accent == null && _background == null
+                          ? text.commonDefault
+                          : text.commonCustom,
                       onTap: () => unawaited(_openAppearance()),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.translate_rounded,
                       iconTint: const Color(0xFF9333EA),
-                      label: 'Auto-translation',
-                      value: 'Unavailable',
+                      label: text.editChannelAutoTranslate,
+                      value: text.commonUnavailable,
                       onTap: () => unawaited(_explainTranslation()),
                     ),
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.chat_bubble_rounded,
                       iconTint: const Color(0xFF4F46E5),
-                      label: 'Direct messages',
-                      value: _directMessages ? 'On' : 'Off',
+                      label: text.editChannelDirectMessages,
+                      value: _directMessages ? text.commonOn : text.commonOff,
                       trailing: Switch(
                         value: _directMessages,
                         onChanged: (on) => setState(() => _directMessages = on),
@@ -449,7 +460,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                     SettingsRow(
                       icon: Icons.shield_rounded,
                       iconTint: PrivioColors.accent,
-                      label: 'Administrators',
+                      label: text.channelAdministrators,
                       value: '${controller.adminsOf(channel.id).length}',
                       onTap: () => unawaited(
                         Navigator.of(context).push<void>(
@@ -463,7 +474,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                     SettingsRow(
                       icon: Icons.people_alt_rounded,
                       iconTint: const Color(0xFF2563EB),
-                      label: 'Subscribers',
+                      label: text.channelSubscribersRow,
                       value: '${channel.memberCount}',
                       onTap: () => unawaited(
                         Navigator.of(context).push<void>(
@@ -480,9 +491,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xl),
                 child: Text(
-                  'Signed posts show the name of whoever wrote them. With it '
-                  'off, everything the channel publishes is published by the '
-                  'channel.',
+                  text.editChannelSignatureNote,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: PrivioColors.textTertiary),
                 ),
@@ -493,7 +502,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                 child: _Card(
                   children: [
                     SettingsRow(
-                      label: 'Show sender name',
+                      label: text.adminsShowSenderName,
                       trailing: Switch(
                         value: _showSenderName,
                         onChanged: (on) => setState(() => _showSenderName = on),
@@ -515,28 +524,25 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
     // way means re-sealing everything while moving the other means publishing
     // what was sealed. Said plainly rather than offered as a switch that would
     // half-work.
+    final text = AppText.of(context);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text(_channel.isPublic ? 'This channel is public' : 'This channel is private'),
+        title: Text(
+          _channel.isPublic
+              ? text.visibilityPublicTitle
+              : text.visibilityPrivateTitle,
+        ),
         content: Text(
           _channel.isPublic
-              ? 'Anyone can find it by name and read its posts. Its handle is '
-                  '@${_channel.handle ?? ''}.\n\n'
-                  'Privio cannot turn a public channel private after the fact: '
-                  'its name and description have been readable, and unsaying '
-                  'that is not something an app can do.'
-              : 'It is not listed, not searchable, and reachable only through '
-                  'its invite link. Its name is encrypted with the channel key.\n\n'
-                  'Making it public would publish that name, which is a '
-                  'decision Privio does not make on your behalf — create a '
-                  'public channel instead.',
+              ? text.visibilityPublicBody(_channel.handle ?? '')
+              : text.visibilityPrivateBody,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Alright'),
+            child: Text(text.commonOk),
           ),
         ],
       ),
@@ -546,25 +552,25 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
   Future<void> _openDiscussion() async {
     final channel = _channel;
     final controller = PrivioScope.of(context).channels;
+    final text = AppText.of(context);
     final on = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Discussion'),
-        content: const Text(
-          'With this on, every post gets a thread underneath it. Comments are '
-          'sealed with the same channel key as the post, so a device that '
-          'cannot read the post cannot read the thread.\n\n'
-          'Turning it off later hides the threads rather than deleting them.',
-        ),
+        title: Text(text.editChannelDiscussion),
+        content: Text(text.discussionBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(!channel.commentsEnabled),
-            child: Text(channel.commentsEnabled ? 'Turn off' : 'Turn on'),
+            child: Text(
+              channel.commentsEnabled
+                  ? text.discussionTurnOff
+                  : text.discussionTurnOn,
+            ),
           ),
         ],
       ),
@@ -574,18 +580,19 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
   }
 
   Future<void> _openWelcome() async {
+    final text = AppText.of(context);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Welcome message'),
+        title: Text(text.editChannelWelcome),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             StatefulBuilder(
               builder: (_, setLocal) => SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Show it to new subscribers'),
+                title: Text(text.welcomeShowToNew),
                 value: _welcomeEnabled,
                 onChanged: (on) {
                   setLocal(() {});
@@ -598,20 +605,22 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
               maxLines: 4,
               minLines: 2,
               maxLength: 1024,
-              decoration: const InputDecoration(hintText: 'Shown once, on joining'),
+              decoration: InputDecoration(hintText: text.welcomeHint),
             ),
             if (!_channel.isPublic)
-              const Text(
-                'This channel is private, so the message is encrypted with the '
-                'channel key like its name.',
-                style: TextStyle(color: PrivioColors.textTertiary, fontSize: 12),
+              Text(
+                text.welcomePrivateNote,
+                style: const TextStyle(
+                  color: PrivioColors.textTertiary,
+                  fontSize: 12,
+                ),
               ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Done'),
+            child: Text(text.commonDone),
           ),
         ],
       ),
@@ -635,24 +644,17 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
   Future<void> _explainTranslation() async {
     // The honest version, and the reason this row is not a switch. See
     // docs/channels.md.
+    final text = AppText.of(context);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Auto-translation is not set up'),
-        content: const Text(
-          'Translating a post means sending what it says to a translation '
-          'service. Privio\'s server cannot do that — it holds ciphertext and '
-          'no key — so it would have to happen on your device, and the text '
-          'would leave it in the clear.\n\n'
-          'That is a decision for whoever runs this server to enable and for '
-          'each reader to agree to, so it is off until both have happened. No '
-          'post has been sent anywhere.',
-        ),
+        title: Text(text.translationNotSetUpTitle),
+        content: Text(text.translationNotSetUpBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Alright'),
+            child: Text(text.commonOk),
           ),
         ],
       ),
@@ -728,12 +730,13 @@ class _AppearanceSheetState extends State<_AppearanceSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  AppText.of(context).editChannelAppearance,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: PrivioSpacing.xs),
                 Text(
-                  'A fixed set rather than a colour picker: every pair here was '
-                  'checked for contrast, so a channel cannot pick something its '
-                  'readers cannot read.',
+                  AppText.of(context).appearanceNote,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: PrivioSpacing.lg),
@@ -751,12 +754,12 @@ class _AppearanceSheetState extends State<_AppearanceSheet> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'A post in this channel',
+                          AppText.of(context).appearancePreviewPost,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: PrivioSpacing.xs),
                         Text(
-                          'and a link in it',
+                          AppText.of(context).appearancePreviewLink,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: ChannelPalette.accentFor(_accent),
                               ),
@@ -767,7 +770,10 @@ class _AppearanceSheetState extends State<_AppearanceSheet> {
                 ),
                 const SizedBox(height: PrivioSpacing.lg),
 
-                Text('Accent', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  AppText.of(context).appearanceAccent,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Wrap(
                   spacing: PrivioSpacing.sm,
@@ -794,7 +800,10 @@ class _AppearanceSheetState extends State<_AppearanceSheet> {
                 ),
                 const SizedBox(height: PrivioSpacing.lg),
 
-                Text('Background', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  AppText.of(context).appearanceBackground,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: PrivioSpacing.sm),
                 Wrap(
                   spacing: PrivioSpacing.sm,
@@ -827,13 +836,13 @@ class _AppearanceSheetState extends State<_AppearanceSheet> {
                         _accent = null;
                         _background = null;
                       }),
-                      child: const Text('Use the default'),
+                      child: Text(AppText.of(context).appearanceUseDefault),
                     ),
                     const Spacer(),
                     FilledButton(
                       onPressed: () => Navigator.of(context)
                           .pop((accent: _accent, background: _background)),
-                      child: const Text('Done'),
+                      child: Text(AppText.of(context).commonDone),
                     ),
                   ],
                 ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/passcode_text.dart';
 import '../core/passcode.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -24,7 +26,8 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
   final _passcode = TextEditingController();
   final _confirm = TextEditingController();
   PasscodeKind _kind = PasscodeKind.digits4;
-  String? _error;
+  /// What is wrong with what was typed — a case, not a sentence.
+  _LockError? _error;
 
   @override
   void initState() {
@@ -56,13 +59,14 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
   }
 
   Future<void> _save(AppState state) async {
+    final text = AppText.of(context);
     final complaint = _kind.complaintAbout(_passcode.text);
     if (complaint != null) {
-      setState(() => _error = complaint);
+      setState(() => _error = _LockError.passcode(complaint));
       return;
     }
     if (_passcode.text != _confirm.text) {
-      setState(() => _error = 'The two entries are not the same.');
+      setState(() => _error = const _LockError.mismatch());
       return;
     }
     setState(() => _error = null);
@@ -71,29 +75,27 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
     _passcode.clear();
     _confirm.clear();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('App lock on. Privio asks for it when it comes back.')),
+      SnackBar(content: Text(text.lockOnToast)),
     );
   }
 
   Future<void> _remove(AppState state) async {
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Turn off the app lock?'),
-        content: const Text(
-          'Anyone holding an unlocked phone reaches your messages. A duress code '
-          'set for the lock screen is removed with it.',
-        ),
+        title: Text(text.lockTurnOffTitle),
+        content: Text(text.lockTurnOffBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Turn off'),
+            child: Text(text.twoFactorTurnOff),
           ),
         ],
       ),
@@ -102,7 +104,7 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
     await state.clearScreenLock();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('App lock off.')),
+      SnackBar(content: Text(text.lockOffToast)),
     );
   }
 
@@ -110,11 +112,12 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Screen Lock'),
+        title: Text(text.privacyScreenLock),
       ),
       body: ListenableBuilder(
         listenable: state,
@@ -127,22 +130,17 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
           ),
           children: [
             Text(
-              state.screenLockSet ? 'On' : 'Off',
+              state.screenLockSet ? text.commonOn : text.commonOff,
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: PrivioSpacing.sm),
             Text(
-              'A passcode on this device, asked for whenever Privio comes back to '
-              'the foreground. It is not your account password and it never leaves '
-              'the phone — it guards the history already encrypted on it.',
+              text.lockWhatItIsNote,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'There is no face or fingerprint option. Those are the one credential '
-              'someone can hold a phone up to your face to use, or press your finger '
-              'onto while you are asleep — and in several places a court can order '
-              'them where it cannot order a passcode.',
+              text.lockNoBiometricsNote,
               style: theme.textTheme.labelSmall,
             ),
             const SizedBox(height: PrivioSpacing.xl),
@@ -151,14 +149,14 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
               OutlinedButton(
                 onPressed: () => _remove(state),
                 style: OutlinedButton.styleFrom(foregroundColor: PrivioColors.danger),
-                child: const Text('Turn off the app lock'),
+                child: Text(text.lockTurnOffRow),
               ),
               const SizedBox(height: PrivioSpacing.xl),
               const Divider(height: 1, color: PrivioColors.border),
               const SizedBox(height: PrivioSpacing.xl),
             ],
             Text(
-              state.screenLockSet ? 'Change the passcode' : 'Choose a passcode',
+              state.screenLockSet ? text.lockChangePasscode : text.lockChoosePasscode,
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: PrivioSpacing.lg),
@@ -172,8 +170,14 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
                       value: kind,
                       activeColor: PrivioColors.accent,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(kind.label, style: theme.textTheme.bodyMedium),
-                      subtitle: Text(kind.description, style: theme.textTheme.labelSmall),
+                      title: Text(
+                        passcodeKindLabel(text, kind),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      subtitle: Text(
+                        passcodeKindNote(text, kind),
+                        style: theme.textTheme.labelSmall,
+                      ),
                     ),
                 ],
               ),
@@ -189,7 +193,10 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
               inputFormatters:
                   _kind.isNumeric ? [FilteringTextInputFormatter.digitsOnly] : const [],
               onChanged: (_) => setState(() => _error = null),
-              decoration: InputDecoration(hintText: _kind.label, counterText: ''),
+              decoration: InputDecoration(
+                hintText: passcodeKindLabel(text, _kind),
+                counterText: '',
+              ),
             ),
             const SizedBox(height: PrivioSpacing.md),
             TextField(
@@ -203,7 +210,7 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
                   _kind.isNumeric ? [FilteringTextInputFormatter.digitsOnly] : const [],
               onChanged: (_) => setState(() => _error = null),
               onSubmitted: (_) => _save(state),
-              decoration: const InputDecoration(hintText: 'Again', counterText: ''),
+              decoration: InputDecoration(hintText: text.lockAgain, counterText: ''),
             ),
             if (_error != null) ...[
               const SizedBox(height: PrivioSpacing.lg),
@@ -214,7 +221,7 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
                   const SizedBox(width: PrivioSpacing.sm),
                   Expanded(
                     child: Text(
-                      _error!,
+                      _error!.words(text),
                       style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                     ),
                   ),
@@ -224,21 +231,36 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
             const SizedBox(height: PrivioSpacing.xl),
             FilledButton(
               onPressed: () => _save(state),
-              child: Text(state.screenLockSet ? 'Change it' : 'Turn it on'),
+              child: Text(state.screenLockSet ? text.lockChangeIt : text.lockTurnItOn),
             ),
             const SizedBox(height: PrivioSpacing.xxl),
             const Divider(height: 1, color: PrivioColors.border),
             const SizedBox(height: PrivioSpacing.lg),
             Text(
-              'Forgetting it means signing in again, which is a new device to '
-              'the server: what was already delivered here is gone unless it is in a '
-              'backup. There is no reset, because a reset anyone could ask for would '
-              'not be a lock.',
+              text.lockForgettingNote,
               style: theme.textTheme.labelSmall,
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// What is wrong with the entry, as a case the screen turns into words.
+///
+/// Two shapes: the passcode itself is the wrong kind, or the two fields do not
+/// match. Both used to be stored as an English sentence.
+class _LockError {
+  const _LockError.passcode(this.complaint);
+  const _LockError.mismatch() : complaint = null;
+
+  final PasscodeComplaint? complaint;
+
+  String words(AppText text) {
+    final complaint = this.complaint;
+    return complaint == null
+        ? text.lockEntriesDiffer
+        : passcodeComplaintText(text, complaint);
   }
 }

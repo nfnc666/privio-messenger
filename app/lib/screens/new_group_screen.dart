@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../models/models.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -49,7 +50,9 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
     if (groupId == null) {
       setState(() => _creating = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not create the group')),
+        SnackBar(
+          content: Text(controller.error ?? AppText.of(context).groupCouldNotCreate),
+        ),
       );
       return;
     }
@@ -60,6 +63,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: state.conversations,
@@ -70,7 +74,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: const Text('New group'),
+            title: Text(text.groupNewTitle),
             actions: [
               TextButton(
                 onPressed: ready && !_creating ? _create : null,
@@ -80,7 +84,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Create'),
+                    : Text(text.groupCreate),
               ),
             ],
           ),
@@ -93,7 +97,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                   autofocus: true,
                   textCapitalization: TextCapitalization.sentences,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(hintText: 'Group name'),
+                  decoration: InputDecoration(hintText: text.groupName),
                 ),
               ),
               Padding(
@@ -104,7 +108,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                     const SizedBox(width: PrivioSpacing.sm),
                     Expanded(
                       child: Text(
-                        'The name is encrypted. Privio stores a group it cannot name.',
+                        text.groupNameEncryptedNote,
                         style: theme.textTheme.labelSmall,
                       ),
                     ),
@@ -118,8 +122,8 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     _selected.isEmpty
-                        ? 'Choose members'
-                        : '${_selected.length} selected',
+                        ? text.groupChooseMembers
+                        : text.groupSelectedCount(_selected.length),
                     style: theme.textTheme.labelMedium,
                   ),
                 ),
@@ -130,7 +134,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(PrivioSpacing.xxxl),
                           child: Text(
-                            'Add some contacts first — a group needs people in it.',
+                            text.groupAddContactsFirst,
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall,
                           ),

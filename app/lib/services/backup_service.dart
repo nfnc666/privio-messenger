@@ -9,12 +9,10 @@ import '../data/recovery_key.dart';
 /// How often a backup is made without being asked for.
 enum BackupInterval { off, daily, weekly }
 
-extension BackupIntervalLabel on BackupInterval {
-  String get label => switch (this) {
-        BackupInterval.off => 'Off',
-        BackupInterval.daily => 'Daily',
-        BackupInterval.weekly => 'Weekly',
-      };
+extension BackupIntervalPeriod on BackupInterval {
+  // No `label` here any more: it returned "Daily" from a service, which is a
+  // word in one language written by something that cannot know which language
+  // the reader is in. The screen turns these values into words.
 
   Duration? get period => switch (this) {
         BackupInterval.off => null,

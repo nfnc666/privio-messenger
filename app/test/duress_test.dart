@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,8 @@ import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
+import 'package:privio/l10n/app_localizations.dart';
+import 'package:privio/l10n/passcode_text.dart';
 import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/services/backup_service.dart';
@@ -300,11 +303,34 @@ void main() {
       expect(PasscodeKind.phrase.accepts('abc'), isFalse);
     });
 
-    test('the complaint says what is wrong, not that something is', () {
+    test('the complaint says what is wrong, not that something is', () async {
+      // The case, not a sentence: the words belong to whichever of the app's
+      // five languages the person is reading in.
       expect(PasscodeKind.digits4.complaintAbout('1234'), isNull);
-      expect(PasscodeKind.digits6.complaintAbout('12'), 'Six digits.');
-      expect(PasscodeKind.phrase.complaintAbout('ab'), contains('At least'));
-      expect(PasscodeKind.phrase.complaintAbout('123456'), contains('letter'));
+      expect(
+        PasscodeKind.digits6.complaintAbout('12'),
+        PasscodeComplaint.needsSixDigits,
+      );
+      expect(
+        PasscodeKind.phrase.complaintAbout('ab'),
+        PasscodeComplaint.phraseTooShort,
+      );
+      expect(
+        PasscodeKind.phrase.complaintAbout('123456'),
+        PasscodeComplaint.phraseNeedsLetter,
+      );
+
+      // And the words themselves, once, so a missing translation is caught
+      // here rather than on a lock screen.
+      final text = await AppText.delegate.load(const Locale('en'));
+      expect(
+        passcodeComplaintText(text, PasscodeComplaint.needsSixDigits),
+        'Six digits.',
+      );
+      expect(
+        passcodeComplaintText(text, PasscodeComplaint.phraseNeedsLetter),
+        contains('letter'),
+      );
     });
 
     test('a phrase unlocks the same way a keypad code does', () async {

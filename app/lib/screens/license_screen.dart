@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../core/edition.dart';
 import '../core/license_controller.dart';
 import '../theme/privio_colors.dart';
@@ -45,7 +46,7 @@ class _LicenseScreenState extends State<LicenseScreen> {
 
     _key.clear();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Activated. This license now belongs to your account.')),
+      SnackBar(content: Text(AppText.of(context).licenseActivatedToast)),
     );
   }
 
@@ -56,7 +57,7 @@ class _LicenseScreenState extends State<LicenseScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Privio License'),
+        title: Text(AppText.of(context).settingsLicense),
       ),
       body: ListenableBuilder(
         listenable: license,
@@ -76,6 +77,7 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final state = license.state;
     // From the app rather than the constant, so this screen and the activation
     // step at first start always describe the same build.
@@ -90,28 +92,28 @@ class _Body extends StatelessWidget {
       ),
       children: [
         if (state == null)
-          const _Note(
+          _Note(
             icon: Icons.cloud_off_rounded,
-            title: 'Not checked yet',
-            body: 'Privio has not been able to ask the server about this account yet. '
-                'Pull the app back online and reopen this screen.',
+            title: text.licenseNotCheckedTitle,
+            body: text.licenseNotCheckedBody,
           )
         else if (state.licensed)
           _Licensed(state: state)
         else if (!state.enforced)
-          const _Note(
+          _Note(
             icon: Icons.home_work_outlined,
-            title: 'No license needed here',
-            body: 'This server does not require one. Licensing is for the hosted Privio '
-                'service — a license for infrastructure you already run would mean nothing.',
+            title: text.licenseNotNeededTitle,
+            body: text.licenseNotNeededBody,
           )
         else if (!edition.usesLicenseKey)
           _Note(
             icon: Icons.storefront_outlined,
-            title: 'Handled by the store',
-            body: 'This build was paid for through the app store it came from, so there is '
-                'no key to enter. If it is not active, restore your purchase in '
-                '${edition.distribution == PrivioDistribution.play ? 'Google Play' : 'the App Store'}.',
+            title: text.licenseStoreTitle,
+            body: text.licenseStoreBody(
+              edition.distribution == PrivioDistribution.play
+                  ? 'Google Play'
+                  : 'the App Store',
+            ),
           )
         else
           _Activation(license: license, field: field, onActivate: onActivate),
@@ -119,15 +121,15 @@ class _Body extends StatelessWidget {
         const Divider(height: 1, color: PrivioColors.border),
         const SizedBox(height: PrivioSpacing.lg),
         Text(
-          'One purchase, one key, one account, for good. A redeemed key is bound to the '
-          'account that redeemed it and cannot be moved or used again.',
+          text.licenseOnePurchaseNote,
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.md),
         Text(
-          '${edition.name} is free software under ${PrivioEdition.licenseSpdxId}. The key does '
-          'not unlock the app — you already have all of it, and can build it yourself. It pays '
-          'for the hosted service that relays your messages.',
+          text.activationFreeSoftwareNote(
+            edition.name,
+            PrivioEdition.licenseSpdxId,
+          ),
           style: theme.textTheme.labelSmall,
         ),
       ],
@@ -149,11 +151,10 @@ class _Activation extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Enter your license key', style: theme.textTheme.titleMedium),
+        Text(AppText.of(context).licenseEnterTitle, style: theme.textTheme.titleMedium),
         const SizedBox(height: PrivioSpacing.sm),
         Text(
-          'Buy a key at getprivio.com/license, then type it here. Until it is activated '
-          'this account can sign in and read what has already arrived, but not send.',
+          AppText.of(context).licenseEnterBody,
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),
@@ -191,7 +192,7 @@ class _Activation extends StatelessWidget {
                     color: PrivioColors.background,
                   ),
                 )
-              : const Text('Activate'),
+              : Text(AppText.of(context).activationActivate),
         ),
       ],
     );
@@ -225,10 +226,13 @@ class _Licensed extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Activated', style: theme.textTheme.titleMedium),
+                    Text(
+                      AppText.of(context).licenseActivated,
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: PrivioSpacing.xs),
                     Text(
-                      _describe(state),
+                      _describe(AppText.of(context), state),
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -240,7 +244,9 @@ class _Licensed extends StatelessWidget {
         if (at != null) ...[
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'Redeemed on ${at.toLocal().toString().split(' ').first}.',
+            AppText.of(context).licenseRedeemedOn(
+              at.toLocal().toString().split(' ').first,
+            ),
             style: theme.textTheme.labelSmall,
           ),
         ],
@@ -248,10 +254,10 @@ class _Licensed extends StatelessWidget {
     );
   }
 
-  static String _describe(LicenseState state) => switch (state.source) {
-        'apple' => 'Bought through the App Store.',
-        'google' => 'Bought through Google Play.',
-        _ => 'Activated with a license key. Lifetime access, no renewals.',
+  static String _describe(AppText text, LicenseState state) => switch (state.source) {
+        'apple' => text.licenseFromAppStore,
+        'google' => text.licenseFromPlay,
+        _ => text.licenseFromKey,
       };
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/privio_logo.dart';
 
 /// Screens 1 and 2: the splash, then the secure-initialisation progress.
@@ -74,12 +75,12 @@ class _Tagline extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'Secure Messenger',
+          AppText.of(context).splashTagline,
           style: theme.textTheme.bodyMedium?.copyWith(color: PrivioColors.accent),
         ),
         const SizedBox(height: PrivioSpacing.xs),
         Text(
-          'Encrypted. Private. Yours.',
+          AppText.of(context).splashPromise,
           style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
         ),
       ],
@@ -98,7 +99,7 @@ class _InitialisingIndicator extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'Initializing secure environment',
+          AppText.of(context).splashInitialising,
           style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.accent),
         ),
         const SizedBox(height: PrivioSpacing.md),

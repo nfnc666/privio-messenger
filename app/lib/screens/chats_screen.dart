@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/message_search.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/channel_text.dart';
 import '../models/models.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -43,12 +45,12 @@ class _Results extends StatelessWidget {
       itemBuilder: (context, index) {
         var at = index;
         if (chats.isNotEmpty) {
-          if (at == 0) return const _SectionHeader('Chats');
+          if (at == 0) return _SectionHeader(AppText.of(context).chatsSectionChats);
           at -= 1;
           if (at < chats.length) return rowBuilder(chats[at]);
           at -= chats.length;
         }
-        if (at == 0) return const _SectionHeader('Messages');
+        if (at == 0) return _SectionHeader(AppText.of(context).chatsSectionMessages);
         final hit = hits[at - 1];
         return _HitRow(hit: hit, onTap: () => onOpenHit(hit));
       },
@@ -109,7 +111,7 @@ class _HitRow extends StatelessWidget {
             ),
           ),
           Text(
-            _when(hit.message.sentAt),
+            _when(AppText.of(context), hit.message.sentAt),
             style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.textTertiary),
           ),
         ],
@@ -119,7 +121,7 @@ class _HitRow extends StatelessWidget {
           children: [
             if (hit.message.isMine)
               TextSpan(
-                text: 'You: ',
+                text: AppText.of(context).chatsYouPrefix,
                 style: body.copyWith(color: PrivioColors.textTertiary),
               ),
             TextSpan(text: snippet.text.substring(0, snippet.start), style: body),
@@ -141,14 +143,13 @@ class _HitRow extends StatelessWidget {
     );
   }
 
-  static String _when(DateTime at) {
+  static String _when(AppText text, DateTime at) {
     final now = DateTime.now();
     if (at.year == now.year && at.month == now.month && at.day == now.day) {
       return '${at.hour.toString().padLeft(2, '0')}:'
           '${at.minute.toString().padLeft(2, '0')}';
     }
-    return '${at.day.toString().padLeft(2, '0')}.'
-        '${at.month.toString().padLeft(2, '0')}.${at.year}';
+    return formatDate(text, at);
   }
 }
 
@@ -160,8 +161,7 @@ class _NoResults extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(PrivioSpacing.xxl),
           child: Text(
-            'Nothing here matches. Only this device was asked — the server '
-            'holds messages it cannot read, so it could not have answered.',
+            AppText.of(context).chatsNoSearchResults,
             textAlign: TextAlign.center,
             style: Theme.of(context)
                 .textTheme
@@ -181,8 +181,6 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> {
-  static const List<String> _filters = ['All', 'Unread', 'Groups'];
-
   int _filter = 0;
   String _query = '';
 
@@ -227,6 +225,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     ChatSummary chat,
   ) async {
     final pinned = state.conversations.isPinned(chat.id);
+    final text = AppText.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -239,8 +238,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
               leading: Icon(
                 pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
               ),
-              title: Text(pinned ? 'Unpin' : 'Pin to top'),
-              subtitle: const Text('Only on this device. Nothing is sent.'),
+              title: Text(pinned ? text.chatsUnpin : text.chatsPin),
+              subtitle: Text(text.chatsPinNote),
               onTap: () => Navigator.of(sheetContext).pop('pin'),
             ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -269,12 +268,13 @@ class _ChatsScreenState extends State<ChatsScreen> {
   /// Creating a group drops straight into it, which is what someone who just
   /// named a group and picked its members expects to happen.
   Future<void> _startGroup(BuildContext context, AppState state) async {
+    final fallbackName = AppText.of(context).chatsGroupFallbackName;
     final groupId = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(builder: (_) => const NewGroupScreen()),
     );
     if (groupId == null || !context.mounted) return;
 
-    final title = state.conversations.groupInfo(groupId)?.name ?? 'Group';
+    final title = state.conversations.groupInfo(groupId)?.name ?? fallbackName;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatScreen(accountId: groupId, title: title, isGroup: true),
@@ -285,6 +285,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   /// Opens a group join link. The link carries no key; the group's name stays
   /// sealed until a member's device sends the key over.
   Future<void> _joinByLink(BuildContext context, AppState state) async {
+    final text = AppText.of(context);
     final link = await showDialog<String>(
       context: context,
       builder: (_) => const _JoinGroupDialog(),
@@ -295,11 +296,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (!context.mounted) return;
     if (groupId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(state.conversations.error ?? 'Could not open that link')),
+        SnackBar(
+          content: Text(state.conversations.error ?? text.chatsCouldNotOpenLink),
+        ),
       );
       return;
     }
-    final title = state.conversations.groupInfo(groupId)?.name ?? 'Group';
+    final title =
+        state.conversations.groupInfo(groupId)?.name ?? text.chatsGroupFallbackName;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatScreen(accountId: groupId, title: title, isGroup: true),
@@ -318,6 +322,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: state.conversations,
@@ -336,19 +341,19 @@ class _ChatsScreenState extends State<ChatsScreen> {
               IconButton(
                 onPressed: () => _joinByLink(context, state),
                 icon: const Icon(Icons.link_rounded),
-                tooltip: 'Join a group with a link',
+                tooltip: text.chatsJoinGroupTooltip,
               ),
               IconButton(
                 onPressed: () => _startGroup(context, state),
                 icon: const Icon(Icons.group_add_outlined),
-                tooltip: 'New group',
+                tooltip: text.chatsNewGroupTooltip,
               ),
               IconButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const ContactsScreen()),
                 ),
                 icon: const Icon(Icons.edit_square),
-                tooltip: 'New chat',
+                tooltip: text.chatsNewChatTooltip,
               ),
               const SizedBox(width: PrivioSpacing.xs),
             ],
@@ -356,12 +361,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
           body: Column(
             children: [
               PrivioSearchField(
-                hintText: 'Search',
+                hintText: text.commonSearch,
                 onChanged: (value) => setState(() => _query = value),
               ),
               const SizedBox(height: PrivioSpacing.xs),
               FilterChips(
-                labels: _filters,
+                labels: [
+                  text.chatsFilterAll,
+                  text.chatsFilterUnread,
+                  text.chatsFilterGroups,
+                ],
                 selectedIndex: _filter,
                 onSelected: (index) => setState(() => _filter = index),
               ),
@@ -401,6 +410,7 @@ class _EmptyChats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
@@ -409,10 +419,10 @@ class _EmptyChats extends StatelessWidget {
           children: [
             const Icon(Icons.chat_bubble_outline_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text('No chats yet', style: theme.textTheme.titleMedium),
+            Text(text.chatsEmptyTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              'Add someone by their exact username to start talking.',
+              text.chatsEmptyBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -421,7 +431,7 @@ class _EmptyChats extends StatelessWidget {
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const ContactsScreen()),
               ),
-              child: const Text('Add a contact'),
+              child: Text(text.chatsAddContact),
             ),
           ],
         ),
@@ -448,9 +458,10 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final text = AppText.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Join a group'),
+      title: Text(text.chatsJoinGroupTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,17 +475,19 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'The link gets you in. The key to the group name is sent to your '
-            'device afterwards, encrypted, by someone already in the group.',
+            text.chatsJoinGroupNote,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(text.commonCancel),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_link.text),
-          child: const Text('Join'),
+          child: Text(text.chatsJoin),
         ),
       ],
     );

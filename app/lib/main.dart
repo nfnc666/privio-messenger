@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/app_state.dart';
 import 'services/incoming_links.dart';
 import 'services/push_wake.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Month names, weekday names and the order of day/month/year for every
+  // language the app speaks. Without this, `DateFormat` throws the moment a
+  // date is drawn in anything but the default locale — which is most of them.
+  await initializeDateFormatting();
 
   // Privio is portrait-only and dark-only: a rotated or light-themed system UI
   // would break the black-on-black look the brand depends on.

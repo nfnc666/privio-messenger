@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../core/security_controller.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -43,7 +44,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     if (!ok || !mounted) return;
     _code.clear();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Two-factor is on. Keep the recovery of your authenticator safe.')),
+      SnackBar(content: Text(AppText.of(context).twoFactorOnToast)),
     );
   }
 
@@ -53,34 +54,35 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     final ok = await security.disableTotp(password);
     if (!ok || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Two-factor is off.')),
+      SnackBar(content: Text(AppText.of(context).twoFactorOffToast)),
     );
   }
 
   /// Removing the factor asks for the password, because an unlocked phone
   /// should not be enough to take it off.
   Future<String?> _askForPassword() {
+    final text = AppText.of(context);
     final field = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Turn off two-factor'),
+        title: Text(text.twoFactorTurnOffTitle),
         content: TextField(
           controller: field,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Your password'),
+          decoration: InputDecoration(hintText: text.accountYourPassword),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(field.text),
-            child: const Text('Turn off'),
+            child: Text(text.twoFactorTurnOff),
           ),
         ],
       ),
@@ -94,7 +96,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Two-Factor Authentication'),
+        title: Text(AppText.of(context).privacyTwoFactor),
       ),
       body: ListenableBuilder(
         listenable: security,
@@ -128,10 +130,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
             const Divider(height: 1, color: PrivioColors.border),
             const SizedBox(height: PrivioSpacing.lg),
             Text(
-              'The code is checked at login, on the server. It protects the account '
-              'itself — someone who learns your password still cannot sign a new '
-              'device in. It is not what encrypts your messages: that is the key on '
-              'this device, and no code can replace it.',
+              AppText.of(context).twoFactorServerNote,
               style: Theme.of(context).textTheme.labelSmall,
             ),
           ],
@@ -164,17 +163,16 @@ class _Off extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Off', style: theme.textTheme.titleLarge),
+        Text(AppText.of(context).commonOff, style: theme.textTheme.titleLarge),
         const SizedBox(height: PrivioSpacing.sm),
         Text(
-          'With two-factor on, signing in needs a six-digit code from your '
-          'authenticator app as well as your password.',
+          AppText.of(context).twoFactorOffBody,
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),
         FilledButton(
           onPressed: busy ? null : () => onStart(),
-          child: const Text('Set it up'),
+          child: Text(AppText.of(context).twoFactorSetUp),
         ),
       ],
     );
@@ -202,11 +200,10 @@ class _Setup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Scan this', style: theme.textTheme.titleLarge),
+        Text(AppText.of(context).twoFactorScanThis, style: theme.textTheme.titleLarge),
         const SizedBox(height: PrivioSpacing.sm),
         Text(
-          'Add it to your authenticator app, then type the code it shows. '
-          'Two-factor is not on until that code has been checked.',
+          AppText.of(context).twoFactorScanNote,
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: PrivioSpacing.xl),
@@ -230,12 +227,12 @@ class _Setup extends StatelessWidget {
           ),
         const SizedBox(height: PrivioSpacing.lg),
         SettingsRow(
-          label: 'Or type this key',
+          label: AppText.of(context).twoFactorTypeKey,
           value: _grouped(secret),
           onTap: () {
             Clipboard.setData(ClipboardData(text: secret));
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Key copied.')),
+              SnackBar(content: Text(AppText.of(context).twoFactorKeyCopied)),
             );
           },
         ),
@@ -263,11 +260,11 @@ class _Setup extends StatelessWidget {
                     color: PrivioColors.background,
                   ),
                 )
-              : const Text('Turn on'),
+              : Text(AppText.of(context).twoFactorTurnOn),
         ),
         TextButton(
           onPressed: security.busy ? null : security.cancelTotpSetup,
-          child: const Text('Cancel'),
+          child: Text(AppText.of(context).commonCancel),
         ),
       ],
     );
@@ -310,10 +307,10 @@ class _On extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('On', style: theme.textTheme.titleMedium),
+                    Text(AppText.of(context).commonOn, style: theme.textTheme.titleMedium),
                     const SizedBox(height: PrivioSpacing.xs),
                     Text(
-                      'Signing in asks for a code from your authenticator app.',
+                      AppText.of(context).twoFactorOnBody,
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -326,7 +323,7 @@ class _On extends StatelessWidget {
         OutlinedButton(
           onPressed: onDisable,
           style: OutlinedButton.styleFrom(foregroundColor: PrivioColors.danger),
-          child: const Text('Turn off'),
+          child: Text(AppText.of(context).twoFactorTurnOff),
         ),
       ],
     );

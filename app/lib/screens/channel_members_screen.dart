@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../models/channel.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -48,7 +49,9 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
       await controller.loadBans(widget.channel.id);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not lift that.')),
+        SnackBar(
+          content: Text(controller.error ?? AppText.of(context).membersCouldNotLift),
+        ),
       );
     }
   }
@@ -74,7 +77,11 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not change that member')),
+        SnackBar(
+          content: Text(
+            controller.error ?? AppText.of(context).membersCouldNotChange,
+          ),
+        ),
       );
     }
   }
@@ -84,6 +91,7 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
     final state = PrivioScope.of(context);
     final controller = state.channels;
     final canManage = widget.channel.permissions.canManageMembers;
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: controller,
@@ -98,7 +106,7 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: Text(complete ? 'Members' : 'Who runs this channel'),
+            title: Text(complete ? text.membersTitle : text.membersWhoRuns),
           ),
           body: ListView.builder(
             // The note is a row of its own so it scrolls with the list rather
@@ -120,12 +128,12 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
                   ),
                   title: Text(ban.username),
                   subtitle: Text(
-                    'Can read, cannot post or react',
+                    text.membersSilencedCanRead,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   trailing: TextButton(
                     onPressed: () => _unsilence(ban),
-                    child: const Text('Allow again'),
+                    child: Text(text.membersAllowAgain),
                   ),
                 );
               }
@@ -141,14 +149,14 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
                 leading: PrivioAvatar(label: member.label, seed: member.id.hashCode.abs()),
                 title: Text(member.label),
                 subtitle: Text(
-                  _describe(member),
+                  _describe(text, member),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 trailing: editable
                     ? IconButton(
                         onPressed: () => _edit(member),
                         icon: const Icon(Icons.tune_rounded, size: 20),
-                        tooltip: 'Role and permissions',
+                        tooltip: text.membersRoleAndPermissions,
                       )
                     : null,
               );
@@ -161,17 +169,20 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
 
   /// A role name alone says nothing: two admins can hold entirely different
   /// powers, so the list spells out what each one actually has.
-  static String _describe(ChannelMember member) {
-    if (member.isOwner) return 'Owner · everything';
+  static String _describe(AppText text, ChannelMember member) {
+    if (member.isOwner) return text.membersOwnerEverything;
     final granted = <String>[
-      if (member.permissions.canPost) 'post',
-      if (member.permissions.canEditChannel) 'edit',
-      if (member.permissions.canDeletePosts) 'delete posts',
-      if (member.permissions.canManageMembers) 'manage members',
-      if (member.permissions.canDeleteChannel) 'delete channel',
+      if (member.permissions.canPost) text.membersGrantPost,
+      if (member.permissions.canEditChannel) text.membersGrantEdit,
+      if (member.permissions.canDeletePosts) text.membersGrantDeletePosts,
+      if (member.permissions.canManageMembers) text.membersGrantManageMembers,
+      if (member.permissions.canDeleteChannel) text.membersGrantDeleteChannel,
     ];
-    if (granted.isEmpty) return 'Subscriber · read only';
-    return '${member.role == 'admin' ? 'Admin' : 'Subscriber'} · ${granted.join(', ')}';
+    if (granted.isEmpty) return text.membersSubscriberReadOnly;
+    return text.membersRoleLine(
+      member.role == 'admin' ? text.adminsRoleAdmin : text.membersSubscriber,
+      granted.join(', '),
+    );
   }
 }
 
@@ -217,6 +228,7 @@ class _RoleSheetState extends State<_RoleSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final isAdmin = _role == 'admin';
 
     // Admin adds five toggles, which on a small screen is more than the sheet
@@ -244,9 +256,12 @@ class _RoleSheetState extends State<_RoleSheet> {
                     Text(widget.member.label, style: theme.textTheme.titleMedium),
                     const SizedBox(height: PrivioSpacing.lg),
                     SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'subscriber', label: Text('Subscriber')),
-                        ButtonSegment(value: 'admin', label: Text('Admin')),
+                      segments: [
+                        ButtonSegment(
+                          value: 'subscriber',
+                          label: Text(text.membersSubscriber),
+                        ),
+                        ButtonSegment(value: 'admin', label: Text(text.adminsRoleAdmin)),
                       ],
                       selected: {_role},
                       onSelectionChanged: (selected) => setState(() => _role = selected.first),
@@ -254,44 +269,43 @@ class _RoleSheetState extends State<_RoleSheet> {
                     const SizedBox(height: PrivioSpacing.lg),
                     if (isAdmin) ...[
                       _Toggle(
-                        label: 'Post',
+                        label: text.membersTogglePost,
                         value: _canPost,
                         allowed: widget.actor.canPost,
                         onChanged: (v) => setState(() => _canPost = v),
                       ),
                       _Toggle(
-                        label: 'Edit the channel',
+                        label: text.membersToggleEditChannel,
                         value: _canEditChannel,
                         allowed: widget.actor.canEditChannel,
                         onChanged: (v) => setState(() => _canEditChannel = v),
                       ),
                       _Toggle(
-                        label: 'Delete posts',
+                        label: text.membersToggleDeletePosts,
                         value: _canDeletePosts,
                         allowed: widget.actor.canDeletePosts,
                         onChanged: (v) => setState(() => _canDeletePosts = v),
                       ),
                       _Toggle(
-                        label: 'Manage members',
+                        label: text.membersToggleManageMembers,
                         value: _canManageMembers,
                         allowed: widget.actor.canManageMembers,
                         onChanged: (v) => setState(() => _canManageMembers = v),
                       ),
                       _Toggle(
-                        label: 'Delete the channel',
+                        label: text.membersToggleDeleteChannel,
                         value: _canDeleteChannel,
                         allowed: widget.actor.canDeleteChannel,
                         onChanged: (v) => setState(() => _canDeleteChannel = v),
                       ),
                       const SizedBox(height: PrivioSpacing.sm),
                       Text(
-                        'Greyed-out permissions are ones you do not hold yourself. '
-                        'Nobody can hand out more than they have.',
+                        text.membersGreyedOutNote,
                         style: theme.textTheme.bodySmall,
                       ),
                     ] else
                       Text(
-                        'A subscriber reads the channel and nothing else.',
+                        text.membersSubscriberNote,
                         style: theme.textTheme.bodySmall,
                       ),
                   ],
@@ -307,7 +321,7 @@ class _RoleSheetState extends State<_RoleSheet> {
                     onPressed: () => Navigator.of(context).pop(
                       _RoleChange(role: _role, permissions: _permissions),
                     ),
-                    child: const Text('Save'),
+                    child: Text(text.commonSave),
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(
@@ -318,7 +332,7 @@ class _RoleSheetState extends State<_RoleSheet> {
                       ),
                     ),
                     style: TextButton.styleFrom(foregroundColor: PrivioColors.danger),
-                    child: const Text('Remove from channel'),
+                    child: Text(text.membersRemoveFromChannel),
                   ),
                 ],
               ),
@@ -382,7 +396,7 @@ class _SilencedHeading extends StatelessWidget {
           PrivioSpacing.xs,
         ),
         child: Text(
-          'Stopped from posting',
+          AppText.of(context).membersStoppedFromPosting,
           style: Theme.of(context).textTheme.labelLarge,
         ),
       );
@@ -406,8 +420,7 @@ class _AudienceNote extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             Expanded(
               child: Text(
-                'Only the people who run this channel are listed. Who reads it '
-                'is not shown to other readers — including you.',
+                AppText.of(context).membersAudienceNote,
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall

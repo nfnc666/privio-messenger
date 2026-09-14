@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
-import '../core/conversation_controller.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/notice_text.dart';
 import '../data/message_store.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -28,7 +29,9 @@ class GroupInfoScreen extends StatefulWidget {
 
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   List<GroupMember>? _members;
-  String? _error;
+  /// Whether the member list could be read. A flag, not a sentence: the
+  /// sentence belongs to whoever is reading the screen.
+  bool _loadFailed = false;
   bool _loading = true;
 
   @override
@@ -44,7 +47,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       if (!mounted) return;
       setState(() {
         _members = members;
-        _error = null;
+        _loadFailed = false;
         _loading = false;
       });
     } on Object {
@@ -52,7 +55,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       // The list is the server's answer, so no answer means no list — not an
       // empty one, which would read as a group with nobody in it.
       setState(() {
-        _error = 'Could not read who is in this group.';
+        _loadFailed = true;
         _loading = false;
       });
     }
@@ -79,7 +82,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     if (!state.conversations.mayChangeDisappearAfter(widget.groupId)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only an admin can change this')),
+        SnackBar(content: Text(AppText.of(context).groupAdminOnly)),
       );
       return;
     }
@@ -93,12 +96,13 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         await state.conversations.setDisappearAfter(widget.groupId, chosen.value);
     if (!changed && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only an admin can change this')),
+        SnackBar(content: Text(AppText.of(context).groupAdminOnly)),
       );
     }
   }
 
   Future<void> _rename(AppState state) async {
+    final text = AppText.of(context);
     final controller = TextEditingController(
       text: state.conversations.groupInfo(widget.groupId)?.name ?? '',
     );
@@ -106,20 +110,20 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Rename group'),
+        title: Text(text.groupRename),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Group name'),
+          decoration: InputDecoration(hintText: text.groupName),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Rename'),
+            child: Text(text.groupRenameAction),
           ),
         ],
       ),
@@ -131,20 +135,19 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       SnackBar(
         content: Text(
           ok
-              ? 'Renamed. Everyone else opens the new name with the key they '
-                  'already have.'
-              : state.conversations.error ?? 'Could not rename the group.',
+              ? text.groupRenamed
+              : state.conversations.error ?? text.groupCouldNotRename,
         ),
       ),
     );
   }
 
   Future<void> _confirmRemove(AppState state, GroupMember member) async {
+    final text = AppText.of(context);
     final yes = await _confirm(
-      title: 'Remove ${member.label}?',
-      body: 'They stop receiving what is sent from now on. What they already '
-          'received stays on their device — nothing here can reach it.',
-      action: 'Remove',
+      title: text.groupRemoveTitle(member.label),
+      body: text.groupRemoveBody,
+      action: text.commonRemove,
     );
     if (!yes || !mounted) return;
     final ok = await state.conversations.removeFromGroup(
@@ -154,17 +157,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     if (ok) await _load();
     if (!mounted || ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(state.conversations.error ?? 'Could not remove them.')),
+      SnackBar(
+        content: Text(state.conversations.error ?? text.groupCouldNotRemove),
+      ),
     );
   }
 
   Future<void> _confirmLeave(AppState state) async {
+    final text = AppText.of(context);
     final yes = await _confirm(
-      title: 'Leave this group?',
-      body: 'You stop receiving what is sent to it, and the conversation goes '
-          'from this device with everything in it. Nobody is told; the others '
-          'see you disappear from the member list.',
-      action: 'Leave',
+      title: text.groupLeaveTitle,
+      body: text.groupLeaveBody,
+      action: text.groupLeave,
     );
     if (!yes || !mounted) return;
     if (await state.conversations.leaveGroup(widget.groupId) && mounted) {
@@ -176,12 +180,11 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   }
 
   Future<void> _confirmDelete(AppState state) async {
+    final text = AppText.of(context);
     final yes = await _confirm(
-      title: 'Delete this group?',
-      body: 'It goes for everyone: nobody can send to it again. What has '
-          'already been delivered stays on the devices that received it, which '
-          'is every message anyone has read.',
-      action: 'Delete',
+      title: text.groupDeleteTitle,
+      body: text.groupDeleteBody,
+      action: text.commonDelete,
     );
     if (!yes || !mounted) return;
     if (await state.conversations.deleteGroup(widget.groupId) && mounted) {
@@ -205,7 +208,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(AppText.of(dialogContext).commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
@@ -218,6 +221,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     return yes ?? false;
   }
 
+  /// "You · admin", "@bruno", and the two in between.
+  static String _memberLine(AppText text, GroupMember member, {required bool mine}) {
+    final who = mine ? text.groupYouSuffix : '@${member.username}';
+    return member.isAdmin ? '$who · ${text.groupAdminSuffix}' : who;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -225,11 +234,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     final group = state.conversations.groupInfo(widget.groupId);
     final members = _members ?? const <GroupMember>[];
     final admin = _amAdmin(state);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Group info'),
+        title: Text(text.chatGroupInfo),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
@@ -239,7 +249,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 const SizedBox(height: PrivioSpacing.xl),
                 Center(
                   child: PrivioAvatar(
-                    label: group?.name ?? 'Group',
+                    label: group?.name ?? text.chatsGroupFallbackName,
                     isGroup: true,
                     size: 88,
                     seed: widget.groupId.hashCode.abs(),
@@ -248,22 +258,22 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                 const SizedBox(height: PrivioSpacing.md),
                 Center(
                   child: Text(
-                    group?.name ?? 'Group',
+                    group?.name ?? text.chatsGroupFallbackName,
                     style: theme.textTheme.titleLarge,
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.xxl),
-                if (_error != null)
+                if (_loadFailed)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                     child: Text(
-                      _error!,
+                      text.groupInfoCouldNotRead,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: PrivioColors.danger),
                     ),
                   ),
                 SettingsSection(
-                  caption: members.length == 1 ? '1 member' : '${members.length} members',
+                  caption: text.channelMembers(members.length),
                   children: [
                     for (final member in members)
                       ListTile(
@@ -276,10 +286,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         ),
                         title: Text(member.label, style: theme.textTheme.titleSmall),
                         subtitle: Text(
-                          member.accountId == state.accountId
-                              ? 'You${member.isAdmin ? ' · admin' : ''}'
-                              : '@${member.username}'
-                                  '${member.isAdmin ? ' · admin' : ''}',
+                          _memberLine(text, member, mine: member.accountId == state.accountId),
                           style: theme.textTheme.bodySmall,
                         ),
                         trailing: admin && member.accountId != state.accountId
@@ -299,10 +306,10 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   children: [
                     SettingsRow(
                       icon: Icons.timer_outlined,
-                      label: 'Disappearing messages',
+                      label: text.disappearingTitle,
                       value: switch (state.conversations.disappearAfter(widget.groupId)) {
-                        final timer? => ConversationController.describeTimer(timer),
-                        null => 'Off',
+                        final timer? => describeDuration(text, timer),
+                        null => text.disappearingOff,
                       },
                       // Still tappable for a member, and it says why rather
                       // than doing nothing: a row that ignores a tap reads as
@@ -317,17 +324,17 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     if (admin)
                       SettingsRow(
                         icon: Icons.drive_file_rename_outline_rounded,
-                        label: 'Rename group',
+                        label: text.groupRename,
                         onTap: () => unawaited(_rename(state)),
                       ),
                     SettingsRow(
-                      label: 'Leave group',
+                      label: text.groupLeaveRow,
                       destructive: true,
                       onTap: () => unawaited(_confirmLeave(state)),
                     ),
                     if (admin)
                       SettingsRow(
-                        label: 'Delete group for everyone',
+                        label: text.groupDeleteRow,
                         destructive: true,
                         onTap: () => unawaited(_confirmDelete(state)),
                       ),

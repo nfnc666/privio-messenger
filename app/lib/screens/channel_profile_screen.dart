@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
@@ -87,6 +88,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
     final channel = _channel;
     final live = _live;
     final controller = PrivioScope.of(context).channels;
+    final text = AppText.of(context);
 
     // The honest case, and the common one: no media server is configured, so
     // there is nothing to join and the screen says exactly that instead of
@@ -96,18 +98,12 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           backgroundColor: PrivioColors.surface,
-          title: const Text('Livestreams are not set up'),
-          content: const Text(
-            'A livestream needs a media server: one person sends video and '
-            'everybody else receives it, which cannot be done device to device '
-            'the way a call is.\n\n'
-            'This Privio server has none configured, so there is nothing to '
-            'join yet. Whoever runs it can set one up.',
-          ),
+          title: Text(text.livestreamNotSetUpTitle),
+          content: Text(text.livestreamNotSetUpBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Alright'),
+              child: Text(text.commonOk),
             ),
           ],
         ),
@@ -120,13 +116,13 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
       return;
     }
     if (!live.canStart) {
-      _say('Nobody is streaming right now.');
+      _say(text.livestreamNobodyStreaming);
       return;
     }
     final started = await controller.startLive(channel.id);
     if (!mounted) return;
     if (started == null) {
-      _say(controller.error ?? 'Could not start the stream.');
+      _say(controller.error ?? text.livestreamCouldNotStart);
       return;
     }
     setState(() => _live = started);
@@ -134,6 +130,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
   }
 
   Future<void> _openLive(ChannelLive live) async {
+    final text = AppText.of(context);
     // Deliberately not a player yet: see docs/channels.md. The room and token
     // are real and the server issued them; what is missing is the client half
     // of an SFU, which is its own piece of work and is not going to be faked
@@ -142,15 +139,13 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text(live.canPublish ? 'You are live' : 'A stream is running'),
+        title: Text(
+          live.canPublish ? text.livestreamYouAreLive : text.livestreamRunning,
+        ),
         content: Text(
           live.canPublish
-              ? 'The room is open and your device has a token to publish to it. '
-                  'Privio does not carry the video itself yet — the media server '
-                  'does — so nothing is being sent from this screen.\n\n'
-                  'End it when you are done.'
-              : 'A stream is running and this device has a token to watch it. '
-                  'Privio cannot show the video yet.',
+              ? text.livestreamPublisherBody
+              : text.livestreamViewerBody,
         ),
         actions: [
           if (live.canPublish)
@@ -160,11 +155,14 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                 await PrivioScope.of(context).channels.endLive(_channel.id);
                 if (mounted) setState(() => _live = null);
               },
-              child: const Text('End it', style: TextStyle(color: PrivioColors.danger)),
+              child: Text(
+                text.livestreamEndIt,
+                style: const TextStyle(color: PrivioColors.danger),
+              ),
             ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+            child: Text(text.commonClose),
           ),
         ],
       ),
@@ -173,6 +171,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
 
   Future<void> _more() async {
     final channel = _channel;
+    final text = AppText.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -182,38 +181,38 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.link_rounded),
-              title: const Text('Copy link'),
+              title: Text(text.channelCopyLink),
               onTap: () => Navigator.of(sheetContext).pop('copy'),
             ),
             ListTile(
               leading: const Icon(Icons.qr_code_rounded),
-              title: const Text('QR code'),
+              title: Text(text.channelQrCode),
               onTap: () => Navigator.of(sheetContext).pop('qr'),
             ),
             if (channel.permissions.canManageInvites)
               ListTile(
                 leading: const Icon(Icons.tune_rounded),
-                title: const Text('Invite settings'),
+                title: Text(text.channelInviteSettings),
                 onTap: () => Navigator.of(sheetContext).pop('invite'),
               ),
             if (channel.permissions.canEditChannel)
               ListTile(
                 leading: const Icon(Icons.insights_rounded),
-                title: const Text('Statistics'),
+                title: Text(text.channelStatistics),
                 onTap: () => Navigator.of(sheetContext).pop('stats'),
               ),
             if (channel.isMember && channel.role != 'owner')
               ListTile(
                 leading: const Icon(Icons.flag_outlined),
-                title: const Text('Report channel'),
+                title: Text(text.channelReport),
                 onTap: () => Navigator.of(sheetContext).pop('report'),
               ),
             if (channel.isMember && channel.role != 'owner')
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: PrivioColors.danger),
-                title: const Text(
-                  'Leave channel',
-                  style: TextStyle(color: PrivioColors.danger),
+                title: Text(
+                  text.channelLeave,
+                  style: const TextStyle(color: PrivioColors.danger),
                 ),
                 onTap: () => Navigator.of(sheetContext).pop('leave'),
               ),
@@ -241,13 +240,14 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
   }
 
   Future<void> _copyLink() async {
+    final text = AppText.of(context);
     final link = ChannelService.shareLinkFor(_channel);
     if (link == null) {
-      _say('This channel has no link to share.');
+      _say(text.channelNoLinkToShare);
       return;
     }
     await Clipboard.setData(ClipboardData(text: link));
-    _say('Link copied.');
+    _say(text.channelLinkCopied);
   }
 
   Future<void> _showQr() async {
@@ -275,7 +275,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+            child: Text(AppText.of(context).commonClose),
           ),
         ],
       ),
@@ -283,23 +283,24 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
   }
 
   Future<void> _confirmLeave() async {
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: const Text('Leave this channel?'),
-        content: const Text(
-          'You stop receiving its posts. The channel moves to a new key, so '
-          'nothing published after this is readable to you.',
-        ),
+        title: Text(text.channelLeaveTitle),
+        content: Text(text.channelLeaveBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Stay'),
+            child: Text(text.channelStay),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Leave', style: TextStyle(color: PrivioColors.danger)),
+            child: Text(
+              text.groupLeave,
+              style: const TextStyle(color: PrivioColors.danger),
+            ),
           ),
         ],
       ),
@@ -321,6 +322,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
     final controller = state.channels;
 
     return ListenableBuilder(
@@ -355,7 +357,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         vertical: PrivioSpacing.sm,
                       ),
                     ),
-                    child: const Text('Edit'),
+                    child: Text(text.commonEdit),
                   ),
                 ),
             ],
@@ -470,7 +472,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Description',
+                                  text.channelDescription,
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall
@@ -494,7 +496,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                       SettingsRow(
                         icon: Icons.shield_rounded,
                         iconTint: PrivioColors.accent,
-                        label: 'Administrators',
+                        label: text.channelAdministrators,
                         value: '${controller.adminsOf(channel.id).length}',
                         onTap: () => unawaited(_openAdmins()),
                       ),
@@ -502,7 +504,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                       SettingsRow(
                         icon: Icons.people_alt_rounded,
                         iconTint: const Color(0xFF2563EB),
-                        label: 'Subscribers',
+                        label: text.channelSubscribersRow,
                         value: '${channel.memberCount}',
                         onTap: () => unawaited(_openSubscribers()),
                       ),
@@ -511,7 +513,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         SettingsRow(
                           icon: Icons.tune_rounded,
                           iconTint: const Color(0xFFD97706),
-                          label: 'Channel settings',
+                          label: text.channelSettings,
                           onTap: () => unawaited(_edit()),
                         ),
                       ],
@@ -674,7 +676,7 @@ class _LinkRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Share link',
+                      AppText.of(context).channelShareLink,
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
@@ -697,7 +699,7 @@ class _LinkRow extends StatelessWidget {
             IconButton(
               onPressed: onQr,
               icon: const Icon(Icons.qr_code_rounded, color: PrivioColors.accent),
-              tooltip: 'QR code',
+              tooltip: AppText.of(context).channelQrCode,
             ),
           ],
         ),
@@ -733,7 +735,9 @@ class _Segmented extends StatelessWidget {
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
-                    option == _Tab.media ? 'Media' : 'Links',
+                    option == _Tab.media
+                        ? AppText.of(context).channelMedia
+                        : AppText.of(context).channelLinks,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: option == tab
                               ? PrivioColors.textPrimary
@@ -762,9 +766,9 @@ class _MediaGrid extends StatelessWidget {
           post,
     ];
     if (images.isEmpty) {
-      return const _Empty(
+      return _Empty(
         icon: Icons.photo_library_outlined,
-        message: 'No pictures yet',
+        message: AppText.of(context).channelNoMedia,
       );
     }
     return GridView.builder(
@@ -853,7 +857,7 @@ class _FullImage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.black,
           leading: const PrivioBackButton(),
-          title: Text(name ?? 'Picture'),
+          title: Text(name ?? AppText.of(context).channelPicture),
         ),
         body: Center(
           child: InteractiveViewer(
@@ -885,7 +889,10 @@ class _LinkList extends StatelessWidget {
       }
     }
     if (found.isEmpty) {
-      return const _Empty(icon: Icons.link_off_rounded, message: 'No links yet');
+      return _Empty(
+        icon: Icons.link_off_rounded,
+        message: AppText.of(context).channelNoLinks,
+      );
     }
     return _Card(
       children: [
@@ -942,12 +949,14 @@ class _Empty extends StatelessWidget {
 class _MuteSheet extends StatelessWidget {
   const _MuteSheet();
 
-  static final Map<String, Duration?> options = {
-    'For 1 hour': const Duration(hours: 1),
-    'For 8 hours': const Duration(hours: 8),
-    'For 2 days': const Duration(days: 2),
-    'Until I turn it back on': null,
-  };
+  /// How long, and the word for it. Durations, so the list is data; the words
+  /// come from the translations at the moment the sheet is drawn.
+  static List<(String, Duration?)> optionsFor(AppText text) => [
+        (text.channelMuteForHour, const Duration(hours: 1)),
+        (text.channelMuteForEightHours, const Duration(hours: 8)),
+        (text.channelMuteForTwoDays, const Duration(days: 2)),
+        (text.channelMuteUntilOff, null),
+      ];
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -960,22 +969,24 @@ class _MuteSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Mute this channel', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    AppText.of(context).channelMuteTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: PrivioSpacing.xs),
                   Text(
-                    'It stays muted on every device you are signed in on — '
-                    'muting it here is not "until I pick up my laptop".',
+                    AppText.of(context).channelMuteNote,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
             ),
-            for (final option in options.entries)
+            for (final (label, duration) in optionsFor(AppText.of(context)))
               ListTile(
-                title: Text(option.key),
+                title: Text(label),
                 onTap: () => Navigator.of(context).pop(
                   (
-                    until: option.value == null ? null : DateTime.now().add(option.value!),
+                    until: duration == null ? null : DateTime.now().add(duration),
                     go: true,
                   ),
                 ),

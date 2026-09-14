@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
@@ -7,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:privio/core/conversation_controller.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/media/attachment.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/core/message_search.dart';
 import 'package:privio/services/messaging_service.dart';
@@ -222,20 +224,34 @@ void main() {
   });
 
   group('what the brief asks to be verified', () {
-    test('the sheet offers exactly the durations that were asked for', () {
-      expect(DisappearingTimerSheet.options.keys.toList(), [
-        'Off', '30 seconds', '1 minute', '5 minutes', '1 hour', '24 hours', '7 days',
+    test('the sheet offers exactly the durations that were asked for', () async {
+      expect(DisappearingTimerSheet.options, [
+        null,
+        const Duration(seconds: 30),
+        const Duration(minutes: 1),
+        const Duration(minutes: 5),
+        const Duration(hours: 1),
+        const Duration(hours: 24),
+        const Duration(days: 7),
       ]);
-      expect(DisappearingTimerSheet.options['Off'], isNull);
-      expect(DisappearingTimerSheet.options['24 hours'], const Duration(hours: 24));
-      expect(DisappearingTimerSheet.options['7 days'], const Duration(days: 7));
+
+      // And the words each one wears, which are no longer the data: the list
+      // holds durations, and a translation turns them into rows.
+      final text = await AppText.delegate.load(const Locale('en'));
+      expect(
+        DisappearingTimerSheet.options
+            .map((option) => DisappearingTimerSheet.label(text, option))
+            .toList(),
+        ['Off', '30 seconds', '1 minute', '5 minutes', '1 hour', '24 hours', '7 days'],
+      );
     });
 
-    test('the button wears a label short enough to sit beside its icon', () {
-      expect(DisappearingTimerSheet.badge(const Duration(seconds: 30)), '30s');
-      expect(DisappearingTimerSheet.badge(const Duration(minutes: 1)), '1m');
-      expect(DisappearingTimerSheet.badge(const Duration(hours: 24)), '1d');
-      expect(DisappearingTimerSheet.badge(const Duration(days: 7)), '7d');
+    test('the button wears a label short enough to sit beside its icon', () async {
+      final text = await AppText.delegate.load(const Locale('en'));
+      expect(DisappearingTimerSheet.badge(text, const Duration(seconds: 30)), '30s');
+      expect(DisappearingTimerSheet.badge(text, const Duration(minutes: 1)), '1m');
+      expect(DisappearingTimerSheet.badge(text, const Duration(hours: 24)), '1d');
+      expect(DisappearingTimerSheet.badge(text, const Duration(days: 7)), '7d');
     });
 
     test('an expired message never reaches search, swept or not', () {

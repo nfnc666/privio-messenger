@@ -17,6 +17,7 @@ import 'package:privio/screens/license_screen.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
+import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/widgets/license_key_field.dart';
 
@@ -304,6 +305,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const ActivationScreen()),
       ),
     );
@@ -339,6 +342,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const LicenseScreen()),
       ),
     );
@@ -356,6 +361,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: PrivioTheme.dark(),
+        localizationsDelegates: AppText.localizationsDelegates,
+        supportedLocales: AppText.supportedLocales,
         home: PrivioScope(notifier: state, child: const ActivationScreen()),
       ),
     );

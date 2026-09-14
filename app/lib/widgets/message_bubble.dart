@@ -114,7 +114,9 @@ class MessageBubble extends StatelessWidget {
                   ),
                   const SizedBox(width: PrivioSpacing.xs + 2),
                   Text(
-                    mine ? 'You deleted this message' : 'This message was deleted',
+                    mine
+                        ? AppText.of(context).bubbleYouDeleted
+                        : AppText.of(context).bubbleMessageDeleted,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: PrivioColors.textTertiary,
                       fontStyle: FontStyle.italic,
@@ -283,13 +285,15 @@ class _FileRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                attachment.fileName ?? 'File',
+                attachment.fileName ?? AppText.of(context).commonFile,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium,
               ),
               Text(
-                failed ? 'Could not open' : attachment.readableSize,
+                failed
+                    ? AppText.of(context).bubbleCouldNotOpen
+                    : attachment.readableSize,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: failed ? PrivioColors.danger : PrivioColors.textTertiary,
                 ),
@@ -359,8 +363,7 @@ class EncryptionNotice extends StatelessWidget {
           const SizedBox(width: PrivioSpacing.sm),
           Expanded(
             child: Text(
-              'Messages and calls are end-to-end encrypted. No one outside this '
-              'chat can read or listen to them, not even Privio.',
+              AppText.of(context).bubbleEncryptedNotice,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
             ),
           ),
@@ -441,7 +444,7 @@ class _QuotedMessage extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            message.replySender ?? 'Reply',
+            message.replySender ?? AppText.of(context).commonReply,
             style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accentBright),
           ),
           Text(
