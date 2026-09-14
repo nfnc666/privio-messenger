@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// A channel's picture, or the mark that stands in for one.
@@ -44,7 +45,7 @@ class ChannelAvatar extends StatelessWidget {
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: PrivioColors.accentSurface,
+        color: context.accents.surface,
         borderRadius: radius,
       ),
       child: imageBytes == null
@@ -71,7 +72,7 @@ class _Mark extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Icon(
         channel.isPublic ? Icons.campaign_rounded : Icons.lock_rounded,
-        color: PrivioColors.accentBright,
+        color: context.accents.bright,
         size: size * 0.46,
       );
 }

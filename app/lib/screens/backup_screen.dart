@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/channel_text.dart';
 import '../data/recovery_key.dart';
 import '../services/backup_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -98,7 +99,7 @@ class _BackupScreenState extends State<BackupScreen> {
               ListTile(
                 title: Text(_intervalLabel(AppText.of(sheetContext), option)),
                 trailing: option == _interval
-                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
                     : null,
                 onTap: () => Navigator.of(sheetContext).pop(option),
               ),
@@ -179,7 +180,7 @@ class _BackupScreenState extends State<BackupScreen> {
                   child: Icon(
                     _remote == null ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
                     size: 64,
-                    color: _remote == null ? PrivioColors.textTertiary : PrivioColors.accent,
+                    color: _remote == null ? PrivioColors.textTertiary : context.accents.accent,
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.xl),

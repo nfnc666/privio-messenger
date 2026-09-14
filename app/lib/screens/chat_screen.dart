@@ -20,6 +20,7 @@ import 'safety_number_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
@@ -180,7 +181,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         decoration: BoxDecoration(
                           color: state.conversations.accountId != null &&
                                   message.reactions[state.conversations.accountId] == emoji
-                              ? PrivioColors.accentSurface
+                              ? context.accents.surface
                               : PrivioColors.surfaceRaised,
                           shape: BoxShape.circle,
                         ),
@@ -639,7 +640,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   state.conversations.hasKeyChangeAlert(widget.accountId) ||
                                   _verification == VerificationState.changed
                               ? PrivioColors.warning
-                              : PrivioColors.accent,
+                              : context.accents.accent,
                         ),
                       ),
                     ],
@@ -678,7 +679,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       : Icons.timer_outlined,
                   color: state.conversations.disappearAfter(widget.accountId) == null
                       ? null
-                      : PrivioColors.accent,
+                      : context.accents.accent,
                 ),
                 color: PrivioColors.surface,
                 tooltip: text.chatMore,
@@ -991,14 +992,14 @@ class _TimerButton extends StatelessWidget {
                 Icon(
                   on ? Icons.timer_rounded : Icons.timer_outlined,
                   size: 22,
-                  color: on ? PrivioColors.accent : PrivioColors.textSecondary,
+                  color: on ? context.accents.accent : PrivioColors.textSecondary,
                 ),
                 if (on) ...[
                   const SizedBox(width: 4),
                   Text(
                     DisappearingTimerSheet.badge(text, timer!),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: PrivioColors.accent,
+                          color: context.accents.accent,
                           fontWeight: FontWeight.w600,
                         ),
                   ),
@@ -1043,7 +1044,7 @@ class _TrailingAction extends StatelessWidget {
         key: const Key('voice-send'),
         onPressed: onSendVoice,
         style: IconButton.styleFrom(
-          backgroundColor: PrivioColors.accent,
+          backgroundColor: context.accents.accent,
           foregroundColor: PrivioColors.background,
         ),
         icon: const Icon(Icons.send_rounded, size: 20),
@@ -1059,7 +1060,7 @@ class _TrailingAction extends StatelessWidget {
           return IconButton.filled(
             onPressed: onSend,
             style: IconButton.styleFrom(
-              backgroundColor: PrivioColors.accent,
+              backgroundColor: context.accents.accent,
               foregroundColor: PrivioColors.background,
             ),
             icon: const Icon(Icons.send_rounded, size: 20),
@@ -1088,7 +1089,7 @@ class _TrailingAction extends StatelessWidget {
             height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: recording ? PrivioColors.accent : PrivioColors.surfaceRaised,
+              color: recording ? context.accents.accent : PrivioColors.surfaceRaised,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1120,11 +1121,11 @@ class _ReplyBar extends StatelessWidget {
         PrivioSpacing.sm,
         PrivioSpacing.sm,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: PrivioColors.surface,
         border: Border(
           top: BorderSide(color: PrivioColors.border),
-          left: BorderSide(color: PrivioColors.accent, width: 3),
+          left: BorderSide(color: context.accents.accent, width: 3),
         ),
       ),
       child: Row(
@@ -1144,7 +1145,7 @@ class _ReplyBar extends StatelessWidget {
                     (false, null) => AppText.of(context).chatReplying,
                   },
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: PrivioColors.accentBright,
+                    color: context.accents.bright,
                   ),
                 ),
                 Text(

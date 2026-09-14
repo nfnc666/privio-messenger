@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
@@ -368,7 +369,7 @@ class _Toggle extends StatelessWidget {
       onChanged: allowed ? onChanged : null,
       contentPadding: EdgeInsets.zero,
       dense: true,
-      activeThumbColor: PrivioColors.accent,
+      activeThumbColor: context.accents.accent,
       title: Text(
         label,
         style: TextStyle(

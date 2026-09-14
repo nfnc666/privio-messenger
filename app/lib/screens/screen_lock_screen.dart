@@ -5,6 +5,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/passcode_text.dart';
 import '../core/passcode.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -168,7 +169,7 @@ class _ScreenLockScreenState extends State<ScreenLockScreen> {
                   for (final kind in PasscodeKind.values)
                     RadioListTile<PasscodeKind>(
                       value: kind,
-                      activeColor: PrivioColors.accent,
+                      activeColor: context.accents.accent,
                       contentPadding: EdgeInsets.zero,
                       title: Text(
                         passcodeKindLabel(text, kind),

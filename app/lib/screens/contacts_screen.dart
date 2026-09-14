@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/models.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
@@ -122,7 +123,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () => _showAddContact(context),
-            backgroundColor: PrivioColors.accent,
+            backgroundColor: context.accents.accent,
             foregroundColor: PrivioColors.background,
             child: const Icon(Icons.person_add_alt_1_rounded),
           ),

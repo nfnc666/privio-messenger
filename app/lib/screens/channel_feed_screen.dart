@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
 import 'channel_profile_screen.dart';
@@ -1012,7 +1013,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                     _landOnNewest(entries.length);
 
                     return RefreshIndicator(
-                      color: PrivioColors.accent,
+                      color: context.accents.accent,
                       backgroundColor: PrivioColors.surface,
                       onRefresh: () => controller.loadPosts(channel.id),
                       child: ScrollablePositionedList.builder(
@@ -1209,7 +1210,7 @@ class _PostCard extends StatelessWidget {
         color: PrivioColors.surfaceRaised,
         borderRadius: const BorderRadius.all(PrivioRadius.card),
         border: post.pinned
-            ? Border.all(color: PrivioColors.accentDim)
+            ? Border.all(color: context.accents.dim)
             : Border.all(color: PrivioColors.border),
       ),
       child: Column(
@@ -1218,13 +1219,13 @@ class _PostCard extends StatelessWidget {
           Row(
             children: [
               if (post.pinned) ...[
-                const Icon(Icons.push_pin_rounded, size: 14, color: PrivioColors.accent),
+                Icon(Icons.push_pin_rounded, size: 14, color: context.accents.accent),
                 const SizedBox(width: PrivioSpacing.xs),
               ],
               Expanded(
                 child: Text(
                   post.authorUsername ?? AppText.of(context).threadUnknown,
-                  style: theme.textTheme.labelLarge?.copyWith(color: PrivioColors.accentBright),
+                  style: theme.textTheme.labelLarge?.copyWith(color: context.accents.bright),
                 ),
               ),
               Text(_formatTime(post.createdAt), style: theme.textTheme.bodySmall),
@@ -1402,7 +1403,7 @@ class _Composer extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: PrivioSpacing.sm),
                 child: Row(
                   children: [
-                    const Icon(Icons.attach_file_rounded, size: 16, color: PrivioColors.accent),
+                    Icon(Icons.attach_file_rounded, size: 16, color: context.accents.accent),
                     const SizedBox(width: PrivioSpacing.xs),
                     Expanded(
                       child: Text(
@@ -1459,7 +1460,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             IconButton.filled(
               onPressed: enabled && !sending ? onSend : null,
-              style: IconButton.styleFrom(backgroundColor: PrivioColors.accent),
+              style: IconButton.styleFrom(backgroundColor: context.accents.accent),
               icon: sending
                   ? const SizedBox(
                       width: 16,
@@ -1596,10 +1597,10 @@ class _ScheduledScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.schedule_rounded,
                                 size: 14,
-                                color: PrivioColors.accent,
+                                color: context.accents.accent,
                               ),
                               const SizedBox(width: PrivioSpacing.xs),
                               Expanded(
@@ -1802,9 +1803,9 @@ class _PaletteTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(PrivioSpacing.sm),
           decoration: BoxDecoration(
-            color: selected ? PrivioColors.accentSurface : PrivioColors.surfaceHigh,
+            color: selected ? context.accents.surface : PrivioColors.surfaceHigh,
             borderRadius: const BorderRadius.all(PrivioRadius.card),
-            border: selected ? Border.all(color: PrivioColors.accentDim) : null,
+            border: selected ? Border.all(color: context.accents.dim) : null,
           ),
           child: Text(emoji, style: const TextStyle(fontSize: 22)),
         ),
@@ -2004,7 +2005,7 @@ class _PollOption extends StatelessWidget {
                   widthFactor: share.clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: chosen ? PrivioColors.accentSurface : PrivioColors.surfaceRaised,
+                      color: chosen ? context.accents.surface : PrivioColors.surfaceRaised,
                       borderRadius: const BorderRadius.all(PrivioRadius.card),
                     ),
                   ),
@@ -2022,7 +2023,7 @@ class _PollOption extends StatelessWidget {
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked_rounded,
                     size: 16,
-                    color: chosen ? PrivioColors.accentBright : PrivioColors.textTertiary,
+                    color: chosen ? context.accents.bright : PrivioColors.textTertiary,
                   ),
                   const SizedBox(width: PrivioSpacing.sm),
                   Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
@@ -2128,7 +2129,7 @@ class _NewPollDialogState extends State<_NewPollDialog> {
               contentPadding: EdgeInsets.zero,
               value: _several,
               onChanged: (value) => setState(() => _several = value),
-              activeThumbColor: PrivioColors.accent,
+              activeThumbColor: context.accents.accent,
               title: Text(
                 AppText.of(context).feedPollSeveral,
                 style: theme.textTheme.bodyMedium,
@@ -2307,9 +2308,9 @@ class _ReactionChip extends StatelessWidget {
           vertical: PrivioSpacing.xs,
         ),
         decoration: BoxDecoration(
-          color: mine ? PrivioColors.accentSurface : PrivioColors.surfaceHigh,
+          color: mine ? context.accents.surface : PrivioColors.surfaceHigh,
           borderRadius: const BorderRadius.all(PrivioRadius.pill),
-          border: mine ? Border.all(color: PrivioColors.accentDim) : null,
+          border: mine ? Border.all(color: context.accents.dim) : null,
         ),
         child: Opacity(
           opacity: busy ? 0.5 : 1,
@@ -2321,7 +2322,7 @@ class _ReactionChip extends StatelessWidget {
               Text(
                 '$count',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mine ? PrivioColors.accentBright : PrivioColors.textSecondary,
+                      color: mine ? context.accents.bright : PrivioColors.textSecondary,
                     ),
               ),
             ],
@@ -2409,7 +2410,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
               Icon(
                 attachment.isImage ? Icons.image_outlined : Icons.insert_drive_file_outlined,
                 size: 18,
-                color: PrivioColors.accent,
+                color: context.accents.accent,
               ),
             const SizedBox(width: PrivioSpacing.md),
             Expanded(
@@ -2822,7 +2823,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
                 contentPadding: EdgeInsets.zero,
                 value: _needsApproval,
                 onChanged: (value) => setState(() => _needsApproval = value),
-                activeThumbColor: PrivioColors.accent,
+                activeThumbColor: context.accents.accent,
                 title: Text(text.inviteAskMeFirst, style: theme.textTheme.bodyMedium),
                 subtitle: Text(
                   text.inviteAskMeFirstNote,

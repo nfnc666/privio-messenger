@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/accent_picker.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 
@@ -37,7 +41,9 @@ class AppearanceScreen extends StatelessWidget {
         title: Text(text.settingsAppearance),
       ),
       body: ListenableBuilder(
-        listenable: state,
+        // Both, because the accent lives on its own controller and picking one
+        // has to redraw this screen as well as the app around it.
+        listenable: Listenable.merge([state, state.accent]),
         builder: (context, _) => ListView(
           padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
           children: [
@@ -53,7 +59,7 @@ class AppearanceScreen extends StatelessWidget {
                     trailing: SizedBox(
                       width: 20,
                       child: state.textScaleId == entry.key
-                          ? const Icon(Icons.check_rounded, color: PrivioColors.accent, size: 20)
+                          ? Icon(Icons.check_rounded, color: context.accents.accent, size: 20)
                           : null,
                     ),
                     onTap: () => state.setTextScale(entry.value),
@@ -65,6 +71,44 @@ class AppearanceScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
               child: Text(
                 text.appearanceTextSizeNote,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            SettingsSection(
+              caption: text.appearanceAccentColour,
+              children: [
+                AccentPicker(
+                  selected: state.accent.accent,
+                  // Awaited nowhere: the repaint is immediate and the write to
+                  // the keystore follows it. Making the tap wait for storage
+                  // would put a disk round-trip between a finger and a colour.
+                  onSelected: (accent) => unawaited(state.accent.choose(accent)),
+                ),
+              ],
+            ),
+            const SizedBox(height: PrivioSpacing.xl),
+            SettingsSection(
+              caption: text.appearanceAccentPreview,
+              children: [AccentPreview(accent: state.accent.accent)],
+            ),
+            if (state.accent.accent != AppAccent.fallback) ...[
+              const SizedBox(height: PrivioSpacing.lg),
+              SettingsSection(
+                children: [
+                  SettingsRow(
+                    key: const ValueKey('accent-reset'),
+                    label: text.appearanceAccentReset,
+                    trailing: const SizedBox(width: 20),
+                    onTap: () => unawaited(state.accent.reset()),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: PrivioSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+              child: Text(
+                text.appearanceAccentNote,
                 style: theme.textTheme.bodySmall,
               ),
             ),

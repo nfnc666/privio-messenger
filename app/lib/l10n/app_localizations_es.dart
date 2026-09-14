@@ -3531,4 +3531,58 @@ class AppTextEs extends AppText {
 
   @override
   String get privacyCalls => 'Llamadas';
+
+  @override
+  String get appearanceAccentColour => 'Color de acento';
+
+  @override
+  String get appearanceAccentNote =>
+      'Esto cambia el aspecto de Privio en este dispositivo, para esta cuenta. Nadie a quien escribas lo ve, y tus otras cuentas conservan la suya. El rojo, para eliminar y colgar, sigue siendo rojo elijas el acento que elijas.';
+
+  @override
+  String get accentGreen => 'Verde';
+
+  @override
+  String get accentBlue => 'Azul';
+
+  @override
+  String get accentTeal => 'Turquesa';
+
+  @override
+  String get accentPurple => 'Violeta';
+
+  @override
+  String get accentPink => 'Rosa';
+
+  @override
+  String get accentRed => 'Rojo';
+
+  @override
+  String get accentOrange => 'Naranja';
+
+  @override
+  String get accentYellow => 'Amarillo';
+
+  @override
+  String get accentPrivioDefault => 'Predeterminado de Privio';
+
+  @override
+  String get appearanceAccentReset => 'Restablecer el valor predeterminado';
+
+  @override
+  String get appearanceAccentPreview => 'Vista previa';
+
+  @override
+  String get appearancePreviewSend => 'Enviar';
+
+  @override
+  String get appearancePreviewSetting => 'Confirmaciones de lectura';
+
+  @override
+  String get appearancePreviewMessage => 'Así se verán tus propios mensajes.';
+
+  @override
+  String accentSelected(String colour) {
+    return '$colour, seleccionado';
+  }
 }

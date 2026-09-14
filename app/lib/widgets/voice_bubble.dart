@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../media/voice_player.dart';
 import '../models/models.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 import 'waveform.dart';
@@ -144,7 +145,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
                       onPressed: message.attachment == null ? null : _toggle,
                       padding: EdgeInsets.zero,
                       style: IconButton.styleFrom(
-                        backgroundColor: PrivioColors.accent,
+                        backgroundColor: context.accents.accent,
                         disabledBackgroundColor: PrivioColors.surfaceHigh,
                       ),
                       icon: Icon(
@@ -218,7 +219,7 @@ class _SpeedChip extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: speed == 1 ? PrivioColors.textSecondary : PrivioColors.accentBright,
+                color: speed == 1 ? PrivioColors.textSecondary : context.accents.bright,
               ),
         ),
       ),

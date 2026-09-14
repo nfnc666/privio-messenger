@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../media/voice.dart';
 import '../media/voice_recorder.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 import 'waveform.dart';
@@ -274,7 +275,7 @@ class _RecordingStrip extends StatelessWidget {
                         Text(text.voiceSlideToCancel, style: theme.textTheme.bodySmall),
                       ],
                     )
-                  : Waveform(bars: bars, progress: 1, playedColor: PrivioColors.accent),
+                  : Waveform(bars: bars, progress: 1, playedColor: context.accents.accent),
             ),
           ),
           const SizedBox(width: PrivioSpacing.sm),
@@ -293,7 +294,7 @@ class _RecordingStrip extends StatelessWidget {
           ),
           IconButton(
             onPressed: onStop,
-            icon: const Icon(Icons.stop_circle_outlined, color: PrivioColors.accent),
+            icon: Icon(Icons.stop_circle_outlined, color: context.accents.accent),
             tooltip: text.voiceStop,
           ),
       ],

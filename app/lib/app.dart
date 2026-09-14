@@ -80,14 +80,18 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
       // language without a notification of its own — see
       // [LocaleController.signedOut].
       child: ListenableBuilder(
-        listenable: Listenable.merge([_state, _state.locale]),
+        listenable: Listenable.merge([_state, _state.locale, _state.accent]),
         builder: (context, _) => MaterialApp(
           // Not localised, deliberately: this is the app's name, which is the
           // same word in every language.
           title: 'Privio',
           debugShowCheckedModeBanner: false,
-          theme: PrivioTheme.dark(),
-          darkTheme: PrivioTheme.dark(),
+          // Rebuilt from the account's accent. The listener above is what
+          // makes a tap on the Appearance screen repaint the whole app: a new
+          // theme goes in here, and every screen already on the navigator
+          // stack redraws under it.
+          theme: PrivioTheme.dark(accent: _state.accent.accent),
+          darkTheme: PrivioTheme.dark(accent: _state.accent.accent),
           themeMode: ThemeMode.dark,
           // The whole interface, in the signed-in account's language. Changing it
           // rebuilds every screen already on the navigator stack, which is what

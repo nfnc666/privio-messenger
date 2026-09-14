@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'accent_controller.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
@@ -111,6 +112,11 @@ class AppState extends ChangeNotifier {
   /// Loaded per account in [_onSignedIn] and reset by the sign-out and wipe
   /// paths, which is the same rule as the rest of the per-account state.
   late final LocaleController locale = LocaleController(_store);
+
+  /// Which colour this account's interface is drawn in. Same rule as the
+  /// language: per account, loaded at sign-in, reset by every path that ends an
+  /// account's use of this device.
+  late final AccentController accent = AccentController(_store);
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -271,6 +277,12 @@ class AppState extends ChangeNotifier {
     final token = await _store.readToken();
     _username = await _store.readUsername();
     _accountId = await _store.readAccountId();
+    // Awaited, unlike most of start-up: the accent decides what colour the
+    // first frame after the splash is. Loading it afterwards would show the
+    // brand green for a frame on every launch of an app somebody had set to
+    // something else — which is the one thing this setting must not do.
+    final storedAccountId = _accountId;
+    if (storedAccountId != null) await accent.load(storedAccountId);
     _setProgress(0.7);
 
     _textScale = await _store.readTextScale() ?? 1;
@@ -430,6 +442,10 @@ class AppState extends ChangeNotifier {
     final account = _accountId;
     if (account != null) {
       detached(locale.load(account));
+      // Already loaded on a cold start; this is the account-switch path, where
+      // the app is on screen and the reset-then-read is what keeps one
+      // account's colour off the next account's screen.
+      if (accent.accountId != account) detached(accent.load(account));
       // Whether this account takes calls only from confirmed contacts. Read at
       // sign-in rather than at the first call: a security setting that waits
       // for a restart is one somebody will believe is on when it is not.
@@ -679,6 +695,7 @@ class AppState extends ChangeNotifier {
     // Silently: see [LocaleController.signedOut]. Everything else here is
     // equally quiet, for the same reason.
     locale.signedOut(notify: false);
+    accent.signedOut(notify: false);
     _conversations?.dispose();
     _conversations = null;
     _channels?.dispose();
@@ -798,6 +815,7 @@ class AppState extends ChangeNotifier {
     _wakeUp = null;
     await _store.wipe();
     locale.signedOut();
+    accent.signedOut();
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
@@ -877,6 +895,7 @@ class AppState extends ChangeNotifier {
     }
     await _store.wipe();
     locale.signedOut();
+    accent.signedOut();
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;
@@ -887,6 +906,7 @@ class AppState extends ChangeNotifier {
   void dispose() {
     deepLinks.dispose();
     locale.dispose();
+    accent.dispose();
     _security?.dispose();
     _license?.dispose();
     _channels?.dispose();

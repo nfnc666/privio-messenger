@@ -5988,6 +5988,108 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Calls'**
   String get privacyCalls;
+
+  /// No description provided for @appearanceAccentColour.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent colour'**
+  String get appearanceAccentColour;
+
+  /// No description provided for @appearanceAccentNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This changes how Privio looks on this device, for this account. Nobody you write to sees it, and your other accounts keep their own. Red, for deleting and hanging up, stays red whichever accent you pick.'**
+  String get appearanceAccentNote;
+
+  /// No description provided for @accentGreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get accentGreen;
+
+  /// No description provided for @accentBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get accentBlue;
+
+  /// No description provided for @accentTeal.
+  ///
+  /// In en, this message translates to:
+  /// **'Turquoise'**
+  String get accentTeal;
+
+  /// No description provided for @accentPurple.
+  ///
+  /// In en, this message translates to:
+  /// **'Violet'**
+  String get accentPurple;
+
+  /// No description provided for @accentPink.
+  ///
+  /// In en, this message translates to:
+  /// **'Pink'**
+  String get accentPink;
+
+  /// No description provided for @accentRed.
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get accentRed;
+
+  /// No description provided for @accentOrange.
+  ///
+  /// In en, this message translates to:
+  /// **'Orange'**
+  String get accentOrange;
+
+  /// No description provided for @accentYellow.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get accentYellow;
+
+  /// No description provided for @accentPrivioDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio default'**
+  String get accentPrivioDefault;
+
+  /// No description provided for @appearanceAccentReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get appearanceAccentReset;
+
+  /// No description provided for @appearanceAccentPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get appearanceAccentPreview;
+
+  /// No description provided for @appearancePreviewSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get appearancePreviewSend;
+
+  /// No description provided for @appearancePreviewSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts'**
+  String get appearancePreviewSetting;
+
+  /// No description provided for @appearancePreviewMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This is what your own messages will look like.'**
+  String get appearancePreviewMessage;
+
+  /// Announced by a screen reader for the chosen swatch.
+  ///
+  /// In en, this message translates to:
+  /// **'{colour}, selected'**
+  String accentSelected(String colour);
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

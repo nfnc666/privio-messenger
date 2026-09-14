@@ -980,5 +980,22 @@
   "callEncryptedVerified": "Ende-zu-Ende-verschlüsselt · verifiziert",
   "securityVerifiedCallsOnly": "Nur Anrufe von verifizierten Kontakten",
   "securityVerifiedCallsOnlyBody": "Jeder Anruf ist ohnehin Ende-zu-Ende-verschlüsselt. Mit dieser Einstellung lehnt Privio einen Anruf zusätzlich ab, solange du die Sicherheitsnummer mit der Person nicht verglichen und bestätigt hast — ein Schlüssel, den dieses Gerät nur als ersten gesehen hat, reicht dann nicht. Anrufe von allen anderen enden mit einer Erklärung, auf beiden Seiten.",
-  "privacyCalls": "Anrufe"
+  "privacyCalls": "Anrufe",
+  "appearanceAccentColour": "Akzentfarbe",
+  "appearanceAccentNote": "Das ändert, wie Privio auf diesem Gerät aussieht, für dieses Konto. Niemand, dem du schreibst, sieht es, und deine anderen Konten behalten ihre eigene Farbe. Rot für Löschen und Auflegen bleibt Rot, welchen Akzent du auch wählst.",
+  "accentGreen": "Grün",
+  "accentBlue": "Blau",
+  "accentTeal": "Türkis",
+  "accentPurple": "Violett",
+  "accentPink": "Pink",
+  "accentRed": "Rot",
+  "accentOrange": "Orange",
+  "accentYellow": "Gelb",
+  "accentPrivioDefault": "PRIVIO-Standard",
+  "appearanceAccentReset": "Auf Standard zurücksetzen",
+  "appearanceAccentPreview": "Vorschau",
+  "appearancePreviewSend": "Senden",
+  "appearancePreviewSetting": "Lesebestätigungen",
+  "appearancePreviewMessage": "So werden deine eigenen Nachrichten aussehen.",
+  "accentSelected": "{colour}, ausgewählt"
 }

@@ -7,6 +7,7 @@ import '../calls/call_security.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// The screen a call happens on.
@@ -226,7 +227,7 @@ class _RingingControls extends StatelessWidget {
         _CallButton(
           icon: Icons.call_rounded,
           label: AppText.of(context).callAccept,
-          colour: PrivioColors.accent,
+          colour: context.accents.accent,
           onTap: onAccept,
         ),
       ],
@@ -270,7 +271,7 @@ class _InCallControls extends StatelessWidget {
           label: muted
               ? AppText.of(context).callUnmute
               : AppText.of(context).callMute,
-          colour: muted ? PrivioColors.accent : PrivioColors.surface,
+          colour: muted ? context.accents.accent : PrivioColors.surface,
           onTap: onMute,
         ),
         if (video)
@@ -279,7 +280,7 @@ class _InCallControls extends StatelessWidget {
             label: cameraOn
                 ? AppText.of(context).callCamera
                 : AppText.of(context).callCameraOff,
-            colour: cameraOn ? PrivioColors.surface : PrivioColors.accent,
+            colour: cameraOn ? PrivioColors.surface : context.accents.accent,
             onTap: onCamera,
           ),
         _CallButton(
@@ -291,7 +292,7 @@ class _InCallControls extends StatelessWidget {
         _CallButton(
           icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
           label: AppText.of(context).callSpeaker,
-          colour: speakerOn ? PrivioColors.accent : PrivioColors.surface,
+          colour: speakerOn ? context.accents.accent : PrivioColors.surface,
           onTap: onSpeaker,
         ),
       ],

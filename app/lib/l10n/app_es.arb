@@ -980,5 +980,22 @@
   "callEncryptedVerified": "Cifrado de extremo a extremo · verificado",
   "securityVerifiedCallsOnly": "Solo llamadas de contactos verificados",
   "securityVerifiedCallsOnlyBody": "Toda llamada está cifrada de extremo a extremo de todos modos. Con esto activado, Privio además rechaza una llamada mientras no hayas comparado el número de seguridad con esa persona y lo hayas confirmado: una clave que este dispositivo simplemente encontró primero no basta. Las llamadas de cualquier otra persona terminan con una explicación, en ambos lados.",
-  "privacyCalls": "Llamadas"
+  "privacyCalls": "Llamadas",
+  "appearanceAccentColour": "Color de acento",
+  "appearanceAccentNote": "Esto cambia el aspecto de Privio en este dispositivo, para esta cuenta. Nadie a quien escribas lo ve, y tus otras cuentas conservan la suya. El rojo, para eliminar y colgar, sigue siendo rojo elijas el acento que elijas.",
+  "accentGreen": "Verde",
+  "accentBlue": "Azul",
+  "accentTeal": "Turquesa",
+  "accentPurple": "Violeta",
+  "accentPink": "Rosa",
+  "accentRed": "Rojo",
+  "accentOrange": "Naranja",
+  "accentYellow": "Amarillo",
+  "accentPrivioDefault": "Predeterminado de Privio",
+  "appearanceAccentReset": "Restablecer el valor predeterminado",
+  "appearanceAccentPreview": "Vista previa",
+  "appearancePreviewSend": "Enviar",
+  "appearancePreviewSetting": "Confirmaciones de lectura",
+  "appearancePreviewMessage": "Así se verán tus propios mensajes.",
+  "accentSelected": "{colour}, seleccionado"
 }

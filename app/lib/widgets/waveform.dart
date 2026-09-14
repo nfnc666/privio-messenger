@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// The bars of a voice message.
@@ -12,7 +13,7 @@ class Waveform extends StatelessWidget {
     required this.bars,
     super.key,
     this.progress = 0,
-    this.playedColor = PrivioColors.accent,
+    this.playedColor,
     this.pendingColor = PrivioColors.textTertiary,
     this.barWidth = 3,
     this.gap = 2,
@@ -25,7 +26,10 @@ class Waveform extends StatelessWidget {
   /// How far playback has got, 0..1. Bars behind it are drawn in [playedColor].
   final double progress;
 
-  final Color playedColor;
+  /// The bars behind the playhead. Null means the account's accent, which is
+  /// the usual case — a default cannot read the theme, so it is resolved in
+  /// [build] instead.
+  final Color? playedColor;
   final Color pendingColor;
   final double barWidth;
   final double gap;
@@ -39,7 +43,7 @@ class Waveform extends StatelessWidget {
         painter: _WaveformPainter(
           bars: bars,
           progress: progress.clamp(0.0, 1.0),
-          playedColor: playedColor,
+          playedColor: playedColor ?? context.accents.accent,
           pendingColor: pendingColor,
           barWidth: barWidth,
           gap: gap,

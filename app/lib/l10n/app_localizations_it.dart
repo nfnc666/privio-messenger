@@ -3545,4 +3545,59 @@ class AppTextIt extends AppText {
 
   @override
   String get privacyCalls => 'Chiamate';
+
+  @override
+  String get appearanceAccentColour => 'Colore d\'accento';
+
+  @override
+  String get appearanceAccentNote =>
+      'Questo cambia l\'aspetto di Privio su questo dispositivo, per questo account. Nessuno a cui scrivi lo vede, e i tuoi altri account mantengono il proprio. Il rosso, per eliminare e riagganciare, resta rosso qualunque accento tu scelga.';
+
+  @override
+  String get accentGreen => 'Verde';
+
+  @override
+  String get accentBlue => 'Blu';
+
+  @override
+  String get accentTeal => 'Turchese';
+
+  @override
+  String get accentPurple => 'Viola';
+
+  @override
+  String get accentPink => 'Rosa';
+
+  @override
+  String get accentRed => 'Rosso';
+
+  @override
+  String get accentOrange => 'Arancione';
+
+  @override
+  String get accentYellow => 'Giallo';
+
+  @override
+  String get accentPrivioDefault => 'Predefinito di Privio';
+
+  @override
+  String get appearanceAccentReset => 'Ripristina il valore predefinito';
+
+  @override
+  String get appearanceAccentPreview => 'Anteprima';
+
+  @override
+  String get appearancePreviewSend => 'Invia';
+
+  @override
+  String get appearancePreviewSetting => 'Conferme di lettura';
+
+  @override
+  String get appearancePreviewMessage =>
+      'Ecco come appariranno i tuoi messaggi.';
+
+  @override
+  String accentSelected(String colour) {
+    return '$colour, selezionato';
+  }
 }

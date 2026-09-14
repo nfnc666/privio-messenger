@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
@@ -73,7 +74,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ListTile(
                 title: Text(_lastSeenLabel(text, value)),
                 trailing: value == security.lastSeen
-                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
                     : null,
                 onTap: () => Navigator.of(sheetContext).pop(value),
               ),

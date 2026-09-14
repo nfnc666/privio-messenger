@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/models.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
@@ -105,7 +106,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                 child: Row(
                   children: [
-                    const Icon(Icons.lock_rounded, size: 14, color: PrivioColors.accent),
+                    Icon(Icons.lock_rounded, size: 14, color: context.accents.accent),
                     const SizedBox(width: PrivioSpacing.sm),
                     Expanded(
                       child: Text(
@@ -181,7 +182,7 @@ class _MemberTile extends StatelessWidget {
       value: selected,
       onChanged: (value) => onChanged(value ?? false),
       controlAffinity: ListTileControlAffinity.trailing,
-      activeColor: PrivioColors.accent,
+      activeColor: context.accents.accent,
       checkColor: PrivioColors.background,
       contentPadding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
       secondary: PrivioAvatar(

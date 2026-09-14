@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
@@ -364,7 +365,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
             ],
           ),
           body: RefreshIndicator(
-            color: PrivioColors.accent,
+            color: context.accents.accent,
             backgroundColor: PrivioColors.surface,
             onRefresh: _load,
             child: ListView(
@@ -496,7 +497,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                     children: [
                       SettingsRow(
                         icon: Icons.shield_rounded,
-                        iconTint: PrivioColors.accent,
+                        iconTint: context.accents.accent,
                         label: text.channelAdministrators,
                         value: '${controller.adminsOf(channel.id).length}',
                         onTap: () => unawaited(_openAdmins()),
@@ -594,8 +595,8 @@ class _ActionButton extends StatelessWidget {
     final colour = dimmed
         ? PrivioColors.textTertiary
         : highlighted
-            ? PrivioColors.accentBright
-            : PrivioColors.accent;
+            ? context.accents.bright
+            : context.accents.accent;
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -691,7 +692,7 @@ class _LinkRow extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
-                          ?.copyWith(color: PrivioColors.accent),
+                          ?.copyWith(color: context.accents.accent),
                     ),
                   ],
                 ),
@@ -699,7 +700,7 @@ class _LinkRow extends StatelessWidget {
             ),
             IconButton(
               onPressed: onQr,
-              icon: const Icon(Icons.qr_code_rounded, color: PrivioColors.accent),
+              icon: Icon(Icons.qr_code_rounded, color: context.accents.accent),
               tooltip: AppText.of(context).channelQrCode,
             ),
           ],
@@ -900,12 +901,12 @@ class _LinkList extends StatelessWidget {
         for (var i = 0; i < found.length; i++) ...[
           if (i > 0) const _Hairline(),
           ListTile(
-            leading: const Icon(Icons.link_rounded, color: PrivioColors.accent),
+            leading: Icon(Icons.link_rounded, color: context.accents.accent),
             title: Text(
               found[i].url,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: PrivioColors.accent),
+              style: TextStyle(color: context.accents.accent),
             ),
             subtitle: Text(
               found[i].post.body,

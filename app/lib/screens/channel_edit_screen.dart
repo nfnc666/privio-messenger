@@ -8,6 +8,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/settings_row.dart';
@@ -398,7 +399,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                     const _Hairline(),
                     SettingsRow(
                       icon: Icons.forum_rounded,
-                      iconTint: PrivioColors.accent,
+                      iconTint: context.accents.accent,
                       label: text.editChannelDiscussion,
                       value: channel.commentsEnabled ? text.commonOn : text.commonAdd,
                       onTap: () => unawaited(_openDiscussion()),
@@ -460,7 +461,7 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                   children: [
                     SettingsRow(
                       icon: Icons.shield_rounded,
-                      iconTint: PrivioColors.accent,
+                      iconTint: context.accents.accent,
                       label: text.channelAdministrators,
                       value: '${controller.adminsOf(channel.id).length}',
                       onTap: () => unawaited(

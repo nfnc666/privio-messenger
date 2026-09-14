@@ -20,7 +20,7 @@ import 'package:privio/screens/invite_screen.dart';
 import 'package:privio/screens/settings_screen.dart';
 import 'package:privio/screens/storage_screen.dart';
 import 'package:privio/services/messaging_service.dart';
-import 'package:privio/theme/privio_colors.dart';
+import 'package:privio/theme/accent.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/services/backup_service.dart';
 import 'package:privio/services/channel_service.dart';
@@ -243,8 +243,13 @@ void main() {
       state: DeliveryState.read,
     );
 
+    // Drawn in an accent that is not the default, so this pins the tick to
+    // *the account's* accent rather than to a particular green.
     await tester.pumpWidget(
-      MaterialApp(theme: PrivioTheme.dark(), home: Scaffold(body: MessageBubble(message: message))),
+      MaterialApp(
+        theme: PrivioTheme.dark(accent: AppAccent.purple),
+        home: Scaffold(body: MessageBubble(message: message)),
+      ),
     );
 
     final align = tester.widget<Align>(
@@ -258,7 +263,11 @@ void main() {
     expect(align.alignment, Alignment.centerRight);
 
     final tick = tester.widget<Icon>(find.byIcon(Icons.done_all_rounded));
-    expect(tick.color, PrivioColors.accentBright, reason: 'read receipts are accent green');
+    expect(
+      tick.color,
+      PrivioAccents.of(AppAccent.purple).bright,
+      reason: 'a read receipt follows the accent, it is not a fixed green',
+    );
   });
 
   testWidgets('a message still in flight shows as sending, not delivered', (tester) async {

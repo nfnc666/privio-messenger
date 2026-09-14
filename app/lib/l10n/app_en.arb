@@ -1148,5 +1148,24 @@
   "securityVerifiedCallsOnly": "Only calls from verified contacts",
   "securityVerifiedCallsOnlyBody": "Every call is end-to-end encrypted either way. With this on, Privio also refuses a call unless you have compared the security number with that person and marked it confirmed — so a key this device merely met first is not enough. Calls from anyone else end with an explanation, on both sides.",
 
-  "privacyCalls": "Calls"
+  "privacyCalls": "Calls",
+
+  "appearanceAccentColour": "Accent colour",
+  "appearanceAccentNote": "This changes how Privio looks on this device, for this account. Nobody you write to sees it, and your other accounts keep their own. Red, for deleting and hanging up, stays red whichever accent you pick.",
+  "accentGreen": "Green",
+  "accentBlue": "Blue",
+  "accentTeal": "Turquoise",
+  "accentPurple": "Violet",
+  "accentPink": "Pink",
+  "accentRed": "Red",
+  "accentOrange": "Orange",
+  "accentYellow": "Yellow",
+  "accentPrivioDefault": "Privio default",
+  "appearanceAccentReset": "Reset to default",
+  "appearanceAccentPreview": "Preview",
+  "appearancePreviewSend": "Send",
+  "appearancePreviewSetting": "Read receipts",
+  "appearancePreviewMessage": "This is what your own messages will look like.",
+  "accentSelected": "{colour}, selected",
+  "@accentSelected": {"description": "Announced by a screen reader for the chosen swatch.", "placeholders": {"colour": {"type": "String"}}}
 }

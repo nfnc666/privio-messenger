@@ -1,19 +1,31 @@
 import 'package:flutter/material.dart';
 
+import 'accent.dart';
 import 'privio_colors.dart';
 
 /// The single source of truth for Privio's look, built from the tokens in
-/// `docs/design-system.md`. Screens should reach for `Theme.of(context)` rather
-/// than hard-coding colours, so the Appearance screen can swap accents later.
+/// `docs/design-system.md`. Screens reach for `Theme.of(context)` rather than
+/// hard-coding colours, which is what lets the Appearance screen swap the
+/// accent without a restart: the theme is rebuilt from one seed and every
+/// screen under it redraws.
+///
+/// What does *not* come from [accent]: the black background and the grey
+/// cards, which are the app's shape rather than its colour; [PrivioColors
+/// .danger] and [PrivioColors.warning], which mean something; and the brand
+/// mark, which is the brand.
 abstract final class PrivioTheme {
-  static ThemeData dark() {
-    const scheme = ColorScheme.dark(
-      primary: PrivioColors.accent,
-      onPrimary: PrivioColors.background,
-      secondary: PrivioColors.accentBright,
-      onSecondary: PrivioColors.background,
+  static ThemeData dark({AppAccent accent = AppAccent.green}) {
+    final accents = PrivioAccents.of(accent);
+    final scheme = ColorScheme.dark(
+      primary: accents.accent,
+      onPrimary: accents.onAccent,
+      secondary: accents.bright,
+      onSecondary: accents.onAccent,
       surface: PrivioColors.surface,
       onSurface: PrivioColors.textPrimary,
+      // Semantic, and deliberately not derived from the accent: an error is
+      // red whatever colour the buttons are, and an account that chose red
+      // still needs "delete" to look different from "send".
       error: PrivioColors.danger,
       onError: PrivioColors.textPrimary,
       outline: PrivioColors.border,
@@ -27,8 +39,8 @@ abstract final class PrivioTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: PrivioColors.background,
       canvasColor: PrivioColors.background,
-      splashColor: PrivioColors.accent.withValues(alpha: 0.08),
-      highlightColor: PrivioColors.accent.withValues(alpha: 0.06),
+      splashColor: accents.accent.withValues(alpha: 0.08),
+      highlightColor: accents.accent.withValues(alpha: 0.06),
       fontFamily: _fontFamily,
       textTheme: textTheme,
       appBarTheme: const AppBarTheme(
@@ -69,15 +81,15 @@ abstract final class PrivioTheme {
         // trail of labels behind it.
         waitDuration: const Duration(milliseconds: 600),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: PrivioColors.background,
-        selectedItemColor: PrivioColors.accent,
+        selectedItemColor: accents.accent,
         unselectedItemColor: PrivioColors.textTertiary,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
         showUnselectedLabels: true,
-        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-        unselectedLabelStyle: TextStyle(fontSize: 11),
+        selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+        unselectedLabelStyle: const TextStyle(fontSize: 11),
       ),
       dividerTheme: const DividerThemeData(
         color: PrivioColors.border,
@@ -114,16 +126,16 @@ abstract final class PrivioTheme {
           borderRadius: BorderRadius.all(PrivioRadius.card),
           borderSide: BorderSide.none,
         ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(PrivioRadius.card),
-          borderSide: BorderSide(color: PrivioColors.accent, width: 1.5),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(PrivioRadius.card),
+          borderSide: BorderSide(color: accents.accent, width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: PrivioColors.accent,
-          foregroundColor: PrivioColors.background,
-          disabledBackgroundColor: PrivioColors.accentDim,
+          backgroundColor: accents.accent,
+          foregroundColor: accents.onAccent,
+          disabledBackgroundColor: accents.dim,
           disabledForegroundColor: PrivioColors.textTertiary,
           minimumSize: const Size.fromHeight(52),
           textStyle: const TextStyle(
@@ -137,19 +149,19 @@ abstract final class PrivioTheme {
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: PrivioColors.accent),
+        style: TextButton.styleFrom(foregroundColor: accents.accent),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: const WidgetStatePropertyAll(PrivioColors.textPrimary),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? PrivioColors.accent
+              ? accents.accent
               : PrivioColors.surfaceHigh,
         ),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: PrivioColors.accent,
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: accents.accent,
         linearTrackColor: PrivioColors.surfaceHigh,
       ),
       snackBarTheme: const SnackBarThemeData(
@@ -157,6 +169,9 @@ abstract final class PrivioTheme {
         contentTextStyle: TextStyle(color: PrivioColors.textPrimary),
         behavior: SnackBarBehavior.floating,
       ),
+      // Everything derived from the seed, carried on the theme so a widget can
+      // ask for the shade it needs rather than recomputing one.
+      extensions: [accents],
     );
   }
 

@@ -45,6 +45,14 @@ abstract interface class SecureStore {
   Future<String?> readLanguage(String accountId);
   Future<void> writeLanguage(String accountId, String code);
 
+  /// Which accent colour an account draws its interface in.
+  ///
+  /// Keyed by account for the same reason the language is. Absent means Privio
+  /// green, which is what a new account gets. Read on the way out of the splash
+  /// rather than after it, so a stored colour does not arrive a frame late.
+  Future<String?> readAccent(String accountId);
+  Future<void> writeAccent(String accountId, String code);
+
   /// Whether this account takes calls only from contacts whose safety number
   /// it has confirmed.
   ///
@@ -296,6 +304,15 @@ class KeystoreSecureStore implements SecureStore {
 
   static String _languageKey(String accountId) => 'privio.language.$accountId';
 
+  static String _accentKey(String accountId) => 'privio.accent.$accountId';
+
+  @override
+  Future<String?> readAccent(String accountId) => _read(_accentKey(accountId));
+
+  @override
+  Future<void> writeAccent(String accountId, String code) =>
+      _write(_accentKey(accountId), code);
+
   static String _verifiedCallsKey(String accountId) => 'privio.verifiedCallsOnly.$accountId';
 
   @override
@@ -518,6 +535,13 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> writeLanguage(String accountId, String code) async =>
       _entries['language.$accountId'] = code;
+
+  @override
+  Future<String?> readAccent(String accountId) async => _entries['accent.$accountId'];
+
+  @override
+  Future<void> writeAccent(String accountId, String code) async =>
+      _entries['accent.$accountId'] = code;
 
   @override
   Future<bool> readVerifiedCallsOnly(String accountId) async =>

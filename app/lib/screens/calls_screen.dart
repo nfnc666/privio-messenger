@@ -4,6 +4,7 @@ import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// Screen 7: calls.
@@ -126,7 +127,7 @@ class _History extends StatelessWidget {
             ],
           ),
           trailing: IconButton(
-            icon: const Icon(Icons.call_outlined, color: PrivioColors.accent),
+            icon: Icon(Icons.call_outlined, color: context.accents.accent),
             tooltip: AppText.of(context).callsCallSomeone(record.username),
             onPressed: () => calls.place(
               CallParty(accountId: record.accountId, username: record.username),

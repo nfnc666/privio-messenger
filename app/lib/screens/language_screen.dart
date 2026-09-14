@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/locale_controller.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -47,9 +48,9 @@ class LanguageScreen extends StatelessWidget {
                     trailing: SizedBox(
                       width: 20,
                       child: state.locale.language == language
-                          ? const Icon(
+                          ? Icon(
                               Icons.check_rounded,
-                              color: PrivioColors.accent,
+                              color: context.accents.accent,
                               size: 20,
                             )
                           : null,

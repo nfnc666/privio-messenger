@@ -3539,4 +3539,59 @@ class AppTextDe extends AppText {
 
   @override
   String get privacyCalls => 'Anrufe';
+
+  @override
+  String get appearanceAccentColour => 'Akzentfarbe';
+
+  @override
+  String get appearanceAccentNote =>
+      'Das ändert, wie Privio auf diesem Gerät aussieht, für dieses Konto. Niemand, dem du schreibst, sieht es, und deine anderen Konten behalten ihre eigene Farbe. Rot für Löschen und Auflegen bleibt Rot, welchen Akzent du auch wählst.';
+
+  @override
+  String get accentGreen => 'Grün';
+
+  @override
+  String get accentBlue => 'Blau';
+
+  @override
+  String get accentTeal => 'Türkis';
+
+  @override
+  String get accentPurple => 'Violett';
+
+  @override
+  String get accentPink => 'Pink';
+
+  @override
+  String get accentRed => 'Rot';
+
+  @override
+  String get accentOrange => 'Orange';
+
+  @override
+  String get accentYellow => 'Gelb';
+
+  @override
+  String get accentPrivioDefault => 'PRIVIO-Standard';
+
+  @override
+  String get appearanceAccentReset => 'Auf Standard zurücksetzen';
+
+  @override
+  String get appearanceAccentPreview => 'Vorschau';
+
+  @override
+  String get appearancePreviewSend => 'Senden';
+
+  @override
+  String get appearancePreviewSetting => 'Lesebestätigungen';
+
+  @override
+  String get appearancePreviewMessage =>
+      'So werden deine eigenen Nachrichten aussehen.';
+
+  @override
+  String accentSelected(String colour) {
+    return '$colour, ausgewählt';
+  }
 }

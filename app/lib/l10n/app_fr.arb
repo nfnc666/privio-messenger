@@ -980,5 +980,22 @@
   "callEncryptedVerified": "Chiffré de bout en bout · vérifié",
   "securityVerifiedCallsOnly": "Uniquement les appels de contacts vérifiés",
   "securityVerifiedCallsOnlyBody": "Chaque appel est chiffré de bout en bout dans tous les cas. Avec cette option, Privio refuse en plus un appel tant que vous n'avez pas comparé le numéro de sécurité avec cette personne et ne l'avez pas confirmé — une clé que cet appareil a simplement rencontrée en premier ne suffit alors pas. Les appels de toute autre personne se terminent avec une explication, des deux côtés.",
-  "privacyCalls": "Appels"
+  "privacyCalls": "Appels",
+  "appearanceAccentColour": "Couleur d'accent",
+  "appearanceAccentNote": "Cela change l'apparence de Privio sur cet appareil, pour ce compte. Personne à qui vous écrivez ne le voit, et vos autres comptes gardent la leur. Le rouge, pour supprimer et raccrocher, reste rouge quel que soit l'accent choisi.",
+  "accentGreen": "Vert",
+  "accentBlue": "Bleu",
+  "accentTeal": "Turquoise",
+  "accentPurple": "Violet",
+  "accentPink": "Rose",
+  "accentRed": "Rouge",
+  "accentOrange": "Orange",
+  "accentYellow": "Jaune",
+  "accentPrivioDefault": "Par défaut de Privio",
+  "appearanceAccentReset": "Rétablir la valeur par défaut",
+  "appearanceAccentPreview": "Aperçu",
+  "appearancePreviewSend": "Envoyer",
+  "appearancePreviewSetting": "Accusés de lecture",
+  "appearancePreviewMessage": "Voilà à quoi ressembleront vos propres messages.",
+  "accentSelected": "{colour}, sélectionné"
 }

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
@@ -115,8 +116,8 @@ class _AccountScreenState extends State<AccountScreen> {
                         bottom: 0,
                         child: Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: PrivioColors.accent,
+                          decoration: BoxDecoration(
+                            color: context.accents.accent,
                             shape: BoxShape.circle,
                           ),
                           child: _uploading
@@ -149,7 +150,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: ownAvatar == null
                         ? PrivioColors.textTertiary
-                        : PrivioColors.accent,
+                        : context.accents.accent,
                   ),
                 ),
               ],

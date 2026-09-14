@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../crypto/crypto_storage.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -96,7 +97,7 @@ class _StorageScreenState extends State<StorageScreen> {
         title: Text(text.settingsStorage),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: PrivioColors.accent))
+          ? Center(child: CircularProgressIndicator(color: context.accents.accent))
           : ListView(
               padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
               children: [
