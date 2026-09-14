@@ -111,6 +111,10 @@ enum FailureKind {
   /// Strict mode. Carries [Failure.detail]: who, by username.
   callNotVerified,
 
+  // The home-screen icon.
+  appIconUnsupported,
+  appIconHiddenByDisguise,
+
   /// A state the app did not expect. Honest rather than blamed on the network.
   unexpected,
 

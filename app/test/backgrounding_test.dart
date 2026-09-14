@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privio/app.dart';
+import 'package:privio/core/app_icon.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/passcode.dart';
 import 'package:privio/disguise/launcher_disguise.dart';
@@ -20,7 +21,10 @@ class _StubLauncher implements LauncherDisguise {
       const LauncherCapability(icon: true, name: true);
 
   @override
-  Future<void> apply(CalculatorSkin? skin) async {}
+  Future<void> show(LauncherEntry entry) async {}
+
+  @override
+  Future<LauncherEntry?> current() async => const LauncherEntry.icon(AppIconColour.green);
 }
 
 /// Sends the app to the background and brings it back, in the order the OS

@@ -6,9 +6,11 @@ import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
 import 'package:privio/app.dart';
 import 'package:privio/core/api_client.dart';
+import 'package:privio/core/app_icon.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
@@ -91,8 +93,12 @@ Future<PrivioServices> _services() async {
 
 /// A fresh app over a store the test keeps a handle on. A "restart" is a second
 /// [AppState] over the *same* store, which is what a relaunch actually is.
-Future<AppState> _appOver(SecureStore store) async {
-  final state = AppState(services: await _services(), store: store);
+Future<AppState> _appOver(SecureStore store, {LauncherDisguise? launcher}) async {
+  final state = AppState(
+    services: await _services(),
+    store: store,
+    launcher: launcher,
+  );
   await state.initialise();
   return state;
 }
@@ -284,6 +290,10 @@ void main() {
 
   group('small screens, large text, and screen readers', layout);
 
+  group('the home-screen icon belongs to the phone', appIcon);
+
+  group('the app icon section', appIconScreen);
+
   group('what the accent does not touch', () {
     test('destructive red is the same in all eight', () {
       // The distinction the whole thing rests on: an accent is decoration, and
@@ -381,4 +391,175 @@ void layout() {
     expect(find.bySemanticsLabel('Violet'), findsOneWidget);
     handle.dispose();
   });
+}
+
+/// The home-screen icon is the phone's, not the account's — the opposite rule
+/// from the accent colour, and worth pinning next to it so the two cannot
+/// drift into each other.
+void appIcon() {
+  testWidgets('signing in as somebody else leaves the home screen alone',
+      (tester) async {
+    final store = InMemorySecureStore();
+    final launcher = _RecordingLauncher();
+    final state = await tester.runAsync(
+      () => _appOver(store, launcher: launcher),
+    ) as AppState;
+    addTearDown(state.conversations.stop);
+
+    await tester.runAsync(() => state.register(username: 'anna', password: 'pw-anna-1'));
+    await tester.runAsync(state.appIcon.reconcile);
+    await tester.runAsync(() => state.appIcon.choose(AppIconColour.pink));
+    await _settle(tester);
+    expect(state.appIcon.colour, AppIconColour.pink);
+
+    final afterChoosing = launcher.applied.length;
+    state.conversations.stop();
+    await tester.runAsync(state.signOut);
+    await _settle(tester);
+    await tester.runAsync(() => state.register(username: 'bruno', password: 'pw-bruno-1'));
+    await _settle(tester);
+
+    expect(
+      launcher.applied.length,
+      afterChoosing,
+      reason: 'nothing touched the launcher on the way through two accounts',
+    );
+    expect(state.appIcon.colour, AppIconColour.pink);
+    // And the accent, which *is* per account, did reset — the two rules are
+    // different on purpose.
+    expect(state.accent.accent, AppAccent.green);
+  });
+
+  testWidgets('the icon it was set to survives a restart of the app', (tester) async {
+    final store = InMemorySecureStore();
+    final launcher = _RecordingLauncher();
+    final first = await tester.runAsync(() => _appOver(store, launcher: launcher)) as AppState;
+    await tester.runAsync(first.appIcon.reconcile);
+    await tester.runAsync(() => first.appIcon.choose(AppIconColour.orange));
+    await _settle(tester);
+    first.conversations.stop();
+
+    // The relaunch, over the same store and the same phone.
+    final second = await tester.runAsync(
+      () => _appOver(store, launcher: _RecordingLauncher(showing: launcher.showing)),
+    ) as AppState;
+    addTearDown(second.conversations.stop);
+    await tester.runAsync(second.appIcon.reconcile);
+
+    expect(second.appIcon.colour, AppIconColour.orange);
+  });
+}
+
+void appIconScreen() {
+  testWidgets('the section offers eight icons under the accent, and ticks one',
+      (tester) async {
+    final launcher = _RecordingLauncher();
+    final state = await tester.runAsync(
+      () => _appOver(InMemorySecureStore(), launcher: launcher),
+    ) as AppState;
+    addTearDown(state.dispose);
+    await tester.pumpWidget(_appearanceOver(state));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-name-yellow')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    for (final colour in AppIconColour.values) {
+      expect(
+        find.byKey(ValueKey('app-icon-name-${colour.code}')),
+        findsOneWidget,
+        reason: '${colour.code} is missing',
+      );
+    }
+    expect(find.byKey(const ValueKey('app-icon-check-green')), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-icon-check-purple')), findsNothing);
+    expect(find.byKey(const ValueKey('app-icon-match-accent')), findsOneWidget);
+    // Nothing to restore while the original is what is showing.
+    expect(find.byKey(const ValueKey('app-icon-reset')), findsNothing);
+  });
+
+  testWidgets('tapping one changes the launcher and moves the tick',
+      (tester) async {
+    final launcher = _RecordingLauncher();
+    final state = await tester.runAsync(
+      () => _appOver(InMemorySecureStore(), launcher: launcher),
+    ) as AppState;
+    addTearDown(state.dispose);
+    await tester.pumpWidget(_appearanceOver(state));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-name-blue')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('app-icon-name-blue')));
+    await tester.pumpAndSettle();
+
+    expect(launcher.applied.last, const LauncherEntry.icon(AppIconColour.blue));
+    expect(state.appIcon.colour, AppIconColour.blue);
+    expect(find.byKey(const ValueKey('app-icon-check-blue')), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-icon-reset')), findsOneWidget);
+  });
+
+  testWidgets('a platform that cannot change it says so instead of offering',
+      (tester) async {
+    final state = await tester.runAsync(
+      () => _appOver(InMemorySecureStore(), launcher: _RefusingLauncher()),
+    ) as AppState;
+    addTearDown(state.dispose);
+    await tester.pumpWidget(_appearanceOver(state));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-unavailable')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    // One honest line rather than eight swatches that would do nothing.
+    expect(find.byKey(const ValueKey('app-icon-unavailable')), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-icon-name-blue')), findsNothing);
+  });
+}
+
+/// A launcher on a platform with no alternate icons at all — the web build, a
+/// desktop build, an iPhone whose iOS says no.
+class _RefusingLauncher implements LauncherDisguise {
+  @override
+  Future<LauncherCapability> capability() async => LauncherCapability.none;
+
+  @override
+  Future<void> show(LauncherEntry entry) async =>
+      throw const LauncherDisguiseException('This platform cannot change the app icon.');
+
+  @override
+  Future<LauncherEntry?> current() async => null;
+}
+
+/// A launcher that accepts everything and remembers what it was shown.
+class _RecordingLauncher implements LauncherDisguise {
+  _RecordingLauncher({this.showing = const LauncherEntry.icon(AppIconColour.green)});
+
+  LauncherEntry? showing;
+  final List<LauncherEntry> applied = [];
+
+  @override
+  Future<LauncherCapability> capability() async =>
+      const LauncherCapability(icon: true, name: false);
+
+  @override
+  Future<void> show(LauncherEntry entry) async {
+    applied.add(entry);
+    showing = entry;
+  }
+
+  @override
+  Future<LauncherEntry?> current() async => showing;
 }

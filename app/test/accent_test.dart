@@ -51,7 +51,7 @@ void main() {
         expect(
           PrivioAccents.of(accent).onAccent,
           PrivioColors.background,
-          reason: '${accent.code}',
+          reason: accent.code,
         );
       }
     });

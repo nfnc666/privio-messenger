@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'accent_controller.dart';
+import 'app_icon.dart';
+import 'app_icon_controller.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
@@ -117,6 +119,10 @@ class AppState extends ChangeNotifier {
   /// language: per account, loaded at sign-in, reset by every path that ends an
   /// account's use of this device.
   late final AccentController accent = AccentController(_store);
+
+  /// Which colour the home-screen icon wears. Per installation rather than per
+  /// account — see [AppIconController].
+  late final AppIconController appIcon = AppIconController(_store, _launcherDisguise);
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -581,7 +587,14 @@ class AppState extends ChangeNotifier {
     // everywhere except the home screen is still worth having — and the failure
     // is reported rather than swallowed.
     try {
-      await _launcherDisguise.apply(skin);
+      // Taking the disguise off puts back the colour this device chose, not
+      // the default: somebody who set a purple icon and then used the disguise
+      // for an evening should get their purple icon back, not a surprise.
+      await _launcherDisguise.show(
+        skin != null
+            ? const LauncherEntry.calculator()
+            : LauncherEntry.icon(appIcon.colour),
+      );
     } on LauncherDisguiseException catch (failure) {
       _disguiseError = failure.message;
     }

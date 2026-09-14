@@ -3589,4 +3589,47 @@ class AppTextFr extends AppText {
   String accentSelected(String colour) {
     return '$colour, sélectionné';
   }
+
+  @override
+  String get appearanceAppIcon => 'Icône de l\'app';
+
+  @override
+  String get appearanceAppIconNote =>
+      'C\'est l\'icône sur votre écran d\'accueil, et elle appartient à ce téléphone plutôt qu\'à votre compte : se connecter avec un autre compte ne la change pas. Elle reste telle que vous l\'avez réglée même si vous choisissez ensuite une autre couleur d\'accent.';
+
+  @override
+  String get appearanceAppIconMatchAccent =>
+      'Utiliser la couleur d\'accent actuelle';
+
+  @override
+  String get appearanceAppIconReset => 'Rétablir l\'icône d\'origine';
+
+  @override
+  String get appearanceAppIconSlow =>
+      'L\'écran d\'accueil peut mettre quelques secondes à se redessiner. Cette attente appartient au lanceur, pas à Privio.';
+
+  @override
+  String get appearanceAppIconUnavailable =>
+      'Cet appareil ne peut pas changer l\'icône de l\'app, Privio ne le propose donc pas.';
+
+  @override
+  String get appearanceAppIconOriginal => 'Originale';
+
+  @override
+  String get failureAppIconUnsupported =>
+      'L\'icône de l\'app n\'a pas pu être changée : cet appareil ne le propose pas.';
+
+  @override
+  String get failureAppIconHiddenByDisguise =>
+      'Tant que le camouflage est activé, l\'écran d\'accueil affiche la calculatrice : la couleur de l\'icône n\'a donc pas été changée. Désactivez d\'abord le camouflage.';
+
+  @override
+  String appIconSelected(String colour) {
+    return 'Icône en $colour, sélectionnée';
+  }
+
+  @override
+  String appIconChoose(String colour) {
+    return 'Icône en $colour';
+  }
 }

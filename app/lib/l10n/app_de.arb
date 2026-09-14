@@ -997,5 +997,16 @@
   "appearancePreviewSend": "Senden",
   "appearancePreviewSetting": "Lesebestätigungen",
   "appearancePreviewMessage": "So werden deine eigenen Nachrichten aussehen.",
-  "accentSelected": "{colour}, ausgewählt"
+  "accentSelected": "{colour}, ausgewählt",
+  "appearanceAppIcon": "App-Icon",
+  "appearanceAppIconNote": "Das ist das Symbol auf deinem Startbildschirm. Es gehört zu diesem Telefon und nicht zu deinem Konto: Wenn du dich als jemand anderes anmeldest, ändert es sich nicht. Es bleibt so, wie du es eingestellt hast, auch wenn du später eine andere Akzentfarbe wählst.",
+  "appearanceAppIconMatchAccent": "Aktuelle Akzentfarbe übernehmen",
+  "appearanceAppIconReset": "Standard wiederherstellen",
+  "appearanceAppIconSlow": "Der Startbildschirm braucht manchmal ein paar Sekunden, bis er sich neu zeichnet. Diese Wartezeit gehört zum Launcher, nicht zu Privio.",
+  "appearanceAppIconUnavailable": "Dieses Gerät kann das App-Symbol nicht ändern, deshalb bietet Privio es nicht an.",
+  "appearanceAppIconOriginal": "Original",
+  "failureAppIconUnsupported": "Das App-Symbol konnte nicht geändert werden: Dieses Gerät bietet das nicht an.",
+  "failureAppIconHiddenByDisguise": "Solange die Tarnung an ist, zeigt der Startbildschirm den Taschenrechner — die Icon-Farbe wurde deshalb nicht geändert. Schalte die Tarnung zuerst aus.",
+  "appIconSelected": "Symbol in {colour}, ausgewählt",
+  "appIconChoose": "Symbol in {colour}"
 }

@@ -3554,4 +3554,46 @@ class AppTextEn extends AppText {
   String accentSelected(String colour) {
     return '$colour, selected';
   }
+
+  @override
+  String get appearanceAppIcon => 'App icon';
+
+  @override
+  String get appearanceAppIconNote =>
+      'This is the icon on your home screen, and it belongs to this phone rather than to your account: signing in as somebody else does not change it. It stays as you set it when you pick a different accent colour.';
+
+  @override
+  String get appearanceAppIconMatchAccent => 'Use the current accent colour';
+
+  @override
+  String get appearanceAppIconReset => 'Restore the original icon';
+
+  @override
+  String get appearanceAppIconSlow =>
+      'The home screen can take a few seconds to redraw. That wait belongs to the launcher, not to Privio.';
+
+  @override
+  String get appearanceAppIconUnavailable =>
+      'This device cannot change the app icon, so Privio does not offer to.';
+
+  @override
+  String get appearanceAppIconOriginal => 'Original';
+
+  @override
+  String get failureAppIconUnsupported =>
+      'The app icon could not be changed: this device does not offer it.';
+
+  @override
+  String get failureAppIconHiddenByDisguise =>
+      'The home screen is showing the calculator while the disguise is on, so the icon colour has not been changed. Switch the disguise off first.';
+
+  @override
+  String appIconSelected(String colour) {
+    return '$colour icon, selected';
+  }
+
+  @override
+  String appIconChoose(String colour) {
+    return '$colour icon';
+  }
 }

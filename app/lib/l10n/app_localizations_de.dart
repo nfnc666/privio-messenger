@@ -3594,4 +3594,46 @@ class AppTextDe extends AppText {
   String accentSelected(String colour) {
     return '$colour, ausgewählt';
   }
+
+  @override
+  String get appearanceAppIcon => 'App-Icon';
+
+  @override
+  String get appearanceAppIconNote =>
+      'Das ist das Symbol auf deinem Startbildschirm. Es gehört zu diesem Telefon und nicht zu deinem Konto: Wenn du dich als jemand anderes anmeldest, ändert es sich nicht. Es bleibt so, wie du es eingestellt hast, auch wenn du später eine andere Akzentfarbe wählst.';
+
+  @override
+  String get appearanceAppIconMatchAccent => 'Aktuelle Akzentfarbe übernehmen';
+
+  @override
+  String get appearanceAppIconReset => 'Standard wiederherstellen';
+
+  @override
+  String get appearanceAppIconSlow =>
+      'Der Startbildschirm braucht manchmal ein paar Sekunden, bis er sich neu zeichnet. Diese Wartezeit gehört zum Launcher, nicht zu Privio.';
+
+  @override
+  String get appearanceAppIconUnavailable =>
+      'Dieses Gerät kann das App-Symbol nicht ändern, deshalb bietet Privio es nicht an.';
+
+  @override
+  String get appearanceAppIconOriginal => 'Original';
+
+  @override
+  String get failureAppIconUnsupported =>
+      'Das App-Symbol konnte nicht geändert werden: Dieses Gerät bietet das nicht an.';
+
+  @override
+  String get failureAppIconHiddenByDisguise =>
+      'Solange die Tarnung an ist, zeigt der Startbildschirm den Taschenrechner — die Icon-Farbe wurde deshalb nicht geändert. Schalte die Tarnung zuerst aus.';
+
+  @override
+  String appIconSelected(String colour) {
+    return 'Symbol in $colour, ausgewählt';
+  }
+
+  @override
+  String appIconChoose(String colour) {
+    return 'Symbol in $colour';
+  }
 }
