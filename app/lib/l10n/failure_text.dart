@@ -77,6 +77,8 @@ extension FailureText on Failure {
         FailureKind.callIdentityChanged => text.failureCallIdentityChanged(detail ?? ''),
         FailureKind.callWrongParty => text.failureCallWrongParty,
         FailureKind.callNotVerified => text.failureCallNotVerified(detail ?? ''),
+        FailureKind.appIconUnsupported => text.failureAppIconUnsupported,
+        FailureKind.appIconHiddenByDisguise => text.failureAppIconHiddenByDisguise,
         FailureKind.unexpected => text.failureUnexpected,
         FailureKind.serverSaid => detail ?? text.failureUnreachable,
       };

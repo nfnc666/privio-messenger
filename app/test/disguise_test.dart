@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privio/app.dart';
+import 'package:privio/core/app_icon.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/passcode.dart';
 import 'package:privio/disguise/calculator.dart';
@@ -31,19 +32,28 @@ class FakeLauncher implements LauncherDisguise {
 
   final LauncherCapability capable;
 
-  /// When set, [apply] throws it — the device that will not swap its icon.
+  /// When set, [show] throws it — the device that will not swap its icon.
   final String? refuses;
 
-  final List<CalculatorSkin?> applied = [];
+  /// Every entry it was asked to show, oldest first.
+  final List<LauncherEntry> applied = [];
+
+  /// What the launcher would report. Whatever was last applied, so a test can
+  /// read back what the home screen would be wearing.
+  LauncherEntry? showing = const LauncherEntry.icon(AppIconColour.green);
 
   @override
   Future<LauncherCapability> capability() async => capable;
 
   @override
-  Future<void> apply(CalculatorSkin? skin) async {
+  Future<void> show(LauncherEntry entry) async {
     if (refuses != null) throw LauncherDisguiseException(refuses!);
-    applied.add(skin);
+    applied.add(entry);
+    showing = entry;
   }
+
+  @override
+  Future<LauncherEntry?> current() async => showing;
 }
 
 void main() {
@@ -111,11 +121,31 @@ void main() {
       addTearDown(device.state.conversations.stop);
 
       await device.state.setDisguise(CalculatorSkin.iphone);
-      expect(launcher.applied, [CalculatorSkin.iphone]);
+      expect(launcher.applied, [const LauncherEntry.calculator()]);
       expect(device.state.disguiseError, isNull);
 
       await device.state.setDisguise(null);
-      expect(launcher.applied, [CalculatorSkin.iphone, null], reason: 'and put back');
+      expect(
+        launcher.applied,
+        [const LauncherEntry.calculator(), const LauncherEntry.icon(AppIconColour.green)],
+        reason: 'and put back',
+      );
+    });
+
+    test('taking it off restores the icon colour, not the default', () async {
+      // Somebody who set a purple icon and then used the disguise for an
+      // evening should get their purple icon back, not a surprise.
+      final launcher = FakeLauncher();
+      final device = await armedDevice(launcher: launcher);
+      addTearDown(device.state.conversations.stop);
+      await device.state.appIcon.reconcile();
+      await device.state.appIcon.choose(AppIconColour.purple);
+
+      await device.state.setDisguise(CalculatorSkin.iphone);
+      expect(launcher.applied.last, const LauncherEntry.calculator());
+
+      await device.state.setDisguise(null);
+      expect(launcher.applied.last, const LauncherEntry.icon(AppIconColour.purple));
     });
 
     test('a launcher that refuses does not stop the disguise, and is reported', () async {

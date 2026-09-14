@@ -30,42 +30,53 @@ class MainActivity : FlutterActivity() {
                     // fixed at build time; the app says so rather than claiming
                     // the disguise is complete.
                     "capability" -> result.success(mapOf("icon" to true, "name" to true))
-                    "apply" -> {
-                        val disguised = call.argument<String?>("skin") != null
-                        try {
-                            applyLauncher(disguised)
-                            result.success(null)
-                        } catch (error: Exception) {
+                    "show" -> {
+                        val entry = call.argument<String>("entry")
+                        val alias = ALIASES[entry]
+                        if (alias == null) {
                             result.error(
-                                "launcher_failed",
-                                error.message ?: "The launcher entry could not be changed.",
+                                "unknown_entry",
+                                "No launcher entry is called ${'$'}entry.",
                                 null,
                             )
+                        } else {
+                            try {
+                                applyLauncher(alias)
+                                result.success(null)
+                            } catch (error: Exception) {
+                                result.error(
+                                    "launcher_failed",
+                                    error.message ?: "The launcher entry could not be changed.",
+                                    null,
+                                )
+                            }
                         }
                     }
+                    "current" -> result.success(currentEntry())
                     else -> result.notImplemented()
                 }
             }
     }
 
     /**
-     * Enables the wanted alias before disabling the other one.
+     * Enables the wanted alias before disabling every other one.
      *
      * The order matters and is not cosmetic: with no launcher alias enabled,
      * even for an instant, some launchers drop the app from the home screen and
      * Android may stop the process. Enabling first means there is never a
-     * moment with nothing to launch.
+     * moment with nothing to launch — and disabling *all* the others after
+     * means there is never a moment with two, which is how a duplicate entry
+     * gets left behind on the home screen.
      *
      * DONT_KILL_APP keeps the running process alive through the change. The
      * launcher itself may still take a few seconds to redraw its grid, which is
      * the launcher's own caching and not something an app can hurry.
      */
-    private fun applyLauncher(disguised: Boolean) {
-        val wanted = if (disguised) CALCULATOR_ALIAS else DEFAULT_ALIAS
-        val other = if (disguised) DEFAULT_ALIAS else CALCULATOR_ALIAS
-
+    private fun applyLauncher(wanted: String) {
         setAlias(wanted, enabled = true)
-        setAlias(other, enabled = false)
+        for (alias in ALIASES.values) {
+            if (alias != wanted) setAlias(alias, enabled = false)
+        }
 
         // Read it back. Some manufacturer builds accept the call and change
         // nothing, and an icon that quietly did not move is worse than one that
@@ -74,6 +85,32 @@ class MainActivity : FlutterActivity() {
         if (!isEnabled(wanted)) {
             throw IllegalStateException("Android did not apply the launcher change.")
         }
+    }
+
+    /**
+     * Which entry the launcher is showing, by the name the channel speaks.
+     *
+     * Read from the package manager rather than remembered, so the app can
+     * reconcile what it stored against what is actually on the home screen.
+     *
+     * An alias that has never been touched reports DEFAULT rather than
+     * ENABLED/DISABLED — that is its manifest value, which for the green entry
+     * means enabled and for every other means not. A fresh install therefore
+     * answers "green" here without anything having had to write it.
+     */
+    private fun currentEntry(): String? {
+        for ((entry, alias) in ALIASES) {
+            val setting = packageManager.getComponentEnabledSetting(
+                ComponentName(packageName, alias),
+            )
+            val on = when (setting) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> alias == DEFAULT_ALIAS
+                else -> false
+            }
+            if (on) return entry
+        }
+        return null
     }
 
     private fun setAlias(alias: String, enabled: Boolean) {
@@ -122,5 +159,25 @@ class MainActivity : FlutterActivity() {
         const val CHANNEL = "app.privio/launcher"
         const val DEFAULT_ALIAS = "app.privio.privio.DefaultLauncher"
         const val CALCULATOR_ALIAS = "app.privio.privio.CalculatorLauncher"
+
+        /**
+         * Every launcher entry, by the name the channel speaks.
+         *
+         * "green" is the default alias rather than an alias of its own: the
+         * delivered artwork is what the app ships with, and giving it a second
+         * component would mean a fresh install had two entries that both
+         * claimed to be the original.
+         */
+        val ALIASES = linkedMapOf(
+            "green" to DEFAULT_ALIAS,
+            "calculator" to CALCULATOR_ALIAS,
+            "blue" to "app.privio.privio.LauncherBlue",
+            "teal" to "app.privio.privio.LauncherTeal",
+            "purple" to "app.privio.privio.LauncherPurple",
+            "pink" to "app.privio.privio.LauncherPink",
+            "red" to "app.privio.privio.LauncherRed",
+            "orange" to "app.privio.privio.LauncherOrange",
+            "yellow" to "app.privio.privio.LauncherYellow",
+        )
     }
 }

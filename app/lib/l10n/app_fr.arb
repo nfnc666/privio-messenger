@@ -997,5 +997,16 @@
   "appearancePreviewSend": "Envoyer",
   "appearancePreviewSetting": "Accusés de lecture",
   "appearancePreviewMessage": "Voilà à quoi ressembleront vos propres messages.",
-  "accentSelected": "{colour}, sélectionné"
+  "accentSelected": "{colour}, sélectionné",
+  "appearanceAppIcon": "Icône de l'app",
+  "appearanceAppIconNote": "C'est l'icône sur votre écran d'accueil, et elle appartient à ce téléphone plutôt qu'à votre compte : se connecter avec un autre compte ne la change pas. Elle reste telle que vous l'avez réglée même si vous choisissez ensuite une autre couleur d'accent.",
+  "appearanceAppIconMatchAccent": "Utiliser la couleur d'accent actuelle",
+  "appearanceAppIconReset": "Rétablir l'icône d'origine",
+  "appearanceAppIconSlow": "L'écran d'accueil peut mettre quelques secondes à se redessiner. Cette attente appartient au lanceur, pas à Privio.",
+  "appearanceAppIconUnavailable": "Cet appareil ne peut pas changer l'icône de l'app, Privio ne le propose donc pas.",
+  "appearanceAppIconOriginal": "Originale",
+  "failureAppIconUnsupported": "L'icône de l'app n'a pas pu être changée : cet appareil ne le propose pas.",
+  "failureAppIconHiddenByDisguise": "Tant que le camouflage est activé, l'écran d'accueil affiche la calculatrice : la couleur de l'icône n'a donc pas été changée. Désactivez d'abord le camouflage.",
+  "appIconSelected": "Icône en {colour}, sélectionnée",
+  "appIconChoose": "Icône en {colour}"
 }

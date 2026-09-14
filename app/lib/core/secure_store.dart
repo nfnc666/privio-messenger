@@ -64,6 +64,15 @@ abstract interface class SecureStore {
   Future<bool> readVerifiedCallsOnly(String accountId);
   Future<void> writeVerifiedCallsOnly(String accountId, bool only);
 
+  /// Which colour the home-screen icon is wearing.
+  ///
+  /// **Not keyed by account**, unlike everything else here. A launcher icon
+  /// belongs to the installation: there is one of it, and signing in as
+  /// somebody else must not rearrange the home screen of the person holding
+  /// the phone. Absent means the delivered green.
+  Future<String?> readAppIcon();
+  Future<void> writeAppIcon(String code);
+
   /// There is no `clearLanguage`: every path that ends an account's use of this
   /// device — sign-out, deletion, the duress wipe — calls [wipe], which takes
   /// the language with everything else.
@@ -306,6 +315,14 @@ class KeystoreSecureStore implements SecureStore {
 
   static String _accentKey(String accountId) => 'privio.accent.$accountId';
 
+  static const String _appIconKey = 'privio.appIcon';
+
+  @override
+  Future<String?> readAppIcon() => _read(_appIconKey);
+
+  @override
+  Future<void> writeAppIcon(String code) => _write(_appIconKey, code);
+
   @override
   Future<String?> readAccent(String accountId) => _read(_accentKey(accountId));
 
@@ -535,6 +552,12 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> writeLanguage(String accountId, String code) async =>
       _entries['language.$accountId'] = code;
+
+  @override
+  Future<String?> readAppIcon() async => _entries['appIcon'];
+
+  @override
+  Future<void> writeAppIcon(String code) async => _entries['appIcon'] = code;
 
   @override
   Future<String?> readAccent(String accountId) async => _entries['accent.$accountId'];

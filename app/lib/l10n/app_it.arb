@@ -997,5 +997,16 @@
   "appearancePreviewSend": "Invia",
   "appearancePreviewSetting": "Conferme di lettura",
   "appearancePreviewMessage": "Ecco come appariranno i tuoi messaggi.",
-  "accentSelected": "{colour}, selezionato"
+  "accentSelected": "{colour}, selezionato",
+  "appearanceAppIcon": "Icona dell'app",
+  "appearanceAppIconNote": "Questa è l'icona sulla tua schermata iniziale e appartiene a questo telefono, non al tuo account: accedere come qualcun altro non la cambia. Resta come l'hai impostata anche se in seguito scegli un altro colore d'accento.",
+  "appearanceAppIconMatchAccent": "Usa il colore d'accento attuale",
+  "appearanceAppIconReset": "Ripristina l'icona originale",
+  "appearanceAppIconSlow": "La schermata iniziale può impiegare qualche secondo per ridisegnarsi. Quell'attesa è del launcher, non di Privio.",
+  "appearanceAppIconUnavailable": "Questo dispositivo non può cambiare l'icona dell'app, quindi Privio non lo propone.",
+  "appearanceAppIconOriginal": "Originale",
+  "failureAppIconUnsupported": "Non è stato possibile cambiare l'icona dell'app: questo dispositivo non lo consente.",
+  "failureAppIconHiddenByDisguise": "Finché il travestimento è attivo, la schermata iniziale mostra la calcolatrice, quindi il colore dell'icona non è stato cambiato. Disattiva prima il travestimento.",
+  "appIconSelected": "Icona in {colour}, selezionata",
+  "appIconChoose": "Icona in {colour}"
 }

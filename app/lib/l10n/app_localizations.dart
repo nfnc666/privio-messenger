@@ -6090,6 +6090,72 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'{colour}, selected'**
   String accentSelected(String colour);
+
+  /// No description provided for @appearanceAppIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'App icon'**
+  String get appearanceAppIcon;
+
+  /// No description provided for @appearanceAppIconNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the icon on your home screen, and it belongs to this phone rather than to your account: signing in as somebody else does not change it. It stays as you set it when you pick a different accent colour.'**
+  String get appearanceAppIconNote;
+
+  /// No description provided for @appearanceAppIconMatchAccent.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the current accent colour'**
+  String get appearanceAppIconMatchAccent;
+
+  /// No description provided for @appearanceAppIconReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the original icon'**
+  String get appearanceAppIconReset;
+
+  /// No description provided for @appearanceAppIconSlow.
+  ///
+  /// In en, this message translates to:
+  /// **'The home screen can take a few seconds to redraw. That wait belongs to the launcher, not to Privio.'**
+  String get appearanceAppIconSlow;
+
+  /// No description provided for @appearanceAppIconUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This device cannot change the app icon, so Privio does not offer to.'**
+  String get appearanceAppIconUnavailable;
+
+  /// No description provided for @appearanceAppIconOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get appearanceAppIconOriginal;
+
+  /// No description provided for @failureAppIconUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'The app icon could not be changed: this device does not offer it.'**
+  String get failureAppIconUnsupported;
+
+  /// No description provided for @failureAppIconHiddenByDisguise.
+  ///
+  /// In en, this message translates to:
+  /// **'The home screen is showing the calculator while the disguise is on, so the icon colour has not been changed. Switch the disguise off first.'**
+  String get failureAppIconHiddenByDisguise;
+
+  /// No description provided for @appIconSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{colour} icon, selected'**
+  String appIconSelected(String colour);
+
+  /// No description provided for @appIconChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'{colour} icon'**
+  String appIconChoose(String colour);
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

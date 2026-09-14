@@ -3600,4 +3600,46 @@ class AppTextIt extends AppText {
   String accentSelected(String colour) {
     return '$colour, selezionato';
   }
+
+  @override
+  String get appearanceAppIcon => 'Icona dell\'app';
+
+  @override
+  String get appearanceAppIconNote =>
+      'Questa è l\'icona sulla tua schermata iniziale e appartiene a questo telefono, non al tuo account: accedere come qualcun altro non la cambia. Resta come l\'hai impostata anche se in seguito scegli un altro colore d\'accento.';
+
+  @override
+  String get appearanceAppIconMatchAccent => 'Usa il colore d\'accento attuale';
+
+  @override
+  String get appearanceAppIconReset => 'Ripristina l\'icona originale';
+
+  @override
+  String get appearanceAppIconSlow =>
+      'La schermata iniziale può impiegare qualche secondo per ridisegnarsi. Quell\'attesa è del launcher, non di Privio.';
+
+  @override
+  String get appearanceAppIconUnavailable =>
+      'Questo dispositivo non può cambiare l\'icona dell\'app, quindi Privio non lo propone.';
+
+  @override
+  String get appearanceAppIconOriginal => 'Originale';
+
+  @override
+  String get failureAppIconUnsupported =>
+      'Non è stato possibile cambiare l\'icona dell\'app: questo dispositivo non lo consente.';
+
+  @override
+  String get failureAppIconHiddenByDisguise =>
+      'Finché il travestimento è attivo, la schermata iniziale mostra la calcolatrice, quindi il colore dell\'icona non è stato cambiato. Disattiva prima il travestimento.';
+
+  @override
+  String appIconSelected(String colour) {
+    return 'Icona in $colour, selezionata';
+  }
+
+  @override
+  String appIconChoose(String colour) {
+    return 'Icona in $colour';
+  }
 }

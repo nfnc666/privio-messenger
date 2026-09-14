@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../core/app_icon.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import 'privio_logo.dart';
 
 /// The eight accents, as a grid of swatches inside the settings card.
 ///
@@ -249,6 +251,173 @@ class AccentPreview extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The eight home-screen icons, as a grid of previews.
+///
+/// The preview is the delivered mark tinted at draw time rather than eight more
+/// bundled pictures: same file, same glyph, same padding, so what the row shows
+/// cannot drift from what the launcher will show. The bundled variants are the
+/// ones the platform actually installs; these are only the picture of them.
+class AppIconPicker extends StatelessWidget {
+  const AppIconPicker({
+    required this.selected,
+    required this.onSelected,
+    required this.enabled,
+    super.key,
+  });
+
+  final AppIconColour selected;
+  final ValueChanged<AppIconColour> onSelected;
+
+  /// False while a change is in flight, or on a platform that cannot.
+  final bool enabled;
+
+  static String nameOf(AppText text, AppIconColour colour) =>
+      AccentPicker.nameOf(text, colour.accent);
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(PrivioSpacing.lg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+          final minTile = 76.0 * scale;
+          final columns = (constraints.maxWidth / minTile).floor().clamp(2, 4);
+
+          return Opacity(
+            opacity: enabled ? 1 : 0.5,
+            child: Wrap(
+              spacing: PrivioSpacing.sm,
+              runSpacing: PrivioSpacing.lg,
+              children: [
+                for (final colour in AppIconColour.values)
+                  SizedBox(
+                    width: (constraints.maxWidth - PrivioSpacing.sm * (columns - 1)) / columns,
+                    child: _IconSwatch(
+                      colour: colour,
+                      name: nameOf(text, colour),
+                      isDefault: colour == AppIconColour.fallback,
+                      selected: colour == selected,
+                      onTap: enabled ? () => onSelected(colour) : null,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _IconSwatch extends StatelessWidget {
+  const _IconSwatch({
+    required this.colour,
+    required this.name,
+    required this.isDefault,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppIconColour colour;
+  final String name;
+  final bool isDefault;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    final accent = PrivioAccents.of(colour.accent);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: onTap != null,
+      label: selected ? text.appIconSelected(name) : text.appIconChoose(name),
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: PrivioSpacing.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      // The icon's own black, not the card's — this is a
+                      // picture of a home-screen icon, and that is what it
+                      // sits on.
+                      color: PrivioColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? accent.accent : PrivioColors.border,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Image.asset(
+                        PrivioLogoAsset.mark,
+                        // Tinted rather than eight more files. The mark is one
+                        // glyph on transparency, so srcIn recolours exactly
+                        // what the bundled variant recolours.
+                        color: colour == AppIconColour.green ? null : accent.accent,
+                        colorBlendMode: colour == AppIconColour.green ? null : BlendMode.srcIn,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    Container(
+                      key: ValueKey('app-icon-check-${colour.code}'),
+                      decoration: BoxDecoration(
+                        color: accent.accent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: PrivioColors.surface, width: 2),
+                      ),
+                      child: Icon(Icons.check_rounded, size: 14, color: accent.onAccent),
+                    ),
+                ],
+              ),
+              const SizedBox(height: PrivioSpacing.sm),
+              Text(
+                name,
+                key: ValueKey('app-icon-name-${colour.code}'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: selected ? PrivioColors.textPrimary : PrivioColors.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+              if (isDefault)
+                Text(
+                  text.appearanceAppIconOriginal,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

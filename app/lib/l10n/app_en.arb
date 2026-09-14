@@ -1167,5 +1167,19 @@
   "appearancePreviewSetting": "Read receipts",
   "appearancePreviewMessage": "This is what your own messages will look like.",
   "accentSelected": "{colour}, selected",
-  "@accentSelected": {"description": "Announced by a screen reader for the chosen swatch.", "placeholders": {"colour": {"type": "String"}}}
+  "@accentSelected": {"description": "Announced by a screen reader for the chosen swatch.", "placeholders": {"colour": {"type": "String"}}},
+
+  "appearanceAppIcon": "App icon",
+  "appearanceAppIconNote": "This is the icon on your home screen, and it belongs to this phone rather than to your account: signing in as somebody else does not change it. It stays as you set it when you pick a different accent colour.",
+  "appearanceAppIconMatchAccent": "Use the current accent colour",
+  "appearanceAppIconReset": "Restore the original icon",
+  "appearanceAppIconSlow": "The home screen can take a few seconds to redraw. That wait belongs to the launcher, not to Privio.",
+  "appearanceAppIconUnavailable": "This device cannot change the app icon, so Privio does not offer to.",
+  "appearanceAppIconOriginal": "Original",
+  "failureAppIconUnsupported": "The app icon could not be changed: this device does not offer it.",
+  "failureAppIconHiddenByDisguise": "The home screen is showing the calculator while the disguise is on, so the icon colour has not been changed. Switch the disguise off first.",
+  "appIconSelected": "{colour} icon, selected",
+  "@appIconSelected": {"placeholders": {"colour": {"type": "String"}}},
+  "appIconChoose": "{colour} icon",
+  "@appIconChoose": {"placeholders": {"colour": {"type": "String"}}}
 }

@@ -997,5 +997,16 @@
   "appearancePreviewSend": "Enviar",
   "appearancePreviewSetting": "Confirmaciones de lectura",
   "appearancePreviewMessage": "Así se verán tus propios mensajes.",
-  "accentSelected": "{colour}, seleccionado"
+  "accentSelected": "{colour}, seleccionado",
+  "appearanceAppIcon": "Icono de la app",
+  "appearanceAppIconNote": "Este es el icono de tu pantalla de inicio y pertenece a este teléfono, no a tu cuenta: iniciar sesión como otra persona no lo cambia. Se mantiene como lo dejaste aunque después elijas otro color de acento.",
+  "appearanceAppIconMatchAccent": "Usar el color de acento actual",
+  "appearanceAppIconReset": "Restaurar el icono original",
+  "appearanceAppIconSlow": "La pantalla de inicio puede tardar unos segundos en redibujarse. Esa espera es del lanzador, no de Privio.",
+  "appearanceAppIconUnavailable": "Este dispositivo no puede cambiar el icono de la app, así que Privio no lo ofrece.",
+  "appearanceAppIconOriginal": "Original",
+  "failureAppIconUnsupported": "No se ha podido cambiar el icono de la app: este dispositivo no lo permite.",
+  "failureAppIconHiddenByDisguise": "Mientras el disfraz está activado, la pantalla de inicio muestra la calculadora, así que no se ha cambiado el color del icono. Desactiva primero el disfraz.",
+  "appIconSelected": "Icono en {colour}, seleccionado",
+  "appIconChoose": "Icono en {colour}"
 }
