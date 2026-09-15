@@ -6,7 +6,7 @@ import 'proxy_transport_web.dart'
 
 abstract interface class ProxyTransport {
   http.Client get client;
-  WebSocketChannel connect(Uri uri);
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols});
   void close();
 }
 
