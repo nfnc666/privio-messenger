@@ -15,6 +15,10 @@ const perDeviceSchema = z.object({
   content: base64Bytes(1, config.MAX_ENVELOPE_BYTES),
 });
 
+function uniqueDeviceMessages<T extends { deviceId: string }>(messages: T[]): boolean {
+  return new Set(messages.map((message) => message.deviceId)).size === messages.length;
+}
+
 /**
  * An id the sending device makes up, so a retry after a dropped connection is
  * answered rather than delivered a second time. Opaque here: the server stores
@@ -40,7 +44,11 @@ const sendSchema = z
      * ordinary retention it would have got anyway.
      */
     expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
-    messages: z.array(perDeviceSchema).min(1).max(256),
+    messages: z
+      .array(perDeviceSchema)
+      .min(1)
+      .max(256)
+      .refine(uniqueDeviceMessages, { message: 'each recipient device may appear only once' }),
   })
   .refine((v) => Boolean(v.username) !== Boolean(v.accountId), {
     message: 'provide exactly one of username or accountId',
@@ -182,7 +190,11 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
           idempotencyKey: idempotencyKeySchema.optional(),
           // Same bound as a 1:1 send, for the same reason — see `sendSchema`.
           expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
-          messages: z.array(perDeviceSchema).min(1).max(2048),
+          messages: z
+            .array(perDeviceSchema)
+            .min(1)
+            .max(2048)
+            .refine(uniqueDeviceMessages, { message: 'each recipient device may appear only once' }),
         }),
         request.body,
       );
