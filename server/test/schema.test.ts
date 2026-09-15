@@ -97,6 +97,32 @@ const READABLE: Record<string, string> = {
   'licenses.payment_provider': 'the order this license was issued for',
   'licenses.payment_reference': 'the same',
 
+  // Why a public channel was taken out of discovery. One of the same five words
+  // a report uses, and for the same reason: a free field is where somebody
+  // pastes what they are moderating. See migration 027.
+  'channels.suspended_reason': 'one of five fixed words, never free text',
+
+  // Operators. Staff credentials, not anybody's content — a separate table from
+  // `accounts` on purpose, so that a person's own Privio account and their
+  // operator login are different credentials with different lifetimes. The two
+  // secrets here get the same treatment they get for an account: a digest, and
+  // a TOTP secret sealed under a key held outside the database.
+  'admin_users.username': 'the operator s login name, shown in the audit log',
+  'admin_users.display_name': 'shown in the panel instead of the username',
+  'admin_users.password_hash': 'Argon2id digest',
+  'admin_users.totp_secret': 'sealed under TOTP_SECRET_KEY before it gets here',
+  'admin_users.role': 'owner, admin, support or viewer — enforced by the server',
+  'admin_sessions.user_agent': 'shown beside the session, as for an account session',
+
+  // The audit log. Every column is about an operator action and none of it may
+  // come from user content — `services/admin_audit.ts` is the single writer and
+  // the one place that rule is enforced, which is why it drops anything in
+  // `detail` that is not a short scalar rather than stringifying it.
+  'admin_audit_log.actor_username': 'who acted, as their name was at the time',
+  'admin_audit_log.action': 'a dotted action name from a fixed union',
+  'admin_audit_log.target_type': 'account, channel, license, operator or order',
+  'admin_audit_log.target_id': 'an id the server already holds',
+  'admin_audit_log.detail': 'scalars only: ids, enum values and counts, capped and never nested',
 };
 
 describe('what the server can read', () => {

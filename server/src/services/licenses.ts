@@ -136,6 +136,24 @@ export async function revokeByPayment(
 }
 
 /**
+ * Revokes one license by its id.
+ *
+ * The panel's version of the same action. It works by id rather than by order
+ * reference because an operator is looking at a row on a screen, and because a
+ * license issued outside the payment flow — a replacement, a licence granted by
+ * hand — has no order to name. Same one-statement shape: a row already revoked
+ * fails the `status = 'active'` predicate and reports false rather than
+ * pretending to have acted.
+ */
+export async function revokeById(licenseId: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE licenses SET status = 'revoked' WHERE id = $1 AND status = 'active'`,
+    [licenseId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
  * Redeems a key for an account.
  *
  * The whole decision is one UPDATE: the row is only claimed if it is still

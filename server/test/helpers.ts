@@ -9,6 +9,7 @@ import { InProcessBus, type DeliveryBus } from '../src/services/bus.js';
 import { LoggingPushSender, type PushSender } from '../src/services/push.js';
 import { LocalFileStorage } from '../src/services/storage.js';
 import { deviceRegistrationSchema } from '../src/services/devices.js';
+import { type AdminRole, createAdminUser } from '../src/services/admin_auth.js';
 
 export interface TestHarness {
   app: FastifyInstance;
@@ -52,8 +53,39 @@ export async function createHarness(
 
 export async function truncateAll(): Promise<void> {
   await pool.query(
-    'TRUNCATE accounts, devices, sessions, contacts, blocks, groups, group_members, envelopes, media_objects, backups, licenses RESTART IDENTITY CASCADE',
+    'TRUNCATE accounts, devices, sessions, contacts, blocks, groups, group_members, envelopes, media_objects, backups, licenses, admin_users RESTART IDENTITY CASCADE',
   );
+  // Not cascaded from `admin_users`: an audit row deliberately survives the
+  // operator it names (`ON DELETE SET NULL`), which is right in production and
+  // means the log would otherwise carry over between tests.
+  await pool.query('TRUNCATE admin_audit_log RESTART IDENTITY');
+}
+
+/** An operator and a live panel session, for the admin API tests. */
+export async function registerAdmin(
+  app: FastifyInstance,
+  username: string,
+  role: AdminRole = 'owner',
+  password = 'operator-password-long-enough',
+): Promise<{ id: string; username: string; role: AdminRole; token: string; password: string }> {
+  const created = await createAdminUser({ username, password, role });
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/admin/sessions',
+    payload: { username, password },
+  });
+  if (response.statusCode !== 201) throw new Error(`admin login failed: ${response.body}`);
+  return {
+    id: created.id,
+    username: created.username,
+    role,
+    token: (response.json() as { token: string }).token,
+    password,
+  };
+}
+
+export function adminBearer(admin: { token: string }) {
+  return { authorization: `Bearer ${admin.token}` };
 }
 
 export async function closePool(): Promise<void> {

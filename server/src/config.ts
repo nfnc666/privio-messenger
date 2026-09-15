@@ -13,6 +13,16 @@ const schema = z.object({
   MEDIA_TTL_DAYS: z.coerce.number().int().positive().default(30),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(365),
   /**
+   * How long an operator stays signed in to the admin panel.
+   *
+   * Hours, against a year for an account session, and the difference is
+   * deliberate. A phone in a pocket staying signed in is the feature; a browser
+   * tab on a shared workstation staying signed in is the incident — and an
+   * operator session is the one credential that sees across accounts. Twelve
+   * hours covers a shift and ends before the next one.
+   */
+  ADMIN_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(12 * 60),
+  /**
    * How often an open WebSocket re-reads its session.
    *
    * The revocation broadcast is what closes a socket promptly; this is the
