@@ -896,6 +896,39 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
       _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
 
+  // --- Phone number and contact discovery -----------------------------------
+
+  /// This account's own number: whether one is attached, its hint, and the two
+  /// consent switches. Never the number — the server does not hold it.
+  Future<Map<String, dynamic>> phoneLink() => _send('GET', '/v1/phone');
+
+  /// Asks for a verification code.
+  ///
+  /// The plaintext number goes up here and only here, because a text has to be
+  /// addressed to something. Everything after this travels as a hash.
+  Future<Map<String, dynamic>> requestPhoneCode(String phone) =>
+      _send('POST', '/v1/phone/verifications', body: {'phone': phone});
+
+  /// Confirms the code, which is what links the number.
+  Future<Map<String, dynamic>> confirmPhoneCode(String code) =>
+      _send('POST', '/v1/phone', body: {'code': code});
+
+  Future<Map<String, dynamic>> setPhoneDiscoverable(bool discoverable) =>
+      _send('PUT', '/v1/phone/discoverable', body: {'discoverable': discoverable});
+
+  Future<Map<String, dynamic>> setContactSync(bool enabled) =>
+      _send('PUT', '/v1/phone/contact-sync', body: {'enabled': enabled});
+
+  Future<void> removePhone() async => _send('DELETE', '/v1/phone');
+
+  /// Matches blinded numbers against accounts that chose to be findable.
+  ///
+  /// Blinded, never plaintext: the route refuses anything that is not a
+  /// 32-byte hash, so an address book cannot leave this device in the clear
+  /// even by mistake. See `core/phone_number.dart` for what that is worth.
+  Future<Map<String, dynamic>> discoverContacts(List<String> blinded) =>
+      _send('POST', '/v1/contacts/discover', body: {'blinded': blinded});
+
   // --- Sticker and emoji packs ----------------------------------------------
 
   /// Every pack this account owns or has installed, with its items.

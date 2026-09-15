@@ -427,13 +427,14 @@ describe('phone numbers and contact discovery', () => {
     });
 
     it('the client and the server blind a number identically', () => {
-      // The two implementations have to agree exactly or nothing ever matches.
-      // This pins the server's half; `phone_test.dart` pins the app's against
-      // the same vector.
-      assert.equal(
-        phone.blindPhone('+4915123456789').toString('base64'),
-        blind('+4915123456789'),
-      );
+      // The two implementations have to agree exactly or nothing ever matches,
+      // and the failure looks like "discovery finds nobody" rather than like a
+      // hashing bug. So both are pinned to the same literal: this one, and
+      // `app/test/phone_test.dart`. Changing one side without the other turns
+      // one of the two red.
+      const vector = 'S8FSbBRRbtPyuNx83jrw3rU0g5BqVqrtctNJhuZuHVw=';
+      assert.equal(phone.blindPhone('+4915123456789').toString('base64'), vector);
+      assert.equal(blind('+4915123456789'), vector);
     });
   });
 });

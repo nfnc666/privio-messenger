@@ -1103,5 +1103,18 @@
   "stickerFromPack": "Sticker de «{title}»",
   "stickerPackGone": "Este paquete no está disponible para ti.",
   "chatSticker": "Sticker",
-  "pickerOpenTooltip": "Stickers y emojis"
+  "pickerOpenTooltip": "Stickers y emojis",
+  "failurePhoneInvalid": "Ese no es un número de teléfono que PRIVIO pueda usar. Incluye el prefijo del país, por ejemplo +34.",
+  "failurePhoneSmsUnavailable": "Este servidor todavía no puede enviar SMS, así que aquí no se puede verificar un número. Puedes seguir usando PRIVIO sin él.",
+  "failurePhoneDiscoveryUnavailable": "En este servidor la búsqueda de contactos está desactivada.",
+  "failurePhoneWrongCode": "Ese código no es correcto.",
+  "failurePhoneCodeExpired": "Ese código ha caducado. Pide uno nuevo.",
+  "failurePhoneTooManyAttempts": "Demasiados códigos incorrectos. Pide uno nuevo.",
+  "failurePhoneTooManySends": "PRIVIO ha enviado ese código todas las veces que lo hace. Inténtalo más tarde.",
+  "failurePhoneResendTooSoon": "Espera un momento antes de pedir otro código.",
+  "failurePhoneNoVerification": "Pide primero un código.",
+  "failurePhoneUnchanged": "Ese número ya está verificado en esta cuenta.",
+  "failurePhoneNotLinked": "En esta cuenta no hay ningún número verificado.",
+  "failurePhoneLookupBudgetSpent": "PRIVIO ha comparado hoy todos los números que compara para esta cuenta. Inténtalo mañana.",
+  "failureContactsPermissionDenied": "PRIVIO no tiene acceso a tus contactos. Puedes seguir añadiendo personas con su PRIVIO ID o un enlace de invitación."
 }

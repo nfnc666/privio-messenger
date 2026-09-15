@@ -3916,4 +3916,54 @@ class AppTextEn extends AppText {
 
   @override
   String get pickerOpenTooltip => 'Stickers and emoji';
+
+  @override
+  String get failurePhoneInvalid =>
+      'That is not a phone number Privio can use. Include the country code, like +49.';
+
+  @override
+  String get failurePhoneSmsUnavailable =>
+      'This server cannot send text messages yet, so a number cannot be verified here. You can keep using Privio without one.';
+
+  @override
+  String get failurePhoneDiscoveryUnavailable =>
+      'This server has contact discovery switched off.';
+
+  @override
+  String get failurePhoneWrongCode => 'That code is not right.';
+
+  @override
+  String get failurePhoneCodeExpired =>
+      'That code has expired. Ask for a new one.';
+
+  @override
+  String get failurePhoneTooManyAttempts =>
+      'Too many wrong codes. Ask for a new one.';
+
+  @override
+  String get failurePhoneTooManySends =>
+      'Privio has sent that code as many times as it will. Try again later.';
+
+  @override
+  String get failurePhoneResendTooSoon =>
+      'Wait a moment before asking for another code.';
+
+  @override
+  String get failurePhoneNoVerification => 'Ask for a code first.';
+
+  @override
+  String get failurePhoneUnchanged =>
+      'That number is already verified on this account.';
+
+  @override
+  String get failurePhoneNotLinked =>
+      'There is no verified number on this account.';
+
+  @override
+  String get failurePhoneLookupBudgetSpent =>
+      'Privio has matched as many numbers for this account today as it will. Try again tomorrow.';
+
+  @override
+  String get failureContactsPermissionDenied =>
+      'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.';
 }

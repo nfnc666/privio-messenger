@@ -3963,4 +3963,54 @@ class AppTextIt extends AppText {
 
   @override
   String get pickerOpenTooltip => 'Sticker ed emoji';
+
+  @override
+  String get failurePhoneInvalid =>
+      'Questo non è un numero di telefono che PRIVIO può usare. Indica il prefisso del paese, ad esempio +39.';
+
+  @override
+  String get failurePhoneSmsUnavailable =>
+      'Questo server non può ancora inviare SMS, quindi qui non è possibile verificare un numero. Puoi continuare a usare PRIVIO senza.';
+
+  @override
+  String get failurePhoneDiscoveryUnavailable =>
+      'Su questo server la ricerca dei contatti è disattivata.';
+
+  @override
+  String get failurePhoneWrongCode => 'Questo codice non è corretto.';
+
+  @override
+  String get failurePhoneCodeExpired =>
+      'Questo codice è scaduto. Richiedine uno nuovo.';
+
+  @override
+  String get failurePhoneTooManyAttempts =>
+      'Troppi codici sbagliati. Richiedine uno nuovo.';
+
+  @override
+  String get failurePhoneTooManySends =>
+      'PRIVIO ha inviato questo codice tutte le volte che lo fa. Riprova più tardi.';
+
+  @override
+  String get failurePhoneResendTooSoon =>
+      'Aspetta un momento prima di richiedere un altro codice.';
+
+  @override
+  String get failurePhoneNoVerification => 'Richiedi prima un codice.';
+
+  @override
+  String get failurePhoneUnchanged =>
+      'Questo numero è già verificato su questo account.';
+
+  @override
+  String get failurePhoneNotLinked =>
+      'Su questo account non c’è nessun numero verificato.';
+
+  @override
+  String get failurePhoneLookupBudgetSpent =>
+      'Oggi PRIVIO ha confrontato per questo account tutti i numeri che confronta. Riprova domani.';
+
+  @override
+  String get failureContactsPermissionDenied =>
+      'PRIVIO non ha accesso ai tuoi contatti. Puoi comunque aggiungere persone con il loro PRIVIO ID o un link di invito.';
 }

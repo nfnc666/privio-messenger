@@ -3957,4 +3957,54 @@ class AppTextDe extends AppText {
 
   @override
   String get pickerOpenTooltip => 'Sticker und Emoji';
+
+  @override
+  String get failurePhoneInvalid =>
+      'Das ist keine Telefonnummer, die PRIVIO verwenden kann. Gib die Ländervorwahl an, zum Beispiel +49.';
+
+  @override
+  String get failurePhoneSmsUnavailable =>
+      'Dieser Server kann noch keine SMS senden, eine Nummer lässt sich hier also nicht bestätigen. Du kannst PRIVIO weiterhin ohne Nummer nutzen.';
+
+  @override
+  String get failurePhoneDiscoveryUnavailable =>
+      'Auf diesem Server ist die Kontaktfindung ausgeschaltet.';
+
+  @override
+  String get failurePhoneWrongCode => 'Dieser Code stimmt nicht.';
+
+  @override
+  String get failurePhoneCodeExpired =>
+      'Dieser Code ist abgelaufen. Fordere einen neuen an.';
+
+  @override
+  String get failurePhoneTooManyAttempts =>
+      'Zu viele falsche Codes. Fordere einen neuen an.';
+
+  @override
+  String get failurePhoneTooManySends =>
+      'PRIVIO hat diesen Code so oft gesendet, wie es das tut. Versuch es später noch einmal.';
+
+  @override
+  String get failurePhoneResendTooSoon =>
+      'Warte einen Moment, bevor du einen neuen Code anforderst.';
+
+  @override
+  String get failurePhoneNoVerification => 'Fordere zuerst einen Code an.';
+
+  @override
+  String get failurePhoneUnchanged =>
+      'Diese Nummer ist für dieses Konto bereits bestätigt.';
+
+  @override
+  String get failurePhoneNotLinked =>
+      'Für dieses Konto ist keine Nummer bestätigt.';
+
+  @override
+  String get failurePhoneLookupBudgetSpent =>
+      'PRIVIO hat heute für dieses Konto so viele Nummern abgeglichen, wie es das tut. Versuch es morgen wieder.';
+
+  @override
+  String get failureContactsPermissionDenied =>
+      'PRIVIO hat keinen Zugriff auf deine Kontakte. Du kannst Leute weiterhin über ihre PRIVIO-ID oder einen Einladungslink hinzufügen.';
 }

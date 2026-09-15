@@ -3955,4 +3955,53 @@ class AppTextFr extends AppText {
 
   @override
   String get pickerOpenTooltip => 'Autocollants et émojis';
+
+  @override
+  String get failurePhoneInvalid =>
+      'Ce n’est pas un numéro de téléphone que PRIVIO peut utiliser. Indiquez l’indicatif du pays, par exemple +33.';
+
+  @override
+  String get failurePhoneSmsUnavailable =>
+      'Ce serveur ne peut pas encore envoyer de SMS, un numéro ne peut donc pas être vérifié ici. Vous pouvez continuer à utiliser PRIVIO sans numéro.';
+
+  @override
+  String get failurePhoneDiscoveryUnavailable =>
+      'Sur ce serveur, la recherche de contacts est désactivée.';
+
+  @override
+  String get failurePhoneWrongCode => 'Ce code n’est pas le bon.';
+
+  @override
+  String get failurePhoneCodeExpired =>
+      'Ce code a expiré. Demandez-en un nouveau.';
+
+  @override
+  String get failurePhoneTooManyAttempts =>
+      'Trop de codes erronés. Demandez-en un nouveau.';
+
+  @override
+  String get failurePhoneTooManySends =>
+      'PRIVIO a envoyé ce code autant de fois qu’il le fait. Réessayez plus tard.';
+
+  @override
+  String get failurePhoneResendTooSoon =>
+      'Patientez un instant avant de demander un autre code.';
+
+  @override
+  String get failurePhoneNoVerification => 'Demandez d’abord un code.';
+
+  @override
+  String get failurePhoneUnchanged =>
+      'Ce numéro est déjà vérifié sur ce compte.';
+
+  @override
+  String get failurePhoneNotLinked => 'Aucun numéro vérifié sur ce compte.';
+
+  @override
+  String get failurePhoneLookupBudgetSpent =>
+      'PRIVIO a comparé aujourd’hui autant de numéros qu’il le fait pour ce compte. Réessayez demain.';
+
+  @override
+  String get failureContactsPermissionDenied =>
+      'PRIVIO n’a pas accès à vos contacts. Vous pouvez toujours ajouter des personnes via leur identifiant PRIVIO ou un lien d’invitation.';
 }
