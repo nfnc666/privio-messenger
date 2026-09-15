@@ -218,6 +218,14 @@ const stickerRoutes: FastifyPluginAsync = async (app) => {
        RETURNING *`,
       [params.id, body.mediaId, body.emoji],
     );
+    // Adopted, so it stops being an upload on the attachment clock — the same
+    // promotion an avatar gets when an account starts pointing at it. A pack
+    // whose images were swept away after the retention window would be a pack
+    // of empty squares. Removing the item sets it back to now(), below.
+    await pool.query(
+      `UPDATE media_objects SET expires_at = now() + interval '100 years' WHERE id = $1`,
+      [body.mediaId],
+    );
     await pool.query('UPDATE sticker_packs SET updated_at = now() WHERE id = $1', [params.id]);
     reply.code(201);
     return { id: rows[0]!.id, mediaId: rows[0]!.media_id, emoji: rows[0]!.emoji, position: rows[0]!.position };

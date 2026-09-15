@@ -94,6 +94,22 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     const existing = await accounts.findByUsername(body.username);
     if (existing) throw ApiError.conflict('username_taken', 'That username is already in use');
 
+    // Reserved names are refused before the insert, and the answer is the same
+    // "taken" every other collision gets. Saying "that one is reserved" would
+    // confirm the list to anybody probing it; more to the point, the person
+    // trying to sign up needs a different name either way.
+    //
+    // The table holds names that are not accounts yet, which is the whole
+    // reason it exists: @botcreator is a real account and would collide on its
+    // own, but @support and the rest have to be held empty.
+    const { rowCount: reserved } = await pool.query(
+      'SELECT 1 FROM reserved_usernames WHERE username = $1',
+      [body.username],
+    );
+    if (reserved === 1) {
+      throw ApiError.conflict('username_taken', 'That username is already in use');
+    }
+
     const passwordHash = await hashSecret(body.password);
     const result = await withTransaction(async (client) => {
       const { rows } = await client

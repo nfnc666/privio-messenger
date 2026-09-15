@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
+import { pool } from '../src/db/pool.js';
 import { checkSticker, readImageHeader, STICKER_LIMITS } from '../src/services/image_header.js';
 import { bearer, closePool, createHarness, registerUser, type TestHarness, type TestUser } from './helpers.js';
 
@@ -122,6 +123,16 @@ describe('sticker packs', () => {
     });
     assert.equal(response.statusCode, 201, response.body);
     return response.json() as { id: string; mediaId: string; position: number };
+  };
+
+  /** How many days from now a media object is set to live. */
+  const lifetimeOf = async (mediaId: string) => {
+    const { rows } = await pool.query<{ days: string }>(
+      "SELECT extract(epoch FROM expires_at - now()) / 86400 AS days FROM media_objects WHERE id = $1",
+      [mediaId],
+    );
+    assert.equal(rows.length, 1, 'no such media object');
+    return Number(rows[0]!.days);
   };
 
   it('refuses an upload whose bytes are not an image', async () => {
@@ -408,6 +419,41 @@ describe('sticker packs', () => {
         headers: bearer(bob),
       });
       assert.equal(asInstaller.statusCode, 200);
+    });
+    it('outlive the attachment window only once a pack points at them', async () => {
+      // Where a sticker's long life is granted, and the reason it is granted
+      // there: an upload is on the ordinary attachment clock until something
+      // adopts it, exactly like an avatar. Doing it at upload instead would
+      // keep an image nobody ever put in a pack for a hundred years.
+      const mediaId = await upload(alice);
+      const ttlDays = Number(process.env.MEDIA_TTL_DAYS ?? 30);
+      const asUploaded = await lifetimeOf(mediaId);
+      assert.ok(
+        asUploaded < ttlDays + 1,
+        `a bare upload keeps the ordinary window, got ${asUploaded} days`,
+      );
+
+      const pack = await createPack(alice, 'Kept');
+      const added = await h.app.inject({
+        method: 'POST',
+        url: `/v1/sticker-packs/${pack.id}/items`,
+        headers: bearer(alice),
+        payload: { mediaId, emoji: '🐈' },
+      });
+      assert.equal(added.statusCode, 201, added.body);
+      assert.ok(
+        (await lifetimeOf(mediaId)) > 365,
+        'adopting it is what extends it',
+      );
+
+      // And letting go of it puts it back, so a removed sticker is swept.
+      const removed = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/sticker-packs/${pack.id}/items/${added.json().id}`,
+        headers: bearer(alice),
+      });
+      assert.equal(removed.statusCode, 200);
+      assert.ok((await lifetimeOf(mediaId)) <= 0, 'removing it lets it expire');
     });
   });
 

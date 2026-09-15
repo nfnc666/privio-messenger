@@ -222,14 +222,15 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
           kind === 'attachment' && expiresInSeconds
             ? Math.min(expiresInSeconds * 1000, defaultTtl)
             : defaultTtl;
-        // A sticker outlives the attachment window, like an avatar: a pack
-        // whose images were swept away is a pack of empty squares. The sweep
-        // also skips referenced objects; this keeps the row's own expiry
-        // honest rather than relying on that alone.
-        const expiresAt =
-          kind === 'sticker' || kind === 'avatar' || kind === 'channel_avatar'
-            ? new Date(Date.now() + 100 * 365 * 86_400_000)
-            : new Date(Date.now() + ttl);
+        // Every kind is uploaded with the ordinary window, including a
+        // sticker. An upload is not yet anybody's picture: it becomes one when
+        // something points at it, and *that* is where its life is extended —
+        // `PUT /v1/accounts/me/avatar`, the channel avatar route and
+        // `POST /v1/sticker-packs/:id/items` all promote the object they
+        // adopt, and set it back to now() when they let it go. Granting the
+        // long life here instead would keep an upload nobody ever attached for
+        // a hundred years.
+        const expiresAt = new Date(Date.now() + ttl);
 
         // Handed back once and never stored. Losing it means losing the blob,
         // which is the point: the server keeps nothing that opens it.

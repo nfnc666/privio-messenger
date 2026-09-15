@@ -39,6 +39,12 @@ decides that, never the client.
 | Route | Notes |
 | --- | --- |
 | `DELETE /v1/accounts/me/avatar` | |
+| `DELETE /v1/bots/:id` | owner only |
+| `DELETE /v1/bots/:id/token` | revokes every live token for the bot |
+| `DELETE /v1/sticker-packs/:id` | owner only; soft, so messages already sent still resolve |
+| `DELETE /v1/sticker-packs/:id/install` | |
+| `DELETE /v1/sticker-packs/:id/items/:itemId` | owner only |
+| `DELETE /v1/sticker-packs/:id/share` | revokes the link; installs already made survive |
 | `DELETE /v1/accounts/me/status` | removes the profile status; removing nothing is not an error |
 | `DELETE /v1/accounts/me` | |
 | `DELETE /v1/backup` | |
@@ -93,9 +99,19 @@ decides that, never the client.
 | `GET /v1/licenses/me` | |
 | `GET /v1/media/:id` | |
 | `GET /v1/messages` | |
+| `GET /v1/bot/me` | **bot token**, not a session |
+| `GET /v1/bot/updates` | **bot token**; long poll, each update delivered once |
+| `GET /v1/bots` | the caller's own bots |
+| `GET /v1/sticker-packs` | owned and installed |
+| `GET /v1/sticker-packs/by-code/:code` | preview before installing |
+| `GET /v1/sticker-packs/:id` | owner, installer, or a live `?code=` |
+| `GET /v1/sticker-uses` | favourites and recents, per account |
 | `GET /v1/users/:username` | |
 | `GET /v1/users/id/:accountId` | |
 | `GET /v1/ws` | |
+| `PATCH /v1/bots/:id` | owner only |
+| `PATCH /v1/sticker-packs/:id` | owner only |
+| `PATCH /v1/sticker-packs/:id/items/:itemId` | owner only |
 | `PATCH /v1/accounts/me` | `privacy.profileStatus` is `everyone`\|`contacts`\|`nobody`, separate from `lastSeen` |
 | `PATCH /v1/channels/:id` | also `{reactionEmojis, commentsEnabled}`; needs `canEditChannel` |
 | `PATCH /v1/channels/:id/posts/:postId` | the author only — an admin may delete, not rewrite |
@@ -109,7 +125,8 @@ decides that, never the client.
 | `POST /v1/accounts/me/totp/enable` | |
 | `POST /v1/accounts/me/wipe` | |
 | `POST /v1/licenses/redeem` | The one client-facing way to become licensed |
-| `POST /v1/media` | `?expiresInSeconds` only shortens the retention, never lengthens it; ignored for avatars |
+| `POST /v1/media` | `?kind=sticker` has its **bytes** checked: PNG/WebP magic, dimensions, size |
+| `POST /v1/media (other kinds)` | `?expiresInSeconds` only shortens the retention, never lengthens it; ignored for avatars |
 | `POST /v1/blocks` | |
 | `POST /v1/channels/:id/join` | |
 | `POST /v1/channels/:id/key-epochs` | |
@@ -142,8 +159,19 @@ decides that, never the client.
 | `POST /v1/messages/group/:groupId` | `{expiresInSeconds}` bounds how long an undelivered envelope is kept |
 | `POST /v1/messages` | same; clamped to 30 days, and it is a retention hint, not the chat's timer |
 | `POST /v1/sessions/revoke-all` | |
+| `POST /v1/bot/send` | **bot token**; refused with `not_contacted` until the person wrote first |
+| `POST /v1/botcreator/say` | one turn with the assistant; never returns a token in the text |
+| `POST /v1/bots` | creates a bot account; reserved usernames refused |
+| `POST /v1/bots/:id/token` | issues a token and **revokes the previous one**; shown once |
+| `POST /v1/sticker-packs` | |
+| `POST /v1/sticker-packs/:id/install` | needs a live share code, or an existing install |
+| `POST /v1/sticker-packs/:id/items` | the upload must be the caller's own, of kind `sticker` |
+| `POST /v1/sticker-packs/:id/share` | issues a **fresh** code each time, killing the previous link |
+| `POST /v1/sticker-uses` | records use, which is what recents are made of |
 | `POST /v1/sessions` | |
 | `PUT /v1/accounts/me/avatar` | |
+| `PUT /v1/sticker-packs/:id/order` | |
+| `PUT /v1/sticker-uses/:itemId/favourite` | only for a sticker the account can reach |
 | `PUT /v1/accounts/me/status` | `{text?, emoji?, expiresAt?}`; empty text and no emoji is a removal; an expiry already past is refused |
 | `PUT /v1/accounts/me/recovery` | |
 | `PUT /v1/backup` | |

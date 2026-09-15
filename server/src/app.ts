@@ -18,6 +18,8 @@ import {
 import licenseRoutes from './routes/licenses.js';
 import { mediaRoutes } from './routes/media.js';
 import stickerRoutes from './routes/stickers.js';
+import botRoutes from './routes/bots.js';
+import { ensureAssistant } from './services/botcreator.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
 import { inviteWebRoutes } from './routes/invite_web.js';
@@ -162,6 +164,10 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(stickerRoutes);
+  await app.register(botRoutes);
+  // The assistant has to exist before anybody can write to it, and it is
+  // ensured rather than assumed — see `ensureAssistant`.
+  await ensureAssistant();
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes(deps.bus));
   await app.register(channelRoutes(deps.bus, channelNotifier));
