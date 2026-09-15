@@ -61,7 +61,13 @@ who-and-when; a global passive adversary correlating timing is out of scope.
 
 **A malicious recipient.** Anyone you message can screenshot, copy or forward
 it. "Restrict content saving" raises the effort; it is not a security control
-and is not presented as one.
+and is not presented as one. **Screen protection** (Settings → Privacy &
+Security) is about *your own* device and nothing else: on Android it asks the
+window manager to refuse screenshots and recordings of Privio, on iOS it covers
+the interface while a recording or a screen share is running — and on iOS
+screenshots cannot be blocked at all. It does not reach the other end of a
+conversation, and Privio never tells anybody that a screenshot was taken. See
+`docs/screen-protection.md`.
 
 **A lost recovery key.** Backups cannot be recovered without it. This is the
 cost of the server not holding a key, and it is the right trade.
@@ -174,6 +180,46 @@ What the server does learn: that an account has an avatar, when it last changed,
 and roughly how large it is. Rotating the profile key after removing a contact
 is not implemented; today a former contact keeps the key they were given, which
 matters when the picture changes rather than when it does not.
+
+### The profile status is plaintext on the server, on purpose
+
+A status is a short line somebody publishes about themselves — "back at five",
+"🎧 heads down" — and it is **not** encrypted. That is a deliberate difference
+from the avatar directly above it, and it is worth saying plainly rather than
+leaving somebody to infer it from the schema.
+
+An avatar is sealed because the server has no business seeing a face, and the
+people entitled to it are exactly the people who already hold the profile key.
+A status has a different audience: its owner chooses who may read it, and that
+audience can include people who have never been written to. There is no key
+those people could have. So what protects a status is the access rule, not the
+cryptography, and `app/lib/widgets/status_sheet.dart` says so on the sheet
+where it is typed rather than burying it here.
+
+What this means concretely:
+
+- The server stores and can read `status_text` and `status_emoji`. Anyone with
+  the database has them.
+- Who else may read one is `privacy.profileStatus`: `everyone` (the default),
+  `contacts`, or `nobody`. It is enforced in `server/src/services/status.ts`,
+  on the read path, for every route that returns a profile.
+- `contacts` means the **owner's** address book, not the viewer's — the same
+  direction `lastSeenFor` uses. Adding somebody must not entitle you to read
+  them.
+- It is **not** the same switch as last-seen, and the two must not be merged.
+  Hiding when you were last online is hiding an observation the server made;
+  withholding a status is withholding something the user wrote. Somebody who
+  goes invisible should not silently lose the line they wrote for their friends.
+- An expiry is honoured **on read**, not by a sweeper. A status whose moment has
+  passed is absent from that instant whether or not any cleanup job runs — the
+  sweep in `runRetentionSweep` only stops the text sitting in the table, and a
+  missed sweep can therefore never resurrect one.
+- A wipe clears it along with everything else. It is the one field on the
+  account row that was published *to other people*, so leaving it would leave a
+  line about somebody still readable by everyone it was shared with.
+
+Somebody who wants a status only the intended reader can decrypt should send a
+message. That is what messages are for, and this is not a lesser version of one.
 
 ### A channel's picture is not encrypted, and that is deliberate
 

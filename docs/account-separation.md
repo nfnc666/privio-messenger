@@ -222,3 +222,30 @@ observed to fail.
 **Not tested on a device.** There is no simulator here. The whole flow is
 exercised by the tests above against real crypto, a real Postgres and the real
 sign-out path, but nobody has watched two accounts on a phone.
+
+## The profile status joins the same rules
+
+Added later than the rest of this document, and built to it from the start
+rather than repaired into it afterwards. `StatusController`
+(`app/lib/core/status_controller.dart`) follows all three shapes above:
+
+- It is **created lazily and dropped on the way out**, in all three teardown
+  paths — sign-out, account deletion and the duress wipe — beside
+  `SecurityController`. A new account therefore gets a new object with nothing
+  in it.
+- It **records the account it loaded for**, and `load` resets to nothing before
+  the read so a slow connection cannot leave the previous account's line on
+  screen while the next account's answer is in flight.
+- Every request **checks, on completion, that the controller is still on the
+  account the request was made for**, and drops the answer otherwise. This is
+  the case cause 3 in this document is about, and it covers more than a
+  `mounted` check does: the object may be perfectly alive and simply be looking
+  at somebody else now. A save Alice started does not write her words onto
+  Bob's screen, does not clear a busy flag Bob never set, and does not show Bob
+  an error about something Alice did.
+
+Tested in `app/test/profile_status_test.dart` (the controller, including both
+late-answer races) and `app/test/status_account_test.dart` (the account screen:
+set, restart, switch accounts, sign back in). The guard was confirmed
+load-bearing by making `_stillOn` return `true` unconditionally and watching two
+tests go red.

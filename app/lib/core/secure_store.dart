@@ -64,6 +64,16 @@ abstract interface class SecureStore {
   Future<bool> readVerifiedCallsOnly(String accountId);
   Future<void> writeVerifiedCallsOnly(String accountId, bool only);
 
+  /// Whether this account has asked the operating system to protect its screen.
+  ///
+  /// Keyed by account for the same reason as the setting above it, and stored
+  /// even on a device that cannot honour it: the value is the account's
+  /// *choice*, not a record of what some particular phone managed to do. Absent
+  /// means off, which is what a new account gets and what the platform does
+  /// when nobody has said otherwise.
+  Future<bool> readScreenShield(String accountId);
+  Future<void> writeScreenShield(String accountId, bool on);
+
   /// Which colour the home-screen icon is wearing.
   ///
   /// **Not keyed by account**, unlike everything else here. A launcher icon
@@ -332,6 +342,8 @@ class KeystoreSecureStore implements SecureStore {
 
   static String _verifiedCallsKey(String accountId) => 'privio.verifiedCallsOnly.$accountId';
 
+  static String _screenShieldKey(String accountId) => 'privio.screenShield.$accountId';
+
   @override
   Future<bool> readVerifiedCallsOnly(String accountId) async =>
       await _read(_verifiedCallsKey(accountId)) == 'true';
@@ -339,6 +351,14 @@ class KeystoreSecureStore implements SecureStore {
   @override
   Future<void> writeVerifiedCallsOnly(String accountId, bool only) =>
       _write(_verifiedCallsKey(accountId), only ? 'true' : 'false');
+
+  @override
+  Future<bool> readScreenShield(String accountId) async =>
+      await _read(_screenShieldKey(accountId)) == 'true';
+
+  @override
+  Future<void> writeScreenShield(String accountId, bool on) =>
+      _write(_screenShieldKey(accountId), on ? 'true' : 'false');
 
   @override
   Future<String?> readLanguage(String accountId) => _read(_languageKey(accountId));
@@ -573,6 +593,14 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> writeVerifiedCallsOnly(String accountId, bool only) async =>
       _entries['verifiedCallsOnly.$accountId'] = only ? 'true' : 'false';
+
+  @override
+  Future<bool> readScreenShield(String accountId) async =>
+      _entries['screenShield.$accountId'] == 'true';
+
+  @override
+  Future<void> writeScreenShield(String accountId, bool on) async =>
+      _entries['screenShield.$accountId'] = on ? 'true' : 'false';
 
   @override
   Future<String?> readDisguise() async => _entries['disguise'];

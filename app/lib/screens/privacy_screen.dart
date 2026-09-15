@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/screen_shield_controller.dart';
 import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/accent.dart';
@@ -86,6 +87,42 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     if (chosen != null) await security.setLastSeen(chosen);
   }
 
+  String _profileStatusLabel(AppText text, String value) => switch (value) {
+        'contacts' => text.privacyProfileStatusContacts,
+        'nobody' => text.privacyProfileStatusNobody,
+        _ => text.privacyProfileStatusEveryone,
+      };
+
+  /// Who may read the line this account published about itself.
+  ///
+  /// Its own chooser beside last-seen rather than folded into it. They read the
+  /// same three values and mean different things: one hides an observation the
+  /// server made, the other withholds something the user wrote.
+  Future<void> _chooseProfileStatus(SecurityController security) async {
+    final text = AppText.of(context);
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final value in SecurityController.profileStatusChoices)
+              ListTile(
+                title: Text(_profileStatusLabel(text, value)),
+                trailing: value == security.profileStatus
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null) await security.setProfileStatusVisibility(chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
@@ -99,7 +136,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
         title: Text(text.settingsPrivacy),
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([conversations, security, calls]),
+        listenable: Listenable.merge([conversations, security, calls, state.screenShield]),
         builder: (context, _) => ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
@@ -113,6 +150,11 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 label: text.privacyLastSeen,
                 value: _lastSeenLabel(text, security.lastSeen),
                 onTap: () => _chooseLastSeen(security),
+              ),
+              SettingsRow(
+                label: text.privacyProfileStatus,
+                value: _profileStatusLabel(text, security.profileStatus),
+                onTap: () => _chooseProfileStatus(security),
               ),
             ],
           ),
@@ -186,6 +228,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                   MaterialPageRoute<void>(builder: (_) => const DuressCodeScreen()),
                 ),
               ),
+              _ScreenShieldRow(controller: state.screenShield),
               SettingsRow(
                 label: text.privacyBlockedUsers,
                 value: security.blocked?.length.toString(),
@@ -223,6 +266,20 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             ),
           ),
           const SizedBox(height: PrivioSpacing.xl),
+          // What the screen protection does *not* reach. Said here rather than
+          // left to be inferred: a switch called "Screen protection" invites
+          // the belief that it stops the person on the other end of the chat
+          // from keeping a copy, and it does not.
+          if (state.screenShield.capability.isSupported)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+              child: Text(
+                text.privacyScreenShieldScope,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          if (state.screenShield.capability.isSupported)
+            const SizedBox(height: PrivioSpacing.xl),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
             child: Text(
@@ -232,6 +289,53 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+/// The Screen protection switch, and the sentence that is true on *this* phone.
+///
+/// Two platforms that do genuinely different things, so two explanations rather
+/// than one that is true on Android and a lie on iOS. The row reads the
+/// capability the device reported — not the build's edition, and not
+/// `defaultTargetPlatform` — because what matters is what the window manager on
+/// the other end of the channel actually answered.
+class _ScreenShieldRow extends StatelessWidget {
+  const _ScreenShieldRow({required this.controller});
+
+  final ScreenShieldController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final capability = controller.capability;
+
+    // Nothing until the platform has answered. A row that said "unavailable"
+    // before the channel replied would be a claim nobody made.
+    final subtitle = !controller.asked
+        ? null
+        : capability.blocksCapture
+            ? text.privacyScreenShieldAndroid
+            : capability.detectsCapture
+                ? text.privacyScreenShieldIos
+                : text.privacyScreenShieldUnavailable;
+
+    return SettingsRow(
+      icon: Icons.screenshot_monitor_outlined,
+      label: text.privacyScreenShield,
+      subtitle: subtitle,
+      // Shown but not usable where the platform cannot do it, rather than
+      // hidden: somebody looking for this setting should find out that their
+      // device cannot, not be left wondering where it went.
+      enabled: capability.isSupported,
+      trailing: Switch(
+        key: const ValueKey('screen-shield'),
+        value: controller.enabled,
+        onChanged: capability.isSupported
+            ? (value) => unawaited(controller.setEnabled(value))
+            : null,
       ),
     );
   }

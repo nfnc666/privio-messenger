@@ -19,6 +19,9 @@ import UIKit
     // `FlutterEngine.h` and `FlutterPlugin.h` in the engine's own headers.
     PushBridge.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
     LauncherIcon.attach(messenger: engineBridge.applicationRegistrar.messenger())
+    // Capture detection. Nothing is observed until an account turns the setting
+    // on — see `ScreenShield.setWatching`.
+    ScreenShield.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - APNs

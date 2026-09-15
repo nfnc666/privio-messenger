@@ -972,6 +972,29 @@ class AppTextEn extends AppText {
   String get privacyDuressCode => 'Duress Code';
 
   @override
+  String get privacyScreenShield => 'Screen protection';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Blocks screenshots and screen recordings of the app.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Hides sensitive content when a screen recording or screen sharing is detected. Screenshots cannot be reliably prevented on iOS.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'This device cannot protect the screen.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'This protects your own device only. It cannot stop anyone else recording their screen, and it cannot stop a photograph taken with another camera.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'A screen recording is running. Privio is hidden until it stops.';
+
+  @override
   String get privacySet => 'Set';
 
   @override
@@ -1218,6 +1241,9 @@ class AppTextEn extends AppText {
   String get chatsFilterAll => 'All';
 
   @override
+  String get chatsJoin => 'Join';
+
+  @override
   String get chatsFilterUnread => 'Unread';
 
   @override
@@ -1236,12 +1262,6 @@ class AppTextEn extends AppText {
   String get chatsGroupFallbackName => 'Group';
 
   @override
-  String get chatsCouldNotOpenLink => 'Could not open that link';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Join a group with a link';
-
-  @override
   String get chatsNewGroupTooltip => 'New group';
 
   @override
@@ -1256,16 +1276,6 @@ class AppTextEn extends AppText {
 
   @override
   String get chatsAddContact => 'Add a contact';
-
-  @override
-  String get chatsJoinGroupTitle => 'Join a group';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'The link gets you in. The key to the group name is sent to your device afterwards, encrypted, by someone already in the group.';
-
-  @override
-  String get chatsJoin => 'Join';
 
   @override
   String get commonGotIt => 'Got it';
@@ -1721,6 +1731,70 @@ class AppTextEn extends AppText {
 
   @override
   String get accountStatusDefault => 'Hey there! I am using Privio.';
+
+  @override
+  String get accountStatusNone => 'Not set';
+
+  @override
+  String get accountStatusTitle => 'Status';
+
+  @override
+  String get accountStatusHint => 'What are you up to?';
+
+  @override
+  String get accountStatusEmoji => 'Emoji';
+
+  @override
+  String get accountStatusEmojiNone => 'None';
+
+  @override
+  String get accountStatusClearsAfter => 'Clears after';
+
+  @override
+  String get accountStatusNeverClears => 'Never';
+
+  @override
+  String get accountStatus30Minutes => '30 minutes';
+
+  @override
+  String get accountStatus1Hour => '1 hour';
+
+  @override
+  String get accountStatus4Hours => '4 hours';
+
+  @override
+  String get accountStatusToday => 'Today';
+
+  @override
+  String get accountStatus1Week => '1 week';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Until $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Your status was not saved. What you typed is still here — try again.';
+
+  @override
+  String get accountStatusSaving => 'Saving…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Anyone allowed to see your status reads this. It is not encrypted the way your messages are, and it is not your online status.';
+
+  @override
+  String get privacyProfileStatus => 'Status';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Everyone';
+
+  @override
+  String get privacyProfileStatusContacts => 'My contacts';
+
+  @override
+  String get privacyProfileStatusNobody => 'Nobody';
 
   @override
   String get accountId => 'Account ID';

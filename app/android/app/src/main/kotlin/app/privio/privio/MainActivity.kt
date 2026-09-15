@@ -20,6 +20,10 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         PushChannels.attach(this, flutterEngine)
+        // The window flag that blocks screenshots and recordings. Attached to
+        // this activity because the flag belongs to its window, which is the
+        // one window Flutter draws the whole app into.
+        ScreenShield.attach(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

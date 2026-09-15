@@ -1,6 +1,7 @@
 import { pool } from '../db/pool.js';
 import { config } from '../config.js';
 import type { BlobStorage } from './storage.js';
+import { DELETE_EXPIRED_STATUSES } from './status.js';
 
 /** Deletes expired attachments and abandoned envelopes. Safe to run concurrently. */
 export async function runRetentionSweep(storage: BlobStorage): Promise<{
@@ -39,6 +40,12 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
   // Retries happen within minutes. Keeping these for a day is generous and
   // stops the table from growing without bound.
   await pool.query("DELETE FROM sent_message_keys WHERE created_at < now() - interval '1 day'");
+
+  // Statuses whose moment has passed. Tidiness only: nobody can read one after
+  // its deadline whether this runs or not, because every read goes through
+  // `services/status.ts`. What this buys is that the text of a status the owner
+  // asked to be temporary does not sit in the table indefinitely.
+  await pool.query(DELETE_EXPIRED_STATUSES);
 
   return { mediaDeleted: rows.length, envelopesDeleted: rowCount ?? 0 };
 }

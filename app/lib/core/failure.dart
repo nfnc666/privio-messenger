@@ -15,6 +15,11 @@ enum FailureKind {
   unreachableTryAgain,
   couldNotSave,
   changeNotSaved,
+
+  /// A profile status the server did not take. Says its own sentence rather
+  /// than borrowing the generic one, because it has something specific and
+  /// reassuring to add: the draft is still in the field.
+  statusNotSaved,
   rateLimited,
   tooManyAttempts,
 

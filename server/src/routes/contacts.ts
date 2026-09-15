@@ -4,18 +4,36 @@ import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import { findByUsername, publicProfile, type AccountRow } from '../services/accounts.js';
 import { lastSeenFor } from '../services/presence.js';
+import { statusFor } from '../services/status.js';
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 
-/** Applies the target's last-seen privacy setting from the viewer's perspective. */
-async function visibleLastSeen(viewerId: string, target: AccountRow): Promise<string | null> {
-  const setting = target.privacy?.lastSeen ?? 'contacts';
-  if (setting !== 'contacts') return lastSeenFor(target, false);
+/** Whether the target has the viewer in *their* address book. */
+async function viewerIsContactOf(viewerId: string, target: AccountRow): Promise<boolean> {
   const { rowCount } = await pool.query(
     'SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2',
     [target.id, viewerId],
   );
-  return lastSeenFor(target, rowCount === 1);
+  return rowCount === 1;
+}
+
+/**
+ * The two things a profile lookup has to decide, decided together.
+ *
+ * Together only because they need the same `contacts` lookup and doing it twice
+ * would be two round trips for one answer — not because they are one setting.
+ * `lastSeenFor` and `statusFor` read different keys and have different
+ * defaults, and a viewer who may see one may well not see the other.
+ */
+async function visibleProfile(viewerId: string, target: AccountRow) {
+  const needsContactCheck =
+    (target.privacy?.lastSeen ?? 'contacts') === 'contacts' ||
+    (target.privacy?.profileStatus ?? 'everyone') === 'contacts';
+  const isContact = needsContactCheck ? await viewerIsContactOf(viewerId, target) : false;
+  return {
+    lastSeenAt: lastSeenFor(target, isContact),
+    status: statusFor(target, isContact),
+  };
 }
 
 const contactRoutes: FastifyPluginAsync = async (app) => {
@@ -32,7 +50,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
     return {
       ...publicProfile(target),
-      lastSeenAt: await visibleLastSeen(accountId, target),
+      ...(await visibleProfile(accountId, target)),
     };
   });
 
@@ -54,7 +72,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
     return {
       ...publicProfile(target),
-      lastSeenAt: await visibleLastSeen(accountId, target),
+      ...(await visibleProfile(accountId, target)),
     };
   });
 
@@ -72,6 +90,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     const { rows } = await pool.query(
       `SELECT a.id, a.username, a.display_name, a.avatar_media_id, a.avatar_updated_at,
               a.privacy, a.last_seen_at, c.created_at,
+              a.status_text, a.status_emoji, a.status_expires_at, a.status_updated_at,
               EXISTS (
                 SELECT 1 FROM contacts back
                 WHERE back.account_id = a.id AND back.contact_account_id = $1
@@ -91,6 +110,16 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
         addedAt: (r.created_at as Date).toISOString(),
         lastSeenAt: lastSeenFor(
           { privacy: r.privacy, last_seen_at: r.last_seen_at as Date },
+          r.mutual as boolean,
+        ),
+        status: statusFor(
+          {
+            privacy: r.privacy,
+            status_text: r.status_text as string | null,
+            status_emoji: r.status_emoji as string | null,
+            status_expires_at: r.status_expires_at as Date | null,
+            status_updated_at: r.status_updated_at as Date | null,
+          },
           r.mutual as boolean,
         ),
       })),

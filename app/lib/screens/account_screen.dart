@@ -5,12 +5,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/status_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
+import '../widgets/status_sheet.dart';
 import 'backup_screen.dart';
 import 'invite_screen.dart';
 import 'settings_screen.dart';
@@ -164,15 +166,35 @@ class _AccountScreenState extends State<AccountScreen> {
                 label: text.accountUsername,
                 value: username,
               ),
-              SettingsRow(
-                icon: Icons.mood_rounded,
-                label: text.accountStatus,
-                value: text.accountStatusDefault,
+              // The row used to show `accountStatusDefault` — one hardcoded
+              // English sentence, the same for every user, stored nowhere and
+              // settable by nobody. It is a real value now, and it opens the
+              // sheet that sets it.
+              ListenableBuilder(
+                listenable: PrivioScope.of(context).profileStatus,
+                builder: (context, _) {
+                  final controller = PrivioScope.of(context).profileStatus;
+                  return SettingsRow(
+                    icon: Icons.mood_rounded,
+                    label: text.accountStatus,
+                    // Nothing at all until the server has answered. A row that
+                    // said "Not set" before the read came back would say it to
+                    // somebody who has one.
+                    value: controller.loaded ? _statusValue(text, controller.status) : null,
+                    subtitle: _statusExpiry(context, controller.status),
+                    onTap: () => showStatusSheet(context, controller),
+                  );
+                },
               ),
               SettingsRow(
                 icon: Icons.fingerprint_rounded,
                 label: text.accountId,
-                value: accountId == null ? '—' : '${accountId.substring(0, 8)}…',
+                // `substring(0, 8)` on anything shorter than eight characters
+                // throws, and it took the whole screen down with it. Real ids
+                // are 36-character UUIDs so it never fired in a release — but a
+                // screen that crashes on a short id is a screen that crashes on
+                // whatever the server sends next.
+                value: accountId == null ? '—' : _shortId(accountId),
               ),
             ],
           ),
@@ -294,4 +316,28 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
     );
   }
+}
+
+/// The first few characters of an account id, for a row that only has to be
+/// recognisable rather than complete.
+String _shortId(String accountId) =>
+    accountId.length <= 8 ? accountId : '${accountId.substring(0, 8)}…';
+
+/// The row's value: the emoji and the line, or the words for having neither.
+String _statusValue(AppText text, ProfileStatus status) {
+  if (!status.isSet) return text.accountStatusNone;
+  final line = status.text;
+  final emoji = status.emoji;
+  if (emoji == null) return line ?? text.accountStatusNone;
+  return line == null || line.isEmpty ? emoji : '$emoji  $line';
+}
+
+/// When it clears, or null when it does not.
+///
+/// Read against the clock each build, so a sheet closed at 16:59 with "1 hour"
+/// on it stops showing the line at 17:59 without anything having to be told.
+String? _statusExpiry(BuildContext context, ProfileStatus status) {
+  final at = status.expiresAt;
+  if (!status.isSet || at == null) return null;
+  return AppText.of(context).accountStatusUntil(TimeOfDay.fromDateTime(at).format(context));
 }

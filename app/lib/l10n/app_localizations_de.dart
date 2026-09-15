@@ -980,6 +980,29 @@ class AppTextDe extends AppText {
   String get privacyDuressCode => 'Notfallcode';
 
   @override
+  String get privacyScreenShield => 'Bildschirmschutz';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Blockiert Screenshots und Bildschirmaufnahmen der App.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Verbirgt sensible Inhalte bei erkennbarer Bildschirmaufnahme oder Bildschirmübertragung. Screenshots können auf iOS nicht zuverlässig verhindert werden.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Dieses Gerät kann den Bildschirm nicht schützen.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Das schützt nur dein eigenes Gerät. Es verhindert keine Aufnahmen auf den Geräten anderer Teilnehmer und kein Foto mit einer externen Kamera.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'Eine Bildschirmaufnahme läuft. Privio ist verborgen, bis sie endet.';
+
+  @override
   String get privacySet => 'Gesetzt';
 
   @override
@@ -1227,6 +1250,9 @@ class AppTextDe extends AppText {
   String get chatsFilterAll => 'Alle';
 
   @override
+  String get chatsJoin => 'Beitreten';
+
+  @override
   String get chatsFilterUnread => 'Ungelesen';
 
   @override
@@ -1245,12 +1271,6 @@ class AppTextDe extends AppText {
   String get chatsGroupFallbackName => 'Gruppe';
 
   @override
-  String get chatsCouldNotOpenLink => 'Dieser Link ließ sich nicht öffnen';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Mit einem Link einer Gruppe beitreten';
-
-  @override
   String get chatsNewGroupTooltip => 'Neue Gruppe';
 
   @override
@@ -1265,16 +1285,6 @@ class AppTextDe extends AppText {
 
   @override
   String get chatsAddContact => 'Kontakt hinzufügen';
-
-  @override
-  String get chatsJoinGroupTitle => 'Gruppe beitreten';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'Der Link bringt dich hinein. Den Schlüssel zum Gruppennamen schickt dir danach jemand aus der Gruppe verschlüsselt auf dein Gerät.';
-
-  @override
-  String get chatsJoin => 'Beitreten';
 
   @override
   String get commonGotIt => 'Verstanden';
@@ -1734,6 +1744,70 @@ class AppTextDe extends AppText {
 
   @override
   String get accountStatusDefault => 'Hallo! Ich benutze Privio.';
+
+  @override
+  String get accountStatusNone => 'Nicht gesetzt';
+
+  @override
+  String get accountStatusTitle => 'Status';
+
+  @override
+  String get accountStatusHint => 'Was machst du gerade?';
+
+  @override
+  String get accountStatusEmoji => 'Emoji';
+
+  @override
+  String get accountStatusEmojiNone => 'Keins';
+
+  @override
+  String get accountStatusClearsAfter => 'Verschwindet nach';
+
+  @override
+  String get accountStatusNeverClears => 'Nie';
+
+  @override
+  String get accountStatus30Minutes => '30 Minuten';
+
+  @override
+  String get accountStatus1Hour => '1 Stunde';
+
+  @override
+  String get accountStatus4Hours => '4 Stunden';
+
+  @override
+  String get accountStatusToday => 'Heute';
+
+  @override
+  String get accountStatus1Week => '1 Woche';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Bis $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Dein Status wurde nicht gespeichert. Was du geschrieben hast, steht noch da — versuche es erneut.';
+
+  @override
+  String get accountStatusSaving => 'Wird gespeichert…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Wer deinen Status sehen darf, liest das hier. Er ist nicht so verschlüsselt wie deine Nachrichten, und er ist nicht deine Online-Anzeige.';
+
+  @override
+  String get privacyProfileStatus => 'Status';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Alle';
+
+  @override
+  String get privacyProfileStatusContacts => 'Meine Kontakte';
+
+  @override
+  String get privacyProfileStatusNobody => 'Niemand';
 
   @override
   String get accountId => 'Konto-ID';

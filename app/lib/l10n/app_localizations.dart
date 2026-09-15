@@ -1700,6 +1700,42 @@ abstract class AppText {
   /// **'Duress Code'**
   String get privacyDuressCode;
 
+  /// No description provided for @privacyScreenShield.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen protection'**
+  String get privacyScreenShield;
+
+  /// No description provided for @privacyScreenShieldAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks screenshots and screen recordings of the app.'**
+  String get privacyScreenShieldAndroid;
+
+  /// No description provided for @privacyScreenShieldIos.
+  ///
+  /// In en, this message translates to:
+  /// **'Hides sensitive content when a screen recording or screen sharing is detected. Screenshots cannot be reliably prevented on iOS.'**
+  String get privacyScreenShieldIos;
+
+  /// No description provided for @privacyScreenShieldUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This device cannot protect the screen.'**
+  String get privacyScreenShieldUnavailable;
+
+  /// No description provided for @privacyScreenShieldScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This protects your own device only. It cannot stop anyone else recording their screen, and it cannot stop a photograph taken with another camera.'**
+  String get privacyScreenShieldScope;
+
+  /// No description provided for @privacyScreenShieldCovering.
+  ///
+  /// In en, this message translates to:
+  /// **'A screen recording is running. Privio is hidden until it stops.'**
+  String get privacyScreenShieldCovering;
+
   /// No description provided for @privacySet.
   ///
   /// In en, this message translates to:
@@ -2096,6 +2132,12 @@ abstract class AppText {
   /// **'All'**
   String get chatsFilterAll;
 
+  /// No description provided for @chatsJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Join'**
+  String get chatsJoin;
+
   /// No description provided for @chatsFilterUnread.
   ///
   /// In en, this message translates to:
@@ -2132,18 +2174,6 @@ abstract class AppText {
   /// **'Group'**
   String get chatsGroupFallbackName;
 
-  /// No description provided for @chatsCouldNotOpenLink.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not open that link'**
-  String get chatsCouldNotOpenLink;
-
-  /// No description provided for @chatsJoinGroupTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Join a group with a link'**
-  String get chatsJoinGroupTooltip;
-
   /// No description provided for @chatsNewGroupTooltip.
   ///
   /// In en, this message translates to:
@@ -2173,24 +2203,6 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Add a contact'**
   String get chatsAddContact;
-
-  /// No description provided for @chatsJoinGroupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Join a group'**
-  String get chatsJoinGroupTitle;
-
-  /// No description provided for @chatsJoinGroupNote.
-  ///
-  /// In en, this message translates to:
-  /// **'The link gets you in. The key to the group name is sent to your device afterwards, encrypted, by someone already in the group.'**
-  String get chatsJoinGroupNote;
-
-  /// No description provided for @chatsJoin.
-  ///
-  /// In en, this message translates to:
-  /// **'Join'**
-  String get chatsJoin;
 
   /// No description provided for @commonGotIt.
   ///
@@ -2965,6 +2977,126 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Hey there! I am using Privio.'**
   String get accountStatusDefault;
+
+  /// No description provided for @accountStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get accountStatusNone;
+
+  /// No description provided for @accountStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get accountStatusTitle;
+
+  /// No description provided for @accountStatusHint.
+  ///
+  /// In en, this message translates to:
+  /// **'What are you up to?'**
+  String get accountStatusHint;
+
+  /// No description provided for @accountStatusEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get accountStatusEmoji;
+
+  /// No description provided for @accountStatusEmojiNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get accountStatusEmojiNone;
+
+  /// No description provided for @accountStatusClearsAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'Clears after'**
+  String get accountStatusClearsAfter;
+
+  /// No description provided for @accountStatusNeverClears.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get accountStatusNeverClears;
+
+  /// No description provided for @accountStatus30Minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'30 minutes'**
+  String get accountStatus30Minutes;
+
+  /// No description provided for @accountStatus1Hour.
+  ///
+  /// In en, this message translates to:
+  /// **'1 hour'**
+  String get accountStatus1Hour;
+
+  /// No description provided for @accountStatus4Hours.
+  ///
+  /// In en, this message translates to:
+  /// **'4 hours'**
+  String get accountStatus4Hours;
+
+  /// No description provided for @accountStatusToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get accountStatusToday;
+
+  /// No description provided for @accountStatus1Week.
+  ///
+  /// In en, this message translates to:
+  /// **'1 week'**
+  String get accountStatus1Week;
+
+  /// The moment a status clears, on the account row.
+  ///
+  /// In en, this message translates to:
+  /// **'Until {time}'**
+  String accountStatusUntil(String time);
+
+  /// No description provided for @accountStatusCouldNotSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Your status was not saved. What you typed is still here — try again.'**
+  String get accountStatusCouldNotSave;
+
+  /// No description provided for @accountStatusSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get accountStatusSaving;
+
+  /// No description provided for @accountStatusExplainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone allowed to see your status reads this. It is not encrypted the way your messages are, and it is not your online status.'**
+  String get accountStatusExplainer;
+
+  /// No description provided for @privacyProfileStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get privacyProfileStatus;
+
+  /// No description provided for @privacyProfileStatusEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get privacyProfileStatusEveryone;
+
+  /// No description provided for @privacyProfileStatusContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'My contacts'**
+  String get privacyProfileStatusContacts;
+
+  /// No description provided for @privacyProfileStatusNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody'**
+  String get privacyProfileStatusNobody;
 
   /// No description provided for @accountId.
   ///

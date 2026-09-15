@@ -70,6 +70,7 @@ class SecurityController extends ChangeNotifier {
   bool? _twoFactorEnabled;
   bool _duressCodeSet = false;
   String _lastSeen = 'everyone';
+  String _profileStatus = 'everyone';
   List<BlockedUser>? _blocked;
   bool _busy = false;
   Failure? _failure;
@@ -82,6 +83,12 @@ class SecurityController extends ChangeNotifier {
 
   /// One of `everyone`, `contacts`, `nobody`, matching what the server stores.
   String get lastSeen => _lastSeen;
+
+  /// Who may read the profile status. Deliberately a second setting rather than
+  /// a use of [lastSeen]: hiding when you were online and withholding the line
+  /// you wrote for your friends are different decisions, and one switch for
+  /// both would silently make the second one for you.
+  String get profileStatus => _profileStatus;
 
   /// The whole privacy object from the last read, so a screen that needs the
   /// messaging switches as well does not have to ask for the account twice.
@@ -116,6 +123,10 @@ class SecurityController extends ChangeNotifier {
 
   static const List<String> lastSeenChoices = ['everyone', 'contacts', 'nobody'];
 
+  /// The same three values, named separately so a change to one list cannot
+  /// silently redefine the other.
+  static const List<String> profileStatusChoices = ['everyone', 'contacts', 'nobody'];
+
   /// Deliberately no `labelForLastSeen` here any more.
   ///
   /// It used to return "My contacts" from this class, which is a sentence in
@@ -134,6 +145,11 @@ class SecurityController extends ChangeNotifier {
       final privacy = me['privacy'] as Map<String, dynamic>? ?? const {};
       _privacy = privacy;
       _lastSeen = privacy['lastSeen'] as String? ?? 'everyone';
+      // `everyone` where the server has never been told, matching the server's
+      // own default in `services/status.ts` — a status exists because somebody
+      // published it, so defaulting it to hidden would make the feature do
+      // nothing for everyone who never opens this screen.
+      _profileStatus = privacy['profileStatus'] as String? ?? 'everyone';
       _failure = null;
       // The blocked count belongs to the same screen, and a row that says
       // nothing until you open it is only marginally better than one that
@@ -145,6 +161,20 @@ class SecurityController extends ChangeNotifier {
       _failure = const Failure(FailureKind.unreachable);
     }
     notifyListeners();
+  }
+
+  Future<void> setProfileStatusVisibility(String value) async {
+    if (!profileStatusChoices.contains(value)) return;
+    final previous = _profileStatus;
+    _profileStatus = value;
+    notifyListeners();
+    try {
+      await _api.updatePrivacy({'profileStatus': value});
+    } on Object {
+      _profileStatus = previous;
+      _failure = const Failure(FailureKind.couldNotSave);
+      notifyListeners();
+    }
   }
 
   Future<void> setLastSeen(String value) async {

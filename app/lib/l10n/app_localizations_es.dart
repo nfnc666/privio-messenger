@@ -978,6 +978,29 @@ class AppTextEs extends AppText {
   String get privacyDuressCode => 'Código de coacción';
 
   @override
+  String get privacyScreenShield => 'Protección de pantalla';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Bloquea las capturas y las grabaciones de pantalla de la aplicación.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Oculta el contenido sensible cuando se detecta una grabación o una transmisión de pantalla. En iOS las capturas de pantalla no se pueden impedir de forma fiable.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Este dispositivo no puede proteger la pantalla.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Esto solo protege tu propio dispositivo. No impide que otras personas graben su pantalla ni que alguien haga una foto con otra cámara.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'Hay una grabación de pantalla en curso. Privio permanece oculto hasta que termine.';
+
+  @override
   String get privacySet => 'Definido';
 
   @override
@@ -1227,6 +1250,9 @@ class AppTextEs extends AppText {
   String get chatsFilterAll => 'Todos';
 
   @override
+  String get chatsJoin => 'Unirse';
+
+  @override
   String get chatsFilterUnread => 'No leídos';
 
   @override
@@ -1245,12 +1271,6 @@ class AppTextEs extends AppText {
   String get chatsGroupFallbackName => 'Grupo';
 
   @override
-  String get chatsCouldNotOpenLink => 'No se ha podido abrir ese enlace';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Unirse a un grupo con un enlace';
-
-  @override
   String get chatsNewGroupTooltip => 'Grupo nuevo';
 
   @override
@@ -1265,16 +1285,6 @@ class AppTextEs extends AppText {
 
   @override
   String get chatsAddContact => 'Añadir un contacto';
-
-  @override
-  String get chatsJoinGroupTitle => 'Unirse a un grupo';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'El enlace te mete dentro. La clave del nombre del grupo te la envía después a tu dispositivo, cifrada, alguien que ya está en el grupo.';
-
-  @override
-  String get chatsJoin => 'Unirse';
 
   @override
   String get commonGotIt => 'Entendido';
@@ -1737,6 +1747,70 @@ class AppTextEs extends AppText {
 
   @override
   String get accountStatusDefault => '¡Hola! Estoy usando Privio.';
+
+  @override
+  String get accountStatusNone => 'Sin definir';
+
+  @override
+  String get accountStatusTitle => 'Estado';
+
+  @override
+  String get accountStatusHint => '¿Qué estás haciendo?';
+
+  @override
+  String get accountStatusEmoji => 'Emoji';
+
+  @override
+  String get accountStatusEmojiNone => 'Ninguno';
+
+  @override
+  String get accountStatusClearsAfter => 'Se borra tras';
+
+  @override
+  String get accountStatusNeverClears => 'Nunca';
+
+  @override
+  String get accountStatus30Minutes => '30 minutos';
+
+  @override
+  String get accountStatus1Hour => '1 hora';
+
+  @override
+  String get accountStatus4Hours => '4 horas';
+
+  @override
+  String get accountStatusToday => 'Hoy';
+
+  @override
+  String get accountStatus1Week => '1 semana';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Hasta las $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Tu estado no se guardó. Lo que escribiste sigue aquí: inténtalo de nuevo.';
+
+  @override
+  String get accountStatusSaving => 'Guardando…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Quien pueda ver tu estado leerá esto. No está cifrado como tus mensajes, y no es tu estado de conexión.';
+
+  @override
+  String get privacyProfileStatus => 'Estado';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Todos';
+
+  @override
+  String get privacyProfileStatusContacts => 'Mis contactos';
+
+  @override
+  String get privacyProfileStatusNobody => 'Nadie';
 
   @override
   String get accountId => 'ID de la cuenta';

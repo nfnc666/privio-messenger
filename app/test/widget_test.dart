@@ -23,6 +23,7 @@ import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/accent.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/services/backup_service.dart';
+import 'package:privio/models/channel.dart';
 import 'package:privio/services/channel_service.dart';
 
 import 'support/fake_voice.dart';
@@ -187,6 +188,66 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Hey! How are you?'), findsOneWidget);
     expect(find.text('1'), findsOneWidget, reason: 'one unread message');
+  });
+
+  testWidgets('the chats header offers a new group and a new chat, and no link box',
+      (tester) async {
+    final services = await quietServices();
+    final state = AppState(services: services, store: InMemorySecureStore());
+    await state.initialise();
+    addTearDown(state.conversations.stop);
+
+    await tester.pumpWidget(wrap(const ChatsScreen(), state));
+    await tester.pump();
+
+    // The paste-a-link button is gone — icon, tooltip and hit area. Asserted by
+    // its absence rather than by counting actions, because a count passes just
+    // as happily when the wrong one was removed.
+    expect(find.byIcon(Icons.link_rounded), findsNothing);
+    expect(find.byTooltip('Join a group with a link'), findsNothing);
+
+    // And the two that stay, still there.
+    expect(find.byIcon(Icons.group_add_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.edit_square), findsOneWidget);
+
+    // Exactly two buttons in the bar, which is what says the third left no
+    // invisible tap target behind — an icon can be hidden while its 48dp hit
+    // area stays and swallows taps meant for its neighbour.
+    final inBar = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(IconButton),
+    );
+    expect(inBar, findsNWidgets(2));
+
+    // No gap where it used to be. `AppBar.actions` is a Row that packs to the
+    // right, so removing the leftmost one closes up on its own — this asserts
+    // that it did, rather than trusting it: the two remaining buttons are
+    // adjacent, with nothing the width of a third between them.
+    final group = tester.getRect(find.byIcon(Icons.group_add_outlined));
+    final compose = tester.getRect(find.byIcon(Icons.edit_square));
+    expect(
+      compose.left - group.right,
+      lessThan(48),
+      reason: 'a button-sized hole is left between the two that stay',
+    );
+  });
+
+  test('a group invitation link is still read, which is how joining works now',
+      () {
+    // The button is gone; the link is not. An invitation arrives from outside
+    // the app, the operating system hands it over, and this is what turns it
+    // into something to open — see `_DeepLinkOpener` in `app.dart`.
+    for (final link in [
+      'https://privio.app/g/abc123',
+      'https://privio.app/open/g/abc123',
+      'privio://open/g/abc123',
+      'privio://g/abc123',
+    ]) {
+      final target = ChannelService.parseLink(link);
+      expect(target, isA<ChannelLinkByCode>(), reason: link);
+      expect((target! as ChannelLinkByCode).code, 'abc123', reason: link);
+      expect((target as ChannelLinkByCode).kind, InviteKind.group, reason: link);
+    }
   });
 
   testWidgets('an account with no conversations is told what to do next', (tester) async {
