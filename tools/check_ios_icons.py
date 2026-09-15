@@ -15,7 +15,7 @@ def check(plist):
             raise ValueError(f"{key}: missing alternate icons: {sorted(missing)}")
         for name in expected:
             entry = alternates[name]
-            if not entry.get("CFBundleIconFiles") or entry.get("CFBundleIconName") != name:
+            # Asset-catalog icons may contain only CFBundleIconName. Xcode\n            # need not export loose PNGs / CFBundleIconFiles for these entries.\n            if entry.get("CFBundleIconName") != name:
                 raise ValueError(f"{key}: invalid icon entry {name}: {entry}")
     print("All seven alternate icons are registered for iPhone and iPad.")
 
