@@ -30,7 +30,12 @@ export type AuditAction =
   | 'license.revoke'
   | 'report.review'
   | 'channel.suspend'
-  | 'channel.reinstate';
+  | 'channel.reinstate'
+  // Which channel carries the verification badge. Audited because it is the one
+  // setting in the product that makes a claim *about* a channel to everybody
+  // who sees it, and "who moved the badge, and when" has to be answerable.
+  | 'official_channel.designate'
+  | 'official_channel.clear';
 
 export interface AuditEntry {
   action: AuditAction;

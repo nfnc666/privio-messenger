@@ -16,6 +16,7 @@ import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
 import 'channel_profile_screen.dart';
 import 'channel_thread_screen.dart';
+import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
@@ -861,11 +862,11 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          channel.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ChannelName(
+                          name: channel.title,
+                          verified: channel.verified,
                           style: Theme.of(context).textTheme.titleSmall,
+                          badgeSize: 15,
                         ),
                         Row(
                           children: [
@@ -3209,7 +3210,12 @@ class _JoinPrompt extends StatelessWidget {
           children: [
             const Icon(Icons.campaign_outlined, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text(channel.title, style: theme.textTheme.titleMedium),
+            ChannelName(
+              name: channel.title,
+              verified: channel.verified,
+              style: theme.textTheme.titleMedium,
+              badgeSize: 18,
+            ),
             if (channel.description != null) ...[
               const SizedBox(height: PrivioSpacing.xs),
               Text(

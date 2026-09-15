@@ -3998,4 +3998,7 @@ class AppTextEn extends AppText {
   @override
   String get failureContactsPermissionDenied =>
       'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.';
+
+  @override
+  String get channelVerifiedTooltip => 'Official Privio channel';
 }
