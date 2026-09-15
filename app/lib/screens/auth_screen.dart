@@ -7,6 +7,8 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import 'backup_screen.dart';
+import '../widgets/phone_field.dart';
+import '../widgets/phone_verify_sheet.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/privio_logo.dart';
@@ -44,11 +46,44 @@ class _AuthScreenState extends State<AuthScreen> {
   void dispose() {
     _username.dispose();
     _password.dispose();
+    _phone.dispose();
     _totp.dispose();
     super.dispose();
   }
 
   bool get _isSignUp => _mode == AuthMode.signUp;
+
+  /// The optional number typed during sign-up.
+  ///
+  /// It is **not** part of registration: the account is created without it, and
+  /// only then is a code offered. An empty field, a cancelled verification and
+  /// a server that cannot send texts all end the same way — a finished account
+  /// with no number, which is a finished account.
+  final TextEditingController _phone = TextEditingController();
+  final GlobalKey<PhoneFieldState> _phoneField = GlobalKey<PhoneFieldState>();
+
+  /// Sends a code for the typed number and opens the sheet, if there is one.
+  ///
+  /// Every branch here ends without blocking: nothing typed, nothing that
+  /// normalises, a server with no SMS provider, a code that never arrives, a
+  /// cancelled sheet. A phone number is a convenience for being found; it is
+  /// not a step in making an account, and the flow is arranged so that is true
+  /// rather than merely claimed.
+  Future<void> _offerPhoneVerification(AppState state) async {
+    if (_phoneField.currentState?.isEmpty ?? true) return;
+    final number = _phoneField.currentState?.value;
+    if (number == null) return;
+
+    final account = state.accountId;
+    if (account == null) return;
+    final controller = state.phone;
+    await controller.load(account);
+    if (!controller.link.canVerify) return;
+    if (!await controller.requestCode(number.e164)) return;
+    if (!mounted) return;
+
+    await showPhoneVerifySheet(context, controller);
+  }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -67,6 +102,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (!mounted) return;
     if (ok) {
+      // Offered *after* the account exists, never as a condition of it. If any
+      // of this fails or is waved away, the account is already made and the
+      // person is already signed in.
+      if (_isSignUp) await _offerPhoneVerification(state);
+      if (!mounted) return;
       Navigator.of(context).pop();
       // A backup holds history, not an identity — so restoring happens after
       // the device has one, and this hands the user straight to the key.
@@ -163,6 +203,19 @@ class _AuthScreenState extends State<AuthScreen> {
                     return null;
                   },
                 ),
+                if (_isSignUp) ...[
+                  const SizedBox(height: PrivioSpacing.md),
+                  // No validator, deliberately. An empty field is a complete
+                  // answer and must not stop the form, so there is nothing here
+                  // that can refuse it.
+                  PhoneField(key: _phoneField, controller: _phone),
+                  const SizedBox(height: PrivioSpacing.sm),
+                  Text(
+                    text.phoneFieldExplain,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: PrivioColors.textTertiary),
+                  ),
+                ],
                 if (_needsTotp) ...[
                   const SizedBox(height: PrivioSpacing.md),
                   TextFormField(

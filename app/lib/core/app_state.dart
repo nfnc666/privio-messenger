@@ -23,6 +23,8 @@ import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
 import 'screen_shield_controller.dart';
+import 'bot_controller.dart';
+import 'phone_controller.dart';
 import 'sticker_controller.dart';
 import 'status_controller.dart';
 import 'locale_controller.dart';
@@ -107,6 +109,8 @@ class AppState extends ChangeNotifier {
   SecurityController? _security;
   StatusController? _profileStatus;
   StickerController? _stickers;
+  PhoneController? _phone;
+  BotController? _bots;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -293,6 +297,12 @@ class AppState extends ChangeNotifier {
   /// from, and a controller created per screen would have nothing to answer
   /// with until that screen had been opened.
   StickerController get stickers => _stickers ??= StickerController(services.api);
+
+  /// The optional phone number, its two consents, and contact matching.
+  PhoneController get phone => _phone ??= PhoneController(services.api);
+
+  /// The bots this account owns, and the conversation with @botcreator.
+  BotController get bots => _bots ??= BotController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and reads
@@ -519,6 +529,9 @@ class AppState extends ChangeNotifier {
       // The packs, for the same reason and with the same guard: they belong to
       // the account, and an answer that arrives after a switch is dropped.
       if (stickers.accountId != account) detached(stickers.load(account));
+      // The phone link, under the same rule: per account, and an answer that
+      // arrives after a switch is dropped rather than applied.
+      if (phone.accountId != account) detached(phone.load(account));
     }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
@@ -785,6 +798,10 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    _phone?.dispose();
+    _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -895,6 +912,10 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    _phone?.dispose();
+    _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -960,6 +981,10 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    _phone?.dispose();
+    _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;

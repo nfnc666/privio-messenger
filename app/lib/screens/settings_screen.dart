@@ -16,6 +16,7 @@ import 'language_screen.dart';
 import 'license_screen.dart';
 import 'notifications_screen.dart';
 import 'privacy_screen.dart';
+import 'bots_screen.dart';
 import 'stickers_screen.dart';
 import 'storage_screen.dart';
 
@@ -78,6 +79,11 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.emoji_emotions_outlined,
                 label: text.settingsStickers,
                 onTap: () => open(const StickersScreen()),
+              ),
+              SettingsRow(
+                icon: Icons.smart_toy_outlined,
+                label: text.settingsBots,
+                onTap: () => open(const BotsScreen()),
               ),
               SettingsRow(
                 icon: Icons.translate_rounded,

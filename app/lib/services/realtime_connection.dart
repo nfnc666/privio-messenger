@@ -20,7 +20,33 @@ class RealtimeConnection {
     required this.baseUrl,
     required this.token,
     WebSocketChannel Function(Uri)? connect,
-  }) : _connect = connect ?? ProxyController.instance.connect;
+  }) : _connect = connect ?? _defaultConnect;
+
+  /// How the socket is opened when nothing was injected.
+  ///
+  /// Through the proxy **only when one is switched on**, and through
+  /// `WebSocketChannel.connect` otherwise — which is what this did before the
+  /// proxy existed, and what it has to go on doing for every install that has
+  /// no proxy configured.
+  ///
+  /// Reaching for `ProxyController.instance` unconditionally meant every
+  /// connection went through the proxy transport's own long-lived `HttpClient`,
+  /// including on the ordinary path where there is no proxy. That client is
+  /// built once, inside a singleton, so in a widget test it captures the
+  /// binding's mocked `HttpClient` and then carries it into later tests; the
+  /// WebSocket handshake fails, `dart:_http` calls `detachSocket()` on the
+  /// mocked response in its *error* path, and the `UnsupportedError` that
+  /// throws escapes into the zone rather than arriving on `ready` or on the
+  /// stream — which is why `_open`'s guards did not catch it. Forty-eight tests
+  /// across the suite went red, every one of them a test that signs in.
+  ///
+  /// `enabled` is the controller's own fail-closed answer: true when a proxy is
+  /// configured *and* true when its settings could not be read, so a device
+  /// that is meant to be proxied never quietly falls back to a direct socket.
+  static WebSocketChannel _defaultConnect(Uri uri) =>
+      ProxyController.instance.enabled
+          ? ProxyController.instance.connect(uri)
+          : WebSocketChannel.connect(uri);
 
   final Uri baseUrl;
   final String token;

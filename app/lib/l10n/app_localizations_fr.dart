@@ -6,39 +6,61 @@ import 'app_localizations.dart';
 
 /// The translations for French (`fr`).
 class AppTextFr extends AppText {
-  @override
-  String get proxyTitle => "Proxy SOCKS5";
-  @override
-  String get proxyEnable => "Utiliser le proxy";
-  @override
-  String get proxyHost => "Serveur (nom ou IP)";
-  @override
-  String get proxyPort => "Port";
-  @override
-  String get proxyUsername => "Identifiant (facultatif)";
-  @override
-  String get proxyPassword => "Mot de passe (facultatif)";
-  @override
-  String get proxyScope => "Pour cet appareil : connexion, messages, médias et sauvegardes. Les appels sont désactivés avec le proxy. Aucun repli direct. Enregistrez les modifications.";
-  @override
-  String get proxyPrivacy => "Les notifications système et les liens ouverts dans le navigateur ne passent pas par ce proxy. SOCKS5 ne chiffre pas les identifiants du proxy ; utilisez un réseau et un proxy de confiance. Le proxy voit votre IP et la destination ; HTTPS reste chiffré. Les proxys MTProto de Telegram ne sont pas compatibles.";
-  @override
-  String get proxyTest => "Tester la connexion";
-  @override
-  String get proxySave => "Enregistrer";
-  @override
-  String get proxyRemove => "Supprimer le proxy et se connecter directement";
-  @override
-  String get proxyInvalid => "Saisissez un serveur valide et un port (1–65535). Renseignez les deux identifiants ou laissez-les vides.";
-  @override
-  String get proxyTestSuccess => "Privio est accessible via ce proxy. Les réglages ne sont pas encore enregistrés.";
-  @override
-  String get proxySaved => "Réglages réseau enregistrés.";
-  @override
-  String get proxyFailed => "Échec. Vérifiez le proxy, les identifiants et la connexion, et terminez les appels en cours. Aucun repli direct automatique.";
-  @override
-  String get proxyCallsBlocked => "Les appels sont indisponibles lorsque le proxy est actif.";
   AppTextFr([String locale = 'fr']) : super(locale);
+
+  @override
+  String get proxyTitle => 'Proxy SOCKS5';
+
+  @override
+  String get proxyEnable => 'Utiliser le proxy';
+
+  @override
+  String get proxyHost => 'Serveur (nom ou IP)';
+
+  @override
+  String get proxyPort => 'Port';
+
+  @override
+  String get proxyUsername => 'Identifiant (facultatif)';
+
+  @override
+  String get proxyPassword => 'Mot de passe (facultatif)';
+
+  @override
+  String get proxyScope =>
+      'Pour cet appareil : connexion, messages, médias et sauvegardes. Les appels sont désactivés avec le proxy. Aucun repli direct. Enregistrez les modifications.';
+
+  @override
+  String get proxyPrivacy =>
+      'Les notifications système et les liens ouverts dans le navigateur ne passent pas par ce proxy. SOCKS5 ne chiffre pas les identifiants du proxy ; utilisez un réseau et un proxy de confiance. Le proxy voit votre IP et la destination ; HTTPS reste chiffré. Les proxys MTProto de Telegram ne sont pas compatibles.';
+
+  @override
+  String get proxyTest => 'Tester la connexion';
+
+  @override
+  String get proxySave => 'Enregistrer';
+
+  @override
+  String get proxyRemove => 'Supprimer le proxy et se connecter directement';
+
+  @override
+  String get proxyInvalid =>
+      'Saisissez un serveur valide et un port (1–65535). Renseignez les deux identifiants ou laissez-les vides.';
+
+  @override
+  String get proxyTestSuccess =>
+      'Privio est accessible via ce proxy. Les réglages ne sont pas encore enregistrés.';
+
+  @override
+  String get proxySaved => 'Réglages réseau enregistrés.';
+
+  @override
+  String get proxyFailed =>
+      'Échec. Vérifiez le proxy, les identifiants et la connexion, et terminez les appels en cours. Aucun repli direct automatique.';
+
+  @override
+  String get proxyCallsBlocked =>
+      'Les appels sont indisponibles lorsque le proxy est actif.';
 
   @override
   String get languageName => 'Langue';
@@ -4031,4 +4053,181 @@ class AppTextFr extends AppText {
 
   @override
   String get channelVerifiedTooltip => 'Canal officiel PRIVIO';
+
+  @override
+  String get phoneFieldLabel => 'Numéro de téléphone (facultatif)';
+
+  @override
+  String get phoneFieldHint => 'Numéro de téléphone (facultatif)';
+
+  @override
+  String get phoneFieldExplain =>
+      'Associez votre numéro de téléphone pour que vos contacts puissent vous trouver. Vous pouvez aussi utiliser PRIVIO sans numéro de téléphone.';
+
+  @override
+  String get phoneCountryCode => 'Indicatif du pays';
+
+  @override
+  String get phoneVerifyTitle => 'Confirmez votre numéro';
+
+  @override
+  String phoneVerifySent(String hint) {
+    return 'Nous avons envoyé un code au $hint.';
+  }
+
+  @override
+  String get phoneVerifyCode => 'Code à six chiffres';
+
+  @override
+  String get phoneVerifyConfirm => 'Confirmer';
+
+  @override
+  String get phoneVerifyResend => 'Envoyer un nouveau code';
+
+  @override
+  String get phoneVerifySkip => 'Continuer sans numéro';
+
+  @override
+  String phoneVerifyStub(String code) {
+    return 'Serveur de développement : aucun SMS n’a été envoyé. Le code est $code.';
+  }
+
+  @override
+  String get privacyPhoneSection => 'Numéro de téléphone et contacts';
+
+  @override
+  String get phoneAdd => 'Ajouter un numéro de téléphone';
+
+  @override
+  String get phoneChange => 'Modifier le numéro';
+
+  @override
+  String get phoneRemove => 'Supprimer le numéro';
+
+  @override
+  String get phoneRemoveExplain =>
+      'Le numéro et le lien que le serveur conserve pour vous retrouver sont supprimés tous les deux. Vos conversations ne sont pas touchées.';
+
+  @override
+  String get phoneDiscoverable => 'Être trouvé grâce à mon numéro de téléphone';
+
+  @override
+  String get phoneDiscoverableExplain =>
+      'Désactivé tant que vous ne l’activez pas. Une fois activé, une personne ayant votre numéro dans ses contacts voit votre compte PRIVIO.';
+
+  @override
+  String get phoneContactSync => 'Synchroniser les contacts de l’appareil';
+
+  @override
+  String get phoneContactSyncExplain =>
+      'Désactivé tant que vous ne l’activez pas. PRIVIO lit les numéros de téléphone de vos contacts, transforme chacun en une valeur illisible sur cet appareil, puis demande au serveur lesquels correspondent à un compte PRIVIO. Les noms, les notes et le carnet d’adresses lui-même ne sont jamais envoyés ni conservés sur le serveur.';
+
+  @override
+  String get phoneSyncNow => 'Comparer les contacts maintenant';
+
+  @override
+  String phoneSyncFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count personnes trouvées.',
+      one: '1 personne trouvée.',
+      zero:
+          'Personne de vos contacts n’est sur PRIVIO, ou personne n’a activé la recherche.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get phoneImportedRemove => 'Supprimer les contacts importés';
+
+  @override
+  String get phoneImportedRemoveExplain =>
+      'Retire uniquement les personnes ajoutées par la comparaison. Vos conversations avec elles restent.';
+
+  @override
+  String get phoneNotLinkedYet => 'Aucun numéro associé';
+
+  @override
+  String get settingsBots => 'Bots';
+
+  @override
+  String get botsTitle => 'Mes bots';
+
+  @override
+  String get botsEmptyTitle => 'Aucun bot pour l’instant';
+
+  @override
+  String get botsEmptyBody =>
+      'Un bot est un compte que vous pilotez via une API HTTP. Créez-en un et @botcreator vous guidera.';
+
+  @override
+  String get botsCreate => 'Créer un bot';
+
+  @override
+  String get botsNameLabel => 'Nom';
+
+  @override
+  String get botsUsernameLabel => 'Nom d’utilisateur';
+
+  @override
+  String get botsDescriptionLabel => 'Description';
+
+  @override
+  String get botsCommandsLabel => 'Commandes';
+
+  @override
+  String get botsCommandsHint => 'Un par ligne : commande — ce qu’elle fait';
+
+  @override
+  String get botsDisable => 'Désactiver ce bot';
+
+  @override
+  String get botsDisabled => 'Désactivé';
+
+  @override
+  String get botsDelete => 'Supprimer le bot';
+
+  @override
+  String botsDeleteConfirm(String username) {
+    return 'Supprimer @$username ?';
+  }
+
+  @override
+  String get botsToken => 'Jeton d’API';
+
+  @override
+  String get botsTokenNew => 'Créer un nouveau jeton';
+
+  @override
+  String get botsTokenRevoke => 'Révoquer les jetons';
+
+  @override
+  String get botsTokenOnce =>
+      'Ce jeton n’est affiché que cette fois. Il est stocké sous forme d’empreinte et ne peut plus être lu. Un nouveau jeton remplace l’ancien.';
+
+  @override
+  String get botsTokenCopy => 'Copier le jeton';
+
+  @override
+  String get botsTokenCopied => 'Jeton copié';
+
+  @override
+  String get botsTokenDone => 'Je l’ai enregistré';
+
+  @override
+  String get botsBadge => 'BOT';
+
+  @override
+  String get botsNotEncrypted =>
+      'Une conversation avec un bot n’est pas chiffrée de bout en bout. La personne qui gère le bot peut lire ce que vous lui envoyez, et ce serveur aussi. Vos autres conversations, groupes et canaux ne changent pas.';
+
+  @override
+  String get botsUnderstood => 'J’ai compris';
+
+  @override
+  String get botcreatorTitle => 'Bot Creator';
+
+  @override
+  String get botcreatorHint => 'Tapez une commande, ou /help';
 }

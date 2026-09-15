@@ -69,22 +69,6 @@ abstract class AppText {
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
-  String get proxyTitle;
-  String get proxyEnable;
-  String get proxyHost;
-  String get proxyPort;
-  String get proxyUsername;
-  String get proxyPassword;
-  String get proxyScope;
-  String get proxyPrivacy;
-  String get proxyTest;
-  String get proxySave;
-  String get proxyRemove;
-  String get proxyInvalid;
-  String get proxyTestSuccess;
-  String get proxySaved;
-  String get proxyFailed;
-  String get proxyCallsBlocked;
 
   static AppText of(BuildContext context) {
     return Localizations.of<AppText>(context, AppText)!;
@@ -118,6 +102,102 @@ abstract class AppText {
     Locale('fr'),
     Locale('it'),
   ];
+
+  /// No description provided for @proxyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5 proxy'**
+  String get proxyTitle;
+
+  /// No description provided for @proxyEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Use proxy'**
+  String get proxyEnable;
+
+  /// No description provided for @proxyHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Server (hostname or IP)'**
+  String get proxyHost;
+
+  /// No description provided for @proxyPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get proxyPort;
+
+  /// No description provided for @proxyUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get proxyUsername;
+
+  /// No description provided for @proxyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password (optional)'**
+  String get proxyPassword;
+
+  /// No description provided for @proxyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'For this device, including login, messages, media and backups. Calls are disabled while the proxy is active. No direct fallback. Save to apply changes.'**
+  String get proxyScope;
+
+  /// No description provided for @proxyPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'System push notifications and links opened in a browser do not use this proxy. SOCKS5 does not encrypt proxy credentials; use a trusted network/proxy. The proxy sees your IP and destination, but HTTPS stays encrypted. Telegram MTProto proxies are not supported.'**
+  String get proxyPrivacy;
+
+  /// No description provided for @proxyTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get proxyTest;
+
+  /// No description provided for @proxySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get proxySave;
+
+  /// No description provided for @proxyRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove proxy and connect directly'**
+  String get proxyRemove;
+
+  /// No description provided for @proxyInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid server and port (1–65535). Enter both username and password, or leave both empty.'**
+  String get proxyInvalid;
+
+  /// No description provided for @proxyTestSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio is reachable through this proxy. Settings have not been saved.'**
+  String get proxyTestSuccess;
+
+  /// No description provided for @proxySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Network settings saved.'**
+  String get proxySaved;
+
+  /// No description provided for @proxyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete this action. Check the proxy, credentials and connection, and end any active call. No automatic direct fallback.'**
+  String get proxyFailed;
+
+  /// No description provided for @proxyCallsBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls are unavailable while the proxy is active.'**
+  String get proxyCallsBlocked;
 
   /// The settings row that opens the language picker.
   ///
@@ -6799,6 +6879,312 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Official Privio channel'**
   String get channelVerifiedTooltip;
+
+  /// No description provided for @phoneFieldLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number (optional)'**
+  String get phoneFieldLabel;
+
+  /// No description provided for @phoneFieldHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number (optional)'**
+  String get phoneFieldHint;
+
+  /// No description provided for @phoneFieldExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'Link your phone number so contacts can find you. You can use PRIVIO without a phone number too.'**
+  String get phoneFieldExplain;
+
+  /// No description provided for @phoneCountryCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Country code'**
+  String get phoneCountryCode;
+
+  /// No description provided for @phoneVerifyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm your number'**
+  String get phoneVerifyTitle;
+
+  /// No description provided for @phoneVerifySent.
+  ///
+  /// In en, this message translates to:
+  /// **'We sent a code to {hint}.'**
+  String phoneVerifySent(String hint);
+
+  /// No description provided for @phoneVerifyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Six-digit code'**
+  String get phoneVerifyCode;
+
+  /// No description provided for @phoneVerifyConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get phoneVerifyConfirm;
+
+  /// No description provided for @phoneVerifyResend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send a new code'**
+  String get phoneVerifyResend;
+
+  /// No description provided for @phoneVerifySkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue without a number'**
+  String get phoneVerifySkip;
+
+  /// No description provided for @phoneVerifyStub.
+  ///
+  /// In en, this message translates to:
+  /// **'Development server: no text message was sent. The code is {code}.'**
+  String phoneVerifyStub(String code);
+
+  /// No description provided for @privacyPhoneSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number & contacts'**
+  String get privacyPhoneSection;
+
+  /// No description provided for @phoneAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a phone number'**
+  String get phoneAdd;
+
+  /// No description provided for @phoneChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change number'**
+  String get phoneChange;
+
+  /// No description provided for @phoneRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove number'**
+  String get phoneRemove;
+
+  /// No description provided for @phoneRemoveExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'The number and the link the server keeps for finding you are both deleted. Your chats are untouched.'**
+  String get phoneRemoveExplain;
+
+  /// No description provided for @phoneDiscoverable.
+  ///
+  /// In en, this message translates to:
+  /// **'Be found by my phone number'**
+  String get phoneDiscoverable;
+
+  /// No description provided for @phoneDiscoverableExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your PRIVIO account.'**
+  String get phoneDiscoverableExplain;
+
+  /// No description provided for @phoneContactSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync device contacts'**
+  String get phoneContactSync;
+
+  /// No description provided for @phoneContactSyncExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'Off unless you switch it on. PRIVIO reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a PRIVIO account. Names, notes and the address book itself are never sent and never stored on the server.'**
+  String get phoneContactSyncExplain;
+
+  /// No description provided for @phoneSyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Match contacts now'**
+  String get phoneSyncNow;
+
+  /// No description provided for @phoneSyncFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Nobody from your contacts is on PRIVIO, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}'**
+  String phoneSyncFound(int count);
+
+  /// No description provided for @phoneImportedRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove imported contacts'**
+  String get phoneImportedRemove;
+
+  /// No description provided for @phoneImportedRemoveExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'Removes the people matching added, and nothing else. Your chats with them stay.'**
+  String get phoneImportedRemoveExplain;
+
+  /// No description provided for @phoneNotLinkedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No number linked'**
+  String get phoneNotLinkedYet;
+
+  /// No description provided for @settingsBots.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots'**
+  String get settingsBots;
+
+  /// No description provided for @botsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My bots'**
+  String get botsTitle;
+
+  /// No description provided for @botsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No bots yet'**
+  String get botsEmptyTitle;
+
+  /// No description provided for @botsEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A bot is an account you run over an HTTP API. Create one and @botcreator will walk you through it.'**
+  String get botsEmptyBody;
+
+  /// No description provided for @botsCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a bot'**
+  String get botsCreate;
+
+  /// No description provided for @botsNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get botsNameLabel;
+
+  /// No description provided for @botsUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get botsUsernameLabel;
+
+  /// No description provided for @botsDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get botsDescriptionLabel;
+
+  /// No description provided for @botsCommandsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands'**
+  String get botsCommandsLabel;
+
+  /// No description provided for @botsCommandsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'One per line: command — what it does'**
+  String get botsCommandsHint;
+
+  /// No description provided for @botsDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch this bot off'**
+  String get botsDisable;
+
+  /// No description provided for @botsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched off'**
+  String get botsDisabled;
+
+  /// No description provided for @botsDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete bot'**
+  String get botsDelete;
+
+  /// No description provided for @botsDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete @{username}?'**
+  String botsDeleteConfirm(String username);
+
+  /// No description provided for @botsToken.
+  ///
+  /// In en, this message translates to:
+  /// **'API token'**
+  String get botsToken;
+
+  /// No description provided for @botsTokenNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new token'**
+  String get botsTokenNew;
+
+  /// No description provided for @botsTokenRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke tokens'**
+  String get botsTokenRevoke;
+
+  /// No description provided for @botsTokenOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the only time this token is shown. It is stored as a digest and cannot be read again. A new token replaces the old one.'**
+  String get botsTokenOnce;
+
+  /// No description provided for @botsTokenCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy token'**
+  String get botsTokenCopy;
+
+  /// No description provided for @botsTokenCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Token copied'**
+  String get botsTokenCopied;
+
+  /// No description provided for @botsTokenDone.
+  ///
+  /// In en, this message translates to:
+  /// **'I have saved it'**
+  String get botsTokenDone;
+
+  /// No description provided for @botsBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'BOT'**
+  String get botsBadge;
+
+  /// No description provided for @botsNotEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'A conversation with a bot is not end-to-end encrypted. The person who runs the bot can read what you send it, and so can this server. Your other chats, groups and channels are unchanged.'**
+  String get botsNotEncrypted;
+
+  /// No description provided for @botsUnderstood.
+  ///
+  /// In en, this message translates to:
+  /// **'I understand'**
+  String get botsUnderstood;
+
+  /// No description provided for @botcreatorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot Creator'**
+  String get botcreatorTitle;
+
+  /// No description provided for @botcreatorHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a command, or /help'**
+  String get botcreatorHint;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {
