@@ -921,7 +921,7 @@ class AppTextFr extends AppText {
 
   @override
   String get notificationsPhoneNote =>
-      'Le son, la vibration, la lumière et ce qui s\'affiche sur l\'écran verrouillé relèvent des réglages de votre téléphone pour Privio, pas de cet écran. Il y avait ici cinq interrupteurs qui ne réglaient rien ; ils ont été retirés plutôt que laissés à faire semblant.';
+      'Le son, la vibration, la lumière et ce qui s\'affiche sur l\'écran verrouillé relèvent des réglages de votre téléphone pour Privio, pas de cet écran.';
 
   @override
   String get notificationsDelivery => 'Distribution';
@@ -3632,4 +3632,13 @@ class AppTextFr extends AppText {
   String appIconChoose(String colour) {
     return 'Icône en $colour';
   }
+
+  @override
+  String get notificationsIphoneNote => 'Vous pouvez gérer les notifications de Privio dans les réglages de l’iPhone.';
+
+  @override
+  String get notificationsOpenIphoneSettings => 'Ouvrir les réglages de l’iPhone';
+
+  @override
+  String get notificationsSettingsFailed => 'Impossible d’ouvrir les réglages. Ouvrez l’app Réglages et sélectionnez Privio.';
 }
