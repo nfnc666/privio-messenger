@@ -17,6 +17,7 @@ import {
 } from './services/channel_notifications.js';
 import licenseRoutes from './routes/licenses.js';
 import { mediaRoutes } from './routes/media.js';
+import stickerRoutes from './routes/stickers.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
 import { inviteWebRoutes } from './routes/invite_web.js';
@@ -160,6 +161,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(deviceRoutes(deps.bus));
   await app.register(callRoutes);
   await app.register(contactRoutes);
+  await app.register(stickerRoutes);
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes(deps.bus));
   await app.register(channelRoutes(deps.bus, channelNotifier));
