@@ -432,14 +432,6 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
                     ),
                     const _Hairline(),
                     SettingsRow(
-                      icon: Icons.translate_rounded,
-                      iconTint: const Color(0xFF9333EA),
-                      label: text.editChannelAutoTranslate,
-                      value: text.commonUnavailable,
-                      onTap: () => unawaited(_explainTranslation()),
-                    ),
-                    const _Hairline(),
-                    SettingsRow(
                       icon: Icons.chat_bubble_rounded,
                       iconTint: const Color(0xFF4F46E5),
                       label: text.editChannelDirectMessages,
@@ -643,25 +635,6 @@ class _ChannelEditScreenState extends State<ChannelEditScreen> {
     });
   }
 
-  Future<void> _explainTranslation() async {
-    // The honest version, and the reason this row is not a switch. See
-    // docs/channels.md.
-    final text = AppText.of(context);
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: PrivioColors.surface,
-        title: Text(text.translationNotSetUpTitle),
-        content: Text(text.translationNotSetUpBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(text.commonOk),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _NoPicture extends StatelessWidget {

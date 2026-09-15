@@ -226,27 +226,13 @@ dependency in the signing path.
 
 **Nothing has been provisioned, purchased or deployed.**
 
-## Auto-translation — needs a decision, not just a key
+## Original content only
 
-Translating a post means sending what it says to a translation service. Privio's
-server holds ciphertext and no key, so it *cannot* do that even if configured —
-which is the point. It would have to happen on the device, and the text would
-leave it in the clear.
-
-So the row is not a switch. It says auto-translation is not set up, explains
-that translating means sending the text to a third party, and states that no
-post has been sent anywhere. `TRANSLATION_URL` exists in the config for a
-deployment that wants to offer one, and reaching a working feature needs all
-three of:
-
-1. the operator to configure an endpoint;
-2. per-channel opt-in by an admin;
-3. **per-reader consent**, because it is the reader's device that would send the
-   text, and a channel admin cannot consent on their behalf.
-
-Showing the original alongside a translation is trivial once there is one — the
-original is what the device already holds. It is not built, because there is
-nothing to translate with.
+Automatic content translation is not offered in channels or chats. The former
+unavailable settings row, explanatory dialog and unused endpoint configuration
+have been removed. No translation provider was called by that placeholder.
+Messages and channel posts remain in their original language. The app interface
+still supports English, German, Spanish, French and Italian.
 
 ## The channel inbox — server done, screen not
 

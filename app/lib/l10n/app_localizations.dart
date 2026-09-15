@@ -1211,11 +1211,6 @@ abstract class AppText {
   /// **'Appearance'**
   String get editChannelAppearance;
 
-  /// No description provided for @editChannelAutoTranslate.
-  ///
-  /// In en, this message translates to:
-  /// **'Auto-translation'**
-  String get editChannelAutoTranslate;
 
   /// No description provided for @editChannelDirectMessages.
   ///
@@ -1343,17 +1338,7 @@ abstract class AppText {
   /// **'Could not start the stream.'**
   String get livestreamCouldNotStart;
 
-  /// No description provided for @translationNotSetUpTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Auto-translation is not set up'**
-  String get translationNotSetUpTitle;
 
-  /// No description provided for @translationNotSetUpBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Translating a post means sending what it says to a translation service. Privio\'s server cannot do that — it holds ciphertext and no key — so it would have to happen on your device, and the text would leave it in the clear.\n\nThat is a decision for whoever runs this server to enable and for each reader to agree to, so it is off until both have happened. No post has been sent anywhere.'**
-  String get translationNotSetUpBody;
 
   /// No description provided for @visibilityPublicTitle.
   ///

@@ -244,7 +244,6 @@
   "@editChannelReactionsValue": { "placeholders": { "count": { "type": "int" } } },
   "editChannelWelcome": "Welcome message",
   "editChannelAppearance": "Appearance",
-  "editChannelAutoTranslate": "Auto-translation",
   "editChannelDirectMessages": "Direct messages",
   "editChannelNeedsName": "A channel needs a name.",
   "editChannelDiscardTitle": "Discard your changes?",
@@ -268,8 +267,6 @@
   "livestreamNobodyStreaming": "Nobody is streaming right now.",
   "livestreamCouldNotStart": "Could not start the stream.",
 
-  "translationNotSetUpTitle": "Auto-translation is not set up",
-  "translationNotSetUpBody": "Translating a post means sending what it says to a translation service. Privio's server cannot do that — it holds ciphertext and no key — so it would have to happen on your device, and the text would leave it in the clear.\n\nThat is a decision for whoever runs this server to enable and for each reader to agree to, so it is off until both have happened. No post has been sent anywhere.",
 
   "visibilityPublicTitle": "This channel is public",
   "visibilityPrivateTitle": "This channel is private",

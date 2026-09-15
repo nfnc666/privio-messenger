@@ -738,8 +738,6 @@ class AppTextFr extends AppText {
   @override
   String get editChannelAppearance => 'Apparence';
 
-  @override
-  String get editChannelAutoTranslate => 'Traduction automatique';
 
   @override
   String get editChannelDirectMessages => 'Messages directs';
@@ -811,13 +809,7 @@ class AppTextFr extends AppText {
   @override
   String get livestreamCouldNotStart => 'Impossible de démarrer le direct.';
 
-  @override
-  String get translationNotSetUpTitle =>
-      'La traduction automatique n\'est pas configurée';
 
-  @override
-  String get translationNotSetUpBody =>
-      'Traduire une publication revient à envoyer son contenu à un service de traduction. Le serveur PRIVIO ne peut pas le faire — il ne détient que du texte chiffré et aucune clé — cela devrait donc se passer sur votre appareil, et le texte en sortirait en clair.\n\nC\'est une décision que la personne qui administre ce serveur doit activer et que chaque lecteur doit accepter : c\'est donc désactivé tant que les deux n\'ont pas eu lieu. Aucune publication n\'a été envoyée où que ce soit.';
 
   @override
   String get visibilityPublicTitle => 'Ce canal est public';
