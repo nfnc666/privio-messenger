@@ -14,8 +14,8 @@ class _BrowserTransport implements ProxyTransport {
   final _sockets = <WebSocketChannel>{};
 
   @override
-  WebSocketChannel connect(Uri uri) {
-    final socket = WebSocketChannel.connect(uri);
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols}) {
+    final socket = WebSocketChannel.connect(uri, protocols: protocols);
     _sockets.add(socket);
     socket.sink.done.then<void>((_) => _sockets.remove(socket),
         onError: (Object _) { _sockets.remove(socket); });
