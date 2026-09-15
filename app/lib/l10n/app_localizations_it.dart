@@ -1253,6 +1253,9 @@ class AppTextIt extends AppText {
   String get chatsFilterAll => 'Tutte';
 
   @override
+  String get chatsJoin => 'Partecipa';
+
+  @override
   String get chatsFilterUnread => 'Non letti';
 
   @override
@@ -1272,12 +1275,6 @@ class AppTextIt extends AppText {
   String get chatsGroupFallbackName => 'Gruppo';
 
   @override
-  String get chatsCouldNotOpenLink => 'Non è stato possibile aprire quel link';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Entrare in un gruppo con un link';
-
-  @override
   String get chatsNewGroupTooltip => 'Nuovo gruppo';
 
   @override
@@ -1292,16 +1289,6 @@ class AppTextIt extends AppText {
 
   @override
   String get chatsAddContact => 'Aggiungi un contatto';
-
-  @override
-  String get chatsJoinGroupTitle => 'Entra in un gruppo';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'Il link ti fa entrare. La chiave del nome del gruppo te la manda poi sul dispositivo, cifrata, qualcuno che è già nel gruppo.';
-
-  @override
-  String get chatsJoin => 'Entra';
 
   @override
   String get commonGotIt => 'Ho capito';

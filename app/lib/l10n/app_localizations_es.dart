@@ -1250,6 +1250,9 @@ class AppTextEs extends AppText {
   String get chatsFilterAll => 'Todos';
 
   @override
+  String get chatsJoin => 'Unirse';
+
+  @override
   String get chatsFilterUnread => 'No leídos';
 
   @override
@@ -1268,12 +1271,6 @@ class AppTextEs extends AppText {
   String get chatsGroupFallbackName => 'Grupo';
 
   @override
-  String get chatsCouldNotOpenLink => 'No se ha podido abrir ese enlace';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Unirse a un grupo con un enlace';
-
-  @override
   String get chatsNewGroupTooltip => 'Grupo nuevo';
 
   @override
@@ -1288,16 +1285,6 @@ class AppTextEs extends AppText {
 
   @override
   String get chatsAddContact => 'Añadir un contacto';
-
-  @override
-  String get chatsJoinGroupTitle => 'Unirse a un grupo';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'El enlace te mete dentro. La clave del nombre del grupo te la envía después a tu dispositivo, cifrada, alguien que ya está en el grupo.';
-
-  @override
-  String get chatsJoin => 'Unirse';
 
   @override
   String get commonGotIt => 'Entendido';

@@ -1252,6 +1252,9 @@ class AppTextFr extends AppText {
   String get chatsFilterAll => 'Tous';
 
   @override
+  String get chatsJoin => 'Rejoindre';
+
+  @override
   String get chatsFilterUnread => 'Non lus';
 
   @override
@@ -1270,12 +1273,6 @@ class AppTextFr extends AppText {
   String get chatsGroupFallbackName => 'Groupe';
 
   @override
-  String get chatsCouldNotOpenLink => 'Impossible d\'ouvrir ce lien';
-
-  @override
-  String get chatsJoinGroupTooltip => 'Rejoindre un groupe avec un lien';
-
-  @override
   String get chatsNewGroupTooltip => 'Nouveau groupe';
 
   @override
@@ -1290,16 +1287,6 @@ class AppTextFr extends AppText {
 
   @override
   String get chatsAddContact => 'Ajouter un contact';
-
-  @override
-  String get chatsJoinGroupTitle => 'Rejoindre un groupe';
-
-  @override
-  String get chatsJoinGroupNote =>
-      'Le lien vous fait entrer. La clé du nom du groupe est ensuite envoyée à votre appareil, chiffrée, par quelqu\'un déjà dans le groupe.';
-
-  @override
-  String get chatsJoin => 'Rejoindre';
 
   @override
   String get commonGotIt => 'C\'est compris';

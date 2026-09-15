@@ -5,11 +5,9 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/message_search.dart';
 import '../l10n/app_localizations.dart';
-import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../l10n/chat_text.dart';
 import '../models/models.dart';
-import '../services/channel_service.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -285,35 +283,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 
-  /// Opens a group join link. The link carries no key; the group's name stays
-  /// sealed until a member's device sends the key over.
-  Future<void> _joinByLink(BuildContext context, AppState state) async {
-    final text = AppText.of(context);
-    final link = await showDialog<String>(
-      context: context,
-      builder: (_) => const _JoinGroupDialog(),
-    );
-    if (link == null || link.isEmpty || !context.mounted) return;
-
-    final groupId = await state.conversations.joinGroupByLink(link);
-    if (!context.mounted) return;
-    if (groupId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(state.conversations.failure?.words(text) ?? text.chatsCouldNotOpenLink),
-        ),
-      );
-      return;
-    }
-    final title =
-        state.conversations.groupInfo(groupId)?.name ?? text.chatsGroupFallbackName;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ChatScreen(accountId: groupId, title: title, isGroup: true),
-      ),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -340,12 +309,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
             // button that says "check for messages" invites the reading that
             // they might not otherwise arrive. `drain()` is still called from
             // all three of those places; nothing about delivery changed.
+            //
+            // The link button that used to sit first here is gone. Joining a
+            // group by link still works and is unchanged: an invitation is a
+            // `/g/<code>` link, the operating system hands it to the app, and
+            // `DeepLinkController` holds it until there is somewhere to open
+            // it — see `_DeepLinkOpener` in `app.dart`. What this button added
+            // was a box to paste that same link into by hand.
             actions: [
-              IconButton(
-                onPressed: () => _joinByLink(context, state),
-                icon: const Icon(Icons.link_rounded),
-                tooltip: text.chatsJoinGroupTooltip,
-              ),
               IconButton(
                 onPressed: () => _startGroup(context, state),
                 icon: const Icon(Icons.group_add_outlined),
@@ -443,56 +414,3 @@ class _EmptyChats extends StatelessWidget {
   }
 }
 
-class _JoinGroupDialog extends StatefulWidget {
-  const _JoinGroupDialog();
-
-  @override
-  State<_JoinGroupDialog> createState() => _JoinGroupDialogState();
-}
-
-class _JoinGroupDialogState extends State<_JoinGroupDialog> {
-  final TextEditingController _link = TextEditingController();
-
-  @override
-  void dispose() {
-    _link.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final text = AppText.of(context);
-    return AlertDialog(
-      backgroundColor: PrivioColors.surfaceRaised,
-      title: Text(text.chatsJoinGroupTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _link,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'https://${ChannelService.groupLinkHost}/g/…',
-            ),
-          ),
-          const SizedBox(height: PrivioSpacing.md),
-          Text(
-            text.chatsJoinGroupNote,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(text.commonCancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_link.text),
-          child: Text(text.chatsJoin),
-        ),
-      ],
-    );
-  }
-}

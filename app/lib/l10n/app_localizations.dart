@@ -2125,6 +2125,12 @@ abstract class AppText {
   /// **'All'**
   String get chatsFilterAll;
 
+  /// No description provided for @chatsJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Join'**
+  String get chatsJoin;
+
   /// No description provided for @chatsFilterUnread.
   ///
   /// In en, this message translates to:
@@ -2161,18 +2167,6 @@ abstract class AppText {
   /// **'Group'**
   String get chatsGroupFallbackName;
 
-  /// No description provided for @chatsCouldNotOpenLink.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not open that link'**
-  String get chatsCouldNotOpenLink;
-
-  /// No description provided for @chatsJoinGroupTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Join a group with a link'**
-  String get chatsJoinGroupTooltip;
-
   /// No description provided for @chatsNewGroupTooltip.
   ///
   /// In en, this message translates to:
@@ -2202,24 +2196,6 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Add a contact'**
   String get chatsAddContact;
-
-  /// No description provided for @chatsJoinGroupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Join a group'**
-  String get chatsJoinGroupTitle;
-
-  /// No description provided for @chatsJoinGroupNote.
-  ///
-  /// In en, this message translates to:
-  /// **'The link gets you in. The key to the group name is sent to your device afterwards, encrypted, by someone already in the group.'**
-  String get chatsJoinGroupNote;
-
-  /// No description provided for @chatsJoin.
-  ///
-  /// In en, this message translates to:
-  /// **'Join'**
-  String get chatsJoin;
 
   /// No description provided for @commonGotIt.
   ///
