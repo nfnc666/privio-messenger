@@ -383,7 +383,7 @@
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
-				ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES = (
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
 					"AppIcon-blue",
 					"AppIcon-teal",
 					"AppIcon-purple",
@@ -393,7 +393,7 @@
 					"AppIcon-yellow",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
@@ -576,7 +576,7 @@
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = development;
-				ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES = (
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
 					"AppIcon-blue",
 					"AppIcon-teal",
 					"AppIcon-purple",
@@ -586,7 +586,7 @@
 					"AppIcon-yellow",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
@@ -610,7 +610,7 @@
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
 				APS_ENVIRONMENT = production;
-				ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES = (
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
 					"AppIcon-blue",
 					"AppIcon-teal",
 					"AppIcon-purple",
@@ -620,7 +620,7 @@
 					"AppIcon-yellow",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS = YES;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
