@@ -246,7 +246,7 @@
   "textSizeLarge": "Grande",
   "textSizeLarger": "Más grande",
   "notificationsPushNote": "Una notificación push no lleva contenido, solo un aviso para despertar. El mensaje se descarga y se descifra en este dispositivo, así que nadie en medio ve quién te ha escrito, ni siquiera quien gestiona el servicio que lo ha despertado.",
-  "notificationsPhoneNote": "El sonido, la vibración, la luz y si aparece algo en la pantalla de bloqueo pertenecen a los ajustes que tu teléfono tiene para Privio, no a esta pantalla. Aquí había cinco interruptores que no ajustaban nada; se han quitado en vez de dejarlos aparentando funcionar.",
+  "notificationsPhoneNote": "El sonido, la vibración, la luz y si aparece algo en la pantalla de bloqueo pertenecen a los ajustes que tu teléfono tiene para Privio, no a esta pantalla.",
   "notificationsDelivery": "Entrega",
   "notificationsDistributorFound": "Una aplicación distribuidora en este teléfono mantiene una sola conexión para todas las aplicaciones que la usan y reenvía un aviso sin contenido. {app} no necesita ningún servicio de Google para ello, y puedes ejecutar el distribuidor tú mismo.",
   "notificationsNoDistributor": "No se ha encontrado ningún distribuidor. Instala uno —ntfy, por ejemplo— para que te despierte mientras Privio está cerrado. Sin él, los mensajes llegan mientras la aplicación está abierta.",
@@ -1008,5 +1008,8 @@
   "failureAppIconUnsupported": "No se ha podido cambiar el icono de la app: este dispositivo no lo permite.",
   "failureAppIconHiddenByDisguise": "Mientras el disfraz está activado, la pantalla de inicio muestra la calculadora, así que no se ha cambiado el color del icono. Desactiva primero el disfraz.",
   "appIconSelected": "Icono en {colour}, seleccionado",
-  "appIconChoose": "Icono en {colour}"
+  "appIconChoose": "Icono en {colour}",
+  "notificationsIphoneNote": "Puedes gestionar las notificaciones de Privio en los ajustes del iPhone.",
+  "notificationsOpenIphoneSettings": "Abrir ajustes del iPhone",
+  "notificationsSettingsFailed": "No se pudieron abrir los ajustes. Abre la app Ajustes y selecciona Privio."
 }

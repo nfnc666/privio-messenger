@@ -1582,8 +1582,15 @@ abstract class AppText {
   /// No description provided for @notificationsPhoneNote.
   ///
   /// In en, this message translates to:
-  /// **'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen. There used to be five switches here that set nothing; they are gone rather than left looking like they worked.'**
+  /// Phone notification preferences are managed in system settings.
   String get notificationsPhoneNote;
+
+  String get notificationsIphoneNote;
+
+  String get notificationsOpenIphoneSettings;
+
+  String get notificationsSettingsFailed;
+
 
   /// No description provided for @notificationsDelivery.
   ///

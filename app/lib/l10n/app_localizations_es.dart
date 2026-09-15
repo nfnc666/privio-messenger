@@ -918,7 +918,7 @@ class AppTextEs extends AppText {
 
   @override
   String get notificationsPhoneNote =>
-      'El sonido, la vibración, la luz y si aparece algo en la pantalla de bloqueo pertenecen a los ajustes que tu teléfono tiene para Privio, no a esta pantalla. Aquí había cinco interruptores que no ajustaban nada; se han quitado en vez de dejarlos aparentando funcionar.';
+      'El sonido, la vibración, la luz y si aparece algo en la pantalla de bloqueo pertenecen a los ajustes que tu teléfono tiene para Privio, no a esta pantalla.';
 
   @override
   String get notificationsDelivery => 'Entrega';
@@ -3627,4 +3627,13 @@ class AppTextEs extends AppText {
   String appIconChoose(String colour) {
     return 'Icono en $colour';
   }
+
+  @override
+  String get notificationsIphoneNote => 'Puedes gestionar las notificaciones de Privio en los ajustes del iPhone.';
+
+  @override
+  String get notificationsOpenIphoneSettings => 'Abrir ajustes del iPhone';
+
+  @override
+  String get notificationsSettingsFailed => 'No se pudieron abrir los ajustes. Abre la app Ajustes y selecciona Privio.';
 }

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+import '../services/notification_permission.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
@@ -23,6 +26,21 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  bool _openingSettings = false;
+
+  Future<void> _openSettings() async {
+    if (_openingSettings) return;
+    setState(() => _openingSettings = true);
+    final opened = await const ChannelNotificationPermissions().openSettings();
+    if (!mounted) return;
+    setState(() => _openingSettings = false);
+    if (!opened) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppText.of(context).notificationsSettingsFailed)),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +53,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final wakeUp = PrivioScope.of(context).wakeUp;
     final text = AppText.of(context);
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
     return Scaffold(
       appBar: AppBar(
@@ -44,27 +63,44 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
-          if (wakeUp.isOffered)
-            ListenableBuilder(
-              listenable: wakeUp,
-              builder: (context, _) => _Delivery(wakeUp: wakeUp),
+          if (isIOS) ...[
+            Padding(
+              padding: const EdgeInsets.all(PrivioSpacing.xxl),
+              child: Text(text.notificationsIphoneNote,
+                  style: Theme.of(context).textTheme.bodySmall),
             ),
-          const SizedBox(height: PrivioSpacing.lg),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
-            child: Text(
-              text.notificationsPushNote,
-              style: Theme.of(context).textTheme.bodySmall,
+            SettingsSection(children: [
+              SettingsRow(
+                key: const ValueKey('open-iphone-settings'),
+                icon: Icons.settings_outlined,
+                label: text.notificationsOpenIphoneSettings,
+                enabled: !_openingSettings,
+                onTap: _openSettings,
+              ),
+            ]),
+          ] else ...[
+            if (wakeUp.isOffered)
+              ListenableBuilder(
+                listenable: wakeUp,
+                builder: (context, _) => _Delivery(wakeUp: wakeUp),
+              ),
+            const SizedBox(height: PrivioSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+              child: Text(
+                text.notificationsPushNote,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-          ),
-          const SizedBox(height: PrivioSpacing.lg),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
-            child: Text(
-              text.notificationsPhoneNote,
-              style: Theme.of(context).textTheme.labelSmall,
+            const SizedBox(height: PrivioSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+              child: Text(
+                text.notificationsPhoneNote,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

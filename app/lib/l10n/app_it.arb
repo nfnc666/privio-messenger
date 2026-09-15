@@ -246,7 +246,7 @@
   "textSizeLarge": "Grande",
   "textSizeLarger": "Più grande",
   "notificationsPushNote": "Una notifica push non porta contenuti, solo un segnale di risveglio. Il messaggio viene scaricato e decifrato su questo dispositivo, quindi nessuno nel mezzo vede chi ti ha scritto, nemmeno chi gestisce il servizio che lo ha svegliato.",
-  "notificationsPhoneNote": "Suono, vibrazione, la spia luminosa e se qualcosa compare sulla schermata di blocco appartengono alle impostazioni del telefono per Privio, non a questa schermata. Qui c'erano cinque interruttori che non impostavano nulla; sono stati tolti invece di lasciarli sembrare funzionanti.",
+  "notificationsPhoneNote": "Suono, vibrazione, la spia luminosa e se qualcosa compare sulla schermata di blocco appartengono alle impostazioni del telefono per Privio, non a questa schermata.",
   "notificationsDelivery": "Recapito",
   "notificationsDistributorFound": "Un'app distributore su questo telefono tiene una sola connessione per tutte le app che la usano e inoltra un segnale senza contenuto. {app} non ha bisogno di alcun servizio Google per questo, e puoi gestire il distributore tu stesso.",
   "notificationsNoDistributor": "Nessun distributore trovato. Installane uno — ntfy, per esempio — per essere svegliato mentre Privio è chiuso. Senza, i messaggi arrivano mentre l'app è aperta.",
@@ -1008,5 +1008,8 @@
   "failureAppIconUnsupported": "Non è stato possibile cambiare l'icona dell'app: questo dispositivo non lo consente.",
   "failureAppIconHiddenByDisguise": "Finché il travestimento è attivo, la schermata iniziale mostra la calcolatrice, quindi il colore dell'icona non è stato cambiato. Disattiva prima il travestimento.",
   "appIconSelected": "Icona in {colour}, selezionata",
-  "appIconChoose": "Icona in {colour}"
+  "appIconChoose": "Icona in {colour}",
+  "notificationsIphoneNote": "Puoi gestire le notifiche di Privio nelle impostazioni di iPhone.",
+  "notificationsOpenIphoneSettings": "Apri impostazioni di iPhone",
+  "notificationsSettingsFailed": "Impossibile aprire le impostazioni. Apri l’app Impostazioni e seleziona Privio."
 }

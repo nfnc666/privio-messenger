@@ -59,6 +59,17 @@ class ChannelNotificationPermissions implements NotificationPermissions {
 
   final MethodChannel _channel;
 
+  Future<bool> openSettings() async {
+    try {
+      return await _channel.invokeMethod<bool>('openSettings') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+
   @override
   Future<NotificationPermission> status() => _ask('status');
 

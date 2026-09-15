@@ -37,6 +37,16 @@ final class PushBridge: NSObject {
             switch call.method {
             case "status": self?.status(result)
             case "request": self?.request(result)
+            case "openSettings":
+                DispatchQueue.main.async {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                        result(false)
+                        return
+                    }
+                    UIApplication.shared.open(url, options: [:]) { opened in
+                        DispatchQueue.main.async { result(opened) }
+                    }
+                }
             default: result(FlutterMethodNotImplemented)
             }
         }
