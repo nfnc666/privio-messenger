@@ -117,10 +117,10 @@ void main() {
       // Three Runner configurations: Debug, Release, Profile. A setting on two
       // of them is a build where one configuration quietly has no alternates.
       expect(
-        'ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES'.allMatchesIn(project),
+        'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES'.allMatchesIn(project),
         3,
       );
-      expect('ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS = YES'.allMatchesIn(project), 3);
+      expect('ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES'.allMatchesIn(project), 3);
       expect(
         'ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;'.allMatchesIn(project),
         3,

@@ -79,6 +79,7 @@ class ChannelPushDistributor implements PushDistributor {
 
   @override
   Future<bool> isAvailable() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) return false;
     try {
       return await _channel.invokeMethod<bool>('isAvailable') ?? false;
     } on MissingPluginException {
@@ -90,6 +91,7 @@ class ChannelPushDistributor implements PushDistributor {
 
   @override
   Future<String?> register() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) return null;
     try {
       return await _channel.invokeMethod<String>('register');
     } on MissingPluginException {
@@ -101,6 +103,7 @@ class ChannelPushDistributor implements PushDistributor {
 
   @override
   Future<void> unregister() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) return;
     try {
       await _channel.invokeMethod<void>('unregister');
     } on MissingPluginException {
@@ -191,12 +194,17 @@ class WakeUpController extends ChangeNotifier {
     PushDistributor? distributor,
     NotificationPermissions? permissions,
     PrivioEdition? edition,
-  })  : _edition = edition ?? PrivioEdition.current,
+  })  : _edition = _platformEdition(edition),
         _distributor = distributor ??
-            ((edition ?? PrivioEdition.current).pushProvider == 'unifiedpush'
+            (_platformEdition(edition).pushProvider == 'unifiedpush'
                 ? const ChannelPushDistributor()
                 : const ChannelVendorPush()),
         _permissions = permissions ?? const ChannelNotificationPermissions();
+
+  static PrivioEdition _platformEdition(PrivioEdition? edition) =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+          ? PrivioEdition.parse('appstore')
+          : edition ?? PrivioEdition.current;
 
   final PrivioApiClient _api;
   final PushDistributor _distributor;
@@ -359,6 +367,7 @@ class WakeUpController extends ChangeNotifier {
   /// and HTTPS, and a distributor pointed at a private address is refused
   /// there rather than here.
   Future<bool> useUnifiedPush() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) return false;
     _busy = true;
     _failure = null;
     notifyListeners();

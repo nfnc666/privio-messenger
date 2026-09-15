@@ -922,7 +922,7 @@ class AppTextIt extends AppText {
 
   @override
   String get notificationsPhoneNote =>
-      'Suono, vibrazione, la spia luminosa e se qualcosa compare sulla schermata di blocco appartengono alle impostazioni del telefono per Privio, non a questa schermata. Qui c\'erano cinque interruttori che non impostavano nulla; sono stati tolti invece di lasciarli sembrare funzionanti.';
+      'Suono, vibrazione, la spia luminosa e se qualcosa compare sulla schermata di blocco appartengono alle impostazioni del telefono per Privio, non a questa schermata.';
 
   @override
   String get notificationsDelivery => 'Recapito';
@@ -3905,4 +3905,15 @@ class AppTextIt extends AppText {
   @override
   String get stickersPickFailed =>
       'Non è stato possibile aprire questa immagine.';
+
+  @override
+  String get notificationsIphoneNote =>
+      'Puoi gestire le notifiche di Privio nelle impostazioni di iPhone.';
+
+  @override
+  String get notificationsOpenIphoneSettings => 'Apri impostazioni di iPhone';
+
+  @override
+  String get notificationsSettingsFailed =>
+      'Impossibile aprire le impostazioni. Apri l’app Impostazioni e seleziona Privio.';
 }

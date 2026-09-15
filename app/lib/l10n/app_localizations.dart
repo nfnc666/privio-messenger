@@ -1582,7 +1582,7 @@ abstract class AppText {
   /// No description provided for @notificationsPhoneNote.
   ///
   /// In en, this message translates to:
-  /// **'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen. There used to be five switches here that set nothing; they are gone rather than left looking like they worked.'**
+  /// **'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen.'**
   String get notificationsPhoneNote;
 
   /// No description provided for @notificationsDelivery.
@@ -6606,6 +6606,24 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'That picture could not be opened.'**
   String get stickersPickFailed;
+
+  /// No description provided for @notificationsIphoneNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You can manage notifications for Privio in iPhone Settings.'**
+  String get notificationsIphoneNote;
+
+  /// No description provided for @notificationsOpenIphoneSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open iPhone Settings'**
+  String get notificationsOpenIphoneSettings;
+
+  /// No description provided for @notificationsSettingsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open Settings. Open the Settings app and select Privio.'**
+  String get notificationsSettingsFailed;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

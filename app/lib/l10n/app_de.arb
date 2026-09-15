@@ -246,7 +246,7 @@
   "textSizeLarge": "Groß",
   "textSizeLarger": "Größer",
   "notificationsPushNote": "Eine Push-Nachricht trägt keinen Inhalt — nur ein Wecksignal. Die Nachricht wird auf diesem Gerät geholt und entschlüsselt, niemand dazwischen sieht also, wer dir geschrieben hat, auch nicht der Betreiber des Dienstes, der geweckt hat.",
-  "notificationsPhoneNote": "Ton, Vibration, das Licht und ob auf dem Sperrbildschirm etwas erscheint, gehören zu den Einstellungen deines Telefons für Privio, nicht auf diesen Bildschirm. Hier standen einmal fünf Schalter, die nichts einstellten; sie sind weg, statt so auszusehen, als funktionierten sie.",
+  "notificationsPhoneNote": "Ton, Vibration, das Licht und ob auf dem Sperrbildschirm etwas erscheint, gehören zu den Einstellungen deines Telefons für Privio, nicht auf diesen Bildschirm.",
   "notificationsDelivery": "Zustellung",
   "notificationsDistributorFound": "Eine Verteiler-App auf diesem Telefon hält eine Verbindung für alle Apps, die sie nutzen, und leitet ein inhaltsloses Signal weiter. {app} braucht dafür keinen Google-Dienst, und du kannst den Verteiler selbst betreiben.",
   "notificationsNoDistributor": "Kein Verteiler gefunden. Installiere einen — zum Beispiel ntfy — um geweckt zu werden, während Privio geschlossen ist. Ohne einen kommen Nachrichten an, während die App offen ist.",
@@ -1085,5 +1085,8 @@
   "stickersOpen": "Öffnen",
   "stickersKindSticker": "Sticker",
   "stickersKindEmoji": "Eigene Emojis",
-  "stickersPickFailed": "Dieses Bild ließ sich nicht öffnen."
+  "stickersPickFailed": "Dieses Bild ließ sich nicht öffnen.",
+  "notificationsIphoneNote": "Du kannst Benachrichtigungen für Privio in den iPhone-Einstellungen verwalten.",
+  "notificationsOpenIphoneSettings": "iPhone-Einstellungen öffnen",
+  "notificationsSettingsFailed": "Die Einstellungen konnten nicht geöffnet werden. Öffne die Einstellungen-App und wähle Privio."
 }

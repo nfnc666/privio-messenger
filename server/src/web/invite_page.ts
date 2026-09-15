@@ -335,6 +335,7 @@ export function privateInvitePage(
 export type InviteProblem =
   | 'not_found'
   | 'deleted'
+  | 'suspended'
   | 'expired'
   | 'used_up';
 
@@ -348,6 +349,18 @@ const PROBLEMS: Record<InviteProblem, { heading: string; detail: string }> = {
   deleted: {
     heading: 'This channel is gone',
     detail: 'Its owner deleted it. Nothing of it is left to open.',
+  },
+  // Said as what it is, and not as more. The page does not claim the channel
+  // did something, because the server cannot read its posts and therefore does
+  // not know: it was reported, an operator acted on the report, and the link
+  // stopped working. People already in it are not affected and are not told
+  // otherwise here, because they never see this page.
+  suspended: {
+    heading: 'This channel is not available',
+    detail:
+      'It was reported and has been taken out of search and invitations on ' +
+      'this server. Its members still have it; new people cannot join through ' +
+      'this link.',
   },
   expired: {
     heading: 'This invitation has expired',

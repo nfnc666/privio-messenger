@@ -177,6 +177,9 @@ jobs:
             CODE_SIGN_ENTITLEMENTS="" \
             build
 
+      - name: Verify compiled alternate icons
+        run: python3 ../tools/check_ios_icons.py "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Runner.app/Info.plist"
+
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:

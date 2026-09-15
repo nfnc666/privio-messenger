@@ -47,3 +47,19 @@ export const usernameSchema = z
 export const passwordSchema = z.string().min(10).max(1024);
 
 export const uuidSchema = z.string().uuid();
+
+/**
+ * A boolean in a query string.
+ *
+ * Not `z.coerce.boolean()`, which is `Boolean(value)` and therefore maps the
+ * string `"false"` to **true** — every non-empty string is truthy. A filter
+ * written as `?open=false` then quietly means the same as `?open=true`, which
+ * is the kind of bug that never throws and is only found by noticing the
+ * answer was wrong. Only the two words are accepted; anything else is a 400
+ * rather than a guess.
+ */
+export const booleanQuery = (fallback: boolean) =>
+  z
+    .enum(['true', 'false'])
+    .default(fallback ? 'true' : 'false')
+    .transform((value) => value === 'true');

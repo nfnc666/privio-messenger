@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/edition.dart';
 import '../l10n/app_localizations.dart';
@@ -32,6 +33,23 @@ class AboutScreen extends StatelessWidget {
       );
     }
 
+    Future<void> openWebsite(String address) async {
+      var opened = false;
+      try {
+        opened = await launchUrl(
+          Uri.parse(address),
+          mode: LaunchMode.externalApplication,
+        );
+      } on Object {
+        opened = false;
+      }
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(text.linkNothingCanOpen)),
+        );
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
@@ -62,11 +80,11 @@ class AboutScreen extends StatelessWidget {
             children: [
               SettingsRow(
                 label: text.aboutWebsite,
-                onTap: () => copy(text.aboutWebsite, 'https://getprivio.com'),
+                onTap: () => openWebsite('https://getprivio.com'),
               ),
               SettingsRow(
                 label: text.aboutSupport,
-                onTap: () => copy(text.aboutAddress, 'support@getprivio.com'),
+                onTap: () => openWebsite('https://getprivio.com/support'),
               ),
               // "Terms of Service" and "Privacy Policy" sat here and opened
               // nothing, because neither document exists. Both have to before

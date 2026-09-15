@@ -920,7 +920,7 @@ class AppTextDe extends AppText {
 
   @override
   String get notificationsPhoneNote =>
-      'Ton, Vibration, das Licht und ob auf dem Sperrbildschirm etwas erscheint, gehören zu den Einstellungen deines Telefons für Privio, nicht auf diesen Bildschirm. Hier standen einmal fünf Schalter, die nichts einstellten; sie sind weg, statt so auszusehen, als funktionierten sie.';
+      'Ton, Vibration, das Licht und ob auf dem Sperrbildschirm etwas erscheint, gehören zu den Einstellungen deines Telefons für Privio, nicht auf diesen Bildschirm.';
 
   @override
   String get notificationsDelivery => 'Zustellung';
@@ -3899,4 +3899,15 @@ class AppTextDe extends AppText {
 
   @override
   String get stickersPickFailed => 'Dieses Bild ließ sich nicht öffnen.';
+
+  @override
+  String get notificationsIphoneNote =>
+      'Du kannst Benachrichtigungen für Privio in den iPhone-Einstellungen verwalten.';
+
+  @override
+  String get notificationsOpenIphoneSettings => 'iPhone-Einstellungen öffnen';
+
+  @override
+  String get notificationsSettingsFailed =>
+      'Die Einstellungen konnten nicht geöffnet werden. Öffne die Einstellungen-App und wähle Privio.';
 }

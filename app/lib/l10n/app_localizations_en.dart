@@ -912,7 +912,7 @@ class AppTextEn extends AppText {
 
   @override
   String get notificationsPhoneNote =>
-      'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen. There used to be five switches here that set nothing; they are gone rather than left looking like they worked.';
+      'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen.';
 
   @override
   String get notificationsDelivery => 'Delivery';
@@ -3858,4 +3858,15 @@ class AppTextEn extends AppText {
 
   @override
   String get stickersPickFailed => 'That picture could not be opened.';
+
+  @override
+  String get notificationsIphoneNote =>
+      'You can manage notifications for Privio in iPhone Settings.';
+
+  @override
+  String get notificationsOpenIphoneSettings => 'Open iPhone Settings';
+
+  @override
+  String get notificationsSettingsFailed =>
+      'Could not open Settings. Open the Settings app and select Privio.';
 }

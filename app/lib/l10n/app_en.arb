@@ -303,7 +303,7 @@
   "textSizeLarge": "Large",
   "textSizeLarger": "Larger",
   "notificationsPushNote": "A push carries no content — only a wake-up. The message is fetched and decrypted on this device, so nobody in the middle, including whoever runs the service that woke it, sees who wrote to you.",
-  "notificationsPhoneNote": "Sound, vibration, the light and whether anything shows on the lock screen belong to your phone's own settings for Privio, not to this screen. There used to be five switches here that set nothing; they are gone rather than left looking like they worked.",
+  "notificationsPhoneNote": "Sound, vibration, the light and whether anything shows on the lock screen belong to your phone's own settings for Privio, not to this screen.",
   "notificationsDelivery": "Delivery",
   "notificationsDistributorFound": "A distributor app on this phone holds one connection for every app that uses it, and forwards a contentless ping. {app} needs no Google service for it, and you can run the distributor yourself.",
   "@notificationsDistributorFound": {"placeholders": {"app": {"type": "String"}}},
@@ -1263,5 +1263,8 @@
   "stickersOpen": "Open",
   "stickersKindSticker": "Stickers",
   "stickersKindEmoji": "Custom emoji",
-  "stickersPickFailed": "That picture could not be opened."
+  "stickersPickFailed": "That picture could not be opened.",
+  "notificationsIphoneNote": "You can manage notifications for Privio in iPhone Settings.",
+  "notificationsOpenIphoneSettings": "Open iPhone Settings",
+  "notificationsSettingsFailed": "Could not open Settings. Open the Settings app and select Privio."
 }
