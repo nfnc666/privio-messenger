@@ -18,6 +18,8 @@ import {
 import licenseRoutes from './routes/licenses.js';
 import adminRoutes from './routes/admin.js';
 import { mediaRoutes } from './routes/media.js';
+import { phoneRoutes } from './routes/phone.js';
+import { smsSenderFrom } from './services/sms.js';
 import stickerRoutes from './routes/stickers.js';
 import botRoutes from './routes/bots.js';
 import { ensureAssistant } from './services/botcreator.js';
@@ -165,6 +167,10 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(callRoutes);
   await app.register(contactRoutes);
   await app.register(stickerRoutes);
+  // Built at start-up rather than per request, so a half-finished SMS
+  // configuration fails here — where a deployment notices — rather than when
+  // somebody is waiting for a text. See `services/sms.ts`.
+  await app.register(phoneRoutes(smsSenderFrom()));
   await app.register(botRoutes);
   // The assistant has to exist before anybody can write to it, and it is
   // ensured rather than assumed — see `ensureAssistant`.

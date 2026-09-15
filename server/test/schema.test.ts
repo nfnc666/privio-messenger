@@ -151,6 +151,26 @@ const READABLE: Record<string, string> = {
   // questions — a bot's name — and nothing a person said to another person.
   'botcreator_state.step': 'the assistant s own state machine, not a conversation between people',
 
+  // Phone numbers, and the shape of what is *not* here.
+  //
+  // There is no phone-number column in this schema and these three are the
+  // reason it is worth saying so: what a phone link holds is a keyed hash
+  // (`bytea`, so the digest test covers it) plus the two things below, and
+  // neither is a number.
+  //
+  // The hint is a calling code and the last two digits — "+49 … 87". It exists
+  // so the settings screen can say *which* of somebody's numbers is attached,
+  // which is a question they cannot answer from a hash. It is shown only to its
+  // own owner and never to another account. Two digits and a country identify
+  // roughly one person in a million, and the alternative — showing nothing —
+  // makes "change my number" a guess.
+  'phone_links.hint': 'a calling code and two digits, shown only to its own owner',
+  'phone_verifications.hint': 'the same, while a code is outstanding',
+  // Argon2id over six digits. Here rather than in the digest test because that
+  // test asserts `bytea`, and this one is the encoded-string form Argon2
+  // produces — the same shape as `accounts.password_hash`.
+  'phone_verifications.code_hash': 'Argon2id digest of the six-digit code',
+
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
   'licenses.status': 'active or revoked',
