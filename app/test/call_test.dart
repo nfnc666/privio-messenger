@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/calls/ice_servers.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/calls/call.dart';
@@ -12,6 +13,7 @@ import 'package:privio/core/secure_store.dart';
 import 'package:privio/services/call_service.dart';
 
 import 'support/fake_call_peer.dart';
+import 'support/fake_sdp.dart';
 import 'support/fake_server.dart';
 
 /// One side of a call: the crypto and transport of a real participant, plus the
@@ -84,6 +86,11 @@ void main() {
             incoming.senderAccountId,
             signal,
             sentAt: incoming.receivedAt,
+            // Exactly what the app threads through: the key the session
+            // authenticated, not the label the server wrote.
+            senderIdentityKey: incoming.senderIdentityKey,
+            senderTrust: incoming.senderTrust,
+            senderDeviceIndex: incoming.senderDeviceIndex,
           );
         }
       }
@@ -112,6 +119,11 @@ void main() {
   });
 
   const bobParty = CallParty(accountId: 'account-bob', username: 'bob');
+
+  /// Stand-ins for the identity key a real session hands back. The guard
+  /// compares these; it never interprets them. Tests that drive [handleSignal]
+  /// directly supply one, exactly as the app supplies the real thing.
+  const aliceKey = 'identity-key-alice';
 
   test('the signalling never leaves the device in the clear', () async {
     await alice.calls.place(bobParty);
@@ -212,7 +224,14 @@ void main() {
       final received = await end.who.messaging.receive();
       for (final incoming in received.messages) {
         final signal = incoming.payload.call;
-        if (signal != null) await end.calls.handleSignal(incoming.senderAccountId, signal);
+        if (signal != null) {
+          await end.calls.handleSignal(
+            incoming.senderAccountId,
+            signal,
+            senderIdentityKey: incoming.senderIdentityKey,
+            senderTrust: incoming.senderTrust,
+          );
+        }
       }
     }
 
@@ -236,6 +255,7 @@ void main() {
 
     await bob.calls.handleSignal(
       'account-alice',
+      senderIdentityKey: aliceKey,
       const CallSignal(callId: 'a-call-from-last-week', action: CallAction.hangUp),
     );
     expect(bob.calls.current!.id, fresh);
@@ -267,7 +287,7 @@ void main() {
       store: InMemorySecureStore(),
       peerFails: const CallPeerException(
         CallPeerFailure.permissionDenied,
-        'Privio cannot use the microphone.',
+        Failure(FailureKind.callMicrophoneUnavailable),
       ),
     );
     addTearDown(refused.calls.dispose);
@@ -276,7 +296,7 @@ void main() {
 
     expect(refused.calls.current!.state, CallState.ended);
     expect(refused.calls.current!.ending, CallEnding.failed);
-    expect(refused.calls.error, contains('microphone'));
+    expect(refused.calls.failure?.kind, FailureKind.callMicrophoneUnavailable);
     await settle();
     expect(bob.calls.current, isNull, reason: 'nobody was ever rung');
   });
@@ -463,13 +483,13 @@ void main() {
     CallSignal offerFrom(String callId) => CallSignal(
           callId: callId,
           action: CallAction.offer,
-          sdp: 'sdp-offer',
+          sdp: fakeSdp(),
         );
 
     test('an offer older than the ring timeout is filed as missed, not rung', () async {
       final stale = DateTime.now().subtract(const Duration(minutes: 20));
 
-      await bob.calls.handleSignal('account-alice', offerFrom('call-old'), sentAt: stale);
+      await bob.calls.handleSignal('account-alice', offerFrom('call-old'), sentAt: stale, senderIdentityKey: aliceKey);
 
       expect(bob.calls.current, isNull, reason: 'nobody is on the other end any more');
       expect(bob.calls.history, hasLength(1));
@@ -482,6 +502,7 @@ void main() {
       final before = server.envelopes.length;
       await bob.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         offerFrom('call-old'),
         sentAt: DateTime.now().subtract(const Duration(minutes: 20)),
       );
@@ -493,6 +514,7 @@ void main() {
       // lose a call that is still ringing on the other side.
       await bob.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         offerFrom('call-fresh'),
         sentAt: DateTime.now().subtract(const Duration(seconds: 3)),
       );
@@ -506,6 +528,7 @@ void main() {
       // worse failure.
       await bob.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         offerFrom('call-future'),
         sentAt: DateTime.now().add(const Duration(minutes: 5)),
       );
@@ -524,7 +547,7 @@ void main() {
 
       // The same envelope again — redelivered because the acknowledgement for
       // it never reached the server.
-      await bob.calls.handleSignal('account-alice', offerFrom(callId), sentAt: DateTime.now());
+      await bob.calls.handleSignal('account-alice', offerFrom(callId), sentAt: DateTime.now(), senderIdentityKey: aliceKey);
 
       expect(
         bob.calls.current!.state,
@@ -546,6 +569,7 @@ void main() {
 
       await quick.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         offerFrom('call-dup'),
         sentAt: DateTime.now(),
       );
@@ -556,6 +580,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 70));
       await quick.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         offerFrom('call-dup'),
         sentAt: DateTime.now(),
       );
@@ -579,6 +604,7 @@ void main() {
 
       await bob.calls.handleSignal(
         'account-alice',
+        senderIdentityKey: aliceKey,
         CallSignal(callId: callId, action: CallAction.hangUp),
         sentAt: DateTime.now(),
       );

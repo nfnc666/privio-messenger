@@ -27,6 +27,19 @@ const sendSchema = z
     username: usernameSchema.optional(),
     accountId: uuidSchema.optional(),
     idempotencyKey: idempotencyKeySchema.optional(),
+    /**
+     * How long the sender's timer gives this message, in seconds.
+     *
+     * Only a bound on how long the *server* keeps an undelivered envelope. The
+     * deletion that matters happens on the devices, from the number sealed
+     * inside the payload — this is the same number in the clear, so that a
+     * message set to vanish in thirty seconds does not sit here for thirty days
+     * waiting for a device that never comes back.
+     *
+     * Clamped rather than trusted: a client asking for a year is asking for the
+     * ordinary retention it would have got anyway.
+     */
+    expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
     messages: z.array(perDeviceSchema).min(1).max(256),
   })
   .refine((v) => Boolean(v.username) !== Boolean(v.accountId), {
@@ -133,12 +146,16 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
         );
       }
 
+      const expiresAt = body.expiresInSeconds
+        ? new Date(Date.now() + body.expiresInSeconds * 1000)
+        : null;
       const envelopes: OutgoingEnvelope[] = body.messages.map((m) => ({
         recipientDeviceId: m.deviceId,
         senderAccountId: accountId,
         senderDeviceId: deviceId,
         type: m.type,
         content: m.content,
+        expiresAt,
       }));
 
       if (body.idempotencyKey) {
@@ -163,6 +180,8 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
       const body = parse(
         z.object({
           idempotencyKey: idempotencyKeySchema.optional(),
+          // Same bound as a 1:1 send, for the same reason — see `sendSchema`.
+          expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
           messages: z.array(perDeviceSchema).min(1).max(2048),
         }),
         request.body,
@@ -198,6 +217,9 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
       }
 
       const allowed = new Set(expected);
+      const groupExpiresAt = body.expiresInSeconds
+        ? new Date(Date.now() + body.expiresInSeconds * 1000)
+        : null;
       const envelopes: OutgoingEnvelope[] = body.messages
         .filter((m) => allowed.has(m.deviceId))
         .map((m) => ({
@@ -207,6 +229,7 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
           groupId: params.groupId,
           type: m.type,
           content: m.content,
+          expiresAt: groupExpiresAt,
         }));
 
       if (body.idempotencyKey) {

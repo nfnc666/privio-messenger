@@ -10,6 +10,8 @@ import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
 import '../crypto/safety_number.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/models.dart';
 import '../media/voice.dart';
 import 'group_info_screen.dart';
@@ -18,6 +20,7 @@ import 'safety_number_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
@@ -114,14 +117,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// which is true and answers the wrong question: encrypted *to whom* is the
   /// part a user cannot check for themselves.
   String _encryptionSubtitle(AppState state) {
+    final text = AppText.of(context);
     if (state.conversations.hasIdentityChange(widget.accountId) ||
         state.conversations.hasKeyChangeAlert(widget.accountId)) {
-      return 'Safety number changed';
+      return text.chatSafetyNumberChanged;
     }
     return switch (_verification) {
-      VerificationState.verified => 'End-to-end encrypted · verified',
-      VerificationState.changed => 'End-to-end encrypted · number changed',
-      _ => 'End-to-end encrypted',
+      VerificationState.verified => text.chatEncryptedVerified,
+      VerificationState.changed => text.chatEncryptedNumberChanged,
+      _ => text.chatEncrypted,
     };
   }
 
@@ -151,6 +155,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _openMessageActions(AppState state, Message message) async {
     final clientId = message.clientId;
     final queued = clientId != null && state.conversations.isQueued(clientId);
+    final text = AppText.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -176,7 +181,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         decoration: BoxDecoration(
                           color: state.conversations.accountId != null &&
                                   message.reactions[state.conversations.accountId] == emoji
-                              ? PrivioColors.accentSurface
+                              ? context.accents.surface
                               : PrivioColors.surfaceRaised,
                           shape: BoxShape.circle,
                         ),
@@ -194,11 +199,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             if (queued) ...[
               ListTile(
                 leading: const Icon(Icons.refresh_rounded),
-                title: const Text('Try again'),
+                title: Text(text.chatRetrySendTitle),
                 subtitle: Text(
                   message.state == DeliveryState.failed
-                      ? 'It did not go out. Send it now.'
-                      : 'Waiting for a network. Try now anyway.',
+                      ? text.chatRetryFailed
+                      : text.chatRetryQueued,
                 ),
                 onTap: () => Navigator.of(sheetContext).pop('retry'),
               ),
@@ -207,20 +212,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             if (!queued)
               ListTile(
                 leading: const Icon(Icons.reply_rounded),
-                title: const Text('Reply'),
+                title: Text(text.commonReply),
                 onTap: () => Navigator.of(sheetContext).pop('reply'),
               ),
             if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
-                title: const Text('Copy text'),
+                title: Text(text.chatCopyText),
                 onTap: () => Navigator.of(sheetContext).pop('copy'),
               ),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded),
               iconColor: PrivioColors.danger,
               textColor: PrivioColors.danger,
-              title: const Text('Delete'),
+              title: Text(text.commonDelete),
               onTap: () => Navigator.of(sheetContext).pop('delete'),
             ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -242,7 +247,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await Clipboard.setData(ClipboardData(text: message.body));
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Copied.')));
+          .showSnackBar(SnackBar(content: Text(text.commonCopied)));
       return;
     }
     if (action == 'delete') {
@@ -268,6 +273,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Taking it back everywhere is only offered for what this account wrote,
     // and only while there is still somebody to ask.
     final canRecall = message.isMine && message.kind != MessageKind.deleted;
+    final text = AppText.of(context);
 
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -279,8 +285,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             const SizedBox(height: PrivioSpacing.sm),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded),
-              title: const Text('Delete for me'),
-              subtitle: const Text('Gone from this device. Other devices keep it.'),
+              title: Text(text.chatDeleteForMe),
+              subtitle: Text(text.chatDeleteForMeNote),
               onTap: () => Navigator.of(sheetContext).pop('me'),
             ),
             if (canRecall)
@@ -288,11 +294,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 leading: const Icon(Icons.delete_forever_outlined),
                 iconColor: PrivioColors.danger,
                 textColor: PrivioColors.danger,
-                title: const Text('Delete for everyone'),
-                subtitle: const Text(
-                  'Asks their app to forget it. It cannot take back what was '
-                  'already read, screenshotted, or restored from a backup.',
-                ),
+                title: Text(text.chatDeleteForEveryone),
+                subtitle: Text(text.chatDeleteForEveryoneNote),
                 onTap: () => Navigator.of(sheetContext).pop('everyone'),
               ),
             const SizedBox(height: PrivioSpacing.sm),
@@ -313,6 +316,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// handed over as a path, because they have to be scrubbed and sealed before
   /// anything leaves the device.
   Future<void> _attach() async {
+    final text = AppText.of(context);
     PlatformFile? picked;
     try {
       // A platform whose picker is missing answers with a future that never
@@ -320,10 +324,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // timeout turns that into a message they can act on.
       picked = await FilePicker.pickFile().timeout(const Duration(minutes: 2));
     } on TimeoutException {
-      if (mounted) _showError('The file picker did not respond.');
+      if (mounted) _showError(text.chatPickerNoResponse);
       return;
     } on Object catch (failure) {
-      if (mounted) _showError('Could not open the file picker: $failure');
+      if (mounted) _showError(text.chatPickerFailed('$failure'));
       return;
     }
 
@@ -335,7 +339,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       bytes = await picked.readAsBytes();
     } on Object {
-      if (mounted) _showError('Could not read ${picked.name}.');
+      if (mounted) _showError(text.chatCouldNotReadFile(picked.name));
       return;
     }
     if (!mounted) return;
@@ -351,11 +355,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   /// Members, and whether this device can read the group's name yet.
   String _groupSubtitle(AppState state) {
+    final text = AppText.of(context);
     final group = state.conversations.groupInfo(widget.accountId);
-    if (group == null) return 'End-to-end encrypted';
-    if (group.groupKey == null) return 'Waiting for the group key';
+    if (group == null) return text.chatEncrypted;
+    if (group.groupKey == null) return text.chatWaitingGroupKey;
     final count = group.memberIds.length;
-    return count > 0 ? '$count members · encrypted' : 'End-to-end encrypted';
+    return count > 0 ? text.chatMembersEncrypted(count) : text.chatEncrypted;
   }
 
   void _showError(String message) {
@@ -410,10 +415,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   /// Sets how long messages in this chat live.
   ///
-  /// The timer is agreed end to end: it rides inside each sealed payload, so
-  /// the other side adopts it without the server being told. Both devices then
-  /// delete on their own clocks — which is the only way this can work, because
-  /// a server asked to forget something is a server being trusted.
+  /// The timer is agreed end to end: it rides inside each sealed payload, and
+  /// a change is announced in one of its own, so the other side adopts it
+  /// without the server being told what it is. Both devices then delete on
+  /// their own clocks — which is the only way this can work, because a server
+  /// asked to forget something is a server being trusted.
   Future<void> _chooseTimer(AppState state) async {
     final chosen = await DisappearingTimerSheet.choose(
       context,
@@ -421,7 +427,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       isGroup: false,
     );
     if (chosen == null || !mounted) return;
-    state.conversations.setDisappearAfter(widget.accountId, chosen.value);
+    await state.conversations.setDisappearAfter(widget.accountId, chosen.value);
   }
 
   /// Blocks the other side of a 1:1 chat.
@@ -429,24 +435,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// The server drops what they send afterwards and tells them nothing, so the
   /// confirmation says that rather than promising them a notice.
   Future<void> _confirmBlock(AppState state) async {
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text('Block ${widget.title}?'),
-        content: const Text(
-          'Their messages stop arriving. They are not told, and it looks to them '
-          'as though nothing changed. You can lift it in Privacy & Security.',
-        ),
+        title: Text(text.chatBlockTitle(widget.title)),
+        content: Text(text.chatBlockBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Block'),
+            child: Text(text.chatBlock),
           ),
         ],
       ),
@@ -457,7 +461,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(blocked ? '${widget.title} is blocked.' : 'Could not block them.'),
+        content: Text(
+          blocked ? text.chatBlocked(widget.title) : text.chatCouldNotBlock,
+        ),
       ),
     );
     if (blocked) Navigator.of(context).pop();
@@ -477,12 +483,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _onMicrophoneDenied() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Privio cannot record without microphone access. '
-          'You can grant it in your device settings.',
-        ),
-        duration: Duration(seconds: 5),
+      SnackBar(
+        content: Text(AppText.of(context).chatMicrophoneDenied),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -537,10 +540,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// Shows the group's join link. It carries no key: whoever opens it joins,
   /// and a member's device sends them the key to the group's name afterwards.
   Future<void> _shareGroupLink(AppState state) async {
+    final text = AppText.of(context);
     final link = state.conversations.groupInviteLink(widget.accountId);
     if (link == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No link for this group yet — pull to refresh.')),
+        SnackBar(content: Text(text.chatNoGroupLink)),
       );
       return;
     }
@@ -548,7 +552,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surfaceRaised,
-        title: const Text('Invite link'),
+        title: Text(text.chatInviteLink),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,8 +560,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             SelectableText(link, style: Theme.of(dialogContext).textTheme.bodySmall),
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'Share it anywhere — it carries no key. Whoever opens it joins the '
-              'group, and the key to its name reaches their device encrypted.',
+              text.chatInviteLinkNote,
               style: Theme.of(dialogContext).textTheme.bodySmall,
             ),
           ],
@@ -565,14 +568,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+            child: Text(text.commonClose),
           ),
           FilledButton(
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: link));
               if (dialogContext.mounted) Navigator.of(dialogContext).pop();
             },
-            child: const Text('Copy'),
+            child: Text(text.commonCopy),
           ),
         ],
       ),
@@ -588,6 +591,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = PrivioScope.of(context);
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: state.conversations,
@@ -627,7 +631,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                       Text(
                         state.conversations.isTyping(widget.accountId)
-                            ? 'typing…'
+                            ? text.chatTyping
                             : widget.isGroup
                                 ? _groupSubtitle(state)
                                 : _encryptionSubtitle(state),
@@ -636,7 +640,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   state.conversations.hasKeyChangeAlert(widget.accountId) ||
                                   _verification == VerificationState.changed
                               ? PrivioColors.warning
-                              : PrivioColors.accent,
+                              : context.accents.accent,
                         ),
                       ),
                     ],
@@ -649,7 +653,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 IconButton(
                   onPressed: () => _shareGroupLink(state),
                   icon: const Icon(Icons.link_rounded),
-                  tooltip: 'Invite link',
+                  tooltip: text.chatInviteLink,
                 ),
               // Groups have no call yet: a group call is a different piece of
               // machinery, not the same one with more people in it.
@@ -657,12 +661,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 IconButton(
                   onPressed: () => unawaited(_call(state, CallMedia.video)),
                   icon: const Icon(Icons.videocam_outlined),
-                  tooltip: 'Video call',
+                  tooltip: text.chatVideoCall,
                 ),
                 IconButton(
                   onPressed: () => unawaited(_call(state, CallMedia.audio)),
                   icon: const Icon(Icons.call_outlined),
-                  tooltip: 'Voice call',
+                  tooltip: text.chatVoiceCall,
                 ),
               ],
               // The overflow used to open the timer sheet directly, which made
@@ -675,10 +679,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       : Icons.timer_outlined,
                   color: state.conversations.disappearAfter(widget.accountId) == null
                       ? null
-                      : PrivioColors.accent,
+                      : context.accents.accent,
                 ),
                 color: PrivioColors.surface,
-                tooltip: 'More',
+                tooltip: text.chatMore,
                 onSelected: (action) => switch (action) {
                   'timer' => _chooseTimer(state),
                   'block' => _confirmBlock(state),
@@ -688,23 +692,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 },
                 itemBuilder: (context) => [
                   if (widget.isGroup)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'group',
-                      child: Text('Group info'),
+                      child: Text(text.chatGroupInfo),
                     ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'timer',
-                    child: Text('Disappearing messages'),
+                    child: Text(text.disappearingTitle),
                   ),
                   if (!widget.isGroup)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'safety',
-                      child: Text('Safety number'),
+                      child: Text(text.chatSafetyNumber),
                     ),
                   if (!widget.isGroup)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'block',
-                      child: Text('Block'),
+                      child: Text(text.chatBlock),
                     ),
                 ],
               ),
@@ -744,9 +748,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   message: _replyingTo!,
                   onCancel: () => setState(() => _replyingTo = null),
                 ),
-              if (state.conversations.error != null)
+              if (state.conversations.failure != null)
                 _ErrorBanner(
-                  message: state.conversations.error!,
+                  message: state.conversations.failure!.words(text),
                   // The server refuses to relay for an unlicensed account, so
                   // a send that failed while one is unactivated has somewhere
                   // to go rather than just a red line.
@@ -776,6 +780,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     _voiceChanged();
                   },
                   onTyping: (_) => state.conversations.typing(widget.accountId),
+                  disappearAfter: state.conversations.disappearAfter(widget.accountId),
+                  onChooseTimer: () => unawaited(_chooseTimer(state)),
                   voiceStage: _voiceKey.currentState?.stage ?? VoiceComposerStage.idle,
                   voice: VoiceComposer(
                     key: _voiceKey,
@@ -829,7 +835,11 @@ class _ErrorBanner extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
             ),
           ),
-          if (onActivate != null) TextButton(onPressed: onActivate, child: const Text('Activate')),
+          if (onActivate != null)
+            TextButton(
+              onPressed: onActivate,
+              child: Text(AppText.of(context).chatActivate),
+            ),
         ],
       ),
     );
@@ -848,6 +858,8 @@ class _Composer extends StatelessWidget {
     required this.onTyping,
     required this.voiceStage,
     required this.voice,
+    required this.disappearAfter,
+    required this.onChooseTimer,
   });
 
   final TextEditingController controller;
@@ -871,6 +883,10 @@ class _Composer extends StatelessWidget {
 
   /// The recording or preview strip. Rendered where the text field would be.
   final Widget voice;
+
+  /// How long a message sent from here lives, or null when the timer is off.
+  final Duration? disappearAfter;
+  final VoidCallback onChooseTimer;
 
   @override
   Widget build(BuildContext context) {
@@ -897,8 +913,9 @@ class _Composer extends StatelessWidget {
               IconButton(
                 onPressed: onAttach,
                 icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
-                tooltip: 'Attach a file',
+                tooltip: AppText.of(context).composerAttach,
               ),
+              _TimerButton(timer: disappearAfter, onPressed: onChooseTimer),
               Expanded(
                 child: TextField(
                   controller: controller,
@@ -907,8 +924,8 @@ class _Composer extends StatelessWidget {
                   textCapitalization: TextCapitalization.sentences,
                   onChanged: onTyping,
                   onSubmitted: (_) => onSend(),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
+                  decoration: InputDecoration(
+                    hintText: AppText.of(context).composerHint,
                     isDense: true,
                   ),
                 ),
@@ -928,6 +945,68 @@ class _Composer extends StatelessWidget {
               onHoldEnd: onHoldEnd,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The disappearing-message timer, in the composer where it is decided.
+///
+/// It used to live only in the overflow menu, which is the wrong place for it:
+/// the timer governs the message you are *about to write*, so it belongs beside
+/// the field you write it in, showing its state before you type rather than
+/// after you go looking.
+///
+/// Off it is an outline, the same weight as the attachment button next to it.
+/// On it turns green and wears the duration, because a chat that silently
+/// deletes itself is the one way this feature can hurt somebody — they keep
+/// writing, and what they wrote is gone. The state has to be visible without
+/// being asked for.
+class _TimerButton extends StatelessWidget {
+  const _TimerButton({required this.timer, required this.onPressed});
+
+  final Duration? timer;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = timer != null;
+    final text = AppText.of(context);
+    // Sized to match the 48-point touch target of the IconButton beside it, so
+    // the two sit on the same baseline and neither crowds the text field.
+    return Tooltip(
+      message: on
+          ? text.composerTimerOn(DisappearingTimerSheet.badge(text, timer!))
+          : text.composerTimerOff,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: SizedBox(
+          height: 48,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.sm),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  on ? Icons.timer_rounded : Icons.timer_outlined,
+                  size: 22,
+                  color: on ? context.accents.accent : PrivioColors.textSecondary,
+                ),
+                if (on) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    DisappearingTimerSheet.badge(text, timer!),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: context.accents.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -965,11 +1044,11 @@ class _TrailingAction extends StatelessWidget {
         key: const Key('voice-send'),
         onPressed: onSendVoice,
         style: IconButton.styleFrom(
-          backgroundColor: PrivioColors.accent,
+          backgroundColor: context.accents.accent,
           foregroundColor: PrivioColors.background,
         ),
         icon: const Icon(Icons.send_rounded, size: 20),
-        tooltip: 'Send',
+        tooltip: AppText.of(context).chatSend,
       );
     }
 
@@ -981,11 +1060,11 @@ class _TrailingAction extends StatelessWidget {
           return IconButton.filled(
             onPressed: onSend,
             style: IconButton.styleFrom(
-              backgroundColor: PrivioColors.accent,
+              backgroundColor: context.accents.accent,
               foregroundColor: PrivioColors.background,
             ),
             icon: const Icon(Icons.send_rounded, size: 20),
-            tooltip: 'Send',
+            tooltip: AppText.of(context).chatSend,
           );
         }
 
@@ -1000,9 +1079,9 @@ class _TrailingAction extends StatelessWidget {
           onTap: recording
               ? null
               : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Hold the microphone to record a voice message.'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Text(AppText.of(context).chatHoldToRecord),
+                      duration: const Duration(seconds: 2),
                     ),
                   ),
           child: Container(
@@ -1010,7 +1089,7 @@ class _TrailingAction extends StatelessWidget {
             height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: recording ? PrivioColors.accent : PrivioColors.surfaceRaised,
+              color: recording ? context.accents.accent : PrivioColors.surfaceRaised,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1042,11 +1121,11 @@ class _ReplyBar extends StatelessWidget {
         PrivioSpacing.sm,
         PrivioSpacing.sm,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: PrivioColors.surface,
         border: Border(
-          top: BorderSide(color: PrivioColors.border),
-          left: BorderSide(color: PrivioColors.accent, width: 3),
+          top: const BorderSide(color: PrivioColors.border),
+          left: BorderSide(color: context.accents.accent, width: 3),
         ),
       ),
       child: Row(
@@ -1058,14 +1137,15 @@ class _ReplyBar extends StatelessWidget {
               children: [
                 Text(
                   switch ((message.isMine, message.senderName)) {
-                    (true, _) => 'Replying to yourself',
+                    (true, _) => AppText.of(context).chatReplyingToYourself,
                     // In a group the quote is meaningless without the name;
                     // in a 1:1 chat the header already says who.
-                    (false, final String name) => 'Replying to $name',
-                    (false, null) => 'Replying',
+                    (false, final String name) =>
+                      AppText.of(context).chatReplyingTo(name),
+                    (false, null) => AppText.of(context).chatReplying,
                   },
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: PrivioColors.accentBright,
+                    color: context.accents.bright,
                   ),
                 ),
                 Text(
@@ -1080,7 +1160,7 @@ class _ReplyBar extends StatelessWidget {
           IconButton(
             onPressed: onCancel,
             icon: const Icon(Icons.close_rounded, size: 20),
-            tooltip: 'Cancel reply',
+            tooltip: AppText.of(context).chatCancelReply,
           ),
         ],
       ),

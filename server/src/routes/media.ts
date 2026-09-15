@@ -30,6 +30,7 @@ import { parse, uuidSchema } from '../util/validate.js';
  * nothing. They are authorised by the contact list instead.
  */
 interface MediaRow {
+  id: string;
   storage_key: string;
   byte_size: string | number;
   kind: string;
@@ -38,6 +39,16 @@ interface MediaRow {
 }
 
 const TOKEN_HEADER = 'x-privio-media-token';
+
+/**
+ * The shortest life a caller may ask for a blob, whatever its message's timer.
+ *
+ * An hour, because the deletion that matters is the one the devices do and this
+ * is only about not keeping ciphertext longer than it can be of use. A
+ * recipient whose phone was off for the last five minutes still has to be able
+ * to fetch the photo before their own copy of the timer starts.
+ */
+const MIN_MEDIA_TTL_SECONDS = 3600;
 
 function hash(token: string): Buffer {
   return createHash('sha256').update(token).digest();
@@ -57,6 +68,34 @@ async function mayDownload(
   headers: Record<string, unknown>,
 ): Promise<boolean> {
   if (object.owner_account_id === accountId) return true;
+
+  // A channel's picture, which is not sealed.
+  //
+  // A **public** channel's is meant to be seen by people who are not in it: it
+  // is on the invite page, it is what a messenger draws in a link preview, and
+  // it is how somebody picks the channel out of search results. Its title,
+  // description and handle are already plaintext for the same reason.
+  //
+  // A **private** channel's is not published. It used to be encrypted; now it
+  // is withheld instead — only members get it. That is a weaker promise than
+  // encryption and it is the one being made: the posts stay end-to-end
+  // encrypted, the picture on the door does not.
+  //
+  // An object of this kind that no channel points at is nobody's picture, so
+  // nobody but its uploader may have it — that is the `false` at the end, and
+  // it stops an id from being a download before it has been attached.
+  if (object.kind === 'channel_avatar') {
+    const { rows } = await pool.query<{ visibility: string }>(
+      `SELECT c.visibility FROM channels c
+        WHERE c.avatar_media_id = $1 AND c.deleted_at IS NULL
+          AND (c.visibility = 'public'
+               OR EXISTS (SELECT 1 FROM channel_members m
+                           WHERE m.channel_id = c.id AND m.account_id = $2))
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return rows.length > 0;
+  }
 
   if (object.kind === 'avatar') {
     const { rows } = await pool.query(
@@ -87,15 +126,49 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
         if (!Buffer.isBuffer(body) || body.length === 0) {
           throw ApiError.badRequest('empty_body', 'Send the encrypted bytes as application/octet-stream');
         }
-        const { kind } = parse(
-          z.object({ kind: z.enum(['attachment', 'avatar']).default('attachment') }),
+        const { kind, expiresInSeconds } = parse(
+          z.object({
+            kind: z.enum(['attachment', 'avatar', 'channel_avatar']).default('attachment'),
+            /**
+             * How long this blob is worth keeping, for an attachment to a
+             * message that is set to disappear.
+             *
+             * A shorter life than the default, asked for by the uploader and
+             * never longer than it: the picture in a message that vanishes in
+             * a minute should not sit in storage for the ordinary retention
+             * period. The screen timer alone does not delete anything here,
+             * which is the whole point of this parameter.
+             *
+             * It is a duration, not the message's timer: the client sends
+             * enough for the recipient's own clock to run too — see
+             * `MEDIA_GRACE_SECONDS` in the app. The floor stops a rounding
+             * error or a hostile client from expiring a blob before the
+             * message carrying its key has even been fetched.
+             */
+            expiresInSeconds: z.coerce
+              .number()
+              .int()
+              .min(MIN_MEDIA_TTL_SECONDS)
+              .optional(),
+          }),
           request.query,
         );
         const storageKey = await storage.put(body);
-        const expiresAt = new Date(Date.now() + config.MEDIA_TTL_DAYS * 86_400_000);
+        const defaultTtl = config.MEDIA_TTL_DAYS * 86_400_000;
+        // Only ever shorter. An uploader asking for longer is asking for the
+        // retention it would have had anyway, and an avatar is not a message
+        // attachment: it stays as long as it is somebody's picture.
+        const ttl =
+          kind === 'attachment' && expiresInSeconds
+            ? Math.min(expiresInSeconds * 1000, defaultTtl)
+            : defaultTtl;
+        const expiresAt = new Date(Date.now() + ttl);
 
         // Handed back once and never stored. Losing it means losing the blob,
         // which is the point: the server keeps nothing that opens it.
+        // Only an attachment gets one. The two avatar kinds are authorised by
+        // who is asking rather than by what they hold, so a token would be
+        // published alongside the id and buy nothing.
         const token = kind === 'attachment' ? randomBytes(32).toString('base64url') : null;
         const { rows } = await pool.query<{ id: string }>(
           `INSERT INTO media_objects
@@ -117,7 +190,7 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
       const { accountId } = auth(request);
       const params = parse(z.object({ id: uuidSchema }), request.params);
       const { rows } = await pool.query<MediaRow>(
-        `SELECT storage_key, byte_size, kind, owner_account_id, download_token_hash
+        `SELECT id, storage_key, byte_size, kind, owner_account_id, download_token_hash
            FROM media_objects WHERE id = $1 AND expires_at > now()`,
         [params.id],
       );

@@ -188,6 +188,22 @@ each exists, is in `server/src/config.ts`.
 | `APNS_KEY_P8` / `_KEY_ID` / `_TEAM_ID` / `_TOPIC` | unset | all four together or none |
 | `APNS_ENVIRONMENT` | **production** | a TestFlight build needs `sandbox` |
 | `FCM_PROJECT_ID` / `_CLIENT_EMAIL` / `_PRIVATE_KEY` | unset | all three together or none |
+| `LIVEKIT_URL` / `_API_KEY` / `_API_SECRET` | unset | a media server for channel livestreams; all three together or none |
+| `TRANSLATION_URL` | unset | a translation endpoint offered to devices; see `docs/channels.md` before enabling |
+
+**Channel livestreams are off until `LIVEKIT_*` is set**, and the app says so
+rather than offering a control that does nothing. A livestream is the one thing
+in Privio that cannot be peer-to-peer — one publisher and every subscriber needs
+a server that forwards the stream — and the media on it is **not** end-to-end
+encrypted: the media server can see it. Privio also has no SFU client yet, so
+setting these three gets you a room and a token, not video. `docs/channels.md`
+has the whole picture.
+
+**`TRANSLATION_URL` is not a feature switch.** The server holds ciphertext and
+no key, so it cannot translate anything; translation would happen on the reader's
+device and the text would leave it in the clear. Configuring this only makes an
+endpoint available — it still needs per-channel opt-in and per-reader consent,
+neither of which is built.
 
 ### What production refuses, and what it merely warns about
 

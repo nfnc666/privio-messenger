@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// The rounded search field used on the Chats and Contacts screens.
@@ -71,7 +72,7 @@ class FilterChips extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.lg),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? PrivioColors.accent : PrivioColors.surfaceRaised,
+                color: selected ? context.accents.accent : PrivioColors.surfaceRaised,
                 borderRadius: const BorderRadius.all(PrivioRadius.pill),
               ),
               child: Text(

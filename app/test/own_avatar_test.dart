@@ -43,7 +43,7 @@ void main() {
     // What the server holds after this account has set a picture: the prepared
     // image, sealed under this account's own profile key — which survives a
     // restart because it lives in the keystore.
-    final picture = AvatarImage.prepare(img.encodeJpg(img.Image(width: 400, height: 400)))!;
+    final picture = (await AvatarImage.prepare(img.encodeJpg(img.Image(width: 400, height: 400))))!;
     sealed = Uint8List.fromList(
       await AttachmentCipher.sealWithKey(
         picture,

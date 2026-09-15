@@ -39,6 +39,49 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   /**
+   * Where the invite pages live, as an absolute origin
+   * (`https://privio.channel`). Empty means "wherever this request arrived",
+   * which is the right default for a deployment that has no domain of its own
+   * yet — the pages then work on the server's own hostname.
+   *
+   * This is the one constant a registered domain changes. The app's
+   * `ChannelService.channelLinkHost` is its twin on the client side, and the
+   * two have to agree or a link built by one will not be recognised by the
+   * other.
+   */
+  PUBLIC_WEB_URL: z.string().default(''),
+
+  /**
+   * Where to send somebody who does not have the app.
+   *
+   * All three are empty by default and the page shows only what is set. That
+   * is deliberate: a download button that leads to a store listing which does
+   * not exist is worse than no button, and this project currently ships
+   * through TestFlight and CI artifacts rather than either store.
+   */
+  APP_STORE_URL: z.string().default(''),
+  PLAY_STORE_URL: z.string().default(''),
+  APK_DOWNLOAD_URL: z.string().default(''),
+
+  /**
+   * What the domain-verification files say, for iOS Universal Links and
+   * Android App Links.
+   *
+   * Unset means the files are not served at all rather than served empty: a
+   * malformed `apple-app-site-association` is cached by Apple's CDN for days,
+   * and a 404 is the state Apple and Google both handle correctly.
+   *
+   * `IOS_APP_ID` is `<team id>.<bundle id>`. `ANDROID_CERT_FINGERPRINTS` is a
+   * comma-separated list of SHA-256 signing-certificate fingerprints — plural
+   * because an app signed by Play App Signing has both an upload certificate
+   * and the one Google re-signs with, and a link verified against only one of
+   * them fails for half the installs.
+   */
+  IOS_APP_ID: z.string().default(''),
+  ANDROID_PACKAGE: z.string().default(''),
+  ANDROID_CERT_FINGERPRINTS: z.string().default(''),
+
+  /**
    * STUN and TURN servers this deployment offers its clients, comma-separated
    * (`stun:stun.example.org:3478,turns:turn.example.org:5349`).
    *
@@ -140,7 +183,49 @@ const schema = z.object({
   FCM_PROJECT_ID: z.string().optional(),
   FCM_CLIENT_EMAIL: z.string().optional(),
   FCM_PRIVATE_KEY: z.string().optional(),
+
+  /**
+   * A media server for channel livestreams.
+   *
+   * A livestream is the one thing in Privio that cannot be peer-to-peer. A 1:1
+   * call is two devices and a TURN relay; a channel broadcast is one publisher
+   * and potentially thousands of viewers, which needs a server that receives
+   * one stream and forwards it — an SFU. There is no way to fake that with the
+   * call code already here.
+   *
+   * Unset by default, and the server then reports livestreams as unavailable
+   * rather than handing out a room nobody can join. The client draws the
+   * control as unavailable and says why. See docs/channels.md.
+   *
+   * LiveKit because its token format is plain JWT and its API is small enough
+   * to speak to without a vendor SDK on the server. Another SFU with the same
+   * shape can be swapped in behind `livestreams.ts`.
+   */
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
+
+  /**
+   * A machine-translation endpoint for channel posts.
+   *
+   * Off unless configured, and it stays off per channel until somebody turns it
+   * on: translating means sending text to a third party, and a channel's posts
+   * are end-to-end encrypted. The server cannot read them and must never be the
+   * one to send them anywhere — so translation happens **on the device**, which
+   * is the only place the plaintext exists, and this URL is what the device is
+   * told to use. See docs/channels.md for what that costs and what it leaks.
+   */
+  TRANSLATION_URL: z.string().url().optional(),
 }).superRefine((env, ctx) => {
+  const livekit = [env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET];
+  if (livekit.some(Boolean) && !livekit.every(Boolean)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['LIVEKIT_URL'],
+      message:
+        'Livestreams need LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET together, or none of them',
+    });
+  }
   // Half-configured is worse than unconfigured: it looks like it works.
   const apns = [env.APNS_KEY_P8, env.APNS_KEY_ID, env.APNS_TEAM_ID, env.APNS_TOPIC];
   if (apns.some(Boolean) && !apns.every(Boolean)) {

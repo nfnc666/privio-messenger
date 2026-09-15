@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'accent_controller.dart';
+import 'app_icon.dart';
+import 'app_icon_controller.dart';
 import 'api_client.dart';
 import 'channel_controller.dart';
 import 'conversation_controller.dart';
@@ -9,11 +12,14 @@ import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
 import 'passcode.dart';
 import 'edition.dart';
+import 'failure.dart';
 import 'license_controller.dart';
 import '../services/push_wake.dart';
+import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
+import 'locale_controller.dart';
 import 'secure_store.dart';
 
 /// Where the app is in the launch sequence, matching screens 1-5 of the design.
@@ -43,9 +49,11 @@ class AppState extends ChangeNotifier {
     PrivioEdition? edition,
     LauncherDisguise? launcher,
     PushWakeListener? pushWake,
+    IncomingLinks? links,
     bool? supportsDisguise,
   })  : _injectedServices = services,
         _pushWake = pushWake,
+        deepLinks = DeepLinkController(source: links ?? const NoIncomingLinks()),
         _store = store ?? KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
         disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
@@ -90,6 +98,32 @@ class AppState extends ChangeNotifier {
   SecurityController? _security;
   WakeUpController? _wakeUp;
 
+  /// Channel links that arrived from outside the app.
+  ///
+  /// Owned here rather than created per screen because a link can arrive at any
+  /// stage — cold start, lock screen, halfway through signing up — and has to
+  /// outlive whatever is on screen when it does.
+  final DeepLinkController deepLinks;
+
+  /// Which language the interface is in.
+  ///
+  /// Its own notifier rather than a field here, because the `MaterialApp` has
+  /// to rebuild on a change and nothing else does: a language change is not a
+  /// reason to rebuild every listener of [AppState].
+  ///
+  /// Loaded per account in [_onSignedIn] and reset by the sign-out and wipe
+  /// paths, which is the same rule as the rest of the per-account state.
+  late final LocaleController locale = LocaleController(_store);
+
+  /// Which colour this account's interface is drawn in. Same rule as the
+  /// language: per account, loaded at sign-in, reset by every path that ends an
+  /// account's use of this device.
+  late final AccentController accent = AccentController(_store);
+
+  /// Which colour the home-screen icon wears. Per installation rather than per
+  /// account — see [AppIconController].
+  late final AppIconController appIcon = AppIconController(_store, _launcherDisguise);
+
   AppStage _stage = AppStage.splash;
   String? _username;
   String? _accountId;
@@ -102,7 +136,7 @@ class AppState extends ChangeNotifier {
   String? _disguiseError;
   double _textScale = 1;
   bool _busy = false;
-  String? _authError;
+  Failure? _authFailure;
 
   /// Which tab of the shell is showing.
   ///
@@ -157,17 +191,22 @@ class AppState extends ChangeNotifier {
   double get textScale => _textScale;
 
   /// The sizes offered, as multipliers of the design.
+  ///
+  /// Keyed by an id rather than by the word on the row: the word is different
+  /// in each of the app's five languages, and a map keyed by "Large" would have
+  /// stopped matching the moment somebody switched.
   static const Map<String, double> textScales = {
-    'Small': 0.9,
-    'Medium': 1,
-    'Large': 1.15,
-    'Larger': 1.3,
+    'small': 0.9,
+    'medium': 1,
+    'large': 1.15,
+    'larger': 1.3,
   };
 
-  String get textScaleLabel => textScales.entries
+  /// Which of [textScales] is in force. The screen turns it into a word.
+  String get textScaleId => textScales.entries
       .firstWhere(
         (entry) => (entry.value - _textScale).abs() < 0.01,
-        orElse: () => const MapEntry('Medium', 1),
+        orElse: () => const MapEntry('medium', 1),
       )
       .key;
 
@@ -187,8 +226,10 @@ class AppState extends ChangeNotifier {
   /// one for an account that does.
   bool get signedIn => _sessionToken != null;
 
-  /// The last authentication failure, in words a user can act on.
-  String? get authError => _authError;
+  /// The last authentication failure, as a case. Sign-in happens before there
+  /// is an account to have a language, so the screen says it in English — but
+  /// it is the same typed value everywhere, and the screen decides.
+  Failure? get authFailure => _authFailure;
 
   PrivioServices get services {
     final services = _services;
@@ -197,10 +238,16 @@ class AppState extends ChangeNotifier {
   }
 
   ConversationController get conversations {
-    return _conversations ??= ConversationController(services);
+    return _conversations ??= ConversationController(services)
+      // Channel posts are sealed into the same archive as the chats, by the
+      // one object that knows how sealing works. Joined here because this is
+      // where both controllers exist and neither should reach for the other.
+      ..onChannelPostsRestored = (posts) => channels.restorePosts(posts);
   }
 
-  ChannelController get channels => _channels ??= ChannelController(services);
+  ChannelController get channels =>
+      _channels ??= ChannelController(services)
+        ..onPostsChanged = (posts) => conversations.cacheChannelPosts(posts);
 
   /// Activation state. Created lazily like the others, and refreshed on sign-in
   /// so the settings entry knows whether it has anything to say.
@@ -219,6 +266,13 @@ class AppState extends ChangeNotifier {
     _stage = AppStage.initialising;
     notifyListeners();
 
+    // Before anything that can fail or take a while. A link the app was
+    // launched by is already waiting at this point, and picking it up first
+    // means it survives whatever the rest of start-up decides to do — a lock
+    // screen, an activation step, or a welcome screen with no account behind
+    // it.
+    unawaited(deepLinks.start());
+
     _setProgress(0.15);
     // The store goes in rather than being made again inside: it holds the
     // archive key the passcode opened, and two instances would mean the lock
@@ -229,6 +283,12 @@ class AppState extends ChangeNotifier {
     final token = await _store.readToken();
     _username = await _store.readUsername();
     _accountId = await _store.readAccountId();
+    // Awaited, unlike most of start-up: the accent decides what colour the
+    // first frame after the splash is. Loading it afterwards would show the
+    // brand green for a frame on every launch of an app somebody had set to
+    // something else — which is the one thing this setting must not do.
+    final storedAccountId = _accountId;
+    if (storedAccountId != null) await accent.load(storedAccountId);
     _setProgress(0.7);
 
     _textScale = await _store.readTextScale() ?? 1;
@@ -313,7 +373,7 @@ class AppState extends ChangeNotifier {
 
   Future<bool> _authenticate(Future<Map<String, dynamic>> Function() call) async {
     _busy = true;
-    _authError = null;
+    _authFailure = null;
     notifyListeners();
     try {
       final result = await call();
@@ -331,10 +391,10 @@ class AppState extends ChangeNotifier {
       _onSignedIn();
       return true;
     } on ApiException catch (failure) {
-      _authError = _explain(failure);
+      _authFailure = _explain(failure);
       return false;
     } on Object {
-      _authError = 'Could not reach Privio. Check your connection.';
+      _authFailure = const Failure(FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _busy = false;
@@ -342,16 +402,17 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Server error codes turned into something a person can act on.
-  static String _explain(ApiException failure) => switch (failure.code) {
-        'username_taken' => 'That username is already taken.',
-        'invalid_credentials' => 'Username or password is incorrect.',
-        'totp_required' => 'Enter your two-factor code.',
-        'invalid_totp' => 'That two-factor code is not right.',
-        'invalid_request' => 'Check the username and password: ${failure.message}',
-        'rate_limited' => 'Too many attempts. Wait a few minutes.',
-        'too_many_devices' => 'This account already has the maximum number of devices.',
-        _ => failure.message,
+  /// Server error codes turned into cases a person can be told about.
+  static Failure _explain(ApiException failure) => switch (failure.code) {
+        'username_taken' => const Failure(FailureKind.usernameTaken),
+        'invalid_credentials' => const Failure(FailureKind.invalidCredentials),
+        'totp_required' => const Failure(FailureKind.totpRequired),
+        'invalid_totp' => const Failure(FailureKind.invalidTwoFactorCode),
+        'invalid_request' =>
+          Failure(FailureKind.checkUsernameAndPassword, detail: failure.message),
+        'rate_limited' => const Failure(FailureKind.tooManyAttempts),
+        'too_many_devices' => const Failure(FailureKind.tooManyDevices),
+        _ => Failure.server(failure.message),
       };
 
   /// The public key material this device publishes when it registers.
@@ -379,14 +440,31 @@ class AppState extends ChangeNotifier {
   }
 
   void _onSignedIn() {
+    // The interface language, before anything else is read: it decides what
+    // every screen that is about to appear is written in. `load` resets to
+    // English first and notifies again when the stored choice arrives, so a
+    // slow keystore shows English for a frame rather than the last account's
+    // language.
+    final account = _accountId;
+    if (account != null) {
+      detached(locale.load(account));
+      // Already loaded on a cold start; this is the account-switch path, where
+      // the app is on screen and the reset-then-read is what keeps one
+      // account's colour off the next account's screen.
+      if (accent.accountId != account) detached(accent.load(account));
+      // Whether this account takes calls only from confirmed contacts. Read at
+      // sign-in rather than at the first call: a security setting that waits
+      // for a restart is one somebody will believe is on when it is not.
+      detached(services.calls.loadSettings(account));
+    }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
-    unawaited(controller.restore().then((_) => controller.start(token: _sessionToken)));
+    detached(controller.restore().then((_) => controller.start(token: _sessionToken)));
     // The store builds register themselves; the free ones do not, because
     // choosing a distributor is a disclosure and therefore the user's to make.
     // Either way this must not block the chat list from appearing.
-    unawaited(wakeUp.ensureRegistered());
+    detached(wakeUp.ensureRegistered());
     // The platform's side of push: a wake-up means fetch, and a reissued token
     // means tell the server before it goes on posting to the old one.
     //
@@ -398,15 +476,15 @@ class AppState extends ChangeNotifier {
       onWake: () => controller.drain(),
       onTokenChanged: (token) => wakeUp.handleTokenChanged(token),
     );
-    unawaited(controller.refreshContacts());
+    detached(controller.refreshContacts());
     // A key request arrives on the socket, and the channels' keys live in a
     // different controller: the conversation one answers for groups and calls
     // this for the rest.
     controller.onKeyRequest = () => channels.deliverPendingKeys();
-    unawaited(controller.maintainKeys());
+    detached(controller.maintainKeys());
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.
-    unawaited(controller.loadKeyChangeAlerts());
+    detached(controller.loadKeyChangeAlerts());
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
@@ -509,12 +587,30 @@ class AppState extends ChangeNotifier {
     // everywhere except the home screen is still worth having — and the failure
     // is reported rather than swallowed.
     try {
-      await _launcherDisguise.apply(skin);
+      // Taking the disguise off puts back the colour this device chose, not
+      // the default: somebody who set a purple icon and then used the disguise
+      // for an evening should get their purple icon back, not a surprise.
+      await _launcherDisguise.show(
+        skin != null
+            ? const LauncherEntry.calculator()
+            : LauncherEntry.icon(appIcon.colour),
+      );
     } on LauncherDisguiseException catch (failure) {
       _disguiseError = failure.message;
     }
     notifyListeners();
   }
+
+  /// Whether [code] is this device's app-lock passcode.
+  ///
+  /// Exists so a duress code that *is* the unlock code can be refused before it
+  /// is set. The lock screen checks duress first, on purpose, so the two being
+  /// equal turns every unlock into a wipe — and the wipe is deliberately silent,
+  /// which leaves "my code stopped working" as the only visible symptom of an
+  /// account being destroyed.
+  ///
+  /// Deliberately not routed through `unlockWithPasscode`: that one wipes.
+  Future<bool> isScreenLockPasscode(String code) => _store.verifyPasscode(code);
 
   /// Stores the duress code locally so the lock screen can recognise it with no
   /// network. Only ever called with what the server has just accepted.
@@ -542,6 +638,26 @@ class AppState extends ChangeNotifier {
   // --- Lock -----------------------------------------------------------------
 
   Future<bool> unlockWithPasscode(String passcode) async {
+    // Nothing to unlock. The only way to be locked with no passcode set is a
+    // duress wipe that has already happened: it destroyed the passcode along
+    // with everything else, so the lock screen it left behind has no input
+    // that opens it — not the attacker's, and not the owner's either. Until
+    // now that was a dead end for as long as the app kept running, and the way
+    // out was to kill it and start it again, which nothing says.
+    //
+    // The wipe still passes unremarked at the moment it happens; this is the
+    // entry after it. Leaving here rather than there is what keeps a wipe
+    // looking like a typo to whoever is watching the screen, and what it
+    // leaves is where a fresh install starts: nothing signed in, nothing on
+    // disk, no lock to get past. It is the same decision the wipe already made
+    // about the disguise, which it clears for the same reason — an app its own
+    // owner cannot get back into is not a safer app.
+    if (!_screenLockSet) {
+      _stage = AppStage.welcome;
+      notifyListeners();
+      return false;
+    }
+
     // Both checks below derive an Argon2id key, which is the point of them and
     // costs about a tenth of a second each. Something that cannot be either
     // code must not pay that: in the calculator disguise this runs on every
@@ -589,6 +705,10 @@ class AppState extends ChangeNotifier {
       unawaited(_wipeOnServer(services, code));
     }
     await _store.wipe();
+    // Silently: see [LocaleController.signedOut]. Everything else here is
+    // equally quiet, for the same reason.
+    locale.signedOut(notify: false);
+    accent.signedOut(notify: false);
     _conversations?.dispose();
     _conversations = null;
     _channels?.dispose();
@@ -597,6 +717,9 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _pushWake?.stop();
+    _wakeUp?.dispose();
+    _wakeUp = null;
     _screenLockSet = false;
     _passcodeKind = null;
     // In memory as well as on disk. A disguise left set after a wipe would send
@@ -605,6 +728,9 @@ class AppState extends ChangeNotifier {
     _sessionToken = null;
     _username = null;
     _accountId = null;
+    // Deliberately not `_stage` and not `notifyListeners()`: the screen must not
+    // move while somebody is watching it. What happens instead is one entry
+    // later, in [unlockWithPasscode] — see the note there.
   }
 
   /// Best effort, and deliberately not awaited by the caller: a phone with no
@@ -615,6 +741,12 @@ class AppState extends ChangeNotifier {
     } on Object {
       // The local wipe has already happened. There is nothing to report to a
       // screen that is about to be showing a wrong-PIN error.
+    } finally {
+      // Here and not with the rest of the teardown: this request is the last
+      // thing the session token is for, and it is the request that authorises
+      // it. Clearing the token first would leave the server holding the
+      // account the wipe was supposed to empty.
+      services.api.useToken(null);
     }
   }
 
@@ -656,14 +788,14 @@ class AppState extends ChangeNotifier {
   /// server has actually done it: a failed delete that had already wiped the
   /// phone would be the worst of both.
   ///
-  /// Returns null on success, or what to tell the user.
-  Future<String?> deleteAccount(String currentPassword) async {
+  /// Returns null on success, or the case to tell the user about.
+  Future<Failure?> deleteAccount(String currentPassword) async {
     try {
       await services.api.deleteAccount(currentPassword);
     } on ApiException catch (failure) {
-      return failure.message;
+      return Failure.server(failure.message);
     } on Object {
-      return 'Could not reach the server.';
+      return const Failure(FailureKind.unreachable);
     }
 
     _conversations?.stop();
@@ -695,6 +827,8 @@ class AppState extends ChangeNotifier {
     _wakeUp?.dispose();
     _wakeUp = null;
     await _store.wipe();
+    locale.signedOut();
+    accent.signedOut();
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
@@ -706,6 +840,19 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// Ends the session and leaves nothing of this account behind.
+  ///
+  /// The rule this has to satisfy is simple to state and was not being met:
+  /// **whatever the next account sees must be its own.** A sign-out is the only
+  /// boundary between two people on one phone, so everything that was built
+  /// while signed in has to be taken down here — not stopped, taken down.
+  ///
+  /// Stopping was the bug. `_conversations?.stop()` cancels the timers and
+  /// closes the socket but clears nothing, and the controller was then handed
+  /// to the next account by the `??=` in its getter, still holding the previous
+  /// one's profile picture, contacts and decrypted attachments. The fix is the
+  /// same shape [deleteAccount] and the duress wipe already had: dispose it and
+  /// drop it, so the next read builds a new one.
   Future<void> signOut() async {
     _conversations?.stop();
     // Before the session goes: clearing the push token needs the token that
@@ -718,12 +865,17 @@ class AppState extends ChangeNotifier {
     } on Object {
       // A dead session on the server is no reason to keep one on the device.
     }
+    // Bumps the transport's session counter, which is what makes every request
+    // still in flight refuse to apply its answer. Kept before the teardown
+    // below so a reply that lands during it has already been disowned.
     services.api.useToken(null);
     services.messaging.identifyAs(null);
     _sessionToken = null;
     services.ice.clear();
     services.store.clear();
     _pushWake?.stop();
+    _conversations?.dispose();
+    _conversations = null;
     _channels?.dispose();
     _channels = null;
     _license?.dispose();
@@ -735,7 +887,28 @@ class AppState extends ChangeNotifier {
     _passcodeKind = null;
     _disguise = null;
     await services.archive.clear();
+    try {
+      // The identity goes too, and this is not the same trade-off as it looks.
+      //
+      // It used to stay, on the reasoning that signing back into the same
+      // account should keep its sessions. But the keys here are not the
+      // device's, they are the *account's*: the identity key a safety number is
+      // computed from, the Signal sessions with every contact, and the channel
+      // and group keys. Leaving them meant the next account on this phone
+      // signed as the previous one — same fingerprint, same safety number — and
+      // held the keys to private channels it had never been in.
+      //
+      // It costs nothing to take them: both `register` and `login` send a fresh
+      // device registration, and the server inserts a new device row for each
+      // sign-in either way, so re-registering is what already happened.
+      await services.crypto.wipe();
+    } on Object {
+      // A keystore that will not clear must not strand somebody on a screen
+      // belonging to an account they have just left.
+    }
     await _store.wipe();
+    locale.signedOut();
+    accent.signedOut();
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;
@@ -744,6 +917,9 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    deepLinks.dispose();
+    locale.dispose();
+    accent.dispose();
     _security?.dispose();
     _license?.dispose();
     _channels?.dispose();

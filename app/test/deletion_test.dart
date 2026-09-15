@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/conversation_controller.dart';
 import 'package:privio/core/privio_services.dart';
@@ -61,6 +62,24 @@ class ScriptedMessaging extends MessagingService {
     sent.add(payload);
     return 1;
   }
+
+  /// What went out to a group, and who the server says is in one.
+  ///
+  /// [members] is the answer to `GET /v1/groups/:id`, which is where a role
+  /// comes from: a test that wants to know whether a non-admin can move a
+  /// group's timer has to be able to say what the server would have replied.
+  final List<MessagePayload> sentToGroup = [];
+  List<GroupMember> members = const [];
+
+  @override
+  Future<int> sendPayloadToGroup(String groupId, MessagePayload payload) async {
+    if (failSends) throw ApiException(503, 'unavailable', 'no route to host');
+    sentToGroup.add(payload);
+    return 1;
+  }
+
+  @override
+  Future<List<GroupMember>> groupMembers(String groupId) async => members;
 
   @override
   Future<ReceiveResult> receive({int limit = 100}) async {
@@ -271,8 +290,8 @@ void main() {
         MessageKind.deleted,
       );
       expect(
-        controller.error,
-        contains('did not go out'),
+        controller.failure?.kind,
+        FailureKind.deletedHereOnly,
         reason: 'the user has to know the other side still has it',
       );
     });

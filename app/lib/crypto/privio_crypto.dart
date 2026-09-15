@@ -365,13 +365,21 @@ class PrivioCrypto {
   ///
   /// A `prekey` envelope also establishes the session and consumes the one-time
   /// prekey it used, which is why the store deletes it rather than keeping it.
-  Future<String> openEnvelope({
+  ///
+  /// Returns the key that *opened* it as well as the text, because those are
+  /// two different facts and only one of them comes from this device. The
+  /// account the envelope claims to be from is a label the server wrote; the
+  /// identity key is what the session actually authenticated. Anything that
+  /// has to be sure who it is talking to — a call — needs the second one.
+  Future<OpenedEnvelope> openEnvelope({
     required String senderAccountId,
     required int senderDeviceIndex,
     required String type,
     required String content,
   }) async {
     final address = _address(senderAccountId, senderDeviceIndex);
+    final before = await _store.getIdentity(address);
+    final replacementsBefore = _store.replacedIdentities.length;
     final cipher = SessionCipher.fromStore(_store, address);
     final bytes = Uint8List.fromList(base64Decode(content));
 
@@ -380,7 +388,23 @@ class PrivioCrypto {
       'ciphertext' => await cipher.decryptFromSignal(SignalMessage.fromSerialized(bytes)),
       _ => throw ArgumentError.value(type, 'type', 'Not a decryptable envelope'),
     };
-    return utf8.decode(MessagePadding.unpad(plaintext));
+
+    // Read after decryption: a prekey envelope pins the sender's key on the way
+    // through, so before it there may have been nothing to read.
+    final after = await _store.getIdentity(address);
+    final replaced = _store.replacedIdentities
+        .skip(replacementsBefore)
+        .any((candidate) => candidate == address);
+
+    return OpenedEnvelope(
+      body: utf8.decode(MessagePadding.unpad(plaintext)),
+      identityKey: after == null ? null : base64Encode(after.serialize()),
+      trust: switch (true) {
+        _ when replaced => PeerTrust.replaced,
+        _ when before == null => PeerTrust.firstContact,
+        _ => PeerTrust.pinned,
+      },
+    );
   }
 
   /// True when the published pool has run down far enough to warrant a top-up.
@@ -492,4 +516,39 @@ class PrivioCrypto {
     await _store.forgetIdentity(_address(accountId, deviceIndex));
     await _store.clearVerification(accountId);
   }
+}
+
+/// How much this device already knew about the key that opened an envelope.
+///
+/// Trust on first use is the whole app's policy and this does not change it.
+/// What it does is make the distinction *legible* to the code above, so a part
+/// of the app that cannot afford first-use trust — a call, where the far end
+/// is about to be handed a microphone — can decide for itself.
+enum PeerTrust {
+  /// The key was already pinned for this address and has not changed.
+  pinned,
+
+  /// Nothing was pinned for this address before. It is now.
+  firstContact,
+
+  /// A *different* key replaced the pinned one, under this very envelope.
+  replaced,
+}
+
+/// One decrypted envelope, and who actually opened it.
+class OpenedEnvelope {
+  const OpenedEnvelope({
+    required this.body,
+    required this.identityKey,
+    required this.trust,
+  });
+
+  final String body;
+
+  /// The peer's identity key, base64, as pinned after this envelope. Null only
+  /// if the store somehow held none after a successful decryption, which is a
+  /// state nothing should trust.
+  final String? identityKey;
+
+  final PeerTrust trust;
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,8 @@ import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
+import 'package:privio/l10n/app_localizations.dart';
+import 'package:privio/l10n/passcode_text.dart';
 import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/services/backup_service.dart';
@@ -204,6 +207,41 @@ void main() {
     expect(await device.store.readToken(), isNull);
   });
 
+  test('the lock screen a wipe leaves behind is not a dead end', () async {
+    final device = await armedDevice();
+    await device.state.unlockWithPasscode('9119');
+    await pumpEventQueue();
+
+    expect(
+      device.state.stage,
+      AppStage.locked,
+      reason: 'the wipe itself still passes for a typo to whoever is watching',
+    );
+
+    // The passcode was destroyed with everything else, so nothing opens this
+    // screen any more — including what its owner knows. One entry later the app
+    // is where a fresh install is, instead of a lock nobody can pass until
+    // somebody thinks to kill the app.
+    expect(await device.state.unlockWithPasscode('1234'), isFalse);
+    expect(device.state.stage, AppStage.welcome);
+  });
+
+  test('and a restart lands in the same place', () async {
+    final device = await armedDevice();
+    await device.state.unlockWithPasscode('9119');
+    await pumpEventQueue();
+
+    final restarted = Device(
+      server: device.server,
+      store: device.store,
+      archive: device.archive,
+    );
+    await restarted.boot();
+
+    expect(restarted.state.stage, AppStage.welcome);
+    expect(restarted.state.screenLockSet, isFalse);
+  });
+
   group('text size', () {
     test('is remembered, and comes back at the size it was left', () async {
       final store = InMemorySecureStore();
@@ -216,10 +254,10 @@ void main() {
       first.state.conversations.stop();
 
       expect(first.state.textScale, 1, reason: 'the design size, until asked otherwise');
-      expect(first.state.textScaleLabel, 'Medium');
+      expect(first.state.textScaleId, 'medium');
 
-      await first.state.setTextScale(AppState.textScales['Larger']!);
-      expect(first.state.textScaleLabel, 'Larger');
+      await first.state.setTextScale(AppState.textScales['larger']!);
+      expect(first.state.textScaleId, 'larger');
 
       final second = Device(
         server: FakeWipeServer(),
@@ -229,7 +267,7 @@ void main() {
       await second.boot();
       second.state.conversations.stop();
 
-      expect(second.state.textScale, AppState.textScales['Larger']);
+      expect(second.state.textScale, AppState.textScales['larger']);
     });
 
     test('an unrecognised scale falls back to a label rather than crashing', () async {
@@ -244,7 +282,7 @@ void main() {
       device.state.conversations.stop();
 
       expect(device.state.textScale, 1.07, reason: 'what was stored is what applies');
-      expect(device.state.textScaleLabel, 'Medium', reason: 'no row is ticked wrongly');
+      expect(device.state.textScaleId, 'medium', reason: 'no row is ticked wrongly');
     });
   });
 
@@ -265,11 +303,34 @@ void main() {
       expect(PasscodeKind.phrase.accepts('abc'), isFalse);
     });
 
-    test('the complaint says what is wrong, not that something is', () {
+    test('the complaint says what is wrong, not that something is', () async {
+      // The case, not a sentence: the words belong to whichever of the app's
+      // five languages the person is reading in.
       expect(PasscodeKind.digits4.complaintAbout('1234'), isNull);
-      expect(PasscodeKind.digits6.complaintAbout('12'), 'Six digits.');
-      expect(PasscodeKind.phrase.complaintAbout('ab'), contains('At least'));
-      expect(PasscodeKind.phrase.complaintAbout('123456'), contains('letter'));
+      expect(
+        PasscodeKind.digits6.complaintAbout('12'),
+        PasscodeComplaint.needsSixDigits,
+      );
+      expect(
+        PasscodeKind.phrase.complaintAbout('ab'),
+        PasscodeComplaint.phraseTooShort,
+      );
+      expect(
+        PasscodeKind.phrase.complaintAbout('123456'),
+        PasscodeComplaint.phraseNeedsLetter,
+      );
+
+      // And the words themselves, once, so a missing translation is caught
+      // here rather than on a lock screen.
+      final text = await AppText.delegate.load(const Locale('en'));
+      expect(
+        passcodeComplaintText(text, PasscodeComplaint.needsSixDigits),
+        'Six digits.',
+      );
+      expect(
+        passcodeComplaintText(text, PasscodeComplaint.phraseNeedsLetter),
+        contains('letter'),
+      );
     });
 
     test('a phrase unlocks the same way a keypad code does', () async {

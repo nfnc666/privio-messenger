@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 import '../disguise/launcher_disguise.dart';
 import '../disguise/skin.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -20,11 +22,12 @@ class DisguiseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Disguise mode'),
+        title: Text(text.settingsDisguise),
       ),
       body: ListenableBuilder(
         listenable: state,
@@ -39,28 +42,25 @@ class DisguiseScreen extends StatelessWidget {
                 PrivioSpacing.lg,
               ),
               child: Text(
-                'A locked Privio opens to a working calculator instead of a lock '
-                'screen. Any sum that comes to your passcode opens Privio when '
-                'you press =, so the code itself never has to appear on screen. '
-                'Every other sum is just a sum.',
+                text.disguiseIntro,
                 style: theme.textTheme.bodyMedium,
               ),
             ),
             if (!state.disguiseAvailable)
-              _NeedsNumericLock(kind: state.passcodeKind == null ? null : 'phrase')
+              _NeedsNumericLock(hasLock: state.passcodeKind != null)
             else ...[
               SettingsSection(
-                caption: 'Open to',
+                caption: text.disguiseOpenTo,
                 children: [
                   SettingsRow(
-                    label: 'The lock screen',
-                    trailing: _tick(state.disguise == null),
+                    label: text.disguiseLockScreen,
+                    trailing: _tick(context, state.disguise == null),
                     onTap: () => state.setDisguise(null),
                   ),
                   for (final skin in CalculatorSkin.values)
                     SettingsRow(
-                      label: '${skin.label} calculator',
-                      trailing: _tick(state.disguise == skin),
+                      label: text.disguiseCalculatorNamed(skin.label),
+                      trailing: _tick(context, state.disguise == skin),
                       onTap: () => state.setDisguise(skin),
                     ),
                 ],
@@ -73,8 +73,7 @@ class DisguiseScreen extends StatelessWidget {
                   PrivioSpacing.lg,
                 ),
                 child: Text(
-                  'Pick the one your phone already ships. A calculator that does '
-                  'not look like the usual one is the thing somebody notices.',
+                  text.disguisePickNote,
                   style: theme.textTheme.labelSmall,
                 ),
               ),
@@ -86,7 +85,7 @@ class DisguiseScreen extends StatelessWidget {
                       builder: (_) => _Preview(skin: state.disguise ?? CalculatorSkin.iphone),
                     ),
                   ),
-                  child: const Text('See it'),
+                  child: Text(text.disguiseSeeIt),
                 ),
               ),
             ],
@@ -99,8 +98,7 @@ class DisguiseScreen extends StatelessWidget {
                   0,
                 ),
                 child: Text(
-                  '${state.disguiseError} The lock screen changed anyway; the '
-                  'home screen did not.',
+                  text.disguiseErrorSuffix(state.disguiseError!),
                   style: theme.textTheme.labelSmall
                       ?.copyWith(color: PrivioColors.danger),
                 ),
@@ -113,21 +111,23 @@ class DisguiseScreen extends StatelessWidget {
     );
   }
 
-  static Widget _tick(bool on) => SizedBox(
+  /// Takes the context because the tick is drawn in the account's accent, and
+  /// a `static` helper has none of its own.
+  static Widget _tick(BuildContext context, bool on) => SizedBox(
         width: 20,
         child: on
-            ? const Icon(Icons.check_rounded, color: PrivioColors.accent, size: 20)
+            ? Icon(Icons.check_rounded, color: context.accents.accent, size: 20)
             : null,
       );
 }
 
 /// Shown when there is no numeric passcode to type into a calculator.
 class _NeedsNumericLock extends StatelessWidget {
-  const _NeedsNumericLock({required this.kind});
+  const _NeedsNumericLock({required this.hasLock});
 
-  /// 'phrase' when a lock exists but cannot be typed here; null when there is
-  /// no lock at all. The two need different sentences.
-  final String? kind;
+  /// Whether this device has a screen lock at all. When it does and the
+  /// disguise is still unavailable, the lock is a passphrase.
+  final bool hasLock;
 
   @override
   Widget build(BuildContext context) {
@@ -137,12 +137,9 @@ class _NeedsNumericLock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            kind == null
-                ? 'There is no screen lock on this device yet, so there is no '
-                    'code to type into a calculator.'
-                : 'Your screen lock is a passphrase. A calculator has ten keys '
-                    'and no letters, so there is no way to type it in. Switch the '
-                    'lock to 4 or 6 digits to use a disguise.',
+            hasLock
+                ? AppText.of(context).disguisePhraseLock
+                : AppText.of(context).disguiseNoLock,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: PrivioSpacing.lg),
@@ -150,7 +147,7 @@ class _NeedsNumericLock extends StatelessWidget {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ScreenLockScreen()),
             ),
-            child: const Text('Screen lock'),
+            child: Text(AppText.of(context).privacyScreenLock),
           ),
         ],
       ),
@@ -173,24 +170,21 @@ class _WhatItDoesNotDo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('On the home screen', style: theme.textTheme.titleSmall),
+          Text(text.disguiseOnHomeScreen, style: theme.textTheme.titleSmall),
           const SizedBox(height: PrivioSpacing.sm),
-          Text(_homeScreen, style: theme.textTheme.labelSmall),
+          Text(_homeScreen(text), style: theme.textTheme.labelSmall),
           const SizedBox(height: PrivioSpacing.lg),
-          Text('What this does not do', style: theme.textTheme.titleSmall),
+          Text(text.disguiseWhatItDoesNotDo, style: theme.textTheme.titleSmall),
           const SizedBox(height: PrivioSpacing.sm),
           Text(
-            'It is not a defence against anyone who has the phone for long. The '
-            'app is still installed, and its size, its files and its network '
-            'traffic are all still there to find by anyone who looks properly. '
-            'What it is good at is the ordinary case — a screen glanced at, or '
-            'a phone handed over unlocked.',
+            text.disguiseNotADefence,
             style: theme.textTheme.labelSmall,
           ),
         ],
@@ -198,21 +192,9 @@ class _WhatItDoesNotDo extends StatelessWidget {
     );
   }
 
-  String get _homeScreen {
-    if (launcher.icon && launcher.name) {
-      return 'On the home screen and in the app drawer, Privio becomes a '
-          'calculator icon called "Calculator". Your launcher may take a few '
-          'seconds to redraw, and an icon you pinned to the home screen '
-          'yourself may need pinning again. Turning the disguise off puts it '
-          'back.\n\n'
-          'Android\'s own app list — Settings, app info, the name shown when '
-          'Privio asks for a permission — still says Privio. That name is set '
-          'when the app is built and no app can change it while running.';
-    }
-    return 'On this device the icon and the name do not change — only what the '
-        'app opens to. Someone going through the home screen still finds '
-        'Privio by name.';
-  }
+  String _homeScreen(AppText text) => launcher.icon && launcher.name
+      ? text.disguiseHomeScreenChanges
+      : text.disguiseIconUnchanged;
 }
 
 /// The disguise, shown from inside the app so it can be looked at before it is
@@ -232,7 +214,7 @@ class _Preview extends StatelessWidget {
           top: MediaQuery.of(context).padding.top + PrivioSpacing.sm,
           child: IconButton(
             icon: const Icon(Icons.close_rounded, color: Colors.white),
-            tooltip: 'Close preview',
+            tooltip: AppText.of(context).disguiseClosePreview,
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),

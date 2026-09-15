@@ -5,7 +5,11 @@ import { pool, withTransaction, type PoolClient } from '../db/pool.js';
 import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
+import { lastSeenFor } from '../services/presence.js';
+import type { ChannelNotifier } from '../services/channel_notifications.js';
+import * as livestreams from '../services/livestreams.js';
 import { ApiError } from '../util/errors.js';
+import { verifySecret } from '../util/crypto.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
 import {
   clearKeyRequest,
@@ -33,6 +37,26 @@ const handleSchema = z
   .regex(/^[a-z0-9_.]{3,32}$/, 'must be 3-32 characters of a-z, 0-9, underscore or dot');
 
 /**
+ * One reaction emoji.
+ *
+ * Deliberately not "is this a real emoji": that question needs a Unicode
+ * table, the table moves every year, and getting it wrong rejects somebody's
+ * flag. What it does instead is refuse anything that could be used as *text* —
+ * ASCII letters, digits and whitespace — so the reaction bar under a post
+ * cannot be turned into a row of captions in somebody else's channel.
+ */
+const reactionEmojiSchema = z
+  .string()
+  .min(1)
+  .max(16)
+  .refine((value) => !/[A-Za-z0-9\s]/.test(value), {
+    message: 'must be a symbol, not text',
+  });
+
+/** At most a barful. Twelve already does not fit on a phone. */
+const reactionEmojisSchema = z.array(reactionEmojiSchema).min(1).max(12);
+
+/**
  * What a channel looks like from outside.
  *
  * A public channel's title and description are plaintext because discovery
@@ -51,12 +75,87 @@ function publicView(row: Record<string, unknown>) {
       ? (row.encrypted_metadata as Buffer).toString('base64')
       : null,
     restrictSaving: row.restrict_saving,
+    // Which emojis this channel offers under a post.
+    reactionEmojis: row.reaction_emojis ?? [],
+    // What the invite link is set to. Not the code — that is handed out
+    // separately, to members only.
+    invite: {
+      expiresAt: (row.invite_expires_at as Date | null)?.toISOString() ?? null,
+      maxUses: row.invite_max_uses ?? null,
+      uses: row.invite_uses ?? 0,
+      needsApproval: row.invite_needs_approval ?? false,
+    },
+    // Whether its posts have threads under them at all.
+    commentsEnabled: row.comments_enabled ?? false,
+    /**
+     * The channel's picture, as a media object id.
+     *
+     * What the bytes behind it are depends on the channel, and the client has
+     * to know which: a **public** channel's picture is stored unsealed, because
+     * it is drawn on the invite page and in a messenger's link preview, where
+     * nobody holds a key. A **private** channel's is an ordinary sealed
+     * attachment whose download token lives inside `encrypted_metadata` beside
+     * the title — so the server holds the reference and can open neither.
+     */
+    avatarMediaId: row.avatar_media_id ?? null,
+    // What a cache keys off, so replacing a picture is visible without waiting
+    // for something else to evict the old one.
+    avatarUpdatedAt: (row.avatar_updated_at as Date | null)?.toISOString() ?? null,
     memberCount: row.member_count,
     // Which key version this channel is on. The server counts these and holds
     // no key for any of them; see migration 015.
     keyEpoch: row.key_epoch ?? 1,
     // And which one opens its name, for a private channel. See migration 016.
     metadataKeyEpoch: row.metadata_key_epoch ?? 1,
+    /**
+     * Whether a post carries its author's name.
+     *
+     * Off by default, and it is a decision about other people's names as well
+     * as your own: a channel with several admins speaks with one voice until
+     * somebody turns this on for all of them.
+     */
+    showSenderName: row.show_sender_name ?? false,
+    /**
+     * What a new subscriber is shown once, on joining.
+     *
+     * Plaintext here only for a public channel, whose title and description are
+     * already plaintext for the same reason. A private channel's rides inside
+     * `encryptedMetadata` with its title and is not in this column.
+     */
+    welcome: {
+      enabled: row.welcome_enabled ?? false,
+      message: row.welcome_message ?? null,
+    },
+    /**
+     * The channel's own colours, as token names rather than values.
+     *
+     * A name cannot be white-on-white and cannot be a colour that vanishes in
+     * one of the two themes — the client resolves each name to a pair that was
+     * checked against both.
+     */
+    appearance: {
+      accent: row.accent_name ?? null,
+      background: row.background_name ?? null,
+    },
+    /** A group where the channel's posts are discussed. */
+    discussionGroupId: row.discussion_group_id ?? null,
+    /** Whether subscribers may write to the channel's own inbox. */
+    directMessagesEnabled: row.direct_messages_enabled ?? false,
+    /**
+     * A livestream, if one is running.
+     *
+     * `room` is the identifier on whichever media server the deployment is
+     * configured with. Null everywhere when none is configured — see
+     * `LIVEKIT_URL` in the deployment notes — and the client shows the control
+     * as unavailable rather than as a button that does nothing.
+     */
+    live: row.live_started_at
+      ? {
+          startedAt: (row.live_started_at as Date).toISOString(),
+          startedBy: row.live_started_by ?? null,
+          room: row.live_room ?? null,
+        }
+      : null,
     createdAt: (row.created_at as Date).toISOString(),
   };
 }
@@ -90,9 +189,9 @@ async function lockChannel(
   client: Queryable,
   channelId: string,
   mode: 'share' | 'update',
-): Promise<{ key_epoch: number } | null> {
-  const { rows } = await client.query<{ key_epoch: number }>(
-    `SELECT key_epoch FROM channels
+): Promise<{ key_epoch: number; comments_enabled: boolean } | null> {
+  const { rows } = await client.query<{ key_epoch: number; comments_enabled: boolean }>(
+    `SELECT key_epoch, comments_enabled FROM channels
      WHERE id = $1 AND deleted_at IS NULL
      FOR ${mode === 'share' ? 'SHARE' : 'UPDATE'}`,
     [channelId],
@@ -127,8 +226,14 @@ async function membership(
   client: Queryable = pool,
 ): Promise<Membership | null> {
   const { rows } = await client.query(
+    // Every column, deliberately. `permissionsFromRow` reads a missing one as
+    // not granted, so a SELECT that forgets a flag does not fail — it quietly
+    // takes the permission away from everyone, everywhere this function is used,
+    // which is every permission check there is.
     `SELECT m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
-            m.can_manage_members, m.can_delete_channel
+            m.can_manage_members, m.can_delete_channel,
+            m.can_moderate_discussion, m.can_manage_invites,
+            m.can_manage_livestreams, m.can_appoint_admins
      FROM channel_members m
      JOIN channels c ON c.id = m.channel_id
      WHERE m.channel_id = $1 AND m.account_id = $2 AND c.deleted_at IS NULL`,
@@ -167,6 +272,10 @@ const permissionsSchema = z.object({
   canDeletePosts: z.boolean().optional(),
   canManageMembers: z.boolean().optional(),
   canDeleteChannel: z.boolean().optional(),
+  canModerateDiscussion: z.boolean().optional(),
+  canManageInvites: z.boolean().optional(),
+  canManageLivestreams: z.boolean().optional(),
+  canAppointAdmins: z.boolean().optional(),
 });
 
 function resolvePermissions(
@@ -178,8 +287,11 @@ function resolvePermissions(
   return { ...base, ...requested };
 }
 
-/// Takes the bus so a key request can wake the devices that could answer it.
-const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
+/// Takes the bus so a key request can wake the devices that could answer it,
+/// and the notifier so a published post wakes the people it was published to.
+const channelRoutes =
+  (bus: DeliveryBus, notifier: ChannelNotifier): FastifyPluginAsync =>
+  async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
   // Creating something new is gated on a license where the deployment sells
   // access; reading and joining are not.
@@ -257,8 +369,9 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       await client.query(
         `INSERT INTO channel_members
            (channel_id, account_id, role, can_post, can_edit_channel, can_delete_posts,
-            can_manage_members, can_delete_channel)
-         VALUES ($1, $2, 'owner', true, true, true, true, true)`,
+            can_manage_members, can_delete_channel, can_moderate_discussion,
+            can_manage_invites, can_manage_livestreams, can_appoint_admins)
+         VALUES ($1, $2, 'owner', true, true, true, true, true, true, true, true, true)`,
         [rows[0].id, accountId],
       );
       // Epoch 1, claimed by the device that generated the key. Same table and
@@ -281,7 +394,35 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
       `SELECT c.*, m.role, m.can_post, m.can_edit_channel, m.can_delete_posts,
-              m.can_manage_members, m.can_delete_channel
+              m.can_manage_members, m.can_delete_channel,
+              m.can_moderate_discussion, m.can_manage_invites,
+              m.can_manage_livestreams, m.can_appoint_admins,
+              (SELECT mu.until FROM channel_mutes mu
+                WHERE mu.channel_id = c.id AND mu.account_id = $1) AS muted_until,
+              EXISTS (SELECT 1 FROM channel_mutes mu
+                       WHERE mu.channel_id = c.id AND mu.account_id = $1
+                         AND (mu.until IS NULL OR mu.until > now())) AS muted,
+              COALESCE(
+                (SELECT r.last_read_post_id FROM channel_reads r
+                  WHERE r.channel_id = c.id AND r.account_id = $1), 0
+              ) AS last_read_post_id,
+              -- Counted here rather than on the device, because a device only
+              -- holds the posts it has fetched — and the badge has to be right
+              -- before anything is fetched at all. Capped: past a hundred the
+              -- number stops being information and starts being a cost on
+              -- every listing.
+              (SELECT count(*) FROM (
+                 SELECT 1 FROM channel_posts p
+                  WHERE p.channel_id = c.id
+                    AND p.deleted_at IS NULL
+                    AND (p.publish_at IS NULL OR p.publish_at <= now())
+                    AND p.id > COALESCE(
+                      (SELECT r.last_read_post_id FROM channel_reads r
+                        WHERE r.channel_id = c.id AND r.account_id = $1), 0)
+                    -- Your own posts are not unread to you.
+                    AND (p.author_account_id IS NULL OR p.author_account_id <> $1)
+                  LIMIT 100
+               ) capped) AS unread_count
        FROM channel_members m
        JOIN channels c ON c.id = m.channel_id
        WHERE m.account_id = $1 AND c.deleted_at IS NULL
@@ -295,6 +436,13 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         // Without these the client cannot tell an owner from a reader, and would
         // hide the controls of someone who holds every permission there is.
         permissions: permissionsFromRow(row),
+        // Whether this account has silenced it, and until when. Per account
+        // rather than per device: somebody who muted a channel on their phone
+        // did not mean "until I pick up my laptop".
+        muted: row.muted === true,
+        mutedUntil: (row.muted_until as Date | null)?.toISOString() ?? null,
+        unreadCount: Number(row.unread_count ?? 0),
+        lastReadPostId: Number(row.last_read_post_id ?? 0),
         // Anyone may pass the link on; it carries no key.
         inviteCode: row.invite_code,
       })),
@@ -334,6 +482,28 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   });
 
   /** Look a channel up by its invite code, which is how a private one is found. */
+  /**
+   * A public channel by its handle, which is what a link like
+   * `https://privio.channel/houseoftrading` names.
+   *
+   * Exact rather than a search: discovery ranks by member count and is meant
+   * for somebody browsing, while a link names one channel and has to find that
+   * one. Public only — a private channel has no handle, and a lookup that
+   * could return one would make the handle column a way to find private
+   * channels by guessing names.
+   */
+  app.get('/v1/channels/by-handle/:handle', requireAuth, async (request) => {
+    auth(request);
+    const params = parse(z.object({ handle: handleSchema }), request.params);
+    const { rows } = await pool.query(
+      `SELECT * FROM channels
+       WHERE handle = $1 AND visibility = 'public' AND deleted_at IS NULL`,
+      [params.handle],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return publicView(rows[0]);
+  });
+
   app.get('/v1/channels/invite/:code', requireAuth, async (request) => {
     auth(request);
     const params = parse(z.object({ code: z.string().min(4).max(64) }), request.params);
@@ -389,9 +559,55 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const channel = rows[0];
     if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
 
-    if (channel.visibility === 'private' && body.inviteCode !== channel.invite_code) {
+    const usedTheLink = body.inviteCode === channel.invite_code;
+    if (channel.visibility === 'private' && !usedTheLink) {
       // Same answer as a channel that does not exist.
       throw ApiError.notFound('channel_not_found', 'No such channel');
+    }
+
+    // Already in, and nothing below should run again for them — not the
+    // counter, not the queue.
+    const existing = await membership(params.id, accountId);
+    if (existing) {
+      return { joined: false, role: existing.role, permissions: existing.permissions };
+    }
+
+    /*
+     * The link's own limits, checked only for somebody who arrived on it. A
+     * public channel is joinable without one, and an expired link is not a
+     * reason to close a public channel to everybody.
+     *
+     * The checks answer `invite_expired` rather than "no such channel": the
+     * person holding the link already knows the channel exists — they are
+     * looking at its preview — so hiding it now would only be confusing. For a
+     * private channel a wrong code still answers 404 above, which is the case
+     * where the existence is the secret.
+     */
+    if (usedTheLink) {
+      if (channel.invite_expires_at && channel.invite_expires_at.getTime() <= Date.now()) {
+        throw ApiError.conflict('invite_expired', 'That invite link has expired');
+      }
+      if (
+        channel.invite_max_uses !== null &&
+        channel.invite_uses >= channel.invite_max_uses
+      ) {
+        throw ApiError.conflict('invite_used_up', 'That invite link has been used up');
+      }
+    }
+
+    // A channel that asks first puts them in a queue instead of in the room.
+    // Only for somebody who came on the link: a public channel's front door is
+    // not governed by the link's settings.
+    if (usedTheLink && channel.invite_needs_approval) {
+      await pool.query(
+        `INSERT INTO channel_join_requests (channel_id, account_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [params.id, accountId],
+      );
+      // No key request and no wake: they are not a member, hold no key, and
+      // asking key-holders to seal one to them now would hand the channel to
+      // somebody an admin has not let in.
+      return { joined: false, pending: true, role: null, permissions: null };
     }
 
     const joined = await withTransaction(async (client) => {
@@ -404,6 +620,13 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         await client.query('UPDATE channels SET member_count = member_count + 1 WHERE id = $1', [
           params.id,
         ]);
+        // Counted inside the same transaction as the join, so a link with one
+        // use left cannot let two people through at once.
+        if (usedTheLink) {
+          await client.query('UPDATE channels SET invite_uses = invite_uses + 1 WHERE id = $1', [
+            params.id,
+          ]);
+        }
       }
       return (rowCount ?? 0) > 0;
     });
@@ -472,25 +695,100 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const viewer = await requireMember(params.id, accountId);
     const complete = viewer.permissions.canManageMembers;
 
-    const { rows } = await pool.query(
-      `SELECT a.id, a.username, a.display_name, m.role, m.joined_at,
-              m.can_post, m.can_edit_channel, m.can_delete_posts,
-              m.can_manage_members, m.can_delete_channel
-       FROM channel_members m JOIN accounts a ON a.id = m.account_id
-       WHERE m.channel_id = $1 AND a.deleted_at IS NULL
-         AND ($2::boolean OR m.role <> 'subscriber' OR a.id = $3)
-       ORDER BY m.joined_at ASC LIMIT 500`,
-      [params.id, complete, accountId],
+    const query = parse(
+      z.object({
+        // Paging, because a channel with thousands of subscribers cannot hand
+        // the whole list to a phone — the old `LIMIT 500` was a silent truncation
+        // that looked like a complete list.
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        cursor: z.string().max(128).optional(),
+        // Server-side, so searching a large channel does not require first
+        // downloading all of it.
+        q: z.string().trim().max(64).optional(),
+        // 'admins' is what the admin screen asks for: the list is short, always
+        // complete, and visible to every member — who is in charge of a channel
+        // is not a secret from the people in it.
+        role: z.enum(['all', 'admins']).default('all'),
+      }),
+      request.query,
     );
+    const adminsOnly = query.role === 'admins';
+
+    const { rows } = await pool.query(
+      `SELECT a.id, a.username, a.display_name, a.privacy, a.last_seen_at,
+              m.role, m.joined_at, extract(epoch from m.joined_at) AS joined_at_epoch,
+              m.promoted_by,
+              p.username AS promoted_by_username, p.display_name AS promoted_by_display_name,
+              m.can_post, m.can_edit_channel, m.can_delete_posts,
+              m.can_manage_members, m.can_delete_channel,
+              m.can_moderate_discussion, m.can_manage_invites,
+              m.can_manage_livestreams, m.can_appoint_admins,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = $3 AND c.contact_account_id = a.id
+              ) AS is_contact,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = a.id AND c.contact_account_id = $3
+              ) AS viewer_is_contact_of_them
+       FROM channel_members m
+       JOIN accounts a ON a.id = m.account_id
+       LEFT JOIN accounts p ON p.id = m.promoted_by
+       WHERE m.channel_id = $1 AND a.deleted_at IS NULL
+         AND ($6::boolean OR $2::boolean OR m.role <> 'subscriber' OR a.id = $3)
+         AND (NOT $6::boolean OR m.role <> 'subscriber')
+         AND ($4::text IS NULL OR a.username ILIKE '%' || $4 || '%'
+              OR a.display_name ILIKE '%' || $4 || '%')
+         AND ($5::text IS NULL OR (extract(epoch from m.joined_at), a.id::text) >
+              (split_part($5, '|', 1)::numeric, split_part($5, '|', 2)))
+       ORDER BY m.joined_at ASC, a.id ASC
+       LIMIT $7`,
+      [
+        params.id,
+        complete,
+        accountId,
+        query.q ?? null,
+        query.cursor ?? null,
+        adminsOnly,
+        query.limit + 1,
+      ],
+    );
+    // Taken straight from Postgres at full precision, for the same reason.
+
+    const page = rows.slice(0, query.limit);
     return {
       complete,
-      members: rows.map((r) => ({
+      // The admin list is complete for everybody, so a subscriber's screen does
+      // not have to claim otherwise.
+      more: rows.length > query.limit,
+      // Both sort keys, because two people can join in the same microsecond and
+      // a cursor that carries only the timestamp drops one of them — and the
+      // timestamp as epoch seconds rather than an ISO string, because
+      // `toISOString()` rounds microseconds away and a cursor that lands
+      // *before* the row it names hands that row back on every page.
+      nextCursor:
+        rows.length > query.limit
+          ? `${page[page.length - 1]!.joined_at_epoch}|${page[page.length - 1]!.id}`
+          : null,
+      members: page.map((r) => ({
         id: r.id,
         username: r.username,
         displayName: r.display_name,
         role: r.role,
         permissions: permissionsFromRow(r),
         joinedAt: (r.joined_at as Date).toISOString(),
+        // Whose address book they are in — the screen splits "contacts in this
+        // channel" from everyone else.
+        isContact: r.is_contact === true,
+        // Decided by the *target's* setting, never by whether the viewer is an
+        // admin: running a channel does not entitle you to watch its members.
+        lastSeenAt: lastSeenFor(
+          { privacy: r.privacy, last_seen_at: r.last_seen_at },
+          r.viewer_is_contact_of_them === true,
+        ),
+        promotedBy: r.promoted_by
+          ? { id: r.promoted_by, username: r.promoted_by_username, displayName: r.promoted_by_display_name }
+          : null,
       })),
     };
   });
@@ -537,10 +835,14 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     await withTransaction(async (client) => {
       await lockChannel(client, params.id, 'update');
 
+      // Making somebody an admin is its own permission. Managing members is
+      // about removing and silencing; appointing is about handing out authority,
+      // and an admin who may do the first should not thereby be able to appoint
+      // a second admin who can remove them back.
       const actor = await requirePermission(
         params.id,
         accountId,
-        'canManageMembers',
+        body.role === 'admin' ? 'canAppointAdmins' : 'canManageMembers',
         client,
       );
 
@@ -566,7 +868,12 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       await client.query(
         `UPDATE channel_members
          SET role = $3, can_post = $4, can_edit_channel = $5, can_delete_posts = $6,
-             can_manage_members = $7, can_delete_channel = $8
+             can_manage_members = $7, can_delete_channel = $8,
+             can_moderate_discussion = $9, can_manage_invites = $10,
+             can_manage_livestreams = $11, can_appoint_admins = $12,
+             -- Who appointed them, which the admin list shows. Cleared on a
+             -- demotion so a subscriber does not carry a stale promotion.
+             promoted_by = CASE WHEN $3 = 'admin' THEN $13::uuid ELSE NULL END
          WHERE channel_id = $1 AND account_id = $2 AND role <> 'owner'`,
         [
           params.id,
@@ -577,6 +884,11 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
           granted.canDeletePosts,
           granted.canManageMembers,
           granted.canDeleteChannel,
+          granted.canModerateDiscussion,
+          granted.canManageInvites,
+          granted.canManageLivestreams,
+          granted.canAppointAdmins,
+          accountId,
         ],
       );
     });
@@ -663,10 +975,84 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          */
         metadataKeyEpoch: z.number().int().min(1).optional(),
         restrictSaving: z.boolean().optional(),
+        /**
+         * The emojis offered under a post. Changing the menu does not touch
+         * what is already on a post: taking an emoji off the list is not a
+         * reason to silently discard what people have already said with it.
+         */
+        reactionEmojis: reactionEmojisSchema.optional(),
+        /**
+         * Whether posts have threads under them.
+         *
+         * Off by default: a channel is a broadcast, and turning its posts into
+         * threads changes what the thing is. Turning it off later hides the
+         * threads rather than deleting them — see the comments routes.
+         */
+        commentsEnabled: z.boolean().optional(),
+        /**
+         * Whether a post carries its author's name.
+         *
+         * A channel-wide setting rather than a per-post one: it decides how the
+         * channel speaks, and letting each post choose would mean one admin
+         * could put another admin's name on something.
+         */
+        showSenderName: z.boolean().optional(),
+        /**
+         * The message a new subscriber is shown once.
+         *
+         * Public channels only — a private channel's welcome text goes into
+         * `encryptedMetadata` with its title, and the server never sees it.
+         * Sending it here for a private channel is refused rather than quietly
+         * stored in the clear.
+         */
+        welcomeEnabled: z.boolean().optional(),
+        welcomeMessage: z.string().trim().max(1024).optional(),
+        /** Token names, not colour values. The check constraint is the list. */
+        accent: z.enum(['green', 'blue', 'purple', 'orange', 'red', 'teal']).nullable().optional(),
+        background: z.enum(['black', 'charcoal', 'midnight']).nullable().optional(),
+        /** A group to discuss the channel's posts in, or null to unlink. */
+        discussionGroupId: uuidSchema.nullable().optional(),
+        /** Whether subscribers may write to the channel's inbox. */
+        directMessagesEnabled: z.boolean().optional(),
       }),
       request.body,
     );
     await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows: existing } = await pool.query(
+      'SELECT visibility FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    const current = existing[0];
+    if (!current) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    // A private channel's welcome text belongs in the sealed metadata, like its
+    // title. Refused rather than stored: silently writing it to a plaintext
+    // column is exactly the kind of quiet downgrade nobody would notice.
+    if (body.welcomeMessage !== undefined && current.visibility !== 'public') {
+      throw ApiError.badRequest(
+        'welcome_must_be_sealed',
+        "A private channel's welcome message goes inside encryptedMetadata",
+      );
+    }
+
+    // Linking a discussion group needs authority over the group too, or an
+    // admin here could attach a group they have nothing to do with and point
+    // this channel's readers at it.
+    if (body.discussionGroupId) {
+      const { rowCount } = await pool.query(
+        `SELECT 1 FROM group_members m JOIN groups g ON g.id = m.group_id
+          WHERE m.group_id = $1 AND m.account_id = $2 AND m.role = 'admin'
+            AND g.deleted_at IS NULL`,
+        [body.discussionGroupId, accountId],
+      );
+      if (!rowCount) {
+        throw ApiError.forbidden(
+          'not_a_group_admin',
+          'You can only link a group you administer',
+        );
+      }
+    }
 
     // The metadata epoch moves only with the metadata, and only forwards.
     // A re-seal that arrives out of order — two devices re-sealing after the
@@ -683,7 +1069,19 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
            WHEN COALESCE($7::int, 1) > metadata_key_epoch THEN COALESCE($7::int, 1)
            ELSE metadata_key_epoch
          END,
-         restrict_saving = COALESCE($6, restrict_saving)
+         restrict_saving = COALESCE($6, restrict_saving),
+         reaction_emojis = COALESCE($8, reaction_emojis),
+         comments_enabled = COALESCE($9, comments_enabled),
+         show_sender_name = COALESCE($10, show_sender_name),
+         welcome_enabled = COALESCE($11, welcome_enabled),
+         welcome_message = COALESCE($12, welcome_message),
+         -- Three-state, because null is a value here: not sent leaves it,
+         -- explicit null clears it back to the app's own colours. COALESCE
+         -- cannot express that, so the caller says which it meant.
+         accent_name = CASE WHEN $13::boolean THEN $14::text ELSE accent_name END,
+         background_name = CASE WHEN $15::boolean THEN $16::text ELSE background_name END,
+         discussion_group_id = CASE WHEN $17::boolean THEN $18::uuid ELSE discussion_group_id END,
+         direct_messages_enabled = COALESCE($19, direct_messages_enabled)
        WHERE id = $1 RETURNING *`,
       [
         params.id,
@@ -693,9 +1091,125 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         body.encryptedMetadata ?? null,
         body.restrictSaving ?? null,
         body.metadataKeyEpoch ?? null,
+        body.reactionEmojis ?? null,
+        body.commentsEnabled ?? null,
+        body.showSenderName ?? null,
+        body.welcomeEnabled ?? null,
+        body.welcomeMessage ?? null,
+        body.accent !== undefined,
+        body.accent ?? null,
+        body.background !== undefined,
+        body.background ?? null,
+        body.discussionGroupId !== undefined,
+        body.discussionGroupId ?? null,
+        body.directMessagesEnabled ?? null,
       ],
     );
     return publicView(rows[0]);
+  });
+
+  /**
+   * Point the channel at a picture.
+   *
+   * The bytes went to `/v1/media` first, and **which kind they went up as is
+   * the decision**, not a detail:
+   *
+   * The bytes went to `/v1/media` first as `kind=channel_avatar`, unsealed.
+   * A picture is a label on a door rather than a message: a public channel's is
+   * drawn on the invite page and inside whatever messenger its link was pasted
+   * into, where nobody holds a key, and a private channel's was encrypted until
+   * this change — which meant it could not be shown until the key arrived and
+   * could be lost to a rotation that raced the upload.
+   *
+   * What replaces the encryption for a private channel is an authorisation
+   * rule, not nothing: `mayDownload` hands its picture only to members.
+   *
+   * The upload has to belong to the caller. Without that check anyone could
+   * adopt anyone else's object id and learn, from which error came back,
+   * whether it exists.
+   */
+  app.put('/v1/channels/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(z.object({ mediaId: uuidSchema }), request.body);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows: media } = await pool.query<{ kind: string }>(
+      'SELECT kind FROM media_objects WHERE id = $1 AND owner_account_id = $2',
+      [body.mediaId, accountId],
+    );
+    if (!media[0]) throw ApiError.notFound('media_not_found', 'No such upload of yours');
+
+    const previous = await withTransaction(async (client) => {
+      const { rows: old } = await client.query<{
+        visibility: string;
+        avatar_media_id: string | null;
+      }>(
+        'SELECT visibility, avatar_media_id FROM channels WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+        [params.id],
+      );
+      const channel = old[0];
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+      // One kind for every channel now. A picture used to be sealed for a
+      // private channel and carried inside its encrypted metadata; that meant
+      // it could not be shown until the key arrived and could be lost to a
+      // rotation that raced the upload. It is a label on a door, not a post.
+      // The posts stay end-to-end encrypted; this does not.
+      if (media[0]!.kind !== 'channel_avatar') {
+        throw ApiError.badRequest(
+          'wrong_media_kind',
+          "A channel's picture is uploaded as kind=channel_avatar",
+        );
+      }
+
+      await client.query(
+        'UPDATE channels SET avatar_media_id = $2, avatar_updated_at = now() WHERE id = $1',
+        [params.id, body.mediaId],
+      );
+      // A picture outlives the attachment retention window. The sweep skips
+      // referenced objects too; this keeps the expiry itself honest rather than
+      // relying on one of the two.
+      await client.query(
+        `UPDATE media_objects SET expires_at = now() + interval '100 years' WHERE id = $1`,
+        [body.mediaId],
+      );
+      return channel.avatar_media_id;
+    });
+
+    // The old picture is nobody's now: let it fall into the next sweep.
+    if (previous && previous !== body.mediaId) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [previous]);
+    }
+    return { avatarMediaId: body.mediaId };
+  });
+
+  app.delete('/v1/channels/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+    // The CTE is not decoration: `UPDATE ... RETURNING avatar_media_id` hands
+    // back the *new* value, which this statement has just set to NULL — so the
+    // picture being removed would never be named and would sit in storage
+    // until the hundred years ran out. Reading the row first is the only way to
+    // learn what was there.
+    const { rows } = await pool.query<{ previous: string | null }>(
+      `WITH prev AS (
+         SELECT id, avatar_media_id FROM channels
+          WHERE id = $1 AND deleted_at IS NULL
+          FOR UPDATE
+       )
+       UPDATE channels SET avatar_media_id = NULL, avatar_updated_at = now()
+         FROM prev WHERE channels.id = prev.id
+       RETURNING prev.avatar_media_id AS previous`,
+      [params.id],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    const removed = rows[0].previous;
+    if (removed) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [removed]);
+    }
+    return { avatarMediaId: null };
   });
 
   app.delete('/v1/channels/:id', requireAuth, async (request) => {
@@ -704,7 +1218,17 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     // The one action nothing undoes. The owner always may; an admin only with
     // the permission deliberately granted for it.
     await requirePermission(params.id, accountId, 'canDeleteChannel');
-    await pool.query('UPDATE channels SET deleted_at = now() WHERE id = $1', [params.id]);
+    const { rows } = await pool.query<{ avatar_media_id: string | null }>(
+      'UPDATE channels SET deleted_at = now() WHERE id = $1 RETURNING avatar_media_id',
+      [params.id],
+    );
+    // The picture was kept alive by being somebody's channel picture, and this
+    // is the moment it stops being one. Without this it would sit in storage
+    // for a hundred years because nothing was ever going to ask for it again.
+    const orphan = rows[0]?.avatar_media_id;
+    if (orphan) {
+      await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [orphan]);
+    }
     return { deleted: true };
   });
 
@@ -950,10 +1474,44 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
          * what such a client's key is.
          */
         keyEpoch: z.number().int().min(1).optional(),
+        /**
+         * When it becomes visible. Absent means now.
+         *
+         * A scheduled post is an ordinary row the feed does not select yet —
+         * there is no queue and no worker, so there is nothing to fall over
+         * and leave a channel silent. See migration 018 for why that works
+         * here and what would have to change if a post ever raised a push.
+         */
+        publishAt: z.coerce.date().optional(),
+        /**
+         * The *shape* of a poll, never its content.
+         *
+         * The question and the answers travel inside the sealed payload with
+         * the post's text, so the server never learns what was asked. These
+         * three numbers are what it needs to enforce a vote being in range,
+         * nobody picking four answers in a two-answer poll, and a closed poll
+         * staying closed — see migration 020.
+         */
+        poll: z
+          .object({
+            optionCount: z.number().int().min(2).max(12),
+            maxChoices: z.number().int().min(1).max(12).default(1),
+            closesAt: z.coerce.date().optional(),
+          })
+          .refine((value) => value.maxChoices <= value.optionCount, {
+            message: 'maxChoices cannot exceed optionCount',
+          })
+          .optional(),
       }),
       request.body,
     );
     const postEpoch = body.keyEpoch ?? 1;
+
+    // A time in the past is not scheduling, it is back-dating: it would put a
+    // post above ones people have already read. Treated as "now" rather than
+    // refused, because a client whose clock is a minute slow is not an error.
+    const publishAt =
+      body.publishAt && body.publishAt.getTime() > Date.now() ? body.publishAt : null;
 
     /*
      * The rule that makes a removal mean anything: nothing new under the old
@@ -1017,9 +1575,847 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       }
 
       const { rows } = await client.query(
-        `INSERT INTO channel_posts (channel_id, author_account_id, content, media_id, key_epoch)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, key_epoch`,
-        [params.id, accountId, body.content, body.mediaId ?? null, postEpoch],
+        `INSERT INTO channel_posts
+           (channel_id, author_account_id, content, media_id, key_epoch, publish_at)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, key_epoch, publish_at`,
+        [params.id, accountId, body.content, body.mediaId ?? null, postEpoch, publishAt],
+      );
+      const created = rows[0];
+      if (body.poll) {
+        // In the same transaction as the post: a post that claims a poll and
+        // has no row for it is a question nobody can answer.
+        await client.query(
+          `INSERT INTO channel_polls (post_id, option_count, max_choices, closes_at)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            created.id,
+            body.poll.optionCount,
+            body.poll.maxChoices,
+            body.poll.closesAt ?? null,
+          ],
+        );
+      }
+      return created;
+    });
+
+    // Wake the channel — but only for a post that is visible now. A scheduled
+    // one is notified by the sweeper when its time comes, because a
+    // notification has to be sent at a moment and this is not that moment.
+    //
+    // Detached: a wake-up that fails is somebody else's endpoint being wrong,
+    // and the post is already published. It must never turn a successful
+    // publish into an error the author sees and retries.
+    if (!created.publish_at || (created.publish_at as Date).getTime() <= Date.now()) {
+      void notifier.notifyPost(Number(created.id)).catch((err: unknown) => {
+        app.log.debug({ err, postId: created.id }, 'channel notification failed');
+      });
+    }
+
+    reply.code(201);
+    return {
+      id: created.id,
+      keyEpoch: created.key_epoch,
+      createdAt: (created.created_at as Date).toISOString(),
+      publishAt: (created.publish_at as Date | null)?.toISOString() ?? null,
+    };
+  });
+
+  /**
+   * How far this account has read.
+   *
+   * Stored per account rather than per device, so reading a channel on a phone
+   * clears its badge on a laptop — which is the whole reason it is not a local
+   * number.
+   *
+   * It only ever moves forward. A device that has been offline holds a stale
+   * idea of where the reader got to, and letting it write that back would mark
+   * things unread that somebody has already seen.
+   */
+  app.put('/v1/channels/:id/read', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ postId: z.coerce.number().int().min(0) }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query<{ last_read_post_id: string }>(
+      `INSERT INTO channel_reads (account_id, channel_id, last_read_post_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id, channel_id) DO UPDATE
+         SET last_read_post_id = GREATEST(channel_reads.last_read_post_id, EXCLUDED.last_read_post_id),
+             updated_at = now()
+       RETURNING last_read_post_id`,
+      [accountId, params.id, body.postId],
+    );
+    return { lastReadPostId: Number(rows[0]!.last_read_post_id) };
+  });
+
+  /** The feed, newest first. Members only — including for a public channel. */
+  app.get('/v1/channels/:id/posts', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const query = parse(
+      z.object({
+        before: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        /**
+         * The author's own waiting room: posts whose time has not come.
+         *
+         * Only for someone who may publish. A subscriber has no business
+         * knowing that something is queued, and the ordinary feed never shows
+         * it — a scheduled post is invisible until it is due, to everyone.
+         */
+        scheduled: z.coerce.boolean().optional(),
+      }),
+      request.query,
+    );
+    const member = await requireMember(params.id, accountId);
+    if (query.scheduled && !member.permissions.canPost) {
+      throw ApiError.forbidden('insufficient_permission', 'You need canPost for that');
+    }
+
+    /*
+     * The counts come back with the feed rather than from a second call: fifty
+     * posts would otherwise be fifty round trips, and a reaction bar that
+     * appears a second after the post it belongs to is worse than none.
+     *
+     * Two aggregates, and the difference between them matters. `reactions` is
+     * a total per emoji and says nothing about who; `mine` is this reader's
+     * own, which they are entitled to because they put it there. Nobody is
+     * ever served the list of who reacted — see migration 017 for what the
+     * server does and does not hold here.
+     */
+    const { rows } = await pool.query(
+      `SELECT p.id, p.author_account_id, a.username AS author_username,
+              p.content, p.media_id, p.pinned, p.created_at, p.key_epoch,
+              p.edited_at, p.publish_at,
+              COALESCE(r.counts, '{}'::jsonb) AS reactions,
+              COALESCE(m.mine, ARRAY[]::text[]) AS mine,
+              COALESCE(c.n, 0) AS comment_count,
+              poll.option_count, poll.max_choices, poll.closes_at,
+              v.counts AS vote_counts, vp.voters,
+              COALESCE(mv.mine, ARRAY[]::smallint[]) AS my_votes
+       FROM channel_posts p
+       LEFT JOIN accounts a ON a.id = p.author_account_id
+       LEFT JOIN LATERAL (
+         SELECT jsonb_object_agg(emoji, n) AS counts
+         FROM (
+           SELECT emoji, count(*) AS n
+           FROM channel_post_reactions
+           WHERE post_id = p.id
+           GROUP BY emoji
+         ) AS per_emoji
+       ) AS r ON true
+       LEFT JOIN LATERAL (
+         SELECT array_agg(emoji) AS mine
+         FROM channel_post_reactions
+         WHERE post_id = p.id AND account_id = $4
+       ) AS m ON true
+       -- How many replies, so a post can say "3 comments" without the screen
+       -- fetching every thread it scrolls past.
+       LEFT JOIN LATERAL (
+         SELECT count(*)::int AS n
+         FROM channel_post_comments
+         WHERE post_id = p.id AND deleted_at IS NULL
+       ) AS c ON true
+       LEFT JOIN channel_polls poll ON poll.post_id = p.id
+       -- A tally per option, and how many people took part. Two laterals and
+       -- not one: folding them together needs a UNION whose other half has no
+       -- option_index, and jsonb_object_agg throws on a null key rather than
+       -- skipping the row. The feed died for every poll until a test asked for
+       -- one. (No backticks in here: this is a template literal.)
+       LEFT JOIN LATERAL (
+         SELECT jsonb_object_agg(option_index, n) AS counts
+         FROM (
+           SELECT option_index, count(*)::int AS n
+           FROM channel_poll_votes WHERE post_id = p.id GROUP BY option_index
+         ) AS per_option
+       ) AS v ON poll.post_id IS NOT NULL
+       -- Not the sum of the above: in a poll that takes several answers one
+       -- person is several votes, and "42 people voted" is what a reader means.
+       LEFT JOIN LATERAL (
+         SELECT count(DISTINCT account_id)::int AS voters
+         FROM channel_poll_votes WHERE post_id = p.id
+       ) AS vp ON poll.post_id IS NOT NULL
+       LEFT JOIN LATERAL (
+         SELECT array_agg(option_index) AS mine
+         FROM channel_poll_votes
+         WHERE post_id = p.id AND account_id = $4
+       ) AS mv ON poll.post_id IS NOT NULL
+       WHERE p.channel_id = $1 AND p.deleted_at IS NULL
+         AND ($2::bigint IS NULL OR p.id < $2)
+         AND CASE WHEN $5::boolean
+                  THEN p.publish_at IS NOT NULL AND p.publish_at > now()
+                  ELSE p.publish_at IS NULL OR p.publish_at <= now()
+             END
+       ORDER BY p.id DESC LIMIT $3`,
+      [params.id, query.before ?? null, query.limit, accountId, query.scheduled ?? false],
+    );
+
+    return {
+      posts: rows.map((r) => ({
+        id: r.id,
+        authorAccountId: r.author_account_id,
+        authorUsername: r.author_username,
+        content: (r.content as Buffer).toString('base64'),
+        mediaId: r.media_id,
+        pinned: r.pinned,
+        reactions: r.reactions,
+        myReactions: r.mine,
+        // Null unless somebody changed it after people could already read it.
+        commentCount: r.comment_count,
+        // Null unless this post is a poll. The question and the answers are
+        // not here — they are inside `content`, sealed.
+        poll:
+          r.option_count === null
+            ? null
+            : {
+                optionCount: r.option_count,
+                maxChoices: r.max_choices,
+                closesAt: (r.closes_at as Date | null)?.toISOString() ?? null,
+                counts: r.vote_counts ?? {},
+                voters: r.voters ?? 0,
+                myVotes: r.my_votes ?? [],
+              },
+        editedAt: (r.edited_at as Date | null)?.toISOString() ?? null,
+        publishAt: (r.publish_at as Date | null)?.toISOString() ?? null,
+        // So a reader knows which key a post needs, rather than inferring it
+        // from a decryption that failed. A padlock that can say "waiting for
+        // the key from 12 March" is a different thing from one that cannot.
+        keyEpoch: r.key_epoch ?? 1,
+        createdAt: (r.created_at as Date).toISOString(),
+      })),
+      more: rows.length === query.limit,
+    };
+  });
+
+  /**
+   * Changing a post after it is out.
+   *
+   * **Only the author.** An admin who can delete a post cannot rewrite it:
+   * every post carries its author's name, so editing somebody else's words
+   * would be putting words in their mouth under their own byline. Deleting is
+   * the moderation tool, and it is honest about what it is.
+   *
+   * The new text arrives sealed, like the old one, and under the same epoch
+   * rule — an edit prepared before a rotation must not land under the key
+   * somebody was just removed from. Same lock, same refusal as publishing.
+   *
+   * `edited_at` is set only when the post was already visible. Changing one
+   * that is still scheduled leaves no mark, because nobody read the earlier
+   * version and there is nothing to disclose.
+   */
+  app.patch('/v1/channels/:id/posts/:postId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        content: base64Bytes(1, MAX_POST_BYTES),
+        keyEpoch: z.number().int().min(1).optional(),
+        /** Moves a scheduled post. Null publishes it now. */
+        publishAt: z.coerce.date().nullable().optional(),
+      }),
+      request.body,
+    );
+    const postEpoch = body.keyEpoch ?? 1;
+
+    const updated = await withTransaction(async (client) => {
+      const channel = await lockChannel(client, params.id, 'share');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+      await requirePermission(params.id, accountId, 'canPost', client);
+
+      if (postEpoch < channel.key_epoch) {
+        throw ApiError.conflict(
+          'stale_key_epoch',
+          `This channel has rotated its key. Seal the post under epoch ${channel.key_epoch}.`,
+        );
+      }
+      if (postEpoch > channel.key_epoch) {
+        throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
+      }
+
+      const { rows: existing } = await client.query<{
+        author_account_id: string | null;
+        publish_at: Date | null;
+      }>(
+        `SELECT author_account_id, publish_at FROM channel_posts
+         WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL`,
+        [params.postId, params.id],
+      );
+      const post = existing[0];
+      if (!post) throw ApiError.notFound('post_not_found', 'No such post');
+      if (post.author_account_id !== accountId) {
+        throw ApiError.forbidden('not_the_author', 'Only the author can change a post');
+      }
+
+      // Was it already out? That is what decides whether this leaves a mark.
+      const wasVisible = post.publish_at === null || post.publish_at.getTime() <= Date.now();
+
+      // `publishAt` absent leaves the schedule alone; null publishes now; a
+      // future time moves it. A past time is "now", for the same reason as
+      // when publishing.
+      const reschedule = body.publishAt !== undefined;
+      const nextPublishAt = !reschedule
+        ? post.publish_at
+        : body.publishAt && body.publishAt.getTime() > Date.now()
+          ? body.publishAt
+          : null;
+
+      const { rows } = await client.query(
+        `UPDATE channel_posts
+         SET content = $3, key_epoch = $4, publish_at = $5,
+             edited_at = CASE WHEN $6::boolean THEN now() ELSE edited_at END
+         WHERE id = $1 AND channel_id = $2
+         RETURNING id, created_at, edited_at, publish_at, key_epoch`,
+        [params.postId, params.id, body.content, postEpoch, nextPublishAt, wasVisible],
+      );
+      return rows[0];
+    });
+
+    return {
+      id: updated.id,
+      keyEpoch: updated.key_epoch,
+      createdAt: (updated.created_at as Date).toISOString(),
+      editedAt: (updated.edited_at as Date | null)?.toISOString() ?? null,
+      publishAt: (updated.publish_at as Date | null)?.toISOString() ?? null,
+    };
+  });
+
+  /**
+   * Handing the channel to somebody else.
+   *
+   * **The password, not the session.** Every other admin action here trusts
+   * the signed-in device, and that is right for actions an owner can undo.
+   * This one they cannot: afterwards they are an admin in somebody else's
+   * channel, and the person who now owns it can remove them. A phone left
+   * unlocked on a table should not be able to give a channel away.
+   *
+   * The new owner has to be a member already. Handing a channel to somebody
+   * who is not in it would put a stranger in charge of a key they do not hold.
+   *
+   * The old owner stays as an admin with everything they had. They are not
+   * removed and not demoted to a reader: a handover is not an ejection, and
+   * whoever takes over can do either afterwards if that is what was meant.
+   */
+  app.post('/v1/channels/:id/owner', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        accountId: uuidSchema,
+        currentPassword: z.string().min(1),
+      }),
+      request.body,
+    );
+
+    if (body.accountId === accountId) {
+      throw ApiError.badRequest('already_the_owner', 'You already own this channel');
+    }
+
+    const { rows: accounts } = await pool.query<{ password_hash: string }>(
+      'SELECT password_hash FROM accounts WHERE id = $1 AND deleted_at IS NULL',
+      [accountId],
+    );
+    const hash = accounts[0]?.password_hash;
+    if (!hash || !(await verifySecret(hash, body.currentPassword))) {
+      throw ApiError.unauthorized('invalid_credentials', 'That password is not right');
+    }
+
+    await withTransaction(async (client) => {
+      // Same lock and same order as every other two-row change in this file.
+      await lockChannel(client, params.id, 'update');
+
+      const actor = await membership(params.id, accountId, client);
+      if (actor?.role !== 'owner') {
+        throw ApiError.forbidden('not_the_owner', 'Only the owner can hand a channel on');
+      }
+      const target = await membership(params.id, body.accountId, client);
+      if (!target) {
+        throw ApiError.notFound('member_not_found', 'They are not in this channel');
+      }
+
+      await client.query(
+        `UPDATE channel_members
+         SET role = 'owner', can_post = true, can_edit_channel = true,
+             can_delete_posts = true, can_manage_members = true, can_delete_channel = true,
+             can_moderate_discussion = true, can_manage_invites = true,
+             can_manage_livestreams = true, can_appoint_admins = true,
+             promoted_by = NULL
+         WHERE channel_id = $1 AND account_id = $2`,
+        [params.id, body.accountId],
+      );
+      // Everything they had, minus the one thing that is now somebody else's.
+      await client.query(
+        `UPDATE channel_members
+         SET role = 'admin', can_delete_channel = false,
+             -- They handed it on themselves, which is the honest answer to
+             -- "who made this person an admin".
+             promoted_by = $2
+         WHERE channel_id = $1 AND account_id = $2`,
+        [params.id, accountId],
+      );
+      await client.query(
+        'UPDATE channels SET owner_account_id = $2 WHERE id = $1',
+        [params.id, body.accountId],
+      );
+      // Who gave it away and when. A role column cannot answer that, and it is
+      // the first question an owner who loses a channel asks.
+      await client.query(
+        `INSERT INTO channel_ownership_transfers (channel_id, from_account_id, to_account_id)
+         VALUES ($1, $2, $3)`,
+        [params.id, accountId, body.accountId],
+      );
+    });
+
+    return { owner: body.accountId };
+  });
+
+  /**
+   * Reporting a channel.
+   *
+   * The reason is one of a fixed set, not free text — and that is the
+   * interesting decision. A free field is a place for somebody to paste the
+   * content they are reporting, which would put the very thing the encryption
+   * protects into a readable column, written by a person with every reason to.
+   *
+   * What a report can deliver is limited by the same design: the server cannot
+   * read the posts, so an operator gets the channel's id and the reason. For a
+   * public channel there is also the title, description and handle, which are
+   * plaintext for search. For a private one there is nothing to look at. The
+   * screen says so rather than implying an investigation that cannot happen.
+   */
+  app.post('/v1/channels/:id/report', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        reason: z.enum(['spam', 'abuse', 'illegal', 'impersonation', 'other']),
+      }),
+      request.body,
+    );
+
+    const { rowCount } = await pool.query(
+      'SELECT 1 FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    if (!rowCount) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    // One standing report per person per channel: reporting twice is not twice
+    // as true, and a counter somebody can run up is a way to brigade a channel.
+    await pool.query(
+      `INSERT INTO channel_reports (channel_id, account_id, reason)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (channel_id, account_id) DO UPDATE SET reason = $3, reported_at = now()`,
+      [params.id, accountId, body.reason],
+    );
+    return { reported: true };
+  });
+
+  /**
+   * What a channel amounts to, for whoever runs it.
+   *
+   * Everything here is counted from rows that exist for their own reasons —
+   * members, posts, reactions, comments, votes. **There is no view count**, and
+   * that is a decision rather than an omission: counting who has read a post,
+   * deduplicated, means a row per reader per post, which is a record of what
+   * each person read. That is a larger disclosure than anything else in a
+   * channel and it would be made by people who are only reading. See
+   * docs/security-model.md.
+   */
+  app.get('/v1/channels/:id/stats', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canEditChannel');
+
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT member_count FROM channels WHERE id = $1) AS members,
+         (SELECT count(*)::int FROM channel_posts
+           WHERE channel_id = $1 AND deleted_at IS NULL
+             AND (publish_at IS NULL OR publish_at <= now())) AS posts,
+         (SELECT count(*)::int FROM channel_posts
+           WHERE channel_id = $1 AND deleted_at IS NULL
+             AND publish_at > now()) AS scheduled,
+         (SELECT count(*)::int FROM channel_post_reactions r
+            JOIN channel_posts p ON p.id = r.post_id
+           WHERE p.channel_id = $1) AS reactions,
+         (SELECT count(*)::int FROM channel_post_comments c
+            JOIN channel_posts p ON p.id = c.post_id
+           WHERE p.channel_id = $1 AND c.deleted_at IS NULL) AS comments,
+         (SELECT count(DISTINCT v.account_id)::int FROM channel_poll_votes v
+            JOIN channel_posts p ON p.id = v.post_id
+           WHERE p.channel_id = $1) AS poll_voters,
+         (SELECT count(*)::int FROM channel_bans WHERE channel_id = $1) AS silenced,
+         (SELECT count(*)::int FROM channel_join_requests WHERE channel_id = $1) AS waiting`,
+      [params.id],
+    );
+    const row = rows[0] ?? {};
+    return {
+      members: row.members ?? 0,
+      posts: row.posts ?? 0,
+      scheduled: row.scheduled ?? 0,
+      reactions: row.reactions ?? 0,
+      comments: row.comments ?? 0,
+      pollVoters: row.poll_voters ?? 0,
+      silenced: row.silenced ?? 0,
+      waiting: row.waiting ?? 0,
+    };
+  });
+
+  /**
+   * What the invite link is allowed to do.
+   *
+   * `canManageMembers`, because that is the right that decides who is in the
+   * channel, and a link is a standing offer of membership. Every field is
+   * optional and absent means "leave it"; null clears a limit.
+   */
+  app.put('/v1/channels/:id/invite', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({
+        expiresAt: z.coerce.date().nullable().optional(),
+        maxUses: z.number().int().min(1).max(100_000).nullable().optional(),
+        needsApproval: z.boolean().optional(),
+      }),
+      request.body ?? {},
+    );
+    // Invites are their own permission now. Setting a link's limits is not the
+    // same act as removing a member, and an admin brought in to moderate should
+    // not thereby control who can get in.
+    await requirePermission(params.id, accountId, 'canManageInvites');
+
+    // A time already gone is not a setting, it is a revocation with extra
+    // steps — and rotating the code is the honest way to do that.
+    if (body.expiresAt && body.expiresAt.getTime() <= Date.now()) {
+      throw ApiError.badRequest('expiry_in_the_past', 'Pick a time that has not gone yet');
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE channels SET
+         invite_expires_at = CASE WHEN $2::boolean THEN $3 ELSE invite_expires_at END,
+         invite_max_uses   = CASE WHEN $4::boolean THEN $5 ELSE invite_max_uses END,
+         invite_needs_approval = COALESCE($6, invite_needs_approval)
+       WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [
+        params.id,
+        body.expiresAt !== undefined,
+        body.expiresAt ?? null,
+        body.maxUses !== undefined,
+        body.maxUses ?? null,
+        body.needsApproval ?? null,
+      ],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return { ...publicView(rows[0]), inviteCode: rows[0].invite_code };
+  });
+
+  /**
+   * Revoking the link, which is rotating it.
+   *
+   * There is no list of past codes and no grace period: the old one stops
+   * resolving the moment this returns, wherever it was pasted. The counter
+   * goes back to zero with it, because a use limit belongs to the link that
+   * was handed out and not to the channel.
+   */
+  app.post('/v1/channels/:id/invite/rotate', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageInvites');
+
+    const { rows } = await pool.query(
+      `UPDATE channels SET invite_code = $2, invite_uses = 0
+       WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [params.id, randomBytes(9).toString('base64url')],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    return { ...publicView(rows[0]), inviteCode: rows[0].invite_code };
+  });
+
+  /**
+   * Who is waiting at the door.
+   *
+   * `canManageMembers` — and it is a queue of people who are *not* in the
+   * channel, so unlike the members list there is no version of this for
+   * everybody else.
+   */
+  app.get('/v1/channels/:id/join-requests', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageInvites');
+
+    const { rows } = await pool.query(
+      `SELECT r.account_id, a.username, a.display_name, r.requested_at
+       FROM channel_join_requests r
+       LEFT JOIN accounts a ON a.id = r.account_id
+       WHERE r.channel_id = $1
+       ORDER BY r.requested_at ASC`,
+      [params.id],
+    );
+    return {
+      requests: rows.map((r) => ({
+        accountId: r.account_id,
+        username: r.username,
+        displayName: r.display_name,
+        requestedAt: (r.requested_at as Date).toISOString(),
+      })),
+    };
+  });
+
+  /** Letting somebody in. The link's use counter moves here, not at the knock. */
+  app.post('/v1/channels/:id/join-requests/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageInvites');
+
+    const admitted = await withTransaction(async (client) => {
+      const { rowCount: knocked } = await client.query(
+        'DELETE FROM channel_join_requests WHERE channel_id = $1 AND account_id = $2',
+        [params.id, params.accountId],
+      );
+      if (!knocked) return false;
+
+      const { rowCount } = await client.query(
+        `INSERT INTO channel_members (channel_id, account_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [params.id, params.accountId],
+      );
+      if (rowCount) {
+        await client.query(
+          `UPDATE channels SET member_count = member_count + 1, invite_uses = invite_uses + 1
+           WHERE id = $1`,
+          [params.id],
+        );
+      }
+      return true;
+    });
+    if (!admitted) throw ApiError.notFound('no_such_request', 'Nobody is waiting under that name');
+
+    // No key request recorded here, and no wake. A key is sealed to a *device*,
+    // and the admin approving this is not at the new member's — so the asking
+    // is theirs to do, which their client already does for every channel it is
+    // in without a key.
+    return { admitted: true };
+  });
+
+  /** Turning somebody away. They are told nothing; the queue simply empties. */
+  app.delete('/v1/channels/:id/join-requests/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageInvites');
+
+    await pool.query(
+      'DELETE FROM channel_join_requests WHERE channel_id = $1 AND account_id = $2',
+      [params.id, params.accountId],
+    );
+    return { admitted: false };
+  });
+
+  /** One poll's tallies, for the answer a vote gets. */
+  async function tallyOf(
+    postId: number,
+    accountId: string,
+  ): Promise<{ counts: Record<number, number>; voters: number; myVotes: number[] }> {
+    const { rows } = await pool.query<{ option_index: number; n: number; mine: boolean }>(
+      `SELECT option_index, count(*)::int AS n,
+              bool_or(account_id = $2) AS mine
+       FROM channel_poll_votes WHERE post_id = $1
+       GROUP BY option_index`,
+      [postId, accountId],
+    );
+    const { rows: people } = await pool.query<{ voters: number }>(
+      'SELECT count(DISTINCT account_id)::int AS voters FROM channel_poll_votes WHERE post_id = $1',
+      [postId],
+    );
+    const counts: Record<number, number> = {};
+    const myVotes: number[] = [];
+    for (const row of rows) {
+      counts[row.option_index] = row.n;
+      if (row.mine) myVotes.push(row.option_index);
+    }
+    return { counts, voters: people[0]?.voters ?? 0, myVotes };
+  }
+
+  /**
+   * Voting, and changing your mind.
+   *
+   * The whole of this account's answer is sent each time and replaces what was
+   * there — not "add one vote", because changing a single-choice answer is
+   * otherwise two calls with a moment in between where the person has voted
+   * twice or not at all. An empty list takes the vote back.
+   *
+   * The server checks the shape it is holding: every index inside the poll's
+   * options, no more picks than the poll allows, and nothing after it closed.
+   * It is doing that without knowing what any of the options say.
+   */
+  app.put('/v1/channels/:id/posts/:postId/votes', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        options: z.array(z.number().int().min(0).max(11)).max(12),
+      }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+    // A silenced member does not get a vote either: it is the same voice.
+    await requireNotBanned(params.id, accountId);
+
+    await withTransaction(async (client) => {
+      const { rows } = await client.query<{
+        option_count: number;
+        max_choices: number;
+        closes_at: Date | null;
+      }>(
+        `SELECT poll.option_count, poll.max_choices, poll.closes_at
+         FROM channel_polls poll
+         JOIN channel_posts p ON p.id = poll.post_id
+         WHERE poll.post_id = $1 AND p.channel_id = $2 AND p.deleted_at IS NULL
+           AND (p.publish_at IS NULL OR p.publish_at <= now())`,
+        [params.postId, params.id],
+      );
+      const poll = rows[0];
+      if (!poll) throw ApiError.notFound('poll_not_found', 'No such poll');
+
+      if (poll.closes_at && poll.closes_at.getTime() <= Date.now()) {
+        throw ApiError.conflict('poll_closed', 'This poll has closed');
+      }
+
+      // Duplicates in the request would otherwise buy extra picks past the
+      // limit, and the primary key would silently swallow them.
+      const chosen = [...new Set(body.options)];
+      if (chosen.some((index) => index >= poll.option_count)) {
+        throw ApiError.badRequest('option_out_of_range', 'That is not one of the answers');
+      }
+      if (chosen.length > poll.max_choices) {
+        throw ApiError.badRequest(
+          'too_many_choices',
+          `This poll takes ${poll.max_choices} answer${poll.max_choices === 1 ? '' : 's'}`,
+        );
+      }
+
+      // Replace rather than add: the request is the whole answer.
+      await client.query(
+        'DELETE FROM channel_poll_votes WHERE post_id = $1 AND account_id = $2',
+        [params.postId, accountId],
+      );
+      for (const index of chosen) {
+        await client.query(
+          `INSERT INTO channel_poll_votes (post_id, account_id, option_index)
+           VALUES ($1, $2, $3)`,
+          [params.postId, accountId, index],
+        );
+      }
+    });
+
+    return tallyOf(params.postId, accountId);
+  });
+
+  /**
+   * Whether this account is barred from speaking in a channel.
+   *
+   * Separate from membership on purpose: removing somebody rotates the key and
+   * cuts them off from everything, which is the right answer to "should not be
+   * here" and far too heavy an answer to "will not stop arguing under every
+   * post". A ban silences; it does not blind.
+   */
+  async function isBanned(
+    channelId: string,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<boolean> {
+    const { rowCount } = await client.query(
+      'SELECT 1 FROM channel_bans WHERE channel_id = $1 AND account_id = $2',
+      [channelId, accountId],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  /** Refuses a member who has been silenced, saying so rather than pretending. */
+  async function requireNotBanned(
+    channelId: string,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<void> {
+    if (await isBanned(channelId, accountId, client)) {
+      throw ApiError.forbidden('banned', 'An admin has stopped you posting in this channel');
+    }
+  }
+
+  /**
+   * A comment on a post.
+   *
+   * Sealed exactly like the post it hangs under: same channel key, same epoch,
+   * same refusal under a superseded one. The server stores ciphertext and
+   * cannot read a word of it, which is why moderation here can only ever be
+   * "remove this row" and "stop this account writing more" — there is no
+   * filtering a server cannot read.
+   *
+   * Any member may comment, not only those who may post. That is the point of
+   * turning threads on at all.
+   */
+  app.post('/v1/channels/:id/posts/:postId/comments', requireAuth, async (request, reply) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(
+      z.object({
+        content: base64Bytes(1, MAX_POST_BYTES),
+        keyEpoch: z.number().int().min(1).optional(),
+      }),
+      request.body,
+    );
+    const commentEpoch = body.keyEpoch ?? 1;
+
+    const created = await withTransaction(async (client) => {
+      const channel = await lockChannel(client, params.id, 'share');
+      if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+      if (!channel.comments_enabled) {
+        throw ApiError.conflict('comments_disabled', 'This channel has comments turned off');
+      }
+      await requireMember(params.id, accountId, client);
+      await requireNotBanned(params.id, accountId, client);
+
+      if (commentEpoch < channel.key_epoch) {
+        throw ApiError.conflict(
+          'stale_key_epoch',
+          `This channel has rotated its key. Seal the comment under epoch ${channel.key_epoch}.`,
+        );
+      }
+      if (commentEpoch > channel.key_epoch) {
+        throw ApiError.conflict('unknown_key_epoch', 'That key version does not exist yet');
+      }
+
+      // Within the channel, and only a post that is actually out: a thread
+      // under something still scheduled would tell a subscriber it exists.
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM channel_posts
+         WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL
+           AND (publish_at IS NULL OR publish_at <= now())`,
+        [params.postId, params.id],
+      );
+      if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
+
+      const { rows } = await client.query(
+        `INSERT INTO channel_post_comments (post_id, author_account_id, content, key_epoch)
+         VALUES ($1, $2, $3, $4) RETURNING id, created_at, key_epoch`,
+        [params.postId, accountId, body.content, commentEpoch],
       );
       return rows[0];
     });
@@ -1032,46 +2428,472 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     };
   });
 
-  /** The feed, newest first. Members only — including for a public channel. */
-  app.get('/v1/channels/:id/posts', requireAuth, async (request) => {
+  /** The thread, oldest first — a conversation reads forwards. */
+  app.get('/v1/channels/:id/posts/:postId/comments', requireAuth, async (request) => {
     const { accountId } = auth(request);
-    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
     const query = parse(
       z.object({
-        before: z.coerce.number().int().positive().optional(),
-        limit: z.coerce.number().int().min(1).max(100).default(50),
+        after: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().min(1).max(200).default(100),
       }),
       request.query,
     );
     await requireMember(params.id, accountId);
 
     const { rows } = await pool.query(
-      `SELECT p.id, p.author_account_id, a.username AS author_username,
-              p.content, p.media_id, p.pinned, p.created_at, p.key_epoch
-       FROM channel_posts p
-       LEFT JOIN accounts a ON a.id = p.author_account_id
-       WHERE p.channel_id = $1 AND p.deleted_at IS NULL
-         AND ($2::bigint IS NULL OR p.id < $2)
-       ORDER BY p.id DESC LIMIT $3`,
-      [params.id, query.before ?? null, query.limit],
+      `SELECT c.id, c.author_account_id, a.username AS author_username,
+              c.content, c.key_epoch, c.created_at
+       FROM channel_post_comments c
+       JOIN channel_posts p ON p.id = c.post_id AND p.channel_id = $1
+       LEFT JOIN accounts a ON a.id = c.author_account_id
+       WHERE c.post_id = $2 AND c.deleted_at IS NULL
+         AND ($3::bigint IS NULL OR c.id > $3)
+       ORDER BY c.id ASC LIMIT $4`,
+      [params.id, params.postId, query.after ?? null, query.limit],
     );
 
     return {
-      posts: rows.map((r) => ({
+      comments: rows.map((r) => ({
         id: r.id,
         authorAccountId: r.author_account_id,
         authorUsername: r.author_username,
         content: (r.content as Buffer).toString('base64'),
-        mediaId: r.media_id,
-        pinned: r.pinned,
-        // So a reader knows which key a post needs, rather than inferring it
-        // from a decryption that failed. A padlock that can say "waiting for
-        // the key from 12 March" is a different thing from one that cannot.
         keyEpoch: r.key_epoch ?? 1,
         createdAt: (r.created_at as Date).toISOString(),
       })),
       more: rows.length === query.limit,
     };
+  });
+
+  /**
+   * Removing a comment: its author, or an admin who may delete posts.
+   *
+   * Overwritten rather than tombstoned, like a post, so a removed comment does
+   * not sit on disk waiting for a key to turn up.
+   */
+  app.delete(
+    '/v1/channels/:id/posts/:postId/comments/:commentId',
+    requireAuth,
+    async (request) => {
+      const { accountId } = auth(request);
+      const params = parse(
+        z.object({
+          id: uuidSchema,
+          postId: z.coerce.number().int().positive(),
+          commentId: z.coerce.number().int().positive(),
+        }),
+        request.params,
+      );
+      const member = await requireMember(params.id, accountId);
+
+      const { rows } = await pool.query<{ author_account_id: string | null }>(
+        `SELECT c.author_account_id
+         FROM channel_post_comments c
+         JOIN channel_posts p ON p.id = c.post_id AND p.channel_id = $1
+         WHERE c.id = $2 AND c.post_id = $3 AND c.deleted_at IS NULL`,
+        [params.id, params.commentId, params.postId],
+      );
+      const comment = rows[0];
+      if (!comment) throw ApiError.notFound('comment_not_found', 'No such comment');
+
+      const isAuthor = comment.author_account_id === accountId;
+      // Moderating a discussion is its own permission. It used to fall out of
+      // `canDeletePosts`, which is a different act on different content: an
+      // admin trusted to take down a post was thereby trusted to delete what
+      // anybody had said underneath one.
+      if (!isAuthor && !member.permissions.canModerateDiscussion) {
+        throw ApiError.forbidden(
+          'insufficient_permission',
+          'You need canModerateDiscussion for that',
+        );
+      }
+
+      await pool.query(
+        'UPDATE channel_post_comments SET deleted_at = now(), content = $2 WHERE id = $1',
+        [params.commentId, Buffer.alloc(0)],
+      );
+      return { deleted: true };
+    },
+  );
+
+  /**
+   * Silencing somebody, and letting them speak again.
+   *
+   * Needs `canManageMembers`, the same right that removes people, because it
+   * is the lighter half of the same decision. An owner cannot be silenced —
+   * there would be no way back — and neither can you silence yourself into a
+   * channel you run.
+   */
+  app.put('/v1/channels/:id/bans/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    const actor = await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const target = await membership(params.id, params.accountId);
+    if (!target) throw ApiError.notFound('not_a_member', 'They are not in this channel');
+    if (target.role === 'owner') {
+      throw ApiError.forbidden('cannot_ban_owner', 'The owner cannot be silenced');
+    }
+    // An admin silencing another admin would be a way around the permission
+    // system: whoever may manage members may remove them, and that is the
+    // decision with a record.
+    if (target.role === 'admin' && actor.role !== 'owner') {
+      throw ApiError.forbidden('cannot_ban_admin', 'Only the owner can silence an admin');
+    }
+
+    await pool.query(
+      `INSERT INTO channel_bans (channel_id, account_id, banned_by)
+       VALUES ($1, $2, $3) ON CONFLICT (channel_id, account_id) DO NOTHING`,
+      [params.id, params.accountId, accountId],
+    );
+    return { banned: true };
+  });
+
+  app.delete('/v1/channels/:id/bans/:accountId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, accountId: uuidSchema }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    await pool.query('DELETE FROM channel_bans WHERE channel_id = $1 AND account_id = $2', [
+      params.id,
+      params.accountId,
+    ]);
+    return { banned: false };
+  });
+
+  /** Who is silenced. Admins only — it is a moderation record, not a roster. */
+  app.get('/v1/channels/:id/bans', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `SELECT b.account_id, a.username, b.created_at
+       FROM channel_bans b
+       LEFT JOIN accounts a ON a.id = b.account_id
+       WHERE b.channel_id = $1
+       ORDER BY b.created_at DESC`,
+      [params.id],
+    );
+    return {
+      banned: rows.map((r) => ({
+        accountId: r.account_id,
+        username: r.username,
+        since: (r.created_at as Date).toISOString(),
+      })),
+    };
+  });
+
+  /**
+   * Put somebody into the channel directly.
+   *
+   * Only where *they* allow it. `whoCanAddMeToGroups` is their setting, and
+   * 'contacts' means their address book, not yours — being added by a stranger
+   * to a channel you have never heard of is the thing the setting exists to
+   * stop. Anyone it refuses comes back in `invite`, which is the honest
+   * outcome: send them the link and let them decide.
+   */
+  app.post('/v1/channels/:id/members', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ accountIds: z.array(uuidSchema).min(1).max(64) }),
+      request.body,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows: candidates } = await pool.query(
+      `SELECT a.id, a.username, a.privacy,
+              EXISTS (
+                SELECT 1 FROM contacts c
+                 WHERE c.account_id = a.id AND c.contact_account_id = $2
+              ) AS adder_is_their_contact,
+              EXISTS (
+                SELECT 1 FROM blocks b
+                 WHERE b.account_id = a.id AND b.blocked_account_id = $2
+              ) AS blocked_the_adder
+         FROM accounts a
+        WHERE a.id = ANY($1::uuid[]) AND a.deleted_at IS NULL`,
+      [body.accountIds, accountId],
+    );
+
+    const added: string[] = [];
+    const invite: string[] = [];
+    for (const person of candidates) {
+      const setting = (person.privacy?.whoCanAddMeToGroups as string) ?? 'contacts';
+      // Somebody who blocked you does not get added by you, whatever their
+      // group setting says — and is not told they were tried.
+      const allowed =
+        !person.blocked_the_adder &&
+        (setting === 'everyone' || person.adder_is_their_contact === true);
+      if (allowed) added.push(person.id);
+      else invite.push(person.id);
+    }
+
+    if (added.length) {
+      await withTransaction(async (client) => {
+        await lockChannel(client, params.id, 'update');
+        const { rowCount } = await client.query(
+          `INSERT INTO channel_members (channel_id, account_id, role)
+           SELECT $1, unnest($2::uuid[]), 'subscriber'
+           ON CONFLICT (channel_id, account_id) DO NOTHING`,
+          [params.id, added],
+        );
+        // Counted from what the insert actually did, so adding somebody who is
+        // already in does not inflate the count.
+        if (rowCount) {
+          await client.query(
+            'UPDATE channels SET member_count = member_count + $2 WHERE id = $1',
+            [params.id, rowCount],
+          );
+        }
+      });
+    }
+
+    // Two lists rather than a silent partial success: the screen has to be able
+    // to say "these are in, these need a link".
+    return { added, invite };
+  });
+
+  // --- Muting -------------------------------------------------------------
+
+  /**
+   * Mute a channel for this account, for a while or for good.
+   *
+   * Per account rather than per device: somebody who silenced a channel on
+   * their phone did not mean "until I pick up my laptop". `until` null means no
+   * end; sending `{}` mutes indefinitely.
+   */
+  app.put('/v1/channels/:id/mute', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ until: z.coerce.date().nullable().optional() }),
+      request.body ?? {},
+    );
+    // Members only, so muting is not a way to probe which channels exist.
+    await requireMember(params.id, accountId);
+
+    if (body.until && body.until.getTime() <= Date.now()) {
+      throw ApiError.badRequest('expiry_in_the_past', 'Pick a time that has not gone yet');
+    }
+
+    await pool.query(
+      `INSERT INTO channel_mutes (account_id, channel_id, until)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id, channel_id) DO UPDATE SET until = EXCLUDED.until`,
+      [accountId, params.id, body.until ?? null],
+    );
+    return { muted: true, until: body.until?.toISOString() ?? null };
+  });
+
+  app.delete('/v1/channels/:id/mute', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await pool.query(
+      'DELETE FROM channel_mutes WHERE account_id = $1 AND channel_id = $2',
+      [accountId, params.id],
+    );
+    return { muted: false, until: null };
+  });
+
+  // --- Livestreams --------------------------------------------------------
+
+  /**
+   * What this account may do about a livestream right now.
+   *
+   * Answers `available: false` where the deployment has no media server, which
+   * is what the client draws as "unavailable" with a reason rather than as a
+   * button that quietly does nothing.
+   */
+  app.get('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const member = await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query(
+      `SELECT live_started_at, live_started_by, live_room
+         FROM channels WHERE id = $1 AND deleted_at IS NULL`,
+      [params.id],
+    );
+    const channel = rows[0];
+    if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    const running = Boolean(channel.live_started_at && channel.live_room);
+    return {
+      available: livestreams.available(),
+      canStart: member.permissions.canManageLivestreams,
+      live: running
+        ? {
+            startedAt: (channel.live_started_at as Date).toISOString(),
+            startedBy: channel.live_started_by,
+          }
+        : null,
+      // A token only while something is running, and only ever a viewing one
+      // here — publishing comes back from the start call.
+      access:
+        running && livestreams.available()
+          ? livestreams.accessToken({
+              room: channel.live_room as string,
+              identity: accountId,
+              canPublish: false,
+            })
+          : null,
+    };
+  });
+
+  app.post('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageLivestreams');
+
+    if (!livestreams.available()) {
+      throw new ApiError(
+        503,
+        'livestream_unconfigured',
+        'This server has no media server for livestreams',
+      );
+    }
+
+    // Under the lock, so two admins pressing start at the same moment cannot
+    // end up with two rooms and half the subscribers in each.
+    const room = await withTransaction(async (client) => {
+      // The lock, then the columns: `lockChannel` selects only what the key
+      // rotation needs, so the live columns are read separately under it.
+      if (!(await lockChannel(client, params.id, 'update'))) {
+        throw ApiError.notFound('channel_not_found', 'No such channel');
+      }
+      const { rows: live } = await client.query<{
+        live_started_at: Date | null;
+        live_room: string | null;
+      }>('SELECT live_started_at, live_room FROM channels WHERE id = $1', [params.id]);
+      const running = live[0];
+      // Already going: hand back the room that exists rather than making a
+      // second one and splitting the audience between them.
+      if (running?.live_started_at && running.live_room) return running.live_room;
+      const fresh = livestreams.newRoom();
+      await client.query(
+        `UPDATE channels SET live_started_at = now(), live_started_by = $2, live_room = $3
+          WHERE id = $1`,
+        [params.id, accountId, fresh],
+      );
+      return fresh;
+    });
+
+    return {
+      access: livestreams.accessToken({ room, identity: accountId, canPublish: true }),
+    };
+  });
+
+  app.delete('/v1/channels/:id/live', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requirePermission(params.id, accountId, 'canManageLivestreams');
+    await pool.query(
+      `UPDATE channels SET live_started_at = NULL, live_started_by = NULL, live_room = NULL
+        WHERE id = $1`,
+      [params.id],
+    );
+    return { live: null };
+  });
+
+  // --- The channel's own inbox --------------------------------------------
+
+  /**
+   * Write to a channel.
+   *
+   * Sealed by the sender to the channel key before it gets here, like a post:
+   * the server stores bytes and who sent them. An admin reads it under the
+   * channel's identity, which is the point — a subscriber writing to a channel
+   * should not thereby learn which human is behind it, and an admin answering
+   * should not have to hand out their own account.
+   */
+  app.post('/v1/channels/:id/inbox', requireAuth, async (request, reply) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(
+      z.object({ content: base64Bytes(1, config.MAX_ENVELOPE_BYTES) }),
+      request.body,
+    );
+    await requireMember(params.id, accountId);
+
+    const { rows } = await pool.query<{ direct_messages_enabled: boolean }>(
+      'SELECT direct_messages_enabled FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
+    if (!rows[0].direct_messages_enabled) {
+      throw ApiError.forbidden('inbox_closed', 'This channel does not take messages');
+    }
+    // Somebody silenced in the channel is silenced in its inbox too, or the
+    // inbox is the way around being silenced.
+    const { rowCount: banned } = await pool.query(
+      'SELECT 1 FROM channel_bans WHERE channel_id = $1 AND account_id = $2',
+      [params.id, accountId],
+    );
+    if (banned) throw ApiError.forbidden('silenced', 'You cannot write to this channel');
+
+    const { rows: written } = await pool.query<{ id: string }>(
+      `INSERT INTO channel_inbox (channel_id, sender_account_id, content)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [params.id, accountId, body.content],
+    );
+    reply.code(201);
+    return { id: Number(written[0]!.id) };
+  });
+
+  /** Read the inbox. Admins who may manage members, and nobody else. */
+  app.get('/v1/channels/:id/inbox', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const query = parse(
+      z.object({ limit: z.coerce.number().int().min(1).max(100).default(50) }),
+      request.query,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+
+    const { rows } = await pool.query(
+      `SELECT i.id, i.sender_account_id, a.username, i.content, i.created_at, i.answered_at
+         FROM channel_inbox i JOIN accounts a ON a.id = i.sender_account_id
+        WHERE i.channel_id = $1
+        ORDER BY i.created_at DESC LIMIT $2`,
+      [params.id, query.limit],
+    );
+    return {
+      messages: rows.map((r) => ({
+        id: Number(r.id),
+        senderAccountId: r.sender_account_id,
+        senderUsername: r.username,
+        content: (r.content as Buffer).toString('base64'),
+        createdAt: (r.created_at as Date).toISOString(),
+        answeredAt: (r.answered_at as Date | null)?.toISOString() ?? null,
+      })),
+    };
+  });
+
+  /** Mark one as handled. */
+  app.put('/v1/channels/:id/inbox/:messageId', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, messageId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    await requirePermission(params.id, accountId, 'canManageMembers');
+    await pool.query(
+      'UPDATE channel_inbox SET answered_at = now() WHERE id = $1 AND channel_id = $2',
+      [params.messageId, params.id],
+    );
+    return { answered: true };
   });
 
   app.put('/v1/channels/:id/posts/:postId/pin', requireAuth, async (request) => {
@@ -1091,6 +2913,107 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     return { pinned: body.pinned };
   });
 
+  /**
+   * The counts on one post, for the reply to a reaction that just changed.
+   *
+   * Returned rather than leaving the client to reload the feed: a tap that
+   * needs fifty posts fetched again to show a number going up is a tap that
+   * looks broken on a slow connection.
+   */
+  async function reactionsOn(
+    postId: number,
+    accountId: string,
+    client: Queryable = pool,
+  ): Promise<{ reactions: Record<string, number>; myReactions: string[] }> {
+    const { rows } = await client.query(
+      `SELECT emoji, count(*)::int AS n,
+              bool_or(account_id = $2) AS mine
+       FROM channel_post_reactions
+       WHERE post_id = $1
+       GROUP BY emoji`,
+      [postId, accountId],
+    );
+    const reactions: Record<string, number> = {};
+    const myReactions: string[] = [];
+    for (const row of rows as { emoji: string; n: number; mine: boolean }[]) {
+      reactions[row.emoji] = row.n;
+      if (row.mine) myReactions.push(row.emoji);
+    }
+    return { reactions, myReactions };
+  }
+
+  /**
+   * Reacting to a post.
+   *
+   * Any member may, including one who cannot publish — that is the point of a
+   * channel's audience having a voice at all. The emoji has to be one the
+   * channel offers: an unchecked value here is a way to write arbitrary text
+   * under somebody else's post.
+   *
+   * The post is looked up **within the channel** rather than by id alone, so a
+   * member of one channel cannot react to a post in another by guessing a
+   * number. Post ids are a global sequence; they are not a secret and are not
+   * treated as one.
+   */
+  app.put('/v1/channels/:id/posts/:postId/reactions', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const body = parse(z.object({ emoji: reactionEmojiSchema }), request.body);
+    await requireMember(params.id, accountId);
+    // A reaction is a way of speaking too. An admin who silenced somebody
+    // would not expect them to go on stamping emojis on every post.
+    await requireNotBanned(params.id, accountId);
+
+    const { rows: channels } = await pool.query<{ reaction_emojis: string[] }>(
+      'SELECT reaction_emojis FROM channels WHERE id = $1 AND deleted_at IS NULL',
+      [params.id],
+    );
+    const offered = channels[0]?.reaction_emojis ?? [];
+    if (!offered.includes(body.emoji)) {
+      throw ApiError.badRequest('emoji_not_offered', 'That is not one of this channel\'s reactions');
+    }
+
+    const { rowCount } = await pool.query(
+      'SELECT 1 FROM channel_posts WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL',
+      [params.postId, params.id],
+    );
+    if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
+
+    // Idempotent: a double tap on a slow connection is one reaction, not an
+    // error the screen has to explain.
+    await pool.query(
+      `INSERT INTO channel_post_reactions (post_id, account_id, emoji)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [params.postId, accountId, body.emoji],
+    );
+    return reactionsOn(params.postId, accountId);
+  });
+
+  /** Taking one back. Only ever your own — there is no route to remove anyone else's. */
+  app.delete('/v1/channels/:id/posts/:postId/reactions', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, postId: z.coerce.number().int().positive() }),
+      request.params,
+    );
+    const query = parse(z.object({ emoji: reactionEmojiSchema }), request.query);
+    await requireMember(params.id, accountId);
+
+    await pool.query(
+      `DELETE FROM channel_post_reactions r
+       USING channel_posts p
+       WHERE r.post_id = p.id AND p.channel_id = $1
+         AND r.post_id = $2 AND r.account_id = $3 AND r.emoji = $4`,
+      [params.id, params.postId, accountId, query.emoji],
+    );
+    // No 404 for a reaction that was not there: the end state is the same, and
+    // saying which it was tells a caller what somebody else's row contains.
+    return reactionsOn(params.postId, accountId);
+  });
+
   app.delete('/v1/channels/:id/posts/:postId', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(
@@ -1099,12 +3022,39 @@ const channelRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     );
     await requirePermission(params.id, accountId, 'canDeletePosts');
 
-    const { rowCount } = await pool.query(
-      'UPDATE channel_posts SET deleted_at = now(), content = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
-      // Overwrite rather than tombstone the ciphertext: a deleted post should
-      // not sit on disk waiting for a key to turn up.
-      [params.id, params.postId, Buffer.alloc(0)],
-    );
+    const rowCount = await withTransaction(async (client) => {
+      const { rowCount: deleted } = await client.query(
+        'UPDATE channel_posts SET deleted_at = now(), content = $3 WHERE channel_id = $1 AND id = $2 AND deleted_at IS NULL',
+        // Overwrite rather than tombstone the ciphertext: a deleted post should
+        // not sit on disk waiting for a key to turn up.
+        [params.id, params.postId, Buffer.alloc(0)],
+      );
+      // And the reactions with it. The row stays — the id is a foreign key
+      // several things point at — so the `ON DELETE CASCADE` on those rows
+      // never fires, and without this the record of who responded to a post
+      // outlives the post itself. That is the one piece of metadata a channel
+      // holds in the clear (migration 017); it has no business surviving the
+      // thing it was about.
+      if (deleted) {
+        await client.query('DELETE FROM channel_post_reactions WHERE post_id = $1', [
+          params.postId,
+        ]);
+        // And the thread under it, for the same reason and then one more: a
+        // comment is ciphertext, and a removed post must not leave a pile of
+        // it on disk waiting for a key. Hard-deleted rather than tombstoned,
+        // because the post they hang under is gone and nothing will ever ask
+        // for them again.
+        await client.query('DELETE FROM channel_post_comments WHERE post_id = $1', [
+          params.postId,
+        ]);
+        // And the poll, if it was one. Third time this list has grown, and
+        // always for the same reason: the post delete is a soft delete, so
+        // nothing that hangs off the row goes with it on its own. Anything
+        // added here later has to be added here too.
+        await client.query('DELETE FROM channel_polls WHERE post_id = $1', [params.postId]);
+      }
+      return deleted;
+    });
     if (!rowCount) throw ApiError.notFound('post_not_found', 'No such post');
     return { deleted: true };
   });

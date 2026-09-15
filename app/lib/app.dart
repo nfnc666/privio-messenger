@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'l10n/app_localizations.dart';
+import 'l10n/failure_text.dart';
+import 'models/channel.dart';
+import 'screens/channel_feed_screen.dart';
 import 'screens/activation_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/calculator_screen.dart';
@@ -70,31 +74,145 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return PrivioScope(
       notifier: _state,
-      child: MaterialApp(
-        title: 'Privio',
-        debugShowCheckedModeBanner: false,
-        theme: PrivioTheme.dark(),
-        darkTheme: PrivioTheme.dark(),
-        themeMode: ThemeMode.dark,
-        // The one appearance setting that is real, applied where every screen
-        // sees it rather than by each screen remembering to. Read through the
-        // scope rather than off the field, so changing it redraws the app
-        // instead of waiting for the next relaunch.
-        builder: (context, child) {
-          final scale = PrivioScope.of(context).textScale;
-          return MediaQuery.withClampedTextScaling(
-            minScaleFactor: scale,
-            maxScaleFactor: scale,
-            // The cover goes outermost: a call screen is content too, and the
-            // app switcher must not photograph who is on it.
-            child: PrivacyCover(
-              hidden: _lifecycle != AppLifecycleState.resumed,
-              child: _CallOverlay(child: child ?? const SizedBox.shrink()),
-            ),
-          );
-        },
-        home: const _StageRouter(),
+      // Two notifiers, because the language is not on [AppState]: it has its
+      // own controller, and the `MaterialApp` has to be rebuilt when either
+      // changes. Merging them is also what lets the duress wipe reset the
+      // language without a notification of its own — see
+      // [LocaleController.signedOut].
+      child: ListenableBuilder(
+        listenable: Listenable.merge([_state, _state.locale, _state.accent]),
+        builder: (context, _) => MaterialApp(
+          // Not localised, deliberately: this is the app's name, which is the
+          // same word in every language.
+          title: 'Privio',
+          debugShowCheckedModeBanner: false,
+          // Rebuilt from the account's accent. The listener above is what
+          // makes a tap on the Appearance screen repaint the whole app: a new
+          // theme goes in here, and every screen already on the navigator
+          // stack redraws under it.
+          theme: PrivioTheme.dark(accent: _state.accent.accent),
+          darkTheme: PrivioTheme.dark(accent: _state.accent.accent),
+          themeMode: ThemeMode.dark,
+          // The whole interface, in the signed-in account's language. Changing it
+          // rebuilds every screen already on the navigator stack, which is what
+          // makes the switch immediate rather than something a restart applies.
+          //
+          // `supportedLocales` is generated from the ARB files, and English is
+          // first, so it is also what Flutter falls back to.
+          locale: _state.locale.locale,
+          localizationsDelegates: AppText.localizationsDelegates,
+          supportedLocales: AppText.supportedLocales,
+          // The one appearance setting that is real, applied where every screen
+          // sees it rather than by each screen remembering to. Read through the
+          // scope rather than off the field, so changing it redraws the app
+          // instead of waiting for the next relaunch.
+          builder: (context, child) {
+            final scale = PrivioScope.of(context).textScale;
+            return MediaQuery.withClampedTextScaling(
+              minScaleFactor: scale,
+              maxScaleFactor: scale,
+              // The cover goes outermost: a call screen is content too, and the
+              // app switcher must not photograph who is on it.
+              child: PrivacyCover(
+                hidden: _lifecycle != AppLifecycleState.resumed,
+                // Inside the cover and above the navigator: the opener needs a
+                // navigator to push onto, and it must not be photographed by the
+                // app switcher any more than anything else is.
+                child: _DeepLinkOpener(
+                  child: _CallOverlay(child: child ?? const SizedBox.shrink()),
+                ),
+              ),
+            );
+          },
+          home: const _StageRouter(),
+        ),
       ),
+    );
+  }
+}
+
+/// Opens whatever a link named, once the app is in a state to open it.
+///
+/// Sits above the stage router so it survives the screen underneath changing —
+/// which it does exactly when this matters, as somebody finishes signing in.
+///
+/// It waits for [AppStage.ready] and nothing else. A link that arrives at the
+/// lock screen waits for the passcode; one that arrives on a device with no
+/// account waits through signing up and the activation step. Whoever tapped the
+/// invitation ends up looking at it, whenever that turns out to be.
+///
+/// **It never joins.** It fetches what the link names and pushes the channel
+/// screen, which shows a Join button to somebody who is not a member and the
+/// feed to somebody who is.
+class _DeepLinkOpener extends StatefulWidget {
+  const _DeepLinkOpener({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_DeepLinkOpener> createState() => _DeepLinkOpenerState();
+}
+
+class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
+  /// True while a link is being resolved, so a rebuild does not start a second
+  /// fetch of the same one.
+  bool _opening = false;
+
+  Future<void> _open(AppState state, ChannelLinkTarget target) async {
+    if (_opening) return;
+    _opening = true;
+    final controller = state.channels;
+    final channel = await controller.preview(target);
+    if (!mounted) {
+      _opening = false;
+      return;
+    }
+
+    // Taken only now. Cleared on read, a target would be lost if the fetch
+    // failed, and the person would be left with nothing and no explanation.
+    state.deepLinks.taken();
+    _opening = false;
+
+    if (channel == null) {
+      final text = AppText.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.failure?.words(text) ?? text.deepLinkChannelGone),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => ChannelFeedScreen(channel: channel)));
+  }
+
+  void _reportUnreadable(AppState state) {
+    state.deepLinks.taken();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppText.of(context).failureNotAChannelLink)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = PrivioScope.of(context);
+
+    return ListenableBuilder(
+      listenable: state.deepLinks,
+      builder: (context, child) {
+        final target = state.deepLinks.pending;
+        // Only once there is somewhere to put it. Everything else waits.
+        if (state.stage == AppStage.ready) {
+          if (target != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _open(state, target));
+          } else if (state.deepLinks.unreadable) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _reportUnreadable(state));
+          }
+        }
+        return child!;
+      },
+      child: widget.child,
     );
   }
 }
@@ -122,19 +240,18 @@ class _StageRouter extends StatelessWidget {
         // paid for, and asking once the user is already inside would be asking
         // them to pay for something they were let into for free.
         AppStage.welcome => WelcomeScreen(
-            onGetStarted: () => _openAuth(context, AuthMode.signUp),
-            onSignIn: () => _openAuth(context, AuthMode.signIn),
-            // Restoring starts by signing back into the account: a backup holds
-            // history, not an identity, so the device needs one of its own
-            // before there is anywhere to put the history. The backup screen is
-            // where the recovery key goes in, and this says so on the way.
-            onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
-          ),
+          onGetStarted: () => _openAuth(context, AuthMode.signUp),
+          onSignIn: () => _openAuth(context, AuthMode.signIn),
+          // Restoring starts by signing back into the account: a backup holds
+          // history, not an identity, so the device needs one of its own
+          // before there is anywhere to put the history. The backup screen is
+          // where the recovery key goes in, and this says so on the way.
+          onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
+        ),
         // A disguise replaces the lock screen; it does not sit in front of
         // it. Two screens to get past would be two screens to ask about.
-        AppStage.locked => state.disguise == null
-            ? const PinScreen()
-            : CalculatorScreen(skin: state.disguise!),
+        AppStage.locked =>
+          state.disguise == null ? const PinScreen() : CalculatorScreen(skin: state.disguise!),
         AppStage.activation => const ActivationScreen(),
         AppStage.ready => const NavShell(),
       },
@@ -167,10 +284,36 @@ class _CallOverlay extends StatelessWidget {
     return ListenableBuilder(
       listenable: state.services.calls,
       builder: (context, under) {
-        final call = state.services.calls.current;
-        if (call == null || !call.isLive) return under!;
+        final calls = state.services.calls;
+        final call = calls.current;
+        if (call == null || !call.isLive) {
+          // A call refused on security grounds never gets a call screen — it
+          // is turned away before the phone rings. The reason still has to
+          // reach the person, so it goes here, over whatever is open.
+          final failure = calls.failure;
+          if (failure == null) return under!;
+          return Stack(
+            children: [
+              under!,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  child: _CallRefusedBanner(
+                    message: failure.words(AppText.of(context)),
+                    onDismiss: calls.clearFailure,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
         return Stack(
-          children: [under!, Positioned.fill(child: CallScreen(call: call))],
+          children: [
+            under!,
+            Positioned.fill(child: CallScreen(call: call)),
+          ],
         );
       },
       child: child,
@@ -226,7 +369,54 @@ class _NeutralCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
-        color: PrivioColors.background,
-        child: Center(child: PrivioMark(size: 72)),
-      );
+    color: PrivioColors.background,
+    child: Center(child: PrivioMark(size: 72)),
+  );
+}
+
+/// Why a call did not happen, in front of whoever it did not happen to.
+///
+/// Deliberately not a snackbar: a snackbar times out, and somebody whose phone
+/// quietly refused a call from a name they know should find the reason still
+/// there when they pick the phone up. It stays until dismissed.
+class _CallRefusedBanner extends StatelessWidget {
+  const _CallRefusedBanner({required this.message, required this.onDismiss});
+
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(PrivioSpacing.md),
+      child: Material(
+        color: PrivioColors.surface,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.lg),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.gpp_bad_rounded, color: PrivioColors.danger, size: 20),
+              const SizedBox(width: PrivioSpacing.md),
+              Expanded(
+                child: Text(
+                  message,
+                  key: const ValueKey('call-refused'),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: PrivioSpacing.sm),
+              IconButton(
+                onPressed: onDismiss,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: AppText.of(context).commonClose,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

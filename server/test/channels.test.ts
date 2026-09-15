@@ -216,7 +216,7 @@ describe('channels', () => {
     assert.equal((await post(reader, channel.id, 'jetzt-schon')).statusCode, 201);
   });
 
-  it('an admin who may manage members can appoint another admin', async () => {
+  it('an admin who may appoint admins can appoint another admin', async () => {
     const channel = (await createChannel(owner, {
       visibility: 'public',
       handle: 'ernennen',
@@ -227,7 +227,7 @@ describe('channels', () => {
 
     await setRole(owner, channel.id, reader, {
       role: 'admin',
-      permissions: { canPost: true, canManageMembers: true },
+      permissions: { canPost: true, canManageMembers: true, canAppointAdmins: true },
     });
 
     const appointed = await setRole(reader, channel.id, stranger, {
@@ -236,6 +236,67 @@ describe('channels', () => {
     });
     assert.equal(appointed.statusCode, 200, 'this is what the owner delegated');
     assert.equal((await post(stranger, channel.id, 'ich-auch')).statusCode, 201);
+  });
+
+  it('managing members is not permission to appoint an admin', async () => {
+    // These used to be the same flag, and that meant an admin brought in to
+    // remove a spammer could appoint a second admin who could remove them back.
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'nichternennen',
+      title: 'Nicht ernennen',
+    })).json();
+    await join(reader, channel.id);
+    await join(stranger, channel.id);
+
+    await setRole(owner, channel.id, reader, {
+      role: 'admin',
+      permissions: { canPost: true, canManageMembers: true },
+    });
+
+    const refused = await setRole(reader, channel.id, stranger, {
+      role: 'admin',
+      permissions: { canPost: true },
+    });
+    assert.equal(refused.statusCode, 403);
+    assert.equal(refused.json().error, 'insufficient_permission');
+
+    // What they *can* still do: remove somebody, which is what the permission
+    // they hold is actually for.
+    const removed = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/members/${stranger.accountId}`,
+      headers: bearer(reader),
+    });
+    assert.equal(removed.statusCode, 200);
+  });
+
+  it('records who appointed an admin, and forgets it on a demotion', async () => {
+    const channel = (await createChannel(owner, {
+      visibility: 'public',
+      handle: 'befoerdertvon',
+      title: 'Befoerdert von',
+    })).json();
+    await join(reader, channel.id);
+
+    await setRole(owner, channel.id, reader, { role: 'admin', permissions: { canPost: true } });
+
+    const admins = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/members?role=admins`,
+      headers: bearer(owner),
+    });
+    const promoted = admins.json().members.find((m: { id: string }) => m.id === reader.accountId);
+    assert.equal(promoted.promotedBy.id, owner.accountId, 'the admin list shows who appointed them');
+
+    await setRole(owner, channel.id, reader, { role: 'subscriber' });
+    const after = await h.app.inject({
+      method: 'GET',
+      url: `/v1/channels/${channel.id}/members`,
+      headers: bearer(owner),
+    });
+    const demoted = after.json().members.find((m: { id: string }) => m.id === reader.accountId);
+    assert.equal(demoted.promotedBy, null, 'a subscriber carries no stale promotion');
   });
 
   it('an admin cannot grant a permission they do not hold themselves', async () => {
@@ -250,7 +311,7 @@ describe('channels', () => {
     // Can appoint admins, but cannot delete the channel.
     await setRole(owner, channel.id, reader, {
       role: 'admin',
-      permissions: { canPost: true, canManageMembers: true },
+      permissions: { canPost: true, canManageMembers: true, canAppointAdmins: true },
     });
 
     const overreach = await setRole(reader, channel.id, stranger, {
@@ -468,6 +529,1411 @@ describe('channels', () => {
       headers: bearer(owner),
     });
     assert.equal(feed.json().posts.length, 0);
+  });
+
+  describe('handing a channel on, reporting it, and what it adds up to', () => {
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const handOver = (
+      user: TestUser,
+      channelId: string,
+      to: string,
+      currentPassword: string,
+    ) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/owner`,
+        headers: bearer(user),
+        payload: { accountId: to, currentPassword },
+      });
+
+    it('the password is what hands a channel on, not the unlocked phone', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'uebergabe',
+        title: 'Uebergabe',
+      })).json();
+      await join(reader, channel.id);
+
+      // Every other admin action trusts the session. This one cannot: the
+      // owner cannot undo it afterwards.
+      const withoutPassword = await handOver(owner, channel.id, reader.accountId, 'falsch');
+      assert.equal(withoutPassword.statusCode, 401);
+      assert.equal(withoutPassword.json().error, 'invalid_credentials');
+
+      const done = await handOver(owner, channel.id, reader.accountId, owner.password);
+      assert.equal(done.statusCode, 200);
+    });
+
+    it('and the old owner stays on as an admin rather than being thrown out', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'bleibtda',
+        title: 'Bleibt da',
+      })).json();
+      await join(reader, channel.id);
+      await handOver(owner, channel.id, reader.accountId, owner.password);
+
+      const { rows } = await pool.query(
+        `SELECT account_id, role, can_delete_channel, can_manage_members
+         FROM channel_members WHERE channel_id = $1 ORDER BY role`,
+        [channel.id],
+      );
+      const byAccount = Object.fromEntries(rows.map((r) => [r.account_id, r]));
+
+      assert.equal(byAccount[reader.accountId].role, 'owner');
+      assert.equal(byAccount[reader.accountId].can_delete_channel, true);
+
+      // A handover is not an ejection. Whoever takes over can remove them
+      // afterwards if that is what was meant.
+      assert.equal(byAccount[owner.accountId].role, 'admin');
+      assert.equal(byAccount[owner.accountId].can_manage_members, true);
+      assert.equal(
+        byAccount[owner.accountId].can_delete_channel,
+        false,
+        'the one thing that is now somebody else\'s',
+      );
+    });
+
+    it('only to a member, and only by the owner', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nurmitglieder',
+        title: 'Nur Mitglieder',
+      })).json();
+      await join(reader, channel.id);
+
+      // Handing it to somebody who is not in it would put a stranger in charge
+      // of a key they do not hold.
+      const toAStranger = await handOver(owner, channel.id, stranger.accountId, owner.password);
+      assert.equal(toAStranger.statusCode, 404);
+
+      const byAReader = await handOver(reader, channel.id, reader.accountId, reader.password);
+      assert.equal(byAReader.statusCode, 400, 'and not to yourself');
+
+      const byAnAdmin = await handOver(reader, channel.id, owner.accountId, reader.password);
+      assert.equal(byAnAdmin.statusCode, 403);
+      assert.equal(byAnAdmin.json().error, 'not_the_owner');
+    });
+
+    it('the handover leaves a record of who gave it away', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'aktenzeichen',
+        title: 'Aktenzeichen',
+      })).json();
+      await join(reader, channel.id);
+      await handOver(owner, channel.id, reader.accountId, owner.password);
+
+      const { rows } = await pool.query(
+        `SELECT from_account_id, to_account_id FROM channel_ownership_transfers
+         WHERE channel_id = $1`,
+        [channel.id],
+      );
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from_account_id, owner.accountId);
+      assert.equal(rows[0].to_account_id, reader.accountId);
+    });
+
+    it('a report is one per person, and its reason is a fixed set', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'gemeldet',
+        title: 'Gemeldet',
+      })).json();
+
+      const report = (reason: string) =>
+        h.app.inject({
+          method: 'POST',
+          url: `/v1/channels/${channel.id}/report`,
+          headers: bearer(reader),
+          payload: { reason },
+        });
+
+      assert.equal((await report('spam')).statusCode, 200);
+      assert.equal((await report('abuse')).statusCode, 200);
+
+      const { rows } = await pool.query(
+        'SELECT reason FROM channel_reports WHERE channel_id = $1',
+        [channel.id],
+      );
+      assert.equal(rows.length, 1, 'reporting twice is not twice as true');
+      assert.equal(rows[0].reason, 'abuse', 'the later reason stands');
+
+      // Free text would be a place to paste the content being reported, which
+      // would put it into a readable column written by somebody with every
+      // reason to.
+      const pasted = await report('Hier ist der ganze Beitrag den ich melde');
+      assert.equal(pasted.statusCode, 400);
+    });
+
+    it('the numbers are counted from rows that exist anyway, and views are not among them', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zahlenwerk',
+        title: 'Zahlenwerk',
+      })).json();
+      await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { commentsEnabled: true },
+      });
+      await join(reader, channel.id);
+
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/reactions`,
+        headers: bearer(reader),
+        payload: { emoji: '👍' },
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments`,
+        headers: bearer(reader),
+        payload: { content: Buffer.from('dazu').toString('base64') },
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: Buffer.from('spaeter').toString('base64'),
+          publishAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+      });
+
+      const stats = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/stats`,
+        headers: bearer(owner),
+      });
+      assert.equal(stats.statusCode, 200);
+      assert.deepEqual(
+        {
+          members: stats.json().members,
+          posts: stats.json().posts,
+          scheduled: stats.json().scheduled,
+          reactions: stats.json().reactions,
+          comments: stats.json().comments,
+        },
+        { members: 2, posts: 1, scheduled: 1, reactions: 1, comments: 1 },
+      );
+
+      // Deliberately absent: counting who read a post, deduplicated, is a row
+      // per reader per post — a record of what each person read, made by people
+      // who are only reading.
+      assert.equal(stats.json().views, undefined);
+
+      const asSubscriber = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/stats`,
+        headers: bearer(reader),
+      });
+      assert.equal(asSubscriber.statusCode, 403, 'the numbers are for whoever runs it');
+    });
+  });
+
+  describe('a channel named by a link', () => {
+    it('a public channel is found by its handle, exactly', async () => {
+      await createChannel(owner, {
+        visibility: 'public',
+        handle: 'houseoftrading',
+        title: 'House of Trading',
+      });
+
+      const found = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/houseoftrading',
+        headers: bearer(reader),
+      });
+      assert.equal(found.statusCode, 200);
+      assert.equal(found.json().title, 'House of Trading');
+
+      // Exact, not a search: a link names one channel and has to find that one.
+      const near = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/houseoftradin',
+        headers: bearer(reader),
+      });
+      assert.equal(near.statusCode, 404);
+    });
+
+    it('and a private channel is never reachable that way', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'private',
+        encryptedMetadata: Buffer.from('x').toString('base64'),
+      })).json();
+      // A private channel has no handle, but the route says public explicitly
+      // rather than relying on that: a lookup that could return one would make
+      // the handle column a way to find private channels by guessing names.
+      await pool.query("UPDATE channels SET handle = 'geheimkanal' WHERE id = $1", [channel.id]);
+
+      const found = await h.app.inject({
+        method: 'GET',
+        url: '/v1/channels/by-handle/geheimkanal',
+        headers: bearer(stranger),
+      });
+      assert.equal(found.statusCode, 404);
+    });
+  });
+
+  describe('invite links', () => {
+    const setInvite = (user: TestUser, channelId: string, payload: Record<string, unknown>) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/invite`,
+        headers: bearer(user),
+        payload,
+      });
+
+    const joinWith = (user: TestUser, channelId: string, inviteCode?: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: inviteCode === undefined ? {} : { inviteCode },
+      });
+
+    const queue = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/join-requests`,
+        headers: bearer(user),
+      });
+
+    async function privateChannel(handle: string) {
+      const created = (await createChannel(owner, {
+        visibility: 'private',
+        encryptedMetadata: Buffer.from(handle).toString('base64'),
+      })).json();
+      return created;
+    }
+
+    it('an expired link stops letting people in', async () => {
+      const channel = await privateChannel('abgelaufen');
+      await pool.query(
+        "UPDATE channels SET invite_expires_at = now() - interval '1 minute' WHERE id = $1",
+        [channel.id],
+      );
+
+      const late = await joinWith(reader, channel.id, channel.inviteCode);
+      assert.equal(late.statusCode, 409);
+      assert.equal(late.json().error, 'invite_expired');
+    });
+
+    it('a use limit is counted in joins, not in clicks', async () => {
+      const channel = await privateChannel('einmalig');
+      assert.equal((await setInvite(owner, channel.id, { maxUses: 1 })).statusCode, 200);
+
+      // Looking at the preview is not using it up.
+      const peek = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/invite/${channel.inviteCode}`,
+        headers: bearer(reader),
+      });
+      assert.equal(peek.statusCode, 200);
+
+      assert.equal((await joinWith(reader, channel.id, channel.inviteCode)).statusCode, 200);
+
+      const second = await joinWith(stranger, channel.id, channel.inviteCode);
+      assert.equal(second.statusCode, 409);
+      assert.equal(second.json().error, 'invite_used_up');
+    });
+
+    it('a member re-joining does not spend a use', async () => {
+      const channel = await privateChannel('nochmal');
+      await setInvite(owner, channel.id, { maxUses: 2 });
+      await joinWith(reader, channel.id, channel.inviteCode);
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      const { rows } = await pool.query('SELECT invite_uses FROM channels WHERE id = $1', [
+        channel.id,
+      ]);
+      assert.equal(rows[0].invite_uses, 1, 'one person joined, however often they tapped it');
+    });
+
+    it('rotating kills every copy of the old link', async () => {
+      const channel = await privateChannel('gedreht');
+      const rotated = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/invite/rotate`,
+        headers: bearer(owner),
+      });
+      assert.equal(rotated.statusCode, 200);
+      assert.notEqual(rotated.json().inviteCode, channel.inviteCode);
+
+      // The old one answers exactly as a channel that does not exist: for a
+      // private channel the existence is the secret.
+      const old = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/invite/${channel.inviteCode}`,
+        headers: bearer(stranger),
+      });
+      assert.equal(old.statusCode, 404);
+      assert.equal((await joinWith(stranger, channel.id, channel.inviteCode)).statusCode, 404);
+      assert.equal(
+        (await joinWith(stranger, channel.id, rotated.json().inviteCode)).statusCode,
+        200,
+      );
+    });
+
+    it('and takes the use counter with it', async () => {
+      const channel = await privateChannel('neuerzaehler');
+      await setInvite(owner, channel.id, { maxUses: 1 });
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      const rotated = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/invite/rotate`,
+        headers: bearer(owner),
+      })).json();
+
+      // A use limit belongs to the link that was handed out, not to the
+      // channel: the new link starts from nothing.
+      assert.equal(
+        (await joinWith(stranger, channel.id, rotated.inviteCode)).statusCode,
+        200,
+      );
+    });
+
+    it('a link that asks first puts people in a queue, not in the channel', async () => {
+      const channel = await privateChannel('anklopfen');
+      await setInvite(owner, channel.id, { needsApproval: true });
+
+      const knocked = await joinWith(reader, channel.id, channel.inviteCode);
+      assert.equal(knocked.statusCode, 200);
+      assert.equal(knocked.json().joined, false);
+      assert.equal(knocked.json().pending, true);
+
+      // Not a member: no key, no feed, and not counted.
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 403);
+
+      const waiting = (await queue(owner, channel.id)).json().requests;
+      assert.equal(waiting.length, 1);
+      assert.equal(waiting[0].username, 'reader');
+    });
+
+    it('approving lets them in, and turning them away simply empties the queue', async () => {
+      const channel = await privateChannel('entscheidung');
+      await setInvite(owner, channel.id, { needsApproval: true });
+      await joinWith(reader, channel.id, channel.inviteCode);
+      await joinWith(stranger, channel.id, channel.inviteCode);
+
+      const admitted = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join-requests/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(admitted.statusCode, 200);
+
+      const turnedAway = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/join-requests/${stranger.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(turnedAway.statusCode, 200);
+
+      assert.deepEqual((await queue(owner, channel.id)).json().requests, []);
+
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 200, 'the one let in can read');
+
+      const refused = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(stranger),
+      });
+      assert.equal(refused.statusCode, 403, 'the one turned away cannot');
+    });
+
+    it('the queue is admins-only, and so is changing the link', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nurchefs',
+        title: 'Nur Chefs',
+      })).json();
+      await joinWith(reader, channel.id);
+
+      assert.equal((await queue(reader, channel.id)).statusCode, 403);
+      assert.equal((await setInvite(reader, channel.id, { maxUses: 5 })).statusCode, 403);
+      assert.equal(
+        (await h.app.inject({
+          method: 'POST',
+          url: `/v1/channels/${channel.id}/invite/rotate`,
+          headers: bearer(reader),
+        })).statusCode,
+        403,
+      );
+    });
+
+    it('an expiry already gone is refused rather than quietly revoking', async () => {
+      const channel = await privateChannel('rueckwaerts');
+
+      const backwards = await setInvite(owner, channel.id, {
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      assert.equal(backwards.statusCode, 400);
+      assert.equal(backwards.json().error, 'expiry_in_the_past');
+    });
+
+    it('a public channel is not closed by its link running out', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'offenetuer',
+        title: 'Offene Tuer',
+      })).json();
+      await setInvite(owner, channel.id, { maxUses: 1, needsApproval: true });
+      await joinWith(reader, channel.id, channel.inviteCode);
+
+      // The link's settings govern the link. A public channel's own front door
+      // is not one of them.
+      const straightIn = await joinWith(stranger, channel.id);
+      assert.equal(straightIn.statusCode, 200);
+      assert.equal(straightIn.json().joined, true);
+    });
+  });
+
+  describe('polls', () => {
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const ask = (
+      channelId: string,
+      poll: Record<string, unknown>,
+      question = 'Welche Farbe?',
+    ) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(owner),
+        // The question and the answers are inside the sealed payload. The
+        // server sees only the shape below.
+        payload: { content: sealed(question), poll },
+      });
+
+    const vote = (user: TestUser, channelId: string, postId: number, options: number[]) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/posts/${postId}/votes`,
+        headers: bearer(user),
+        payload: { options },
+      });
+
+    const feed = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(user),
+      });
+
+    async function polled(handle: string, poll: Record<string, unknown>) {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle,
+        title: handle,
+      })).json();
+      const published = (await ask(channel.id, poll)).json();
+      await join(reader, channel.id);
+      return { channel, published };
+    }
+
+    it('the server never sees the question, only the shape', async () => {
+      const { channel, published } = await polled('umfrage', { optionCount: 3 });
+
+      const { rows } = await pool.query(
+        'SELECT option_count, max_choices, closes_at FROM channel_polls WHERE post_id = $1',
+        [published.id],
+      );
+      assert.deepEqual(
+        { ...rows[0], closes_at: rows[0].closes_at },
+        { option_count: 3, max_choices: 1, closes_at: null },
+      );
+
+      // Everything a person would recognise is in the post's ciphertext.
+      const { rows: posts } = await pool.query(
+        'SELECT content FROM channel_posts WHERE id = $1',
+        [published.id],
+      );
+      assert.equal(
+        (posts[0].content as Buffer).toString(),
+        'Welche Farbe?',
+        'sealed in the real client; the point is the server never gets it as a poll field',
+      );
+      assert.equal((await feed(reader, channel.id)).json().posts[0].poll.optionCount, 3);
+    });
+
+    it('counts votes, and names only the reader’s own', async () => {
+      const { channel, published } = await polled('zaehlung', { optionCount: 3 });
+
+      await vote(owner, channel.id, published.id, [0]);
+      const mine = await vote(reader, channel.id, published.id, [2]);
+
+      assert.equal(mine.statusCode, 200);
+      assert.deepEqual(mine.json().counts, { 0: 1, 2: 1 });
+      assert.deepEqual(mine.json().myVotes, [2]);
+      assert.equal(mine.json().voters, 2);
+
+      const theirs = (await feed(owner, channel.id)).json().posts[0].poll;
+      assert.deepEqual(theirs.counts, { 0: 1, 2: 1 }, 'the totals are the same');
+      assert.deepEqual(theirs.myVotes, [0], 'but only their own are named');
+    });
+
+    it('changing your mind replaces the answer rather than adding to it', async () => {
+      const { channel, published } = await polled('umentschieden', { optionCount: 2 });
+
+      await vote(reader, channel.id, published.id, [0]);
+      const changed = await vote(reader, channel.id, published.id, [1]);
+
+      assert.deepEqual(changed.json().counts, { 1: 1 });
+      assert.equal(changed.json().voters, 1, 'one person, not two');
+    });
+
+    it('and an empty answer takes the vote back', async () => {
+      const { channel, published } = await polled('zurueckgezogen', { optionCount: 2 });
+      await vote(reader, channel.id, published.id, [0]);
+
+      const withdrawn = await vote(reader, channel.id, published.id, []);
+      assert.deepEqual(withdrawn.json().counts, {});
+      assert.equal(withdrawn.json().voters, 0);
+    });
+
+    it('a poll that takes several answers takes several, and no more', async () => {
+      const { channel, published } = await polled('mehrfach', {
+        optionCount: 4,
+        maxChoices: 2,
+      });
+
+      assert.equal((await vote(reader, channel.id, published.id, [0, 2])).statusCode, 200);
+
+      const tooMany = await vote(reader, channel.id, published.id, [0, 1, 2]);
+      assert.equal(tooMany.statusCode, 400);
+      assert.equal(tooMany.json().error, 'too_many_choices');
+
+      // The same option twice must not buy a third pick past the limit.
+      const doubled = await vote(reader, channel.id, published.id, [0, 0, 1]);
+      assert.equal(doubled.statusCode, 200);
+      assert.deepEqual(doubled.json().myVotes.sort(), [0, 1]);
+    });
+
+    it('an answer that is not one of the answers is refused', async () => {
+      const { channel, published } = await polled('ausserhalb', { optionCount: 2 });
+
+      const beyond = await vote(reader, channel.id, published.id, [5]);
+      assert.equal(beyond.statusCode, 400);
+      assert.equal(beyond.json().error, 'option_out_of_range');
+    });
+
+    it('a closed poll stays closed', async () => {
+      const { channel, published } = await polled('geschlossen', { optionCount: 2 });
+      await pool.query('UPDATE channel_polls SET closes_at = now() - interval \'1 minute\' WHERE post_id = $1', [
+        published.id,
+      ]);
+
+      const late = await vote(reader, channel.id, published.id, [0]);
+      assert.equal(late.statusCode, 409);
+      assert.equal(late.json().error, 'poll_closed');
+    });
+
+    it('a silenced member has no vote either', async () => {
+      const { channel, published } = await polled('stummabstimmung', { optionCount: 2 });
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/bans/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+
+      const refused = await vote(reader, channel.id, published.id, [0]);
+      assert.equal(refused.statusCode, 403);
+      assert.equal(refused.json().error, 'banned');
+    });
+
+    it('a stranger cannot vote, and a post that is not a poll has nothing to vote on', async () => {
+      const { channel, published } = await polled('keinfremder', { optionCount: 2 });
+      assert.equal((await vote(stranger, channel.id, published.id, [0])).statusCode, 403);
+
+      const plain = (await post(owner, channel.id, 'keine umfrage')).json();
+      assert.equal((await vote(reader, channel.id, plain.id, [0])).statusCode, 404);
+    });
+
+    it('a poll cannot take more answers than it has', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'unmoeglich',
+        title: 'Unmoeglich',
+      })).json();
+
+      const impossible = await ask(channel.id, { optionCount: 2, maxChoices: 3 });
+      assert.equal(impossible.statusCode, 400);
+    });
+
+    it('deleting the post takes the poll and its votes with it', async () => {
+      const { channel, published } = await polled('mitsamtumfrage', { optionCount: 2 });
+      await vote(reader, channel.id, published.id, [0]);
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_poll_votes WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0);
+    });
+  });
+
+  describe('comments and silencing', () => {
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    const enableComments = (channelId: string, on = true) =>
+      h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channelId}`,
+        headers: bearer(owner),
+        payload: { commentsEnabled: on },
+      });
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const comment = (user: TestUser, channelId: string, postId: number, text: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/posts/${postId}/comments`,
+        headers: bearer(user),
+        payload: { content: sealed(text) },
+      });
+
+    const thread = (user: TestUser, channelId: string, postId: number) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts/${postId}/comments`,
+        headers: bearer(user),
+      });
+
+    const silence = (user: TestUser, channelId: string, who: string) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/bans/${who}`,
+        headers: bearer(user),
+      });
+
+    /** A channel with comments on, a post in it, and [reader] subscribed. */
+    async function threaded(handle: string) {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle,
+        title: handle,
+      })).json();
+      await enableComments(channel.id);
+      const published = (await post(owner, channel.id, 'worueber geredet wird')).json();
+      await join(reader, channel.id);
+      return { channel, published };
+    }
+
+    it('are off until the owner turns them on', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'stumm',
+        title: 'Stumm',
+      })).json();
+      assert.equal(channel.commentsEnabled, false, 'a channel is a broadcast by default');
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      const refused = await comment(reader, channel.id, published.id, 'darf ich?');
+      assert.equal(refused.statusCode, 409);
+      assert.equal(refused.json().error, 'comments_disabled');
+
+      assert.equal((await enableComments(channel.id)).json().commentsEnabled, true);
+      assert.equal((await comment(reader, channel.id, published.id, 'jetzt')).statusCode, 201);
+    });
+
+    it('a subscriber who cannot publish can comment, and the thread reads forwards', async () => {
+      const { channel, published } = await threaded('unterhaltung');
+
+      await comment(reader, channel.id, published.id, 'erstens');
+      await comment(owner, channel.id, published.id, 'zweitens');
+      await comment(reader, channel.id, published.id, 'drittens');
+
+      const shown = (await thread(reader, channel.id, published.id)).json().comments;
+      assert.deepEqual(
+        shown.map((c: { content: string }) => Buffer.from(c.content, 'base64').toString()),
+        ['erstens', 'zweitens', 'drittens'],
+        'a conversation reads forwards, unlike a feed',
+      );
+      assert.deepEqual(
+        shown.map((c: { authorUsername: string }) => c.authorUsername),
+        ['reader', 'owner', 'reader'],
+      );
+    });
+
+    it('the feed says how many without fetching any of them', async () => {
+      const { channel, published } = await threaded('wieviele');
+      await comment(reader, channel.id, published.id, 'eins');
+      await comment(reader, channel.id, published.id, 'zwei');
+
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.json().posts[0].commentCount, 2);
+    });
+
+    it('an author can remove their own, and an admin anyone’s', async () => {
+      const { channel, published } = await threaded('kommentarentfernen');
+      const mine = (await comment(reader, channel.id, published.id, 'meins')).json();
+      const theirs = (await comment(owner, channel.id, published.id, 'ihrs')).json();
+
+      const removeTheirs = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${theirs.id}`,
+        headers: bearer(reader),
+      });
+      assert.equal(removeTheirs.statusCode, 403, 'a subscriber does not moderate');
+
+      assert.equal(
+        (await h.app.inject({
+          method: 'DELETE',
+          url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${mine.id}`,
+          headers: bearer(reader),
+        })).statusCode,
+        200,
+        'but they can take back their own',
+      );
+      assert.equal(
+        (await h.app.inject({
+          method: 'DELETE',
+          url: `/v1/channels/${channel.id}/posts/${published.id}/comments/${theirs.id}`,
+          headers: bearer(owner),
+        })).statusCode,
+        200,
+      );
+
+      assert.deepEqual((await thread(reader, channel.id, published.id)).json().comments, []);
+
+      // Overwritten, not tombstoned: a removed comment must not sit on disk
+      // waiting for a key to turn up.
+      const { rows } = await pool.query(
+        'SELECT content FROM channel_post_comments WHERE id = $1',
+        [mine.id],
+      );
+      assert.equal(rows[0].content.length, 0);
+    });
+
+    it('silencing stops the comments and the reactions, and leaves the reading', async () => {
+      const { channel, published } = await threaded('schweigen');
+      await comment(reader, channel.id, published.id, 'noch erlaubt');
+
+      const silenced = await silence(owner, channel.id, reader.accountId);
+      assert.equal(silenced.statusCode, 200);
+
+      const refused = await comment(reader, channel.id, published.id, 'nicht mehr');
+      assert.equal(refused.statusCode, 403);
+      assert.equal(refused.json().error, 'banned');
+
+      // A reaction is a way of speaking too.
+      const stamped = await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/reactions`,
+        headers: bearer(reader),
+        payload: { emoji: '👍' },
+      });
+      assert.equal(stamped.statusCode, 403);
+
+      // But they are still a member and can still read. Silencing is not
+      // removal — removal rotates the key and cuts them off from everything.
+      const feed = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(reader),
+      });
+      assert.equal(feed.statusCode, 200);
+      assert.equal(feed.json().posts.length, 1);
+      assert.equal((await thread(reader, channel.id, published.id)).statusCode, 200);
+    });
+
+    it('and can be undone', async () => {
+      const { channel, published } = await threaded('wiederreden');
+      await silence(owner, channel.id, reader.accountId);
+
+      const lifted = await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/bans/${reader.accountId}`,
+        headers: bearer(owner),
+      });
+      assert.equal(lifted.statusCode, 200);
+      assert.equal((await comment(reader, channel.id, published.id, 'wieder da')).statusCode, 201);
+    });
+
+    it('the owner cannot be silenced, and a subscriber cannot silence anybody', async () => {
+      const { channel } = await threaded('nichtdenchef');
+
+      assert.equal((await silence(reader, channel.id, owner.accountId)).statusCode, 403);
+
+      // Even by themselves, through the right permission: there would be no
+      // way back.
+      const ownerBan = await silence(owner, channel.id, owner.accountId);
+      assert.equal(ownerBan.statusCode, 403);
+      assert.equal(ownerBan.json().error, 'cannot_ban_owner');
+    });
+
+    it('the ban list is a moderation record, not a roster', async () => {
+      const { channel } = await threaded('sperrliste');
+      await silence(owner, channel.id, reader.accountId);
+
+      const asSubscriber = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/bans`,
+        headers: bearer(reader),
+      });
+      assert.equal(asSubscriber.statusCode, 403, 'it would name who else reads the channel');
+
+      const asOwner = await h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channel.id}/bans`,
+        headers: bearer(owner),
+      });
+      assert.equal(asOwner.json().banned.length, 1);
+      assert.equal(asOwner.json().banned[0].username, 'reader');
+    });
+
+    it('a comment under a superseded key is refused, like a post is', async () => {
+      const { channel, published } = await threaded('alterschluesselkommentar');
+      await pool.query('UPDATE channels SET key_epoch = 2 WHERE id = $1', [channel.id]);
+
+      const stale = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts/${published.id}/comments`,
+        headers: bearer(reader),
+        payload: { content: sealed('unter epoche eins'), keyEpoch: 1 },
+      });
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'stale_key_epoch');
+    });
+
+    it('a scheduled post has no thread to find', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'nochnichtda',
+        title: 'Noch nicht da',
+      })).json();
+      await enableComments(channel.id);
+      await join(reader, channel.id);
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: sealed('spaeter'),
+          publishAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+      })).json();
+
+      // Commenting on it would be a way for a subscriber to learn it exists.
+      const early = await comment(reader, channel.id, queued.id, 'ich sehe was');
+      assert.equal(early.statusCode, 404);
+    });
+
+    it('deleting a post takes its thread with it', async () => {
+      const { channel, published } = await threaded('mitsamtthread');
+      await comment(reader, channel.id, published.id, 'etwas');
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_comments WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0, 'a thread must not outlive the post it hangs under');
+    });
+  });
+
+  describe('editing and scheduling', () => {
+    const feed = (user: TestUser, channelId: string, scheduled = false) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts${scheduled ? '?scheduled=true' : ''}`,
+        headers: bearer(user),
+      });
+
+    const edit = (
+      user: TestUser,
+      channelId: string,
+      postId: number,
+      payload: Record<string, unknown>,
+    ) =>
+      h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channelId}/posts/${postId}`,
+        headers: bearer(user),
+        payload,
+      });
+
+    const sealed = (text: string) => Buffer.from(text).toString('base64');
+
+    it('an author can change their own post, and it says so', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'bearbeiten',
+        title: 'Bearbeiten',
+      })).json();
+      const published = (await post(owner, channel.id, 'erste fassung')).json();
+
+      const changed = await edit(owner, channel.id, published.id, {
+        content: sealed('zweite fassung'),
+      });
+      assert.equal(changed.statusCode, 200);
+      assert.ok(changed.json().editedAt, 'a post people have read carries the mark');
+
+      const shown = (await feed(owner, channel.id)).json().posts[0];
+      assert.equal(
+        Buffer.from(shown.content, 'base64').toString(),
+        'zweite fassung',
+        'the ciphertext the server stores is the new one',
+      );
+      assert.ok(shown.editedAt);
+    });
+
+    it('an admin who can delete a post still cannot rewrite it', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'fremdeworte',
+        title: 'Fremde Worte',
+      })).json();
+      const published = (await post(owner, channel.id, 'meine worte')).json();
+
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join`,
+        headers: bearer(reader),
+        payload: {},
+      });
+      // Everything an admin gets, including deleting other people's posts.
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channel.id}/members/${reader.accountId}/role`,
+        headers: bearer(owner),
+        payload: {
+          role: 'admin',
+          permissions: { canPost: true, canDeletePosts: true, canEditChannel: true },
+        },
+      });
+
+      const attempt = await edit(reader, channel.id, published.id, {
+        content: sealed('worte die ich nie sagte'),
+      });
+      // Every post carries its author's name. Editing somebody else's is
+      // putting words in their mouth under their own byline; deleting is the
+      // moderation tool, and it is honest about what it is.
+      assert.equal(attempt.statusCode, 403);
+      assert.equal(attempt.json().error, 'not_the_author');
+    });
+
+    it('a scheduled post is invisible until it is due', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'spaeter',
+        title: 'Spaeter',
+      })).json();
+
+      const later = new Date(Date.now() + 3_600_000).toISOString();
+      const queued = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('noch nicht'), publishAt: later },
+      });
+      assert.equal(queued.statusCode, 201);
+      assert.ok(queued.json().publishAt);
+
+      assert.deepEqual(
+        (await feed(owner, channel.id)).json().posts,
+        [],
+        'not even to the author: the feed is what everybody sees',
+      );
+
+      const waiting = (await feed(owner, channel.id, true)).json().posts;
+      assert.equal(waiting.length, 1);
+      assert.equal(waiting[0].id, queued.json().id);
+    });
+
+    it('and appears once its time has passed, with no job having run', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'faellig',
+        title: 'Faellig',
+      })).json();
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('jetzt'), publishAt: new Date(Date.now() + 60_000).toISOString() },
+      })).json();
+
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 0);
+
+      // Move its time into the past, which is all that "becoming due" is here.
+      // No sweeper, no queue, nothing to fall over at three in the morning.
+      await pool.query('UPDATE channel_posts SET publish_at = now() - interval \'1 second\' WHERE id = $1', [
+        queued.id,
+      ]);
+
+      const shown = (await feed(owner, channel.id)).json().posts;
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].id, queued.id);
+      assert.equal(shown[0].editedAt, null, 'appearing on time is not an edit');
+    });
+
+    it('a subscriber cannot look into the waiting room', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'wartezimmer',
+        title: 'Wartezimmer',
+      })).json();
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/join`,
+        headers: bearer(reader),
+        payload: {},
+      });
+      await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('geheim'), publishAt: new Date(Date.now() + 3_600_000).toISOString() },
+      });
+
+      const peeked = await feed(reader, channel.id, true);
+      assert.equal(peeked.statusCode, 403);
+    });
+
+    it('editing something still scheduled leaves no mark', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'ohnemarke',
+        title: 'Ohne Marke',
+      })).json();
+      const queued = (await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: { content: sealed('entwurf'), publishAt: new Date(Date.now() + 3_600_000).toISOString() },
+      })).json();
+
+      const changed = await edit(owner, channel.id, queued.id, { content: sealed('besserer entwurf') });
+      assert.equal(changed.statusCode, 200);
+      // Nobody read the earlier version, so there is nothing to disclose.
+      assert.equal(changed.json().editedAt, null);
+
+      // And publishing it now is a reschedule, not an edit.
+      const published = await edit(owner, channel.id, queued.id, {
+        content: sealed('besserer entwurf'),
+        publishAt: null,
+      });
+      assert.equal(published.json().publishAt, null);
+      assert.equal(published.json().editedAt, null);
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 1);
+    });
+
+    it('a time in the past is now, not a way to jump the queue', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'rueckdatiert',
+        title: 'Rueckdatiert',
+      })).json();
+
+      const backdated = await h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channel.id}/posts`,
+        headers: bearer(owner),
+        payload: {
+          content: sealed('von gestern'),
+          publishAt: new Date(Date.now() - 86_400_000).toISOString(),
+        },
+      });
+      assert.equal(backdated.statusCode, 201);
+      assert.equal(backdated.json().publishAt, null, 'published, not back-dated');
+      assert.equal((await feed(owner, channel.id)).json().posts.length, 1);
+    });
+
+    it('an edit is refused under a superseded key, like a post is', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'altschluessel',
+        title: 'Alter Schluessel',
+      })).json();
+      const published = (await post(owner, channel.id, 'unter epoche eins')).json();
+
+      // The channel moves on without this author's edit knowing.
+      await pool.query('UPDATE channels SET key_epoch = 2 WHERE id = $1', [channel.id]);
+
+      const stale = await edit(owner, channel.id, published.id, {
+        content: sealed('immer noch epoche eins'),
+        keyEpoch: 1,
+      });
+      assert.equal(stale.statusCode, 409);
+      assert.equal(stale.json().error, 'stale_key_epoch');
+    });
+  });
+
+  describe('reactions', () => {
+    const react = (user: TestUser, channelId: string, postId: number, emoji: string) =>
+      h.app.inject({
+        method: 'PUT',
+        url: `/v1/channels/${channelId}/posts/${postId}/reactions`,
+        headers: bearer(user),
+        payload: { emoji },
+      });
+
+    const unreact = (user: TestUser, channelId: string, postId: number, emoji: string) =>
+      h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channelId}/posts/${postId}/reactions?emoji=${encodeURIComponent(emoji)}`,
+        headers: bearer(user),
+      });
+
+    const join = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/v1/channels/${channelId}/join`,
+        headers: bearer(user),
+        payload: {},
+      });
+
+    const feed = (user: TestUser, channelId: string) =>
+      h.app.inject({
+        method: 'GET',
+        url: `/v1/channels/${channelId}/posts`,
+        headers: bearer(user),
+      });
+
+    it('a subscriber who cannot publish can still react', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'reagieren',
+        title: 'Reagieren',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      // The point of an audience having a voice at all: posting is the
+      // admins', reacting is everybody's.
+      const cannotPost = await post(reader, channel.id, 'nicht erlaubt');
+      assert.equal(cannotPost.statusCode, 403);
+
+      const reacted = await react(reader, channel.id, published.id, '👍');
+      assert.equal(reacted.statusCode, 200);
+      assert.deepEqual(reacted.json().reactions, { '👍': 1 });
+      assert.deepEqual(reacted.json().myReactions, ['👍']);
+    });
+
+    it('counts come with the feed, and say which are the reader’s own', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zaehlenreaktionen',
+        title: 'Zaehlen',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+
+      await react(owner, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '🔥');
+
+      const mine = (await feed(reader, channel.id)).json().posts[0];
+      assert.deepEqual(mine.reactions, { '👍': 2, '🔥': 1 });
+      assert.deepEqual(mine.myReactions.sort(), ['🔥', '👍'].sort());
+
+      const theirs = (await feed(owner, channel.id)).json().posts[0];
+      assert.deepEqual(theirs.reactions, { '👍': 2, '🔥': 1 }, 'the totals are the same');
+      assert.deepEqual(theirs.myReactions, ['👍'], 'but only their own are named');
+    });
+
+    it('the same reaction twice is still one', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'doppelt',
+        title: 'Doppelt',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      await react(owner, channel.id, published.id, '👍');
+      const again = await react(owner, channel.id, published.id, '👍');
+
+      // A double tap on a slow connection is one reaction, not an error the
+      // screen has to explain.
+      assert.equal(again.statusCode, 200);
+      assert.deepEqual(again.json().reactions, { '👍': 1 });
+    });
+
+    it('a reaction can be taken back, and only your own', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'zurueck',
+        title: 'Zurueck',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await join(reader, channel.id);
+      await react(owner, channel.id, published.id, '👍');
+      await react(reader, channel.id, published.id, '👍');
+
+      const removed = await unreact(reader, channel.id, published.id, '👍');
+      assert.equal(removed.statusCode, 200);
+      assert.deepEqual(removed.json().reactions, { '👍': 1 }, 'the owner’s is untouched');
+      assert.deepEqual(removed.json().myReactions, []);
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_reactions WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 1, 'there is no route that removes somebody else’s');
+    });
+
+    it('only the emojis the channel offers', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'auswahl',
+        title: 'Auswahl',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      const notOffered = await react(owner, channel.id, published.id, '🦆');
+      assert.equal(notOffered.statusCode, 400);
+      assert.equal(notOffered.json().error, 'emoji_not_offered');
+
+      // An admin changes the menu, and then it is allowed.
+      const changed = await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { reactionEmojis: ['🦆', '👍'] },
+      });
+      assert.equal(changed.statusCode, 200);
+      assert.deepEqual(changed.json().reactionEmojis, ['🦆', '👍']);
+      assert.equal((await react(owner, channel.id, published.id, '🦆')).statusCode, 200);
+    });
+
+    it('the reaction bar cannot be turned into a row of captions', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'keintext',
+        title: 'Kein Text',
+      })).json();
+
+      for (const attempt of ['SALE', 'call 0800', 'a', '  ']) {
+        const refused = await h.app.inject({
+          method: 'PATCH',
+          url: `/v1/channels/${channel.id}`,
+          headers: bearer(owner),
+          payload: { reactionEmojis: [attempt] },
+        });
+        assert.equal(refused.statusCode, 400, `"${attempt}" is text, not a symbol`);
+      }
+    });
+
+    it('a stranger cannot react, and neither can a member of another channel', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'fremde',
+        title: 'Fremde',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+
+      assert.equal((await react(stranger, channel.id, published.id, '👍')).statusCode, 403);
+
+      // Post ids are a global sequence, so being in *a* channel must not be
+      // enough to reach a post in another one by guessing a number.
+      const elsewhere = (await createChannel(stranger, {
+        visibility: 'public',
+        handle: 'anderswo',
+        title: 'Anderswo',
+      })).json();
+      const crossed = await react(stranger, elsewhere.id, published.id, '👍');
+      assert.equal(crossed.statusCode, 404);
+    });
+
+    it('changing the menu does not discard what is already on a post', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'menue',
+        title: 'Menue',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await react(owner, channel.id, published.id, '👍');
+
+      await h.app.inject({
+        method: 'PATCH',
+        url: `/v1/channels/${channel.id}`,
+        headers: bearer(owner),
+        payload: { reactionEmojis: ['🔥'] },
+      });
+
+      const shown = (await feed(owner, channel.id)).json().posts[0];
+      assert.deepEqual(
+        shown.reactions,
+        { '👍': 1 },
+        'taking an emoji off the menu is not a reason to delete what people said with it',
+      );
+    });
+
+    it('deleting a post takes its reactions with it', async () => {
+      const channel = (await createChannel(owner, {
+        visibility: 'public',
+        handle: 'mitloeschen',
+        title: 'Mitloeschen',
+      })).json();
+      const published = (await post(owner, channel.id, 'etwas')).json();
+      await react(owner, channel.id, published.id, '👍');
+
+      await h.app.inject({
+        method: 'DELETE',
+        url: `/v1/channels/${channel.id}/posts/${published.id}`,
+        headers: bearer(owner),
+      });
+
+      const { rows } = await pool.query(
+        'SELECT count(*)::int AS n FROM channel_post_reactions WHERE post_id = $1',
+        [published.id],
+      );
+      assert.equal(rows[0].n, 0);
+    });
   });
 
   it('the owner cannot simply walk out of their own channel', async () => {

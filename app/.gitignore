@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Written by `flutter gen-l10n` on every build: which keys a translation is
+# still missing. A report, not a source file — and it is empty, which is the
+# point.
+l10n-missing.json

@@ -50,10 +50,12 @@ abstract final class MessageSearch {
     List<Conversation> conversations,
     String query, {
     int limit = 200,
+    DateTime? now,
   }) {
     final needle = query.trim().toLowerCase();
     if (needle.isEmpty) return const [];
 
+    final asOf = now ?? DateTime.now();
     final hits = <SearchHit>[];
     for (final conversation in conversations) {
       for (final message in conversation.messages) {
@@ -61,6 +63,12 @@ abstract final class MessageSearch {
         // sender's own — both are already covered by what is or is not in
         // `body`, so there is one thing to match against.
         if (message.kind == MessageKind.deleted) continue;
+        // A message whose time has run out, checked here rather than trusted to
+        // have been swept. The sweep runs every few seconds, and in the gap
+        // between expiry and the next pass the message is still in the store —
+        // search must not be the one place it surfaces after it was meant to
+        // be gone.
+        if (message.hasExpiredAt(asOf)) continue;
         // A notice is the app talking about the chat, not something anyone
         // wrote in it. Matching it would put "disappearing messages" in the
         // results for every chat that ever had a timer.

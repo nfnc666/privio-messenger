@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:privio/calls/call_peer.dart';
 import 'package:privio/calls/call_signal.dart';
 
+import 'fake_sdp.dart';
+
 /// A peer connection with no media in it.
 ///
 /// It follows the same order the real one does — an offer produces an answer,
@@ -12,10 +14,15 @@ import 'package:privio/calls/call_signal.dart';
 /// arrange with two real machines: a candidate that arrives before the callee
 /// picked up, a connection that fails, a microphone that is refused.
 class FakeCallPeer implements CallPeer {
-  FakeCallPeer({this.failsWith});
+  FakeCallPeer({this.failsWith, this.offers, this.answers});
 
   /// When set, [open] throws it: a refused microphone, or no camera.
   final CallPeerException? failsWith;
+
+  /// The description this side produces. Defaults to one that passes the SDP
+  /// policy; a test that wants a refusal hands in one that does not.
+  final String? offers;
+  final String? answers;
 
   final _candidates = StreamController<String>.broadcast();
   final _states = StreamController<CallPeerState>.broadcast();
@@ -44,12 +51,12 @@ class FakeCallPeer implements CallPeer {
   }
 
   @override
-  Future<String> createOffer() async => 'sdp-offer';
+  Future<String> createOffer() async => offers ?? fakeSdp();
 
   @override
   Future<String> answerTo(String remoteSdp) async {
     remoteOffer = remoteSdp;
-    return 'sdp-answer';
+    return answers ?? fakeSdp(kind: 'answer');
   }
 
   @override

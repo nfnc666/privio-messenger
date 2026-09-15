@@ -11,10 +11,15 @@ import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
 import groupRoutes from './routes/groups.js';
 import channelRoutes from './routes/channels.js';
+import {
+  ChannelNotifier,
+  startChannelNotificationSweeper,
+} from './services/channel_notifications.js';
 import licenseRoutes from './routes/licenses.js';
 import { mediaRoutes } from './routes/media.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
+import { inviteWebRoutes } from './routes/invite_web.js';
 import type { DeliveryBus } from './services/bus.js';
 import { DeliveryService } from './services/delivery.js';
 import type { PushSender } from './services/push.js';
@@ -85,6 +90,16 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   const storage = deps.storage ?? new LocalFileStorage();
   const delivery = new DeliveryService(deps.bus, push, app.log);
 
+  // Channel posts wake devices too, which they did not until now — which is
+  // also why muting a channel suppressed nothing. The sweeper is for scheduled
+  // posts: they become visible because time passed, but a notification has to
+  // actually be sent at a moment. See migration 026.
+  const channelNotifier = new ChannelNotifier(push, app.log);
+  const stopChannelSweeper = startChannelNotificationSweeper(channelNotifier, (err) =>
+    app.log.error({ err }, 'channel notification sweep failed'),
+  );
+  app.addHook('onClose', () => stopChannelSweeper());
+
   // Encrypted blobs arrive as raw bytes; everything else is JSON.
   app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) =>
     done(null, body),
@@ -147,11 +162,16 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(contactRoutes);
   await app.register(messageRoutes(delivery));
   await app.register(groupRoutes(deps.bus));
-  await app.register(channelRoutes(deps.bus));
+  await app.register(channelRoutes(deps.bus, channelNotifier));
   await app.register(licenseRoutes);
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));
+  // Last, because it owns the shape `/:handle` — a single path segment, which
+  // would shadow anything registered after it. Fastify prefers a static route
+  // over a parametric one, so `/health` and `/v1/...` still win; registering
+  // this at the end makes that ordering a decision rather than a coincidence.
+  await app.register(inviteWebRoutes(storage));
 
   /**
    * Liveness *and* readiness, because the platforms this runs on offer one hook.

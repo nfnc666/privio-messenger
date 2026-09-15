@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/notice_text.dart';
 import '../models/models.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'voice_bubble.dart';
 
@@ -36,8 +39,15 @@ class MessageBubble extends StatelessWidget {
     // Not a bubble: a notice is about the conversation, not part of it, and
     // giving it a side would make it look like somebody said it.
     if (message.isNotice) {
+      final notice = message.notice;
       return _Notice(
-        text: message.body,
+        // Built here rather than stored, so it is in the language this reader
+        // has the app set to. `body` is the fallback for a notice filed before
+        // the event was recorded alongside it: the sentence it was written
+        // with, in the language it was written in, which is all there is.
+        text: notice == null
+            ? message.body
+            : describeNotice(AppText.of(context), notice),
         // A lost message is not housekeeping, and must not read as if it were.
         icon: message.kind == MessageKind.undelivered
             ? Icons.report_gmailerrorred_rounded
@@ -69,8 +79,8 @@ class MessageBubble extends StatelessWidget {
           vertical: PrivioSpacing.sm + 1,
         ),
         decoration: BoxDecoration(
-          color: mine ? PrivioColors.bubbleOutgoing : PrivioColors.surfaceRaised,
-          border: highlighted ? Border.all(color: PrivioColors.accent) : null,
+          color: mine ? context.accents.bubbleOutgoing : PrivioColors.surfaceRaised,
+          border: highlighted ? Border.all(color: context.accents.accent) : null,
           borderRadius: BorderRadius.only(
             topLeft: PrivioRadius.bubble,
             topRight: PrivioRadius.bubble,
@@ -88,7 +98,7 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
                   message.senderName!,
-                  style: theme.textTheme.labelMedium?.copyWith(color: PrivioColors.accentBright),
+                  style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
                 ),
               ),
             if (message.kind == MessageKind.deleted)
@@ -105,7 +115,9 @@ class MessageBubble extends StatelessWidget {
                   ),
                   const SizedBox(width: PrivioSpacing.xs + 2),
                   Text(
-                    mine ? 'You deleted this message' : 'This message was deleted',
+                    mine
+                        ? AppText.of(context).bubbleYouDeleted
+                        : AppText.of(context).bubbleMessageDeleted,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: PrivioColors.textTertiary,
                       fontStyle: FontStyle.italic,
@@ -153,7 +165,7 @@ class MessageBubble extends StatelessWidget {
                       '${message.readCount > 0 ? message.readCount : message.deliveredCount}',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: message.readCount > 0
-                            ? PrivioColors.accentBright
+                            ? context.accents.bright
                             : PrivioColors.textTertiary,
                       ),
                     ),
@@ -274,13 +286,15 @@ class _FileRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                attachment.fileName ?? 'File',
+                attachment.fileName ?? AppText.of(context).commonFile,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium,
               ),
               Text(
-                failed ? 'Could not open' : attachment.readableSize,
+                failed
+                    ? AppText.of(context).bubbleCouldNotOpen
+                    : attachment.readableSize,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: failed ? PrivioColors.danger : PrivioColors.textTertiary,
                 ),
@@ -323,7 +337,7 @@ class _DeliveryTicks extends StatelessWidget {
     return Icon(
       state == DeliveryState.sent ? Icons.check_rounded : Icons.done_all_rounded,
       size: 15,
-      color: read ? PrivioColors.accentBright : PrivioColors.textTertiary,
+      color: read ? context.accents.bright : PrivioColors.textTertiary,
     );
   }
 }
@@ -339,19 +353,18 @@ class EncryptionNotice extends StatelessWidget {
         horizontal: PrivioSpacing.md,
         vertical: PrivioSpacing.md,
       ),
-      decoration: const BoxDecoration(
-        color: PrivioColors.accentSurface,
-        borderRadius: BorderRadius.all(PrivioRadius.card),
+      decoration: BoxDecoration(
+        color: context.accents.surface,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_rounded, size: 15, color: PrivioColors.accent),
+          Icon(Icons.lock_rounded, size: 15, color: context.accents.accent),
           const SizedBox(width: PrivioSpacing.sm),
           Expanded(
             child: Text(
-              'Messages and calls are end-to-end encrypted. No one outside this '
-              'chat can read or listen to them, not even Privio.',
+              AppText.of(context).bubbleEncryptedNotice,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
             ),
           ),
@@ -423,8 +436,8 @@ class _QuotedMessage extends StatelessWidget {
       decoration: BoxDecoration(
         color: (mine ? Colors.black : PrivioColors.background).withValues(alpha: 0.28),
         borderRadius: const BorderRadius.all(Radius.circular(8)),
-        border: const Border(
-          left: BorderSide(color: PrivioColors.accent, width: 3),
+        border: Border(
+          left: BorderSide(color: context.accents.accent, width: 3),
         ),
       ),
       child: Column(
@@ -432,8 +445,8 @@ class _QuotedMessage extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            message.replySender ?? 'Reply',
-            style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.accentBright),
+            message.replySender ?? AppText.of(context).commonReply,
+            style: theme.textTheme.labelSmall?.copyWith(color: context.accents.bright),
           ),
           Text(
             message.replyPreview ?? '',

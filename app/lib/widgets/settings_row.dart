@@ -12,10 +12,25 @@ class SettingsRow extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.destructive = false,
+    this.iconTint,
+    this.subtitle,
+    this.enabled = true,
   });
 
   final String label;
   final IconData? icon;
+
+  /// When set, the icon sits in a filled rounded tile of this colour rather
+  /// than loose in the row. The channel screens use it; the rest of settings
+  /// does not, so it stays opt-in.
+  final Color? iconTint;
+
+  /// A second line under the label, for a row whose meaning needs one.
+  final String? subtitle;
+
+  /// A row that is shown but cannot be used — a permission somebody lacks,
+  /// rather than a row hidden so they cannot tell it exists.
+  final bool enabled;
   final String? value;
   final VoidCallback? onTap;
   final Widget? trailing;
@@ -26,10 +41,14 @@ class SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colour = destructive ? PrivioColors.danger : PrivioColors.textPrimary;
+    final colour = destructive
+        ? PrivioColors.danger
+        : enabled
+            ? PrivioColors.textPrimary
+            : PrivioColors.textTertiary;
 
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: PrivioSpacing.lg,
@@ -38,13 +57,39 @@ class SettingsRow extends StatelessWidget {
         child: Row(
           children: [
             if (icon != null && !destructive) ...[
-              Icon(icon, size: 20, color: PrivioColors.textSecondary),
+              if (iconTint != null)
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: iconTint,
+                    borderRadius: BorderRadius.circular(PrivioSpacing.sm),
+                  ),
+                  child: Icon(icon, size: 18, color: Colors.white),
+                )
+              else
+                Icon(icon, size: 20, color: PrivioColors.textSecondary),
               const SizedBox(width: PrivioSpacing.md),
             ],
             Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(color: colour),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: colour),
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: PrivioColors.textTertiary),
+                      ),
+                    ),
+                ],
               ),
             ),
             if (value != null)
@@ -56,7 +101,7 @@ class SettingsRow extends StatelessWidget {
                 ),
               ),
             if (trailing != null) trailing!,
-            if (trailing == null && onTap != null && !destructive)
+            if (trailing == null && onTap != null && !destructive && enabled)
               const Padding(
                 padding: EdgeInsets.only(left: PrivioSpacing.sm),
                 child: Icon(Icons.chevron_right_rounded, size: 20, color: PrivioColors.textTertiary),

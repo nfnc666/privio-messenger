@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import {
   countOneTimePreKeys,
@@ -104,13 +104,45 @@ const deviceRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     if (body.provider === 'unifiedpush' && body.token !== null) {
       parsePushEndpoint(body.token, { allowedHosts: allowedPushHosts() });
     }
-    // Clearing the provider clears the VoIP token with it: a device that has
-    // stopped being pushed to has stopped ringing too, and leaving one behind
-    // would have the relay calling a phone that signed out.
-    await pool.query(
-      'UPDATE devices SET push_provider = $2, push_token = $3, voip_token = $4 WHERE id = $1',
-      [deviceId, body.provider, body.token, body.provider === null ? null : body.voipToken ?? null],
-    );
+    await withTransaction(async (client) => {
+      /**
+       * A push token belongs to one account at a time, because it belongs to
+       * one app install.
+       *
+       * Signing out clears it — but a sign-out that happened with no network
+       * never reached this server, and the row keeps the token. The next
+       * account on that phone then registers the same token against its own
+       * new device, and the relay goes on posting the *previous* account's
+       * wake-ups to a handset that now belongs to somebody else.
+       *
+       * So registering a token takes it: any other device holding it is
+       * cleared first. The device that most recently proved it holds the token
+       * is the one the vendor will deliver to anyway, so this only makes the
+       * database agree with what the vendor already believes.
+       */
+      if (body.token !== null) {
+        await client.query(
+          `UPDATE devices SET push_provider = NULL, push_token = NULL, voip_token = NULL
+             WHERE push_token = $1 AND id <> $2`,
+          [body.token, deviceId],
+        );
+      }
+      // The same for the VoIP token, which is issued separately and would
+      // otherwise keep ringing a phone for an account that has left it.
+      if (body.voipToken != null) {
+        await client.query(
+          'UPDATE devices SET voip_token = NULL WHERE voip_token = $1 AND id <> $2',
+          [body.voipToken, deviceId],
+        );
+      }
+      // Clearing the provider clears the VoIP token with it: a device that has
+      // stopped being pushed to has stopped ringing too, and leaving one behind
+      // would have the relay calling a phone that signed out.
+      await client.query(
+        'UPDATE devices SET push_provider = $2, push_token = $3, voip_token = $4 WHERE id = $1',
+        [deviceId, body.provider, body.token, body.provider === null ? null : body.voipToken ?? null],
+      );
+    });
     return { pushEnabled: body.token !== null, callsRing: body.voipToken != null };
   });
 

@@ -27,7 +27,7 @@ const READABLE: Record<string, string> = {
   // Capabilities and pointers. None of them says anything about content.
   'backups.storage_key': 'where the sealed blob is, not what is in it',
   'media_objects.storage_key': 'same',
-  'media_objects.kind': 'attachment or avatar, which decides who may download it',
+  'media_objects.kind': 'attachment, avatar or channel_avatar, which decides who may download it',
   'channels.invite_code': 'the capability in a link, meant to be shared',
   'groups.invite_code': 'the same',
   'sent_message_keys.idempotency_key': 'opaque to the server; it is compared, never read',
@@ -51,6 +51,19 @@ const READABLE: Record<string, string> = {
   'channels.title': 'public channels are searchable by name',
   'channels.description': 'the same',
   'channels.category': 'the same',
+  // A public channel's welcome text, under the same rule as its description:
+  // the route refuses to write this column for a private channel at all, whose
+  // welcome message goes inside `encrypted_metadata` with its title.
+  'channels.welcome_message': 'public channels only; a private one seals it with its title',
+  // Token names, not content: one of six accents and one of three backgrounds,
+  // held to that by a check constraint. What it says about the channel is what
+  // colour it is.
+  'channels.accent_name': 'a theme token name, constrained to a fixed list',
+  'channels.background_name': 'the same',
+  // A random room id on the media server. A livestream is not end-to-end
+  // encrypted — no SFU can forward what it cannot read — and this is the name
+  // of the room, not of the channel: see docs/channels.md.
+  'channels.live_room': 'a random room id on the media server, not derived from the channel',
 
   // Devices. A push token is an address the server posts to, so it cannot be
   // sealed; the rest is what the connected-devices screen shows.
@@ -60,6 +73,23 @@ const READABLE: Record<string, string> = {
   'devices.push_token': 'an address this server sends to; sealing it would break it',
   'devices.voip_token': 'the second address iOS needs, for the same reason',
   'sessions.user_agent': 'shown beside the session in the device list',
+
+  // Reactions. The one place in a channel where the server holds something a
+  // member chose, and it is held knowingly: a count has to be counted
+  // somewhere, and the account id beside it is what stops one person counting
+  // ten times and what lets them take it back. Anonymous counters give up
+  // both. The emoji is not free text — it has to be one of the channel's own
+  // configured set — and nobody is ever served the list of who reacted. See
+  // migration 017 and docs/security-model.md.
+  'channel_post_reactions.emoji': 'one of the channel s offered emojis, counted by the server',
+  'channels.reaction_emojis': 'the menu an admin offers, not anything a member wrote',
+
+  // A report's reason, and the reason it is one of five words rather than a
+  // text box. A free field is where somebody pastes the content they are
+  // reporting — which would put the very thing the encryption protects into a
+  // readable column, written by a person with every reason to. See
+  // migration 022.
+  'channel_reports.reason': 'one of five fixed words, never free text',
 
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
@@ -81,11 +111,16 @@ describe('what the server can read', () => {
   });
 
   it('has no free-text column that nobody argued for', async () => {
+    // Arrays of text as well as text. A `text[]` reports its data_type as
+    // 'ARRAY' and slipped straight past this check — which is exactly the way
+    // a readable column gets added without anybody arguing for it, and it was
+    // found by adding one.
     const { rows } = await pool.query<{ name: string }>(
       `SELECT table_name || '.' || column_name AS name
          FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND data_type IN ('text', 'character varying', 'json', 'jsonb')
+          AND (data_type IN ('text', 'character varying', 'json', 'jsonb')
+               OR udt_name IN ('_text', '_varchar', '_json', '_jsonb'))
         ORDER BY table_name, ordinal_position`,
     );
     const unexplained = rows.map((r) => r.name).filter((name) => !(name in READABLE));

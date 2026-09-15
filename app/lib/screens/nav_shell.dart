@@ -7,6 +7,7 @@ import 'channels_screen.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
 
 /// One destination in the bottom bar.
 class NavDestination {
@@ -17,7 +18,9 @@ class NavDestination {
     required this.builder,
   });
 
-  final String label;
+  /// Read from the translations rather than stored, because a static list
+  /// built once at start-up would keep whichever language was in force then.
+  final String Function(AppText) label;
   final IconData icon;
   final IconData activeIcon;
   final WidgetBuilder builder;
@@ -33,31 +36,31 @@ class NavShell extends StatefulWidget {
 
   static final List<NavDestination> destinations = [
     NavDestination(
-      label: 'Chats',
+      label: (text) => text.navChats,
       icon: Icons.chat_bubble_outline_rounded,
       activeIcon: Icons.chat_bubble_rounded,
       builder: (_) => const ChatsScreen(),
     ),
     NavDestination(
-      label: 'Channels',
+      label: (text) => text.navChannels,
       icon: Icons.campaign_outlined,
       activeIcon: Icons.campaign_rounded,
       builder: (_) => const ChannelsScreen(),
     ),
     NavDestination(
-      label: 'Calls',
+      label: (text) => text.navCalls,
       icon: Icons.call_outlined,
       activeIcon: Icons.call_rounded,
       builder: (_) => const CallsScreen(),
     ),
     NavDestination(
-      label: 'Contacts',
+      label: (text) => text.navContacts,
       icon: Icons.people_outline_rounded,
       activeIcon: Icons.people_rounded,
       builder: (_) => const ContactsScreen(),
     ),
     NavDestination(
-      label: 'Account',
+      label: (text) => text.navAccount,
       icon: Icons.person_outline_rounded,
       activeIcon: Icons.person_rounded,
       builder: (_) => const AccountScreen(),
@@ -74,6 +77,7 @@ class _NavShellState extends State<NavShell> {
   @override
   Widget build(BuildContext context) {
     final destinations = NavShell.destinations;
+    final text = AppText.of(context);
 
     return Scaffold(
       body: IndexedStack(
@@ -97,7 +101,7 @@ class _NavShellState extends State<NavShell> {
               BottomNavigationBarItem(
                 icon: Icon(destination.icon),
                 activeIcon: Icon(destination.activeIcon),
-                label: destination.label,
+                label: destination.label(text),
               ),
           ],
         ),

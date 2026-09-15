@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/security_controller.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -28,20 +29,21 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   }
 
   Future<void> _confirmUnblock(SecurityController security, BlockedUser user) async {
+    final text = AppText.of(context);
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: PrivioColors.surface,
-        title: Text('Unblock ${user.label}?'),
-        content: const Text('They will be able to send you messages again.'),
+        title: Text(text.blockedUnblockTitle(user.label)),
+        content: Text(text.blockedUnblockBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(text.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Unblock'),
+            child: Text(text.blockedUnblock),
           ),
         ],
       ),
@@ -52,11 +54,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   @override
   Widget build(BuildContext context) {
     final security = PrivioScope.of(context).security;
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Blocked Users'),
+        title: Text(text.privacyBlockedUsers),
       ),
       body: ListenableBuilder(
         listenable: security,
@@ -75,7 +78,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                   for (final user in blocked)
                     SettingsRow(
                       label: user.label,
-                      value: 'Unblock',
+                      value: text.blockedUnblock,
                       onTap: () => _confirmUnblock(security, user),
                     ),
                 ],
@@ -84,9 +87,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
                 child: Text(
-                  'Blocking is invisible: their messages are dropped and they are '
-                  'told nothing, so a block cannot be used to find out that they '
-                  'have been blocked.',
+                  text.blockedInvisibleNote,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -104,6 +105,7 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Center(
       child: Padding(
@@ -113,10 +115,10 @@ class _Empty extends StatelessWidget {
           children: [
             const Icon(Icons.block_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.lg),
-            Text('Nobody is blocked', style: theme.textTheme.titleMedium),
+            Text(text.blockedNobody, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.sm),
             Text(
-              'Block someone from their chat, and they turn up here.',
+              text.blockedEmptyNote,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),

@@ -17,5 +17,22 @@
 	-->
 	<key>aps-environment</key>
 	<string>$(APS_ENVIRONMENT)</string>
+
+	<!--
+	  Universal Links are NOT configured here yet, on purpose.
+
+	  `com.apple.developer.associated-domains` is a capability, not a plain
+	  key: adding it here makes signing fail unless the App ID has Associated
+	  Domains enabled and the provisioning profile was regenerated with it. CI
+	  builds iOS with `--no-codesign` and would not catch that — the TestFlight
+	  workflow would, by breaking.
+
+	  There is also nothing to point it at: `privio.channel` is not registered,
+	  so no `apple-app-site-association` would be fetched from it.
+
+	  The order to do it in, when the domain exists, is in
+	  `docs/invite-links.md`. Until then `privio://` in `Info.plist` is what
+	  opens a link, and it needs none of this.
+	-->
 </dict>
 </plist>

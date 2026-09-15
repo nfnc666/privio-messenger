@@ -18,6 +18,7 @@ import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
 import '../models/models.dart';
 import 'api_client.dart';
+import 'failure.dart';
 import 'privio_services.dart';
 
 /// Drives the chat and contact screens from real data.
@@ -80,7 +81,7 @@ class ConversationController extends ChangeNotifier {
   bool _draining = false;
 
   List<Contact> _contacts = const [];
-  String? _error;
+  Failure? _failure;
 
   /// Devices whose identity key stopped matching what was pinned, by account.
   ///
@@ -96,7 +97,10 @@ class ConversationController extends ChangeNotifier {
   List<Contact> get contacts => _contacts;
 
   /// The last failure worth showing, or null. Cleared when the next call works.
-  String? get error => _error;
+  ///
+  /// A case, never a sentence: this class cannot know which of the five
+  /// languages the person holding the phone reads.
+  Failure? get failure => _failure;
 
   /// Whether this conversation is waiting on the user to review a changed key.
   bool hasIdentityChange(String accountId) =>
@@ -152,7 +156,7 @@ class ConversationController extends ChangeNotifier {
       await _services.crypto.acceptIdentityChange(accountId, index);
     }
     _identityChanges.remove(accountId);
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -184,9 +188,9 @@ class ConversationController extends ChangeNotifier {
       avatarBytes: _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
       // one line, and what someone is doing now beats what they said before.
-      preview: isTyping(conversation.id) ? 'typing…' : _previewOf(last),
+      preview: isTyping(conversation.id) ? const ChatPreview(ChatPreviewKind.typing) : _previewOf(last),
       typing: isTyping(conversation.id),
-      timestamp: last == null ? '' : _formatTimestamp(last.sentAt),
+      timestamp: last == null ? ChatStamp.none : _stampFor(last.sentAt),
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
       previewKind: last?.kind ?? MessageKind.text,
@@ -195,39 +199,59 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// A file with no caption still needs a line in the list.
-  static String _previewOf(Message? message) {
-    if (message == null) return '';
+  ///
+  /// Returns the case, not the words: "Photo" has five spellings here and this
+  /// class has no way of knowing which one the reader wants.
+  static ChatPreview _previewOf(Message? message) {
+    if (message == null) return ChatPreview.empty;
     // A tombstone has no body, and an empty last line in the chat list would
     // read as a conversation with nothing in it.
-    if (message.kind == MessageKind.deleted) return 'Message deleted';
-    if (message.body.isNotEmpty) return message.body;
+    if (message.kind == MessageKind.deleted) {
+      return const ChatPreview(ChatPreviewKind.deleted);
+    }
+    final notice = message.notice;
+    if (notice != null) return ChatPreview(ChatPreviewKind.notice, notice: notice);
+    if (message.body.isNotEmpty) {
+      return ChatPreview(ChatPreviewKind.body, text: message.body);
+    }
     final attachment = message.attachment;
-    if (attachment == null) return '';
-    return attachment.fileName ??
-        switch (message.kind) {
-          MessageKind.photo => 'Photo',
-          MessageKind.video => 'Video',
-          MessageKind.voice => 'Voice message',
-          _ => 'File',
-        };
+    if (attachment == null) return ChatPreview.empty;
+    final fileName = attachment.fileName;
+    if (fileName != null) return ChatPreview(ChatPreviewKind.body, text: fileName);
+    return ChatPreview(switch (message.kind) {
+      MessageKind.photo => ChatPreviewKind.photo,
+      MessageKind.video => ChatPreviewKind.video,
+      MessageKind.voice => ChatPreviewKind.voice,
+      _ => ChatPreviewKind.file,
+    });
   }
 
-  static String _formatTimestamp(DateTime when) {
+  static ChatStamp _stampFor(DateTime when) {
     final now = DateTime.now();
     final sameDay = when.year == now.year && when.month == now.month && when.day == now.day;
-    if (sameDay) {
-      return '${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
-    }
+    if (sameDay) return ChatStamp(ChatStampKind.time, at: when);
     final yesterday = now.subtract(const Duration(days: 1));
     if (when.year == yesterday.year && when.month == yesterday.month && when.day == yesterday.day) {
-      return 'Yesterday';
+      return const ChatStamp(ChatStampKind.yesterday);
     }
-    return '${when.day.toString().padLeft(2, '0')}.${when.month.toString().padLeft(2, '0')}.';
+    return ChatStamp(ChatStampKind.date, at: when);
   }
+
+  /// Called with whatever channel posts the archive held, on restore.
+  void Function(Map<String, List<ChannelPost>>)? onChannelPostsRestored;
 
   /// Reads the sealed history back so a relaunch does not start blank.
   Future<void> restore() async {
-    final contents = await _services.archive.load();
+    // The account is named, so an archive belonging to somebody else is refused
+    // rather than adopted. That matters on a phone whose previous sign-out was
+    // interrupted: the history is still on disk and the session that owned it
+    // is not.
+    final contents = await _services.archive.load(accountId: accountId);
+    // Handed straight back out, so a channel opened before any network call
+    // shows what was there last time. Kept even when there is no conversation
+    // history at all — somebody may be in channels and in no chats.
+    _channelPosts = contents.channelPosts;
+    onChannelPostsRestored?.call(contents.channelPosts);
     if (contents.conversations.isEmpty && contents.outbox.isEmpty) return;
     _services.store.restore(contents.conversations);
     _outbox
@@ -236,7 +260,7 @@ class ConversationController extends ChangeNotifier {
     // A message queued before the app was killed is still owed to somebody.
     _services.store.pruneExpired(DateTime.now());
     notifyListeners();
-    unawaited(flushOutbox());
+    detached(flushOutbox());
   }
 
   /// Takes on a history that a restore has just put into the store.
@@ -250,13 +274,31 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Channel posts to seal alongside the conversations.
+  ///
+  /// Handed over by the channel controller rather than fetched, because this is
+  /// the only place that knows how a history is sealed and that is the only
+  /// place that knows what a channel holds. Kept here so one archive write
+  /// carries both, instead of two writers racing over the same blob.
+  Map<String, List<ChannelPost>> _channelPosts = const {};
+
+  void cacheChannelPosts(Map<String, List<ChannelPost>> posts) {
+    _channelPosts = {for (final entry in posts.entries) entry.key: entry.value};
+    _persist();
+  }
+
   /// Writes the history back, coalescing bursts: a fast exchange should not
   /// re-seal and rewrite the whole archive once per keystroke.
   void _persist() {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(
-        _services.archive.save(_services.store.conversations(), outbox: _outbox),
+        _services.archive.save(
+          _services.store.conversations(),
+          outbox: _outbox,
+          accountId: accountId,
+          channelPosts: _channelPosts,
+        ),
       );
     });
   }
@@ -265,7 +307,12 @@ class ConversationController extends ChangeNotifier {
   Future<void> flush() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    await _services.archive.save(_services.store.conversations(), outbox: _outbox);
+    await _services.archive.save(
+      _services.store.conversations(),
+      outbox: _outbox,
+      accountId: accountId,
+      channelPosts: _channelPosts,
+    );
   }
 
   /// Whether the realtime socket is currently up.
@@ -284,7 +331,7 @@ class ConversationController extends ChangeNotifier {
     if (token != null) _openRealtime(token);
     pruneExpired();
     unawaited(drain());
-    unawaited(flushOutbox());
+    detached(flushOutbox());
   }
 
   void _openRealtime(String token) {
@@ -312,7 +359,7 @@ class ConversationController extends ChangeNotifier {
       await _fileResult(result);
       if (result.highestHandled > 0) _realtime?.acknowledge(result.highestHandled);
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not read a message';
+      _failure = Failure.of(failure, FailureKind.couldNotReadMessage);
       notifyListeners();
     }
   }
@@ -344,7 +391,7 @@ class ConversationController extends ChangeNotifier {
     // Not inside the try below, and not conditional on it: the own picture has
     // nothing to do with the contact list, and a failed contacts read should
     // not also cost the user their avatar.
-    unawaited(_restoreOwnAvatar());
+    detached(_restoreOwnAvatar());
     try {
       final response = await _services.api.contacts();
       final entries = response['contacts'] as List<dynamic>? ?? const [];
@@ -364,10 +411,10 @@ class ConversationController extends ChangeNotifier {
           ),
         );
       }
-      unawaited(_loadAvatars());
-      _error = null;
+      detached(_loadAvatars());
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     }
     notifyListeners();
   }
@@ -400,7 +447,7 @@ class ConversationController extends ChangeNotifier {
       await refreshContacts();
       return true;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -419,10 +466,10 @@ class ConversationController extends ChangeNotifier {
         ),
       );
       notifyListeners();
-      unawaited(_loadAvatars());
+      detached(_loadAvatars());
       return conversation.id;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return null;
     }
@@ -488,22 +535,21 @@ class ConversationController extends ChangeNotifier {
         await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
       _markSent(conversationId, clientId, timer);
-      _error = null;
+      _failure = null;
       _persist();
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
       _noteIdentityChange(failure);
-      _error = switch (failure) {
+      _failure = switch (failure) {
         // The one send failure the user can do something about, so it says
         // what rather than repeating the server's wording.
-        ApiException(code: 'license_required') => 'Activate your license to send messages.',
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
         // Refused on purpose: the key on the server is not the key that was
         // pinned. Sending anyway would seal it to whoever holds the new one.
-        IdentityChangedException() =>
-          'The safety number changed. Nothing was sent — check it before you do.',
-        ApiException(:final message) => message,
-        _ => 'Could not send message',
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
       };
     }
     notifyListeners();
@@ -524,7 +570,7 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return created.groupId;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not create the group';
+      _failure = Failure.of(failure, FailureKind.couldNotCreateGroup);
       notifyListeners();
       return null;
     }
@@ -537,11 +583,11 @@ class ConversationController extends ChangeNotifier {
       for (final group in await _services.messaging.listGroups(_services.store)) {
         _services.store.upsertGroup(group);
       }
-      _error = null;
+      _failure = null;
       notifyListeners();
       unawaited(_maintainGroupKeys());
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
     }
   }
@@ -576,7 +622,7 @@ class ConversationController extends ChangeNotifier {
   Future<String?> joinGroupByLink(String link) async {
     final invite = ChannelService.parseInviteLink(link);
     if (invite == null || invite.kind != InviteKind.group) {
-      _error = 'That does not look like a Privio group link.';
+      _failure = const Failure(FailureKind.notAGroupLink);
       notifyListeners();
       return null;
     }
@@ -586,9 +632,9 @@ class ConversationController extends ChangeNotifier {
       await refreshGroups();
       return group.groupId;
     } on ApiException catch (failure) {
-      _error = failure.code == 'group_not_found'
-          ? 'That group does not exist, or the link is wrong.'
-          : failure.message;
+      _failure = failure.code == 'group_not_found'
+          ? const Failure(FailureKind.groupNotFound)
+          : Failure.server(failure.message);
       notifyListeners();
       return null;
     }
@@ -619,7 +665,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.api.leaveGroup(groupId, me);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -636,7 +682,7 @@ class ConversationController extends ChangeNotifier {
       await _services.api.leaveGroup(groupId, memberAccountId);
       return true;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -651,14 +697,14 @@ class ConversationController extends ChangeNotifier {
     final group = groupInfo(groupId);
     final key = group?.groupKey;
     if (group == null || key == null) {
-      _error = 'This device does not have the group key yet.';
+      _failure = const Failure(FailureKind.groupKeyMissing);
       notifyListeners();
       return false;
     }
     try {
       await _services.messaging.renameGroup(groupId, name, key);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -682,7 +728,7 @@ class ConversationController extends ChangeNotifier {
     try {
       await _services.api.deleteGroup(groupId);
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       return false;
     }
@@ -705,13 +751,17 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null) return null;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
+    final timer = conversation.disappearAfter;
     final placeholder = Message(
       id: messageId,
+      clientId: messageId,
       body: caption,
       sentAt: DateTime.now(),
       isMine: true,
       kind: MessageKind.file,
       state: DeliveryState.sending,
+      // No expiry yet, as for text and voice: a file queued with no signal must
+      // not run its clock down while it waits to go anywhere.
     );
     _services.store.append(conversationId, placeholder);
     notifyListeners();
@@ -725,11 +775,15 @@ class ConversationController extends ChangeNotifier {
               file: file,
               fileName: fileName,
               groupKey: conversation.group?.groupKey,
+              expiresInSeconds: timer?.inSeconds,
+              clientId: messageId,
             )
           : await _services.messaging.sendAttachment(
               conversation.user!.username,
               file: file,
               fileName: fileName,
+              expiresInSeconds: timer?.inSeconds,
+              clientId: messageId,
             );
       // The placeholder was drawn before the file had a name on the server.
       // Now it has one: replace it with the message the recipient will see, so
@@ -739,11 +793,17 @@ class ConversationController extends ChangeNotifier {
         messageId,
         Message(
           id: messageId,
+          clientId: messageId,
           body: caption,
           sentAt: placeholder.sentAt,
           isMine: true,
           kind: _kindFor(report.mediaType),
           state: DeliveryState.sent,
+          // The clock starts now, when the server took it — the same moment the
+          // recipient's starts, from their own side of it. Without this a photo
+          // sent into a disappearing chat stayed on the sender's device
+          // forever: the bubble vanished from theirs and nowhere else.
+          expiresAt: timer == null ? null : DateTime.now().add(timer),
           attachment: Attachment(
             mediaId: report.mediaId,
             mediaKey: report.mediaKey,
@@ -754,17 +814,16 @@ class ConversationController extends ChangeNotifier {
           ),
         ),
       );
-      _error = null;
+      _failure = null;
       _persist();
       notifyListeners();
       return report.report;
     } on Object catch (failure) {
       _noteIdentityChange(failure);
-      _error = switch (failure) {
-        ApiException(:final message) => message,
-        IdentityChangedException() =>
-          'The safety number changed. Nothing was sent — check it before you do.',
-        _ => 'Could not send file',
+      _failure = switch (failure) {
+        ApiException(:final message) => Failure.server(message),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        _ => const Failure(FailureKind.couldNotSendFile),
       };
       notifyListeners();
       return null;
@@ -793,7 +852,7 @@ class ConversationController extends ChangeNotifier {
       );
       return _attachmentCache[attachment.mediaId] = bytes;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not open the file';
+      _failure = Failure.of(failure, FailureKind.couldNotOpenFile);
       notifyListeners();
       return null;
     }
@@ -866,7 +925,7 @@ class ConversationController extends ChangeNotifier {
     _attachmentCache.clear();
     _services.store.clear();
     await _services.archive.clear();
-    _error = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -955,7 +1014,7 @@ class ConversationController extends ChangeNotifier {
       }
     } on Object catch (failure) {
       _noteIdentityChange(failure);
-      _error = 'Deleted here. The request to delete it there did not go out.';
+      _failure = const Failure(FailureKind.deletedHereOnly);
       notifyListeners();
     }
   }
@@ -1354,10 +1413,9 @@ class ConversationController extends ChangeNotifier {
         }
         _setVoiceState(pending.conversationId, pending.clientId, DeliveryState.queued);
         _noteIdentityChange(failure);
-        _error = switch (failure) {
-          ApiException(:final message) => message,
-          IdentityChangedException() =>
-            'The safety number changed. Nothing was sent — check it before you do.',
+        _failure = switch (failure) {
+          ApiException(:final message) => Failure.server(message),
+          IdentityChangedException() => const Failure(FailureKind.identityChanged),
           _ => null,
         };
         break;
@@ -1471,18 +1529,116 @@ class ConversationController extends ChangeNotifier {
   Duration? disappearAfter(String conversationId) =>
       _services.store.conversationWith(conversationId)?.disappearAfter;
 
-  /// Sets the timer for a chat. It takes effect on messages sent from now on:
-  /// the number rides inside each sealed payload, so the other side adopts it
-  /// without the server being told anything.
+  /// Whether this account is allowed to change a chat's timer.
   ///
-  /// The other side learns of it from the next message, not from this call —
-  /// there is no separate "timer changed" packet to send, and inventing one
-  /// would tell the server that something about this conversation changed at
-  /// this moment for no gain.
-  void setDisappearAfter(String conversationId, Duration? timer) {
-    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return;
+  /// In a one-to-one chat, both sides are: it is their conversation and there
+  /// is nobody else's expectation to break.
+  ///
+  /// In a group it is the group's rights that decide, and they are the
+  /// server's: [GroupInfo.role] is what `GET /v1/groups` last said, never
+  /// something this device chose for itself. The same role is checked again on
+  /// every device that *receives* a change — see [_senderMayChangeTimer] —
+  /// which is what makes this an actual restriction rather than a disabled
+  /// button. A patched client can still send the payload; nobody will apply it.
+  bool mayChangeDisappearAfter(String conversationId) {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final group = conversation.group;
+    return group == null || group.isAdmin;
+  }
+
+  /// Sets the timer for a chat. It takes effect on messages sent from now on:
+  /// the number rides inside each sealed payload, so both sides delete on their
+  /// own clocks without the server being told what the setting is.
+  ///
+  /// The change is also announced in its own right, rather than waiting to ride
+  /// on the next real message. Waiting was the old behaviour and it was wrong
+  /// in the case that matters most: someone turns disappearing messages on,
+  /// says nothing further, and the other side keeps writing into a chat it
+  /// still believes is permanent. The announcement is end-to-end encrypted like
+  /// everything else, so what the server learns from it is what it learns from
+  /// any message — that one went to this conversation at this moment.
+  ///
+  /// Returns false when the group's rights do not allow it, so the screen can
+  /// say so instead of appearing to have worked.
+  Future<bool> setDisappearAfter(String conversationId, Duration? timer) async {
+    if (!mayChangeDisappearAfter(conversationId)) return false;
+    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return true;
     _services.store.setDisappearAfter(conversationId, timer);
     _noteTimerChange(conversationId, timer, by: null);
+    _persist();
+    notifyListeners();
+    await _announceTimer(conversationId, timer);
+    return true;
+  }
+
+  /// Tells the other side — and this account's own other devices — about a
+  /// timer that just changed.
+  ///
+  /// A failure is swallowed. The setting is already true here and rides on the
+  /// next message anyway, so a lost announcement costs the other side a notice,
+  /// not the protection: what they receive from now on still carries the
+  /// number. Throwing would leave the screen showing a change that had been
+  /// made and reporting that it had not.
+  Future<void> _announceTimer(String conversationId, Duration? timer) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    final payload = MessagePayload.timerChange(timer?.inSeconds);
+    try {
+      if (conversation.group != null) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+        return;
+      }
+      final username = conversation.user?.username;
+      if (username == null || username == 'unknown') return;
+      await _services.messaging.sendPayload(username, payload);
+    } on Object {
+      // See above: the setting stands either way.
+    }
+  }
+
+  /// Whether [senderAccountId] was allowed to change [groupId]'s timer.
+  ///
+  /// Asked of the server rather than answered from anything the message
+  /// carried: a payload claiming its sender is an admin is a payload written by
+  /// whoever wanted the timer changed. Timer changes are rare enough that one
+  /// request each is cheap, and a request that fails means *not* applying the
+  /// change — an unverified change is the one this check exists to stop.
+  Future<bool> _senderMayChangeTimer(String groupId, String senderAccountId) async {
+    try {
+      final members = await _services.messaging.groupMembers(groupId);
+      return members.any((m) => m.accountId == senderAccountId && m.isAdmin);
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Applies a timer change that arrived on its own.
+  ///
+  /// [byOwnDevice] marks the copy that came from another of this account's
+  /// devices, which reads as this account having changed it — and skips the
+  /// group check, because the device that sent it already made it.
+  Future<void> _applyTimerChange(
+    String conversationId,
+    MessagePayload payload, {
+    required String senderAccountId,
+    bool byOwnDevice = false,
+  }) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    if (conversation.group != null &&
+        !byOwnDevice &&
+        !await _senderMayChangeTimer(conversationId, senderAccountId)) {
+      return;
+    }
+    if (_services.store.conversationWith(conversationId) == null) return;
+    _adoptTimer(
+      conversationId,
+      payload,
+      by: byOwnDevice
+          ? null
+          : _services.store.conversationWith(senderAccountId)?.user?.label ?? 'They',
+    );
     _persist();
     notifyListeners();
   }
@@ -1507,10 +1663,19 @@ class ConversationController extends ChangeNotifier {
         // from the same fact, never sent, and so never deduplicated against
         // another device's copy.
         id: 'notice-${DateTime.now().microsecondsSinceEpoch}',
+        // English, and not what the chat draws: `notice` below is what the
+        // bubble renders, in the reader's own language. This stays because
+        // everything that is not a bubble still reads `body` — the chat list
+        // preview, a notification, an exported archive — and a notice with an
+        // empty body would be a blank line in all of them.
         body: '$who $what.',
         sentAt: DateTime.now(),
         isMine: by == null,
         kind: MessageKind.notice,
+        // The fact, kept apart from the sentence. See [SystemNotice].
+        notice: timer == null
+            ? SystemNotice(NoticeKind.timerOff, who: by)
+            : SystemNotice(NoticeKind.timerSet, who: by, duration: timer),
         // Deliberately no expiry of its own. The notice is the record that the
         // rule changed; a record that deletes itself under the rule it
         // describes leaves a history nobody can account for.
@@ -1577,10 +1742,10 @@ class ConversationController extends ChangeNotifier {
       // gets another try, and where expired messages go.
       pruneExpired();
       unawaited(_maintainGroupKeys());
-      unawaited(flushOutbox());
+      detached(flushOutbox());
       return result.messages.isNotEmpty;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
       rethrow;
     } finally {
@@ -1655,9 +1820,7 @@ class ConversationController extends ChangeNotifier {
         count: entry.value,
       );
     }
-    _error = failures.length == 1
-        ? 'A message could not be read'
-        : '${failures.length} messages could not be read';
+    _failure = Failure(FailureKind.messagesUnreadable, count: failures.length);
     _persist();
 
     for (final failure in failures) {
@@ -1673,17 +1836,17 @@ class ConversationController extends ChangeNotifier {
   }) {
     if (_services.store.conversationWith(conversationId) == null) return;
     final who = _services.store.conversationWith(senderAccountId)?.user?.label;
-    final subject = count == 1 ? 'A message' : '$count messages';
-    final from = who == null ? '' : ' from $who';
     _services.store.append(
       conversationId,
       Message(
         id: 'unreadable-${DateTime.now().microsecondsSinceEpoch}',
-        body: '$subject$from could not be read. '
-            'It was sealed to a key this device no longer has.',
+        // No body: the notice below carries the fact, and the screen writes the
+        // sentence in the language of whoever is looking at it.
+        body: '',
         sentAt: DateTime.now(),
         isMine: false,
         kind: MessageKind.undelivered,
+        notice: SystemNotice(NoticeKind.unreadable, who: who, count: count),
       ),
     );
   }
@@ -1738,6 +1901,12 @@ class ConversationController extends ChangeNotifier {
         // The envelope’s own timestamp: an offer drained from a queue after a
         // night asleep is not a phone that should ring now.
         sentAt: incoming.receivedAt,
+        // Who the session says it was, as opposed to who the server labelled
+        // it. A call is the one thing in this app that must not act on the
+        // second when it can have the first.
+        senderIdentityKey: incoming.senderIdentityKey,
+        senderTrust: incoming.senderTrust,
+        senderDeviceIndex: incoming.senderDeviceIndex,
       );
       return;
     }
@@ -1773,6 +1942,20 @@ class ConversationController extends ChangeNotifier {
     if (incoming.payload.isTyping) {
       // Someone who does not send typing notices does not see them either.
       if (_typingIndicators) _applyTyping(incoming.senderAccountId, incoming.payload);
+      return;
+    }
+    if (incoming.payload.isTimerChange) {
+      // A setting, not a sentence: it moves the chat's clock and writes the
+      // notice that says so, and must never appear as an empty bubble.
+      final where = incoming.groupId ?? incoming.senderAccountId;
+      if (_services.store.conversationWith(incoming.senderAccountId)?.user == null) {
+        await _resolveSender(incoming.senderAccountId);
+      }
+      await _applyTimerChange(
+        where,
+        incoming.payload,
+        senderAccountId: incoming.senderAccountId,
+      );
       return;
     }
 
@@ -1828,6 +2011,19 @@ class ConversationController extends ChangeNotifier {
         payload,
         byAccountId: incoming.senderAccountId,
         fromOwnDevice: true,
+      );
+      return;
+    }
+    // A timer this account changed on its other device. Applied here so a
+    // phone and a laptop cannot disagree about when things vanish — and
+    // without the group check, because the device that sent it is this
+    // account, which already passed it.
+    if (payload.isTimerChange) {
+      await _applyTimerChange(
+        sync.conversationId,
+        payload,
+        senderAccountId: incoming.senderAccountId,
+        byOwnDevice: true,
       );
       return;
     }
@@ -2010,7 +2206,14 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final senderName = _services.store.conversationWith(incoming.senderAccountId)?.user?.label;
-    _adoptTimer(groupId, incoming.payload, by: senderName ?? 'Someone');
+    // No `_adoptTimer` here, deliberately. In a group the timer is the group's
+    // setting and only someone the server calls an admin may move it, which is
+    // checked once per change on the announcement payload. Reading it back off
+    // every ordinary message would hand that same power to every member, one
+    // message at a time — and checking the sender's role per message would be
+    // a request to the server for each one. The message itself still lives
+    // under the group's timer: `_incomingMessage` reads it from the
+    // conversation, not from what arrived.
     _services.store.append(
       groupId,
       _incomingMessage(groupId, incoming, senderName: senderName ?? 'Someone'),
@@ -2121,9 +2324,9 @@ class ConversationController extends ChangeNotifier {
   ///
   /// Returns false when the file was not a decodable image.
   Future<bool> setOwnAvatar(Uint8List picked) async {
-    final prepared = AvatarImage.prepare(picked);
+    final prepared = await AvatarImage.prepare(picked);
     if (prepared == null) {
-      _error = 'That file is not an image Privio can use.';
+      _failure = const Failure(FailureKind.notAnImage);
       notifyListeners();
       return false;
     }
@@ -2131,11 +2334,11 @@ class ConversationController extends ChangeNotifier {
       await _services.messaging.uploadAvatar(prepared);
       ownAvatar = prepared;
       _ownAvatarKnown = true;
-      _error = null;
+      _failure = null;
       notifyListeners();
       return true;
     } on Object catch (failure) {
-      _error = failure is ApiException ? failure.message : 'Could not set the picture';
+      _failure = Failure.of(failure, FailureKind.couldNotSetPicture);
       notifyListeners();
       return false;
     }
@@ -2146,9 +2349,9 @@ class ConversationController extends ChangeNotifier {
       await _services.api.clearAvatar();
       ownAvatar = null;
       _ownAvatarKnown = true;
-      _error = null;
+      _failure = null;
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
     }
     notifyListeners();
   }
@@ -2201,7 +2404,7 @@ class ConversationController extends ChangeNotifier {
       // do on a schedule, and called by nothing.
       await _services.messaging.rotateSignedPreKeyIfDue();
     } on ApiException catch (failure) {
-      _error = failure.message;
+      _failure = Failure.server(failure.message);
       notifyListeners();
     }
   }

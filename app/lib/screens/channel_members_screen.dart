@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/failure_text.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
@@ -24,9 +27,35 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => PrivioScope.of(context).channels.loadMembers(widget.channel.id),
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = PrivioScope.of(context).channels;
+      controller.loadMembers(widget.channel.id);
+      // Who has been silenced, so a ban set from a thread has somewhere to be
+      // undone. The server refuses this to anyone who cannot manage members.
+      if (widget.channel.permissions.canManageMembers) {
+        controller.loadBans(widget.channel.id);
+      }
+    });
+  }
+
+  /// Lets somebody speak again.
+  Future<void> _unsilence(ChannelBan ban) async {
+    final controller = PrivioScope.of(context).channels;
+    final ok = await controller.setBanned(
+      widget.channel.id,
+      ban.accountId,
+      banned: false,
     );
+    if (!mounted) return;
+    if (ok) {
+      await controller.loadBans(widget.channel.id);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.failure?.words(AppText.of(context)) ?? AppText.of(context).membersCouldNotLift),
+        ),
+      );
+    }
   }
 
   Future<void> _edit(ChannelMember member) async {
@@ -50,7 +79,11 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.error ?? 'Could not change that member')),
+        SnackBar(
+          content: Text(
+            controller.failure?.words(AppText.of(context)) ?? AppText.of(context).membersCouldNotChange,
+          ),
+        ),
       );
     }
   }
@@ -60,24 +93,53 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
     final state = PrivioScope.of(context);
     final controller = state.channels;
     final canManage = widget.channel.permissions.canManageMembers;
+    final text = AppText.of(context);
 
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
         final members = controller.membersOf(widget.channel.id);
         final complete = controller.membersAreComplete(widget.channel.id);
+        final silenced = canManage ? controller.bansIn(widget.channel.id) : const <ChannelBan>[];
+        // Members, then the silenced, then the note. Flattened into one list
+        // so the whole screen scrolls as one thing.
+        final extras = silenced.isEmpty ? 0 : silenced.length + 1;
 
         return Scaffold(
           appBar: AppBar(
             leading: const PrivioBackButton(),
-            title: Text(complete ? 'Members' : 'Who runs this channel'),
+            title: Text(complete ? text.membersTitle : text.membersWhoRuns),
           ),
           body: ListView.builder(
             // The note is a row of its own so it scrolls with the list rather
             // than sitting above it as a banner nobody reads twice.
-            itemCount: members.length + (complete ? 0 : 1),
+            itemCount: members.length + extras + (complete ? 0 : 1),
             itemBuilder: (context, index) {
-              if (!complete && index == members.length) return const _AudienceNote();
+              if (index >= members.length && index < members.length + extras) {
+                final offset = index - members.length;
+                if (offset == 0) return const _SilencedHeading();
+                final ban = silenced[offset - 1];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: PrivioSpacing.gutter,
+                    vertical: PrivioSpacing.xs,
+                  ),
+                  leading: const Icon(
+                    Icons.volume_off_rounded,
+                    color: PrivioColors.textTertiary,
+                  ),
+                  title: Text(ban.username),
+                  subtitle: Text(
+                    text.membersSilencedCanRead,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: TextButton(
+                    onPressed: () => _unsilence(ban),
+                    child: Text(text.membersAllowAgain),
+                  ),
+                );
+              }
+              if (!complete && index == members.length + extras) return const _AudienceNote();
               final member = members[index];
               final editable = canManage && !member.isOwner && member.id != state.accountId;
 
@@ -89,14 +151,14 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
                 leading: PrivioAvatar(label: member.label, seed: member.id.hashCode.abs()),
                 title: Text(member.label),
                 subtitle: Text(
-                  _describe(member),
+                  _describe(text, member),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 trailing: editable
                     ? IconButton(
                         onPressed: () => _edit(member),
                         icon: const Icon(Icons.tune_rounded, size: 20),
-                        tooltip: 'Role and permissions',
+                        tooltip: text.membersRoleAndPermissions,
                       )
                     : null,
               );
@@ -109,17 +171,20 @@ class _ChannelMembersScreenState extends State<ChannelMembersScreen> {
 
   /// A role name alone says nothing: two admins can hold entirely different
   /// powers, so the list spells out what each one actually has.
-  static String _describe(ChannelMember member) {
-    if (member.isOwner) return 'Owner · everything';
+  static String _describe(AppText text, ChannelMember member) {
+    if (member.isOwner) return text.membersOwnerEverything;
     final granted = <String>[
-      if (member.permissions.canPost) 'post',
-      if (member.permissions.canEditChannel) 'edit',
-      if (member.permissions.canDeletePosts) 'delete posts',
-      if (member.permissions.canManageMembers) 'manage members',
-      if (member.permissions.canDeleteChannel) 'delete channel',
+      if (member.permissions.canPost) text.membersGrantPost,
+      if (member.permissions.canEditChannel) text.membersGrantEdit,
+      if (member.permissions.canDeletePosts) text.membersGrantDeletePosts,
+      if (member.permissions.canManageMembers) text.membersGrantManageMembers,
+      if (member.permissions.canDeleteChannel) text.membersGrantDeleteChannel,
     ];
-    if (granted.isEmpty) return 'Subscriber · read only';
-    return '${member.role == 'admin' ? 'Admin' : 'Subscriber'} · ${granted.join(', ')}';
+    if (granted.isEmpty) return text.membersSubscriberReadOnly;
+    return text.membersRoleLine(
+      member.role == 'admin' ? text.adminsRoleAdmin : text.membersSubscriber,
+      granted.join(', '),
+    );
   }
 }
 
@@ -165,6 +230,7 @@ class _RoleSheetState extends State<_RoleSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final isAdmin = _role == 'admin';
 
     // Admin adds five toggles, which on a small screen is more than the sheet
@@ -192,9 +258,12 @@ class _RoleSheetState extends State<_RoleSheet> {
                     Text(widget.member.label, style: theme.textTheme.titleMedium),
                     const SizedBox(height: PrivioSpacing.lg),
                     SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'subscriber', label: Text('Subscriber')),
-                        ButtonSegment(value: 'admin', label: Text('Admin')),
+                      segments: [
+                        ButtonSegment(
+                          value: 'subscriber',
+                          label: Text(text.membersSubscriber),
+                        ),
+                        ButtonSegment(value: 'admin', label: Text(text.adminsRoleAdmin)),
                       ],
                       selected: {_role},
                       onSelectionChanged: (selected) => setState(() => _role = selected.first),
@@ -202,44 +271,43 @@ class _RoleSheetState extends State<_RoleSheet> {
                     const SizedBox(height: PrivioSpacing.lg),
                     if (isAdmin) ...[
                       _Toggle(
-                        label: 'Post',
+                        label: text.membersTogglePost,
                         value: _canPost,
                         allowed: widget.actor.canPost,
                         onChanged: (v) => setState(() => _canPost = v),
                       ),
                       _Toggle(
-                        label: 'Edit the channel',
+                        label: text.membersToggleEditChannel,
                         value: _canEditChannel,
                         allowed: widget.actor.canEditChannel,
                         onChanged: (v) => setState(() => _canEditChannel = v),
                       ),
                       _Toggle(
-                        label: 'Delete posts',
+                        label: text.membersToggleDeletePosts,
                         value: _canDeletePosts,
                         allowed: widget.actor.canDeletePosts,
                         onChanged: (v) => setState(() => _canDeletePosts = v),
                       ),
                       _Toggle(
-                        label: 'Manage members',
+                        label: text.membersToggleManageMembers,
                         value: _canManageMembers,
                         allowed: widget.actor.canManageMembers,
                         onChanged: (v) => setState(() => _canManageMembers = v),
                       ),
                       _Toggle(
-                        label: 'Delete the channel',
+                        label: text.membersToggleDeleteChannel,
                         value: _canDeleteChannel,
                         allowed: widget.actor.canDeleteChannel,
                         onChanged: (v) => setState(() => _canDeleteChannel = v),
                       ),
                       const SizedBox(height: PrivioSpacing.sm),
                       Text(
-                        'Greyed-out permissions are ones you do not hold yourself. '
-                        'Nobody can hand out more than they have.',
+                        text.membersGreyedOutNote,
                         style: theme.textTheme.bodySmall,
                       ),
                     ] else
                       Text(
-                        'A subscriber reads the channel and nothing else.',
+                        text.membersSubscriberNote,
                         style: theme.textTheme.bodySmall,
                       ),
                   ],
@@ -255,7 +323,7 @@ class _RoleSheetState extends State<_RoleSheet> {
                     onPressed: () => Navigator.of(context).pop(
                       _RoleChange(role: _role, permissions: _permissions),
                     ),
-                    child: const Text('Save'),
+                    child: Text(text.commonSave),
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(
@@ -266,7 +334,7 @@ class _RoleSheetState extends State<_RoleSheet> {
                       ),
                     ),
                     style: TextButton.styleFrom(foregroundColor: PrivioColors.danger),
-                    child: const Text('Remove from channel'),
+                    child: Text(text.membersRemoveFromChannel),
                   ),
                 ],
               ),
@@ -301,7 +369,7 @@ class _Toggle extends StatelessWidget {
       onChanged: allowed ? onChanged : null,
       contentPadding: EdgeInsets.zero,
       dense: true,
-      activeThumbColor: PrivioColors.accent,
+      activeThumbColor: context.accents.accent,
       title: Text(
         label,
         style: TextStyle(
@@ -317,6 +385,25 @@ class _Toggle extends StatelessWidget {
 /// Saying nothing would be the worse choice: a short list of admins looks like
 /// a small channel, and a reader deciding whether to post something personal
 /// deserves to know the roster is not on offer to the person beside them either.
+/// Marks the silenced off from the roster above them.
+class _SilencedHeading extends StatelessWidget {
+  const _SilencedHeading();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          PrivioSpacing.gutter,
+          PrivioSpacing.lg,
+          PrivioSpacing.gutter,
+          PrivioSpacing.xs,
+        ),
+        child: Text(
+          AppText.of(context).membersStoppedFromPosting,
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+      );
+}
+
 class _AudienceNote extends StatelessWidget {
   const _AudienceNote();
 
@@ -335,8 +422,7 @@ class _AudienceNote extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             Expanded(
               child: Text(
-                'Only the people who run this channel are listed. Who reads it '
-                'is not shown to other readers — including you.',
+                AppText.of(context).membersAudienceNote,
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall

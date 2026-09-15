@@ -13,13 +13,26 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
        -- An avatar is not a message attachment: it stays as long as it is
        -- someone's picture, and the sweep must not quietly blank profiles.
        AND NOT EXISTS (SELECT 1 FROM accounts a WHERE a.avatar_media_id = media_objects.id)
+       -- The same for a channel's picture — but only while the channel is
+       -- still there. A soft-deleted channel keeps its row forever, so without
+       -- the deleted_at test its picture would be held in storage by a
+       -- reference from something nobody can ever open again.
+       AND NOT EXISTS (
+         SELECT 1 FROM channels c
+          WHERE c.avatar_media_id = media_objects.id AND c.deleted_at IS NULL
+       )
      RETURNING storage_key`,
   );
   await Promise.all(rows.map((r) => storage.delete(r.storage_key).catch(() => {})));
 
-  // An envelope this old belongs to a device that is never coming back.
+  // An envelope this old belongs to a device that is never coming back — or
+  // one whose message was set to disappear and whose time is simply up. The
+  // second clause is what keeps a thirty-second message from sitting here for
+  // thirty days as ciphertext nobody will ever open.
   const { rowCount } = await pool.query(
-    `DELETE FROM envelopes WHERE created_at < now() - ($1 || ' days')::interval`,
+    `DELETE FROM envelopes
+      WHERE created_at < now() - ($1 || ' days')::interval
+         OR (expires_at IS NOT NULL AND expires_at <= now())`,
     [config.ENVELOPE_TTL_DAYS],
   );
 

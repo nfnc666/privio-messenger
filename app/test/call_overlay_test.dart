@@ -26,6 +26,8 @@ import 'package:privio/services/messaging_service.dart';
 import 'support/fake_call_peer.dart';
 import 'support/fake_voice.dart';
 
+import 'support/fake_sdp.dart';
+
 /// A signed-in app whose calls are driven by a fake connection.
 ///
 /// [launcher] is for the tests that switch a disguise on: the real one talks to
@@ -94,7 +96,10 @@ void main() {
 
     await calls.handleSignal(
       'acc-rosa',
-      const CallSignal(callId: 'call-1', action: CallAction.offer, sdp: 'sdp'),
+      CallSignal(callId: 'call-1', action: CallAction.offer, sdp: fakeSdp()),
+      // The key the session authenticated. A call with nothing behind the name
+      // is refused before it rings, which is a different test.
+      senderIdentityKey: 'identity-rosa',
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -133,7 +138,8 @@ void main() {
 
     await calls.handleSignal(
       'acc-rosa',
-      const CallSignal(callId: 'call-2', action: CallAction.offer, sdp: 'sdp'),
+      CallSignal(callId: 'call-2', action: CallAction.offer, sdp: fakeSdp()),
+      senderIdentityKey: 'identity-rosa',
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

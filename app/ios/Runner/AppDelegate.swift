@@ -18,6 +18,7 @@ import UIKit
     // `FlutterApplicationRegistrar`, and the messenger comes off that:
     // `FlutterEngine.h` and `FlutterPlugin.h` in the engine's own headers.
     PushBridge.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
+    LauncherIcon.attach(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - APNs

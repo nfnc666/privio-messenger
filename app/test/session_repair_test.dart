@@ -17,12 +17,13 @@ Future<String> deliver(
     devices: [bundle],
     plaintext: text,
   );
-  return to.crypto.openEnvelope(
+  final opened = await to.crypto.openEnvelope(
     senderAccountId: from.accountId,
     senderDeviceIndex: from.deviceIndex,
     type: sealed.single.type,
     content: sealed.single.content,
   );
+  return opened.body;
 }
 
 void main() {
@@ -93,7 +94,7 @@ void main() {
       type: reset.single.type,
       content: reset.single.content,
     );
-    expect(MessagePayload.decode(arrived).isSessionReset, isTrue);
+    expect(MessagePayload.decode(arrived.body).isSessionReset, isTrue);
 
     // Alice → Bob is the direction that was broken. It is the one that has to
     // work now, and it does without her doing anything.
@@ -104,12 +105,13 @@ void main() {
       plaintext: 'jetzt wieder',
     );
     expect(
-      await bob.crypto.openEnvelope(
+      (await bob.crypto.openEnvelope(
         senderAccountId: alice.accountId,
         senderDeviceIndex: alice.deviceIndex,
         type: sealed.single.type,
         content: sealed.single.content,
-      ),
+      ))
+          .body,
       'jetzt wieder',
     );
 

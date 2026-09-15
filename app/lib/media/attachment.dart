@@ -178,6 +178,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
@@ -216,6 +217,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// A reaction to one message.
@@ -253,6 +255,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// A request to take a message back.
@@ -292,6 +295,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// "Start again — I cannot read what you are sending."
@@ -304,6 +308,7 @@ class MessagePayload {
   /// working ratchet. Nothing about it is shown to either person.
   const MessagePayload.sessionReset()
       : sessionReset = true,
+        timerChange = false,
         receiptGroupId = null,
         body = '',
         mediaId = null,
@@ -369,7 +374,8 @@ class MessagePayload {
         mediaToken = null,
         sync = null,
         call = null,
-        sessionReset = false;
+        sessionReset = false,
+        timerChange = false;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
   /// — delivered late, or after the app was closed — can be recognised as stale
@@ -403,6 +409,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   const MessagePayload.media({
@@ -435,6 +442,7 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// One step in setting up, or tearing down, a call.
@@ -473,6 +481,7 @@ class MessagePayload {
         replySender = null,
         mediaToken = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
 
   /// A copy of something this account sent, for its own other devices.
@@ -508,7 +517,57 @@ class MessagePayload {
         replySender = null,
         call = null,
         sessionReset = false,
+        timerChange = false,
         receiptGroupId = null;
+
+  /// "This chat now deletes itself after N seconds" — or, with null, "it no
+  /// longer does".
+  ///
+  /// Control, never conversation: it changes a setting rather than saying
+  /// anything, so it must not become a bubble on the other side. The notice
+  /// each device writes about it is the device's own, composed locally.
+  ///
+  /// It exists because the timer used to travel only on the back of the next
+  /// real message. That is fine when there is one, and wrong when there is
+  /// not: someone turns disappearing messages on, says nothing further, and
+  /// the other side keeps writing into a chat it believes is permanent. The
+  /// number is the same one [MessagePayload.text] carries; null means off, and
+  /// is the reason this needs a tag of its own rather than an absent field.
+  ///
+  /// What the server learns from it is what it learns from any message: that
+  /// one went to this conversation at this moment. The value is inside the
+  /// ciphertext.
+  const MessagePayload.timerChange(this.expiresInSeconds)
+      : timerChange = true,
+        body = '',
+        sessionReset = false,
+        receiptGroupId = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        deleteTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -542,6 +601,11 @@ class MessagePayload {
     }
     if (json['t'] == 'reset') {
       return const MessagePayload.sessionReset();
+    }
+    if (json['t'] == 'timer') {
+      // `ex` absent means off, which is why this is read here rather than
+      // inferred from a missing field further down.
+      return MessagePayload.timerChange(expiresInSeconds);
     }
     if (json['t'] == 'delete') {
       return MessagePayload.deletion(json['dt'] as String? ?? '');
@@ -714,6 +778,12 @@ class MessagePayload {
   /// True on the payload that asks the other side to start a new session.
   final bool sessionReset;
 
+  /// True on the payload whose whole job is to change the chat's timer.
+  ///
+  /// A flag rather than "expiresInSeconds is set", because the change that
+  /// matters most — turning the timer off — carries no number at all.
+  final bool timerChange;
+
   /// On a receipt for group messages: which group they were in.
   ///
   /// The receipt itself is addressed to the author, not to the group — who read
@@ -776,6 +846,9 @@ class MessagePayload {
   bool get isReaction => reactionTo != null;
   bool get isSessionReset => sessionReset;
 
+  /// Whether this payload's only purpose is to move the chat's timer.
+  bool get isTimerChange => timerChange;
+
   /// True when the reaction takes one back rather than adding one.
   bool get clearsReaction => isReaction && (reactionEmoji ?? '').isEmpty;
 
@@ -789,6 +862,7 @@ class MessagePayload {
       isCall ||
       isSync ||
       isSessionReset ||
+      isTimerChange ||
       isDeletion;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
@@ -806,6 +880,7 @@ class MessagePayload {
   /// one branch can win.
   String get _typeTag {
     if (isSessionReset) return 'reset';
+    if (isTimerChange) return 'timer';
     if (isSync) return 'sync';
     if (isCall) return 'call';
     if (isDeletion) return 'delete';

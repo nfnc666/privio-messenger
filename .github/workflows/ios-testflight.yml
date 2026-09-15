@@ -397,6 +397,51 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # The purpose strings, checked in the artefact that is about to be sent
+      # rather than in the file they are supposed to come from.
+      #
+      # Build 13 was rejected with "ITMS-90683 – Missing purpose string in
+      # Info.plist: NSCameraUsageDescription". Apple's scan runs after the
+      # upload, so a missing string costs a full build, an upload, and the wait
+      # for the mail — for a value that could have been read out of the .ipa in
+      # a second. This step reads it out of the .ipa.
+      #
+      # The Info.plist inside a built .app is compiled to binary and has been
+      # through variable substitution, so this also catches the failures that
+      # reading the source file cannot see: a key dropped by a build setting,
+      # an unresolved $(VARIABLE), or a value that is present but empty.
+      - name: Check the purpose strings in the .ipa
+        run: |
+          set -euo pipefail
+          IPA="$(ls "$RUNNER_TEMP"/ipa/*.ipa | head -n 1)"
+          WORK="$RUNNER_TEMP/ipa-inspect"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          unzip -q "$IPA" "Payload/*.app/Info.plist" -d "$WORK"
+          PLIST="$(ls "$WORK"/Payload/*.app/Info.plist | head -n 1)"
+          [ -f "$PLIST" ] || {
+            echo "::error::No Info.plist inside $(basename "$IPA") — the export produced something unexpected."
+            exit 1
+          }
+
+          # Every framework this app links that Apple gates behind a purpose
+          # string. Add a key here in the same commit that adds the dependency
+          # needing it, and the first build after that says so instead of Apple.
+          missing=0
+          for key in NSCameraUsageDescription NSMicrophoneUsageDescription; do
+            value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$PLIST" 2>/dev/null || true)"
+            # Empty counts as missing: Apple rejects a blank string too, and it
+            # is what an unresolved build variable leaves behind.
+            if [ -z "${value// /}" ]; then
+              echo "::error::$key is missing or empty in the built app. Apple rejects this upload as ITMS-90683. Add it to app/ios/Runner/Info.plist."
+              missing=1
+            else
+              echo "$key: $value"
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "All required purpose strings are present in the app that is about to be uploaded."
+
       # Only when the run was started with `upload: yes`. An .ipa in the
       # artifacts is a build; a build in TestFlight is something testers can
       # install, which is a decision and not a side effect.

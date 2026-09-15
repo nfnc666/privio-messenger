@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -30,6 +32,7 @@ class _InviteScreenState extends State<InviteScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final username = PrivioScope.of(context).username ?? 'privio_user';
     final inviteUrl = 'https://privio.app/u/$username';
     final deepLink = 'privio://u/$username';
@@ -37,19 +40,19 @@ class _InviteScreenState extends State<InviteScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Invite'),
+        title: Text(text.inviteTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.all(PrivioSpacing.gutter),
         children: [
           _SegmentedTabs(
-            labels: const ['Invite Link', 'QR Code'],
+            labels: [text.inviteTabLink, text.inviteTabQr],
             selectedIndex: _tab,
             onSelected: (index) => setState(() => _tab = index),
           ),
           const SizedBox(height: PrivioSpacing.xxl),
           if (_tab == 0) ...[
-            Text('Your invite link', style: theme.textTheme.bodySmall),
+            Text(text.inviteYourLink, style: theme.textTheme.bodySmall),
             const SizedBox(height: PrivioSpacing.sm),
             Container(
               padding: const EdgeInsets.all(PrivioSpacing.lg),
@@ -62,22 +65,21 @@ class _InviteScreenState extends State<InviteScreen> {
                   Expanded(
                     child: Text(
                       inviteUrl,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: PrivioColors.accent),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: context.accents.accent),
                     ),
                   ),
                   IconButton(
                     onPressed: () =>
-                        unawaited(_copy(context, inviteUrl, 'Invite link copied')),
+                        unawaited(_copy(context, inviteUrl, text.inviteCopied)),
                     icon: const Icon(Icons.copy_rounded, size: 18),
-                    tooltip: 'Copy link',
+                    tooltip: text.inviteCopyLink,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'Share this link with others to invite them to Privio. It reveals '
-              'your username and nothing else.',
+              text.inviteNote,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.xl),
@@ -86,8 +88,8 @@ class _InviteScreenState extends State<InviteScreen> {
             // button does what the app can actually do, which is what the
             // small icon above already does, in the place a thumb reaches.
             FilledButton(
-              onPressed: () => unawaited(_copy(context, inviteUrl, 'Invite link copied')),
-              child: const Text('Copy invite link'),
+              onPressed: () => unawaited(_copy(context, inviteUrl, text.inviteCopied)),
+              child: Text(text.inviteCopyInviteLink),
             ),
           ] else ...[
             Center(
@@ -117,7 +119,10 @@ class _InviteScreenState extends State<InviteScreen> {
             ),
             const SizedBox(height: PrivioSpacing.xl),
             Center(
-              child: Text('Scan to connect with @$username', style: theme.textTheme.bodySmall),
+              child: Text(
+                text.inviteScanToConnect(username),
+                style: theme.textTheme.bodySmall,
+              ),
             ),
             // "Save to Photos" used to sit here and do nothing. Writing an
             // image to the gallery needs a platform plugin this app does not

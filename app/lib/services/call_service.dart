@@ -7,7 +7,11 @@ import 'package:flutter/widgets.dart';
 import '../calls/call.dart';
 import '../calls/ice_servers.dart';
 import '../calls/call_peer.dart';
+import '../calls/call_security.dart';
 import '../calls/call_signal.dart';
+import '../crypto/privio_crypto.dart';
+import '../crypto/safety_number.dart';
+import '../core/failure.dart';
 import '../core/secure_store.dart';
 import '../media/attachment.dart';
 import 'messaging_service.dart';
@@ -28,6 +32,7 @@ class CallService extends ChangeNotifier {
     required MessagingService messaging,
     required CallPeerFactory peers,
     required Future<CallParty?> Function(String accountId) lookUp,
+    Future<VerificationState> Function(String accountId)? verificationOf,
     IceServerCache? ice,
     SecureStore? store,
     Duration ringTimeout = const Duration(seconds: 45),
@@ -36,6 +41,7 @@ class CallService extends ChangeNotifier {
   })  : _messaging = messaging,
         _peers = peers,
         _lookUp = lookUp,
+        _verificationOf = verificationOf,
         _ice = ice,
         _store = store,
         _ringTimeout = ringTimeout,
@@ -45,6 +51,13 @@ class CallService extends ChangeNotifier {
   final MessagingService _messaging;
   final CallPeerFactory _peers;
   final Future<CallParty?> Function(String accountId) _lookUp;
+
+  /// Whether the user has compared safety numbers with an account.
+  ///
+  /// A callback rather than a dependency on the crypto object, for the same
+  /// reason [_peers] is one: the rules about when a call may happen should be
+  /// testable without a Signal store behind them.
+  final Future<VerificationState> Function(String accountId)? _verificationOf;
   final IceServerCache? _ice;
   final SecureStore? _store;
   final Duration _ringTimeout;
@@ -60,6 +73,51 @@ class CallService extends ChangeNotifier {
 
   /// The offer this device has been sent and not yet answered.
   String? _pendingOffer;
+
+  /// Strict mode: only call people whose safety number has been confirmed.
+  ///
+  /// Off unless the user turned it on. Read from the store at sign-in, because
+  /// a setting that only takes effect after a restart is a setting somebody
+  /// will believe is on when it is not.
+  bool _requireVerified = false;
+
+  bool get requireVerified => _requireVerified;
+
+  /// Clears the last refusal, once the person has read it.
+  void clearFailure() {
+    if (_failure == null) return;
+    _failure = null;
+    notifyListeners();
+  }
+
+  /// Turns strict mode on or off for the account signed in now.
+  ///
+  /// Takes effect on the next call, not on the next launch: a security setting
+  /// that waits for a restart is one somebody will believe is on when it is not.
+  Future<void> setRequireVerified(bool only, {String? accountId}) async {
+    if (_requireVerified == only && accountId == null) return;
+    _requireVerified = only;
+    if (accountId != null) await _store?.writeVerifiedCallsOnly(accountId, only);
+    notifyListeners();
+  }
+
+  /// Reads the setting back for [accountId] at sign-in.
+  Future<void> loadSettings(String accountId) async {
+    final only = await _store?.readVerifiedCallsOnly(accountId) ?? false;
+    if (only == _requireVerified) return;
+    _requireVerified = only;
+    notifyListeners();
+  }
+
+  CallGuard get _guard => CallGuard(requireVerified: _requireVerified);
+
+  /// Who the far end of the current call is, cryptographically. Fixed when the
+  /// call is admitted and checked against every signal after that.
+  CallPeerIdentity? _peerIdentity;
+
+  /// The far end's DTLS certificate, as committed to in the description that
+  /// set this call up. A second description naming another one is refused.
+  String? _pinnedFingerprint;
 
   /// Calls that are over, newest last.
   ///
@@ -87,7 +145,7 @@ class CallService extends ChangeNotifier {
   final List<String> _earlyCandidates = [];
 
   List<CallRecord> _history = const [];
-  String? _error;
+  Failure? _failure;
 
   ActiveCall? get current => _call;
 
@@ -98,7 +156,8 @@ class CallService extends ChangeNotifier {
   Widget? get remoteVideo => _peer?.remoteView();
   Widget? get localVideo => _peer?.localView();
   List<CallRecord> get history => List.unmodifiable(_history);
-  String? get error => _error;
+  /// Why the last call could not be opened, as a case for the screen to say.
+  Failure? get failure => _failure;
 
   /// True when a new call cannot be started because one is already up.
   bool get isBusy => _call?.isLive ?? false;
@@ -126,7 +185,24 @@ class CallService extends ChangeNotifier {
   /// microphone" before anyone's phone rings is better than after.
   Future<void> place(CallParty party, {CallMedia media = CallMedia.audio}) async {
     if (isBusy) return;
-    _error = null;
+    _failure = null;
+
+    // Checked before the microphone opens, so somebody whose number changed is
+    // told that rather than being shown a dialling screen that dies a second
+    // later. The far end's key is not known yet — the answer brings it — so
+    // what is checked here is what this device already holds about them.
+    final verification = await _verification(party.accountId);
+    if (verification == VerificationState.changed) {
+      _failure = callFailure(CallRefusal.identityChanged, who: party.username);
+      notifyListeners();
+      return;
+    }
+    if (_requireVerified && verification != VerificationState.verified) {
+      _failure = callFailure(CallRefusal.notVerified, who: party.username);
+      notifyListeners();
+      return;
+    }
+
     final call = ActiveCall(
       id: _newCallId(),
       party: party,
@@ -135,6 +211,9 @@ class CallService extends ChangeNotifier {
       state: CallState.dialling,
       startedAt: _now(),
       cameraOn: media.isVideo,
+      security: verification == VerificationState.verified
+          ? CallSecurity.verified
+          : CallSecurity.encrypted,
     );
     _call = call;
     notifyListeners();
@@ -143,6 +222,16 @@ class CallService extends ChangeNotifier {
     if (peer == null) return;
 
     final offer = await peer.createOffer();
+    // Our own description, checked with the same policy as theirs. If this
+    // device's own stack ever produced something that could end in plain RTP,
+    // sending it would be offering the other side the downgrade — and the
+    // check that catches it is the one already written.
+    final mine = _guard.admitSdp(offer);
+    if (mine.refusal != null) {
+      await _refuse(mine.refusal!);
+      return;
+    }
+
     await _send(
       party.username,
       CallSignal(
@@ -166,6 +255,11 @@ class CallService extends ChangeNotifier {
     if (peer == null) return;
 
     final answer = await peer.answerTo(offer);
+    final mine = _guard.admitSdp(answer);
+    if (mine.refusal != null) {
+      await _refuse(mine.refusal!);
+      return;
+    }
     _pendingOffer = null;
     call.state = CallState.connecting;
     notifyListeners();
@@ -229,6 +323,9 @@ class CallService extends ChangeNotifier {
     String senderAccountId,
     CallSignal signal, {
     DateTime? sentAt,
+    String? senderIdentityKey,
+    PeerTrust senderTrust = PeerTrust.pinned,
+    int? senderDeviceIndex,
   }) async {
     // A call that has already ended is not started again by anything that
     // arrives afterwards, whichever path it arrives on. This is the one check
@@ -241,7 +338,20 @@ class CallService extends ChangeNotifier {
     // An offer for the call that is already ringing, arriving a second time.
     // Rebuilding the call from it would restart the ring timeout, which is how
     // a duplicate delivery turns a missed call into one that rings forever.
+    //
+    // Unless it is not a duplicate. The same call id with a *different*
+    // certificate in it is a replayed offer with the far end swapped out, and
+    // the ringing screen already says who is calling. That one ends the call
+    // rather than being quietly dropped.
     if (signal.action == CallAction.offer && call != null && call.id == signal.callId) {
+      final sdp = signal.sdp;
+      final pinned = _pinnedFingerprint;
+      if (sdp != null && pinned != null) {
+        final second = _guard.admitSdp(sdp, pinned: pinned);
+        if (second.refusal != null) {
+          await _refuse(second.refusal!);
+        }
+      }
       return;
     }
 
@@ -265,11 +375,51 @@ class CallService extends ChangeNotifier {
       return;
     }
 
+    // Everything from here on is about a call this device is on, so it has to
+    // come from the person on it. The account id is the server's label and the
+    // key is not, which is why both are checked: see [CallGuard.admitSignal].
+    if (signal.action != CallAction.offer) {
+      final expected = _peerIdentity;
+      if (expected != null) {
+        final refusal = _guard.admitSignal(
+          expected: expected,
+          accountId: senderAccountId,
+          identityKey: senderIdentityKey,
+          trust: senderTrust,
+        );
+        if (refusal != null) {
+          await _refuse(refusal);
+          return;
+        }
+      } else if (call != null && call.isLive && senderAccountId != call.party.accountId) {
+        // An outgoing call that has not been answered yet has no key to check
+        // against — the answer is the first thing that arrives through a
+        // session. It does have a name: the one that was dialled. Without this,
+        // anyone who learned the call id could feed network paths into a call
+        // they are not on. DTLS would still refuse them the media, but they
+        // would be steering where this device tries to send it.
+        await _refuse(CallRefusal.wrongParty);
+        return;
+      }
+    }
+
     switch (signal.action) {
       case CallAction.offer:
-        await _ring(senderAccountId, signal);
+        await _ring(
+          senderAccountId,
+          signal,
+          identityKey: senderIdentityKey,
+          trust: senderTrust,
+          deviceIndex: senderDeviceIndex,
+        );
       case CallAction.answer:
-        await _answered(signal);
+        await _answered(
+          senderAccountId,
+          signal,
+          identityKey: senderIdentityKey,
+          trust: senderTrust,
+          deviceIndex: senderDeviceIndex,
+        );
       case CallAction.ice:
         await _candidate(signal);
       case CallAction.decline:
@@ -281,14 +431,59 @@ class CallService extends ChangeNotifier {
     }
   }
 
-  Future<void> _ring(String senderAccountId, CallSignal signal) async {
+  /// Ends a call because a security check failed, and says which one.
+  ///
+  /// There is no other branch. A check that does not pass does not downgrade
+  /// the call, retry it, or connect it and warn — it ends it, and the screen
+  /// carries the reason.
+  Future<void> _refuse(CallRefusal refusal) async {
+    final who = _call?.party.username ?? '';
+    _failure = callFailure(refusal, who: who);
+    // The other side is told the call is over. It is not told why: the reason
+    // is this device's finding about them, and a relay that learns which check
+    // fired learns which check to avoid next time.
+    await _finish(CallEnding.failed, tell: CallAction.hangUp);
+    notifyListeners();
+  }
+
+  Future<void> _ring(
+    String senderAccountId,
+    CallSignal signal, {
+    String? identityKey,
+    PeerTrust trust = PeerTrust.pinned,
+    int? deviceIndex,
+  }) async {
     if (isBusy) {
       await _tellBusy(senderAccountId, signal.callId);
       return;
     }
     final party = await _lookUp(senderAccountId) ??
         CallParty(accountId: senderAccountId, username: 'unknown');
-    _pendingOffer = signal.sdp;
+
+    // Both checks happen before the phone makes a sound. A call that is going
+    // to be refused should not ring first: the ring is the claim that somebody
+    // this device can name is on the line.
+    final admitted = _guard.admit(
+      accountId: senderAccountId,
+      identityKey: identityKey,
+      trust: trust,
+      deviceIndex: deviceIndex,
+      verification: await _verification(senderAccountId),
+    );
+    final offer = signal.sdp;
+    final sdp = offer == null
+        ? (fingerprint: null, refusal: CallRefusal.farEndNotBound)
+        : _guard.admitSdp(offer);
+
+    final refusal = admitted.refusal ?? sdp.refusal;
+    if (refusal != null) {
+      await _refuseIncoming(signal.callId, party, refusal);
+      return;
+    }
+
+    _peerIdentity = admitted.identity;
+    _pinnedFingerprint = sdp.fingerprint;
+    _pendingOffer = offer;
     _earlyCandidates.clear();
     _call = ActiveCall(
       id: signal.callId,
@@ -297,10 +492,45 @@ class CallService extends ChangeNotifier {
       media: signal.media,
       state: CallState.ringing,
       startedAt: _now(),
+      security: admitted.identity!.security,
     );
     _startRingTimeout();
     notifyListeners();
   }
+
+  /// Turns away an offer that failed a check, without ever ringing.
+  ///
+  /// It is still filed: a call that was refused is a thing that happened to
+  /// the user, and a log that hides it is a log that hides exactly the events
+  /// worth noticing.
+  Future<void> _refuseIncoming(String callId, CallParty party, CallRefusal refusal) async {
+    _markSettled(callId);
+    _failure = callFailure(refusal, who: party.username);
+    await _send(
+      party.username,
+      CallSignal(callId: callId, action: CallAction.hangUp, ending: CallEnding.failed),
+    ).catchError((Object _) {});
+    await _remember(
+      CallRecord(
+        id: callId,
+        accountId: party.accountId,
+        username: party.username,
+        direction: CallDirection.incoming,
+        media: CallMedia.audio,
+        at: _now(),
+        duration: Duration.zero,
+        ending: CallEnding.failed,
+      ),
+    );
+    notifyListeners();
+  }
+
+  /// What the user has made of that account's safety number.
+  ///
+  /// Unverified when nothing can answer, which is the honest reading: a call
+  /// is never *called* verified on the strength of a question nobody asked.
+  Future<VerificationState> _verification(String accountId) async =>
+      await _verificationOf?.call(accountId) ?? VerificationState.unverified;
 
   /// Whether an offer stored at [sentAt] is older than anyone would still wait.
   ///
@@ -342,16 +572,51 @@ class CallService extends ChangeNotifier {
     if (_settled.length > _settledLimit) _settled.removeAt(0);
   }
 
-  Future<void> _answered(CallSignal signal) async {
+  Future<void> _answered(
+    String senderAccountId,
+    CallSignal signal, {
+    String? identityKey,
+    PeerTrust trust = PeerTrust.pinned,
+    int? deviceIndex,
+  }) async {
     final call = _call;
     final peer = _peer;
-    final sdp = signal.sdp;
-    if (call == null || peer == null || sdp == null) return;
+    final answer = signal.sdp;
+    if (call == null || peer == null || answer == null) return;
     if (call.state != CallState.dialling) return;
+
+    // An outgoing call learns who it is really talking to here. Up to this
+    // point it had a username the user picked; the answer is the first thing
+    // that arrives through a session, so it is the first thing that proves
+    // anything — including that the person who picked up is the person dialled.
+    if (senderAccountId != call.party.accountId) {
+      await _refuse(CallRefusal.wrongParty);
+      return;
+    }
+    final admitted = _guard.admit(
+      accountId: senderAccountId,
+      identityKey: identityKey,
+      trust: trust,
+      deviceIndex: deviceIndex,
+      verification: await _verification(senderAccountId),
+    );
+    if (admitted.refusal != null) {
+      await _refuse(admitted.refusal!);
+      return;
+    }
+    final sdp = _guard.admitSdp(answer, pinned: _pinnedFingerprint);
+    if (sdp.refusal != null) {
+      await _refuse(sdp.refusal!);
+      return;
+    }
+    _peerIdentity = admitted.identity;
+    _pinnedFingerprint = sdp.fingerprint;
+    call.security = admitted.identity!.security;
+
     _cancelRingTimeout();
     call.state = CallState.connecting;
     notifyListeners();
-    await peer.acceptAnswer(sdp);
+    await peer.acceptAnswer(answer);
     await _flushEarlyCandidates(peer);
   }
 
@@ -436,6 +701,11 @@ class CallService extends ChangeNotifier {
     );
     _pendingOffer = null;
     _earlyCandidates.clear();
+    // Bound to the call that just ended, and to nothing else. Carrying either
+    // of these into the next call is how one call's far end becomes another
+    // call's assumption.
+    _peerIdentity = null;
+    _pinnedFingerprint = null;
     _markSettled(call.id);
     notifyListeners();
   }
@@ -449,7 +719,7 @@ class CallService extends ChangeNotifier {
     try {
       await peer.open(media: media);
     } on CallPeerException catch (failure) {
-      _error = failure.message;
+      _failure = failure.failure;
       await peer.close();
       await _finish(CallEnding.failed, tell: CallAction.hangUp);
       return null;

@@ -103,6 +103,11 @@ export interface TestUser {
   deviceId: string;
   username: string;
   token: string;
+
+  /// What they registered with, for the handful of routes that ask for the
+  /// password rather than trusting the session — handing a channel on, ending
+  /// an account. Not returned by the server; carried here by the helper.
+  password: string;
 }
 
 export async function registerUser(
@@ -116,7 +121,7 @@ export async function registerUser(
     payload: { username, password, device: deviceBody(deviceFixture()) },
   });
   if (response.statusCode !== 201) throw new Error(`register failed: ${response.body}`);
-  return response.json() as TestUser;
+  return { ...(response.json() as Omit<TestUser, 'password'>), password };
 }
 
 export function bearer(user: TestUser) {

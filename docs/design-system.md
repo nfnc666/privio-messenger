@@ -7,14 +7,31 @@ truth; this document is the machine-readable version of them, and
 
 ## Brand assets
 
-| File | Use |
-| --- | --- |
-| `design/logo/privio-logo-wordmark.png` | Splash screen, About screen, store listings |
-| `design/logo/privio-mark-transparent.png` | App icon, in-app mark, notification icon |
+Two files are the artwork as delivered. Everything else is cut from them by
+`tools/generate_brand_assets.py`, which is the only thing that writes a brand
+asset anywhere in this repository — re-run it after a re-delivery rather than
+editing a size by hand.
 
-The mark is a white speech bubble enclosing a white padlock. It is always solid
-white — never tinted green. The green in the product comes from the accent
-colour, never from the logo.
+| File | What it is |
+| --- | --- |
+| `design/logo/privio-icon-master.png` | **Delivered.** The app icon: the mark on true black, full bleed, square |
+| `design/logo/privio-wordmark-master.png` | **Delivered.** The horizontal lock-up on white |
+| `design/logo/privio-mark.png` | Derived. The mark alone, transparent |
+| `design/logo/privio-wordmark-light.png` | Derived. Transparent, black wordmark — for light surfaces |
+| `design/logo/privio-wordmark-dark.png` | Derived. Transparent, white wordmark — for dark surfaces |
+
+The mark is a green **P** whose counter is a speech bubble. The green is the
+logo's own and is never recoloured — not for a dark surface, not for a light
+one. What may change is the *wordmark*: black on light grounds, white on dark
+ones. Since every surface in the app is black, the app ships the dark cut.
+
+**Neither delivered file has an alpha channel.** The icon is green on solid
+black, the wordmark green-and-black on solid white. Transparency is derived by
+inverting the compositing equation, not by thresholding a background colour
+away — a "white becomes transparent" pass eats the antialiasing and leaves a
+pale fringe on every curve. The generator also floors coverage below 4/255,
+because the flat fields in both masters carry compression noise that would
+otherwise become a faint wash across the whole canvas.
 
 ## Colour tokens
 
@@ -22,13 +39,41 @@ Sampled from the mockups (JPEG, so values are normalised to clean hex).
 
 ### Accent
 
-| Token | Hex | Use |
+**The accent is a setting, not a constant.** Settings → Appearance offers eight,
+stored per account; green is the default and what a new account gets. Everything
+below is *derived from one seed* in `PrivioAccents.of` and carried on the theme
+as a `ThemeExtension`, so a screen asks `context.accents.accent` rather than
+naming a colour. The hexes in this table are what green produces — the shipped
+palette, which the derivation was fitted to reproduce exactly.
+
+| Token | Green | Use |
 | --- | --- | --- |
 | `accent` | `#22C55E` | Primary actions, active tab, sent-message ticks, toggles, online dots |
-| `accentBright` | `#4ADE80` | Pressed/hover states, the neon glow on the splash and loading screens |
-| `accentDim` | `#166534` | Disabled accent, outgoing bubble fill, subtle borders |
-| `accentSurface` | `#0F2A1A` | Accent-tinted panels: the E2EE banner, voice-note bubbles |
-| `bubbleOutgoing` | `#0B3B21` | Outgoing message bubbles (measured at ~#043019 in the mockups, lifted a shade for text crispness) |
+| `bright` | `#4ADE80` | Pressed/hover states, the neon glow on the splash and loading screens |
+| `dim` | `#166534` | Disabled accent, subtle borders |
+| `surface` | `#0F2A1A` | Accent-tinted panels: the E2EE banner, voice-note bubbles |
+| `bubbleOutgoing` | `#0B3B21` | Outgoing message bubbles |
+| `onAccent` | `#000000` | Text and icons **on** the accent |
+
+The eight seeds: green `#22C55E`, blue `#3B82F6`, turquoise `#14B8A6`, violet
+`#A855F7`, pink `#EC4899`, red `#F43F5E`, orange `#F97316`, yellow `#EAB308`.
+
+`onAccent` is measured, not chosen: `PrivioAccents.readableOn` takes whichever
+of black or white has the higher WCAG contrast against the seed. All eight
+currently land on black — white on `#A855F7` is 3.96:1 and fails AA for normal
+text, black is 5.31:1 — which is also what the app already did on green.
+`test/accent_test.dart` holds every offered colour to ≥3:1 against the black
+background and ≥4.5:1 for its own label, so a ninth accent cannot be added
+without the check running against it.
+
+**What the accent does not touch.** The black background and the grey cards are
+the app's shape rather than its colour. `danger` and `warning` mean something:
+red stays `#EF4444` for errors, deleting and hanging up in all eight themes,
+which is why the accent red is a rose (`#F43F5E`) rather than a second shade of
+the same thing. The brand mark's glow, the splash, and the disguise calculator
+keep the fixed green — the first two are the brand, and an accent-coloured
+calculator would be a tell. A channel keeps the colour *it* chose; a reader's
+setting changes their own app, never anybody else's content.
 
 ### Neutrals
 

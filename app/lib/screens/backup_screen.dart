@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/channel_text.dart';
 import '../data/recovery_key.dart';
 import '../services/backup_service.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -30,7 +33,9 @@ class _BackupScreenState extends State<BackupScreen> {
   BackupInterval _interval = BackupInterval.weekly;
   bool _loading = true;
   bool _working = false;
-  String? _error;
+  /// What went wrong, as a case rather than a sentence — the sentence is built
+  /// where it is drawn, in the reader's language.
+  _BackupError? _error;
 
   BackupService get _backup => PrivioScope.of(context).services.backup;
 
@@ -57,7 +62,7 @@ class _BackupScreenState extends State<BackupScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Could not reach Privio to check the backup.';
+        _error = _BackupError.couldNotReach;
       });
     }
   }
@@ -72,11 +77,11 @@ class _BackupScreenState extends State<BackupScreen> {
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backed up. Privio cannot read it.')),
+          SnackBar(content: Text(AppText.of(context).backupDone)),
         );
       }
     } on Object {
-      if (mounted) setState(() => _error = 'The backup could not be uploaded.');
+      if (mounted) setState(() => _error = _BackupError.uploadFailed);
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -92,9 +97,9 @@ class _BackupScreenState extends State<BackupScreen> {
           children: [
             for (final option in BackupInterval.values)
               ListTile(
-                title: Text(option.label),
+                title: Text(_intervalLabel(AppText.of(sheetContext), option)),
                 trailing: option == _interval
-                    ? const Icon(Icons.check_rounded, color: PrivioColors.accent)
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
                     : null,
                 onTap: () => Navigator.of(sheetContext).pop(option),
               ),
@@ -117,6 +122,7 @@ class _BackupScreenState extends State<BackupScreen> {
   }
 
   Future<void> _restore() async {
+    final text = AppText.of(context);
     final entered = await showDialog<String>(
       context: context,
       builder: (_) => const _EnterKeyDialog(),
@@ -125,7 +131,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
     final key = BackupService.parseScanned(entered);
     if (key == null) {
-      setState(() => _error = 'That does not look like a recovery key.');
+      setState(() => _error = _BackupError.badKey);
       return;
     }
 
@@ -140,16 +146,13 @@ class _BackupScreenState extends State<BackupScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Restored ${contents.conversations.length} conversation'
-            '${contents.conversations.length == 1 ? '' : 's'}.',
-          ),
+          content: Text(text.backupRestored(contents.conversations.length)),
         ),
       );
     } on Object {
       if (mounted) {
         setState(
-          () => _error = 'That key did not open the backup, or there is none to open.',
+          () => _error = _BackupError.keyDidNotOpen,
         );
       }
     } finally {
@@ -160,11 +163,12 @@ class _BackupScreenState extends State<BackupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
 
     return Scaffold(
       appBar: AppBar(
         leading: const PrivioBackButton(),
-        title: const Text('Backup'),
+        title: Text(text.settingsBackup),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -176,18 +180,18 @@ class _BackupScreenState extends State<BackupScreen> {
                   child: Icon(
                     _remote == null ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
                     size: 64,
-                    color: _remote == null ? PrivioColors.textTertiary : PrivioColors.accent,
+                    color: _remote == null ? PrivioColors.textTertiary : context.accents.accent,
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.xl),
                 SettingsSection(
                   children: [
-                    SettingsRow(label: 'Last backup', value: _formatLast()),
+                    SettingsRow(label: text.backupLast, value: _formatLast(text)),
                     SettingsRow(
-                      label: 'On the server',
-                      value: _remote == null ? 'Nothing yet' : _remote!.readableSize,
+                      label: text.backupOnServer,
+                      value: _remote == null ? text.backupNothingYet : _remote!.readableSize,
                     ),
-                    const SettingsRow(label: 'End-to-end encrypted', value: 'Always'),
+                    SettingsRow(label: text.chatEncrypted, value: text.backupAlways),
                   ],
                 ),
                 if (_error != null)
@@ -199,7 +203,7 @@ class _BackupScreenState extends State<BackupScreen> {
                       0,
                     ),
                     child: Text(
-                      _error!,
+                      _errorText(text, _error!),
                       style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.danger),
                     ),
                   ),
@@ -214,31 +218,29 @@ class _BackupScreenState extends State<BackupScreen> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Back up now'),
+                        : Text(text.backupNow),
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.lg),
                 SettingsSection(
                   children: [
                     SettingsRow(
-                      label: 'Automatic backup',
-                      value: _interval.label,
+                      label: text.backupAutomatic,
+                      value: _intervalLabel(text, _interval),
                       onTap: _chooseInterval,
                     ),
-                    SettingsRow(label: 'Recovery key', onTap: _showRecoveryKey),
-                    SettingsRow(label: 'Restore from backup', onTap: _working ? null : _restore),
+                    SettingsRow(label: text.backupRecoveryKey, onTap: _showRecoveryKey),
+                    SettingsRow(
+                      label: text.backupRestoreRow,
+                      onTap: _working ? null : _restore,
+                    ),
                   ],
                 ),
                 const SizedBox(height: PrivioSpacing.lg),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
                   child: Text(
-                    'Backups are sealed on this device with your recovery key. Privio '
-                    'cannot open them and cannot reset the key — if you lose it, the '
-                    'backup is gone. Write it down somewhere safe.\n\n'
-                    'A backup holds your conversations, not your keys: restoring on a '
-                    'new device gives you your history, and that device sets up its '
-                    'own identity for what comes next.',
+                    text.backupSealedNote,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -247,16 +249,15 @@ class _BackupScreenState extends State<BackupScreen> {
     );
   }
 
-  String _formatLast() {
+  String _formatLast(AppText text) {
     final last = _lastBackup;
-    if (last == null) return 'Never';
+    if (last == null) return text.backupNever;
     final now = DateTime.now();
     final sameDay = last.year == now.year && last.month == now.month && last.day == now.day;
     final time = '${last.hour.toString().padLeft(2, '0')}:'
         '${last.minute.toString().padLeft(2, '0')}';
-    if (sameDay) return 'Today, $time';
-    return '${last.day.toString().padLeft(2, '0')}.'
-        '${last.month.toString().padLeft(2, '0')}.${last.year}, $time';
+    if (sameDay) return text.backupToday(time);
+    return '${formatDate(text, last)}, $time';
   }
 }
 
@@ -275,7 +276,7 @@ class _RecoveryKeyDialog extends StatelessWidget {
     final theme = Theme.of(context);
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Recovery key'),
+      title: Text(AppText.of(context).backupRecoveryKey),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -305,21 +306,23 @@ class _RecoveryKeyDialog extends StatelessWidget {
             ),
             const SizedBox(height: PrivioSpacing.md),
             Text(
-              'Write this down. It is the only thing that opens your backups, '
-              'and nobody — including Privio — can produce it again for you.',
+              AppText.of(context).backupWriteItDown,
               style: theme.textTheme.bodySmall,
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppText.of(context).commonClose),
+        ),
         FilledButton(
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: recoveryKey.formatted));
             if (context.mounted) Navigator.of(context).pop();
           },
-          child: const Text('Copy'),
+          child: Text(AppText.of(context).commonCopy),
         ),
       ],
     );
@@ -346,7 +349,7 @@ class _EnterKeyDialogState extends State<_EnterKeyDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: PrivioColors.surfaceRaised,
-      title: const Text('Restore from backup'),
+      title: Text(AppText.of(context).backupRestoreRow),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,18 +364,39 @@ class _EnterKeyDialogState extends State<_EnterKeyDialog> {
           ),
           const SizedBox(height: PrivioSpacing.md),
           Text(
-            'This replaces whatever is on this device with what is in the backup.',
+            AppText.of(context).backupRestoreReplacesNote,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppText.of(context).commonCancel),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_key.text),
-          child: const Text('Restore'),
+          child: Text(AppText.of(context).backupRestore),
         ),
       ],
     );
   }
 }
+
+/// What can go wrong on this screen. Four cases, and none of them is a
+/// sentence until the screen draws it.
+enum _BackupError { couldNotReach, uploadFailed, badKey, keyDidNotOpen }
+
+String _errorText(AppText text, _BackupError failure) => switch (failure) {
+      _BackupError.couldNotReach => text.backupCouldNotReach,
+      _BackupError.uploadFailed => text.backupUploadFailed,
+      _BackupError.badKey => text.backupBadKey,
+      _BackupError.keyDidNotOpen => text.backupKeyDidNotOpen,
+    };
+
+/// How often, in the reader's language.
+String _intervalLabel(AppText text, BackupInterval interval) => switch (interval) {
+      BackupInterval.off => text.commonOff,
+      BackupInterval.daily => text.backupIntervalDaily,
+      BackupInterval.weekly => text.backupIntervalWeekly,
+    };

@@ -14,6 +14,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Five languages, and the machinery Flutter already has for them: ARB files
+  # compiled to a typed lookup, with English as the fallback for anything a
+  # translation has not caught up with.
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   # Talks to the Privio API. Nothing leaves the device unencrypted.
   http: ^1.2.2
   # Keychain on iOS, AES-GCM over the Keystore on Android. Holds the session
@@ -57,6 +63,15 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.1
+  # Channel links arriving from outside the app: a shared link tapped in
+  # WhatsApp, or the button on the invite page. Covers the cold start as well
+  # as the stream, which is the half that decides whether tapping an invitation
+  # on a phone without Privio open works at all.
+  app_links: ^6.3.2
+  # Opening a link somebody put in a channel post. Only ever called after the
+  # reader has confirmed the address in a dialog — see `widgets/linked_text.dart`
+  # for why a silent hand-off to the browser is the wrong default here.
+  url_launcher: ^6.3.1
   # Jumping to a message a search found. A plain ListView can only be told an
   # offset, and the offset of a message hundreds of lines up is not knowable
   # until it has been laid out. Pure Dart, from the Flutter team's own widgets
@@ -70,6 +85,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Builds lib/l10n/*.arb into AppLocalizations. See l10n.yaml.
+  generate: true
   assets:
     - assets/logo/
   # The typeface ships with the app. A Flutter web build otherwise fetches its

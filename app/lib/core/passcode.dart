@@ -32,19 +32,9 @@ enum PasscodeKind {
         PasscodeKind.phrase => null,
       };
 
-  String get label => switch (this) {
-        PasscodeKind.digits4 => '4 digits',
-        PasscodeKind.digits6 => '6 digits',
-        PasscodeKind.phrase => 'Passphrase',
-      };
-
-  String get description => switch (this) {
-        PasscodeKind.digits4 => 'Ten thousand combinations. Quick, and enough against '
-            'someone who picks the phone up.',
-        PasscodeKind.digits6 => 'A million combinations, and still a keypad.',
-        PasscodeKind.phrase => 'Letters, and digits or symbols if you want them. The only '
-            'one of the three that stands up to someone with the phone and time.',
-      };
+  // No `label` or `description` here. Both were English sentences produced by
+  // a model class, which cannot know which of the app's five languages the
+  // person reading is in. The screens turn these three values into words.
 
   /// The shortest phrase worth calling one. Below this it is a four-digit code
   /// with extra steps.
@@ -61,19 +51,27 @@ enum PasscodeKind {
           value.length >= minimumPhraseLength && value.contains(RegExp('[A-Za-z]')),
       };
 
-  /// Why [value] is not acceptable, in words the person can act on.
-  String? complaintAbout(String value) {
+  /// Why [value] is not acceptable — as a case, not a sentence. The screen
+  /// that asked turns it into words.
+  PasscodeComplaint? complaintAbout(String value) {
     if (accepts(value)) return null;
     return switch (this) {
-      PasscodeKind.digits4 => 'Four digits.',
-      PasscodeKind.digits6 => 'Six digits.',
+      PasscodeKind.digits4 => PasscodeComplaint.needsFourDigits,
+      PasscodeKind.digits6 => PasscodeComplaint.needsSixDigits,
       PasscodeKind.phrase => value.length < minimumPhraseLength
-          ? 'At least $minimumPhraseLength characters.'
-          : 'A passphrase needs at least one letter. Digits and symbols are '
-              'welcome alongside it.',
+          ? PasscodeComplaint.phraseTooShort
+          : PasscodeComplaint.phraseNeedsLetter,
     };
   }
 
   static bool _isDigits(String value) =>
       value.isNotEmpty && !value.contains(RegExp('[^0-9]'));
+}
+
+/// What is wrong with a passcode somebody typed.
+enum PasscodeComplaint {
+  needsFourDigits,
+  needsSixDigits,
+  phraseTooShort,
+  phraseNeedsLetter,
 }

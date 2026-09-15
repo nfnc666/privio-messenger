@@ -1,3 +1,4 @@
+import 'call_security.dart';
 import 'call_signal.dart';
 
 /// Who started it.
@@ -48,6 +49,7 @@ class ActiveCall {
     required this.media,
     required this.state,
     required this.startedAt,
+    this.security = CallSecurity.encrypted,
     this.connectedAt,
     this.ending,
     this.muted = false,
@@ -64,6 +66,13 @@ class ActiveCall {
   final CallMedia media;
 
   CallState state;
+
+  /// What was actually checked before this call was allowed to exist.
+  ///
+  /// Not a claim the screen makes on its own: a call only reaches this object
+  /// once [CallGuard] has admitted it, so the padlock is reporting a finding.
+  /// There is no value here for "not encrypted" because there is no such call.
+  CallSecurity security;
 
   /// When it began — the offer, not the pick-up.
   final DateTime startedAt;

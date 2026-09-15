@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../core/secure_store.dart';
+import '../models/channel.dart';
 import '../models/models.dart';
 import 'message_store.dart';
 import 'outbox.dart';
@@ -99,16 +100,42 @@ class KeystoreArchiveStorage implements ArchiveStorage {
 /// Everything the archive holds: the history, and what has not gone out yet.
 @immutable
 class ArchiveContents {
-  const ArchiveContents({this.conversations = const [], this.outbox = const []});
+  const ArchiveContents({
+    this.conversations = const [],
+    this.outbox = const [],
+    this.channelPosts = const {},
+  });
 
   final List<Conversation> conversations;
   final List<PendingSend> outbox;
+
+  /// Channel posts, by channel id, so a channel opened with no network shows
+  /// what was there last time instead of an empty feed.
+  ///
+  /// Pointers only — a post's attachment is kept as its media id, token, type
+  /// and size, never as decrypted bytes. See [ChannelPost.toCacheJson].
+  final Map<String, List<ChannelPost>> channelPosts;
 }
 
 /// The decrypted conversation history, at rest.
 abstract interface class MessageArchive {
-  Future<ArchiveContents> load();
-  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox});
+  /// Reads the history back, but only if it belongs to [accountId].
+  ///
+  /// The owner is checked rather than assumed. A sign-out clears this and the
+  /// keystore in two separate writes, and a phone that is killed between them
+  /// leaves a history behind with no session — which the next account to sign
+  /// in on that device would otherwise load as its own. Passing null means
+  /// "whoever wrote it", which is only right before an account is known.
+  Future<ArchiveContents> load({String? accountId});
+
+  /// Seals the history, stamped with the account it belongs to.
+  Future<void> save(
+    List<Conversation> conversations, {
+    List<PendingSend> outbox,
+    String? accountId,
+    Map<String, List<ChannelPost>> channelPosts,
+  });
+
   Future<void> clear();
 
   /// The size of the sealed history on this device.
@@ -120,10 +147,15 @@ class NoArchive implements MessageArchive {
   const NoArchive();
 
   @override
-  Future<ArchiveContents> load() async => const ArchiveContents();
+  Future<ArchiveContents> load({String? accountId}) async => const ArchiveContents();
 
   @override
-  Future<void> save(List<Conversation> conversations, {List<PendingSend> outbox = const []}) async {}
+  Future<void> save(
+    List<Conversation> conversations, {
+    List<PendingSend> outbox = const [],
+    String? accountId,
+    Map<String, List<ChannelPost>> channelPosts = const {},
+  }) async {}
 
   @override
   Future<void> clear() async {}
@@ -179,7 +211,7 @@ class EncryptedMessageArchive implements MessageArchive {
   }
 
   @override
-  Future<ArchiveContents> load() async {
+  Future<ArchiveContents> load({String? accountId}) async {
     final sealed = await _storage.read();
     if (sealed == null || sealed.length < 1 + _nonceLength + _macLength) {
       return const ArchiveContents();
@@ -209,8 +241,25 @@ class EncryptedMessageArchive implements MessageArchive {
         return ArchiveContents(conversations: ArchiveCodec.decode(decoded));
       }
       final map = decoded as Map<String, dynamic>;
+      // Whose history this is. An archive written before this field existed
+      // carries no owner and is accepted — it predates multi-account and there
+      // is nobody it could wrongly belong to. One that names a *different*
+      // account is refused outright: it is the previous user's history, and
+      // handing it to whoever signed in next is the whole bug this guards.
+      final owner = map['accountId'] as String?;
+      if (accountId != null && owner != null && owner != accountId) {
+        return const ArchiveContents();
+      }
       return ArchiveContents(
         conversations: ArchiveCodec.decode(map['conversations'] as List<dynamic>? ?? const []),
+        channelPosts: {
+          for (final entry
+              in (map['channelPosts'] as Map<String, dynamic>? ?? const {}).entries)
+            entry.key: [
+              for (final raw in entry.value as List<dynamic>? ?? const [])
+                if (ChannelPost.fromCacheJson(raw) case final post?) post,
+            ],
+        },
         outbox: [
           for (final raw in map['outbox'] as List<dynamic>? ?? const [])
             PendingSend.fromJson(raw as Map<String, dynamic>),
@@ -227,13 +276,25 @@ class EncryptedMessageArchive implements MessageArchive {
   Future<void> save(
     List<Conversation> conversations, {
     List<PendingSend> outbox = const [],
+    String? accountId,
+    Map<String, List<ChannelPost>> channelPosts = const {},
   }) async {
     final plain = utf8.encode(
       jsonEncode({
+        // Inside the sealed payload, not beside it: an owner a thief could
+        // rewrite would be worse than no owner at all.
+        if (accountId != null) 'accountId': accountId,
         'conversations': ArchiveCodec.encode(conversations),
         // Already-sealed recordings, so nothing plaintext reaches storage even
         // while a send is waiting for a network.
         'outbox': [for (final pending in outbox) pending.toJson()],
+        // What a channel looked like last time it was fetched. Inside the same
+        // sealed payload as everything else, and holding no file bytes.
+        if (channelPosts.isNotEmpty)
+          'channelPosts': {
+            for (final entry in channelPosts.entries)
+              entry.key: [for (final post in entry.value) post.toCacheJson()],
+          },
       }),
     );
     final box = await _cipher.encrypt(plain, secretKey: await _key());
@@ -317,6 +378,10 @@ abstract final class ArchiveCodec {
                       'replySender': message.replySender,
                   },
                   if (message.reactions.isNotEmpty) 'reactions': message.reactions,
+                  // The event behind a system notice, so a restored archive
+                  // still renders it in whatever language the reader is in
+                  // now — rather than in the one it was written in.
+                  if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
                       for (final entry in message.receipts.entries)
@@ -380,6 +445,7 @@ abstract final class ArchiveCodec {
             replyToId: message['replyToId'] as String?,
             replyPreview: message['replyPreview'] as String?,
             replySender: message['replySender'] as String?,
+            notice: SystemNotice.fromJson(message['notice'] as Map<String, dynamic>?),
             reactions: (message['reactions'] as Map<String, dynamic>? ?? const {})
                 .map((key, value) => MapEntry(key, value as String)),
             receipts: (message['receipts'] as Map<String, dynamic>? ?? const {}).map(

@@ -175,6 +175,38 @@ and roughly how large it is. Rotating the profile key after removing a contact
 is not implemented; today a former contact keeps the key they were given, which
 matters when the picture changes rather than when it does not.
 
+### A channel's picture is not encrypted, and that is deliberate
+
+A channel picture is a label on a door, not a message. It is **not** sealed —
+for any channel, public or private — and the app does not claim otherwise.
+
+It was sealed for private channels once. That cost more than it bought: the
+picture could not be shown until the channel key had reached the device, and
+because its download capability lived inside the sealed metadata, a key rotation
+that raced the upload could drop it with nothing left to restore it from. The
+posts are what the encryption is for.
+
+What a private channel's picture gets instead is an **authorisation** rule:
+
+- A **public** channel's picture is served to anyone, including the invite page
+  and whatever messenger draws its link preview. Its title, description and
+  handle are already plaintext for the same reason — discovery cannot search
+  ciphertext.
+- A **private** channel's picture is served **only to its members**. The server
+  can read it; a stranger with the media id gets a 404.
+- A `channel_avatar` object **no channel points at** is nobody's picture, and
+  only its uploader may fetch it — so an id is not a download before it has
+  been attached to anything.
+
+This is a weaker promise than encryption and it is stated rather than implied:
+**the operator of a Privio server can see channel pictures.** Messages, message
+attachments, a channel's posts and a private channel's *name* remain
+end-to-end encrypted and are not affected.
+
+Every picture is still re-encoded to a 512×512 JPEG before upload, which strips
+camera metadata — a picture is the one file people upload without thinking about
+where it was taken.
+
 ### Groups
 
 The server keeps a membership list, because it has to fan messages out. It does
@@ -233,8 +265,8 @@ everything, and the encryption would be decoration.
 
 **What is deliberately in the clear.** Search cannot run over ciphertext, so a
 public channel's handle, title, description and category are plaintext columns.
-Nothing else is: the posts are not, and a private channel's title is sealed like
-a group's. A private channel is also never listed, never searchable, and answers
+Beyond those, one thing: reactions, below. The posts are not, and a private
+channel's title is sealed like a group's. A private channel is also never listed, never searchable, and answers
 a stranger asking about it exactly as it answers about a channel that does not
 exist.
 
@@ -249,6 +281,135 @@ people who run the channel — whose names are already on every post they
 publish — plus their own row. The response says which of the two it is, and the
 app labels the screen accordingly rather than passing a staff list off as the
 whole membership.
+
+**Reactions are the exception, and it is a real one.** A reaction is stored as
+a row of `(post_id, account_id, emoji)` in the clear. The server therefore knows
+which account responded to which post, with which of the channel's emojis, and
+when. It still cannot read the post — that says nothing about *what* was
+reacted to — but "who responded to what" is metadata, and this is the only place
+in a channel where the server holds something a member chose.
+
+There is no version of the feature that avoids it. A count has to be counted
+somewhere, and the server is the one place every member can agree on; the
+account id beside it is what stops one person counting ten times and what lets
+them take a reaction back. Anonymous counters give up both. The choice was
+between the feature and the metadata, so the metadata is held visibly and said
+out loud here rather than left for somebody to find in a migration.
+
+What is *not* done with it: the list of who reacted is never served to anybody,
+including admins. The feed answers with a total per emoji plus the reader's own,
+and there is no route that returns the rows. Reactions raise no push
+notification. A deleted post has its reactions deleted with it in the same
+transaction — the soft delete means the cascade does not fire on its own, and a
+record of who responded must not outlive its subject.
+
+The emoji itself is not free text. It has to be one of the channel's own
+configured set, which an admin picks from a fixed palette of symbols: an
+unconstrained column here would let an admin write captions into a readable
+column under every post. The server enforces that, not the screen that hides the
+field.
+
+**Comments are sealed; moderating them is therefore blunt on purpose.** A
+comment is encrypted with the same channel key as the post it hangs under, at
+the same epoch, and refused under a superseded one exactly as a post is. The
+server stores ciphertext and cannot read a word of it — which sets the limit on
+what moderation can be: removing a row, and stopping an account writing more.
+There is no filtering a server cannot read, and a channel that advertised one
+would be advertising something it would have to break encryption to deliver.
+Threads are off until a channel's owner turns them on, because a channel is a
+broadcast and threads change what the thing is.
+
+**Handing a channel on needs the password, not the session.** Every other
+admin action in a channel trusts the signed-in device, and that is right for
+things an owner can undo. A transfer is not one: afterwards they are an admin
+in somebody else's channel and the new owner can remove them. A phone left
+unlocked on a table should not be able to give a channel away. The new owner
+must already be a member — handing a channel to somebody outside it would put a
+stranger in charge of a key they do not hold — and the old owner stays on as an
+admin with everything except the right to delete the channel. A handover is not
+an ejection; whoever takes over can do that afterwards if that is what was
+meant. The transfer is recorded, because "who gave this away and when" is the
+first question an owner who loses a channel asks, and a role column cannot
+answer it.
+
+**A report's reason is five fixed words, never a text box.** A free field is
+where somebody pastes the content they are reporting — which would put the very
+thing the encryption protects into a column the server can read, written by a
+person with every reason to. What a report can deliver is limited by the same
+design: the server cannot read a channel's posts, so an operator gets the
+channel's id and the reason. For a public channel there is also its title,
+description and handle, which are plaintext for search; for a private one there
+is nothing to look at. The screen says exactly that rather than implying an
+investigation that cannot happen. One standing report per person per channel:
+reporting twice is not twice as true, and a counter people can run up is a way
+to brigade a channel.
+
+**There is no view count, and that is a decision.** A channel's statistics are
+counted from rows that exist for their own reasons — members, posts, reactions,
+comments, votes. Counting who has *read* a post, deduplicated, means a row per
+reader per post: a record of what each person read, produced by people who are
+only reading and have chosen nothing. That is a larger disclosure than anything
+else in a channel, and it is the one place where the obvious feature was left
+out rather than built and explained away. Approximating it without identities
+was considered — a per-post sketch or bitmap — and rejected: a fixed-size
+bitmap answers "was this account among the readers" far too well to be called
+anonymous.
+
+**An invite link can be revoked, and revoking is replacing.** A channel has one
+link, with three limits on it: an expiry, a number of joins, and whether it puts
+people in a queue instead of in the room. Revoking rotates the code — the new
+one takes effect the moment it is written and every copy of the old one stops
+resolving, in messages, on posters, in somebody's clipboard. There is no list of
+past codes and no grace period, because a link that still half-works is the
+thing being revoked. The use counter goes back to zero with it: a limit belongs
+to the link that was handed out, not to the channel.
+
+The counter counts joins, not clicks. Opening a link, reading the preview and
+walking away does not use it up, and a member tapping their own link again does
+not either.
+
+An expired or used-up link answers `invite_expired` rather than "no such
+channel": whoever holds it is already looking at the channel's preview, so
+hiding it now would only confuse. A *wrong* code for a private channel still
+answers 404 — that is the case where the existence is the secret. And a public
+channel is not closed by its link running out: the link's settings govern the
+link, not the channel's own front door.
+
+**Asking first is not membership.** Somebody who follows a link into a channel
+that asks holds no key, is sent nothing, is not counted, and cannot read the
+feed. What the row records is that they knocked — it exists so an admin sees it,
+since the alternative is a link that silently does nothing. No key request is
+raised for them and no key-holder is woken: sealing a key to somebody an admin
+has not let in would be handing over the channel.
+
+**A poll's question is not in the database.** The question and the answers
+travel inside the post's sealed payload, with its text, so the server never
+learns what was asked or what the options were called. What it holds is the
+shape — how many options, how many a person may pick, when it closes — because
+it is the thing enforcing that a vote is in range, that nobody picks four
+answers in a two-answer poll, and that a closed poll stays closed. A
+client-side rule is a suggestion; these three integers say nothing about
+content and let the server enforce a real one.
+
+A vote is `(post_id, account_id, option_index)` in the clear, so the server
+knows that an account picked option 2 of a question it cannot read. That is
+strictly less than it learns from a reaction, where the emoji itself is
+readable, and it is there for the same two reasons: it stops one person voting
+ten times and it lets them change their mind. Who voted for what is held and
+never served — the feed answers with a count per option and the reader's own
+choices, and there is no route that returns the rows. A silenced member has no
+vote either, because a vote is a voice.
+
+**Silencing is not removal, and the difference is the point.** Removing somebody
+rotates the channel key and cuts them off from reading as well — the right
+answer to "should not be here", and much too heavy an answer to "will not stop
+arguing under every post". A ban stops comments *and* reactions, since a
+reaction is a way of speaking too, and leaves the reading alone. The owner
+cannot be silenced, and only the owner can silence an admin: otherwise an admin
+could work around the permission system by muting the people who hold it. Who
+is silenced is a moderation record served to admins only — as a list it would
+name who else reads the channel, which is the thing the members endpoint
+already refuses to do.
 
 A group is different on purpose: it is a mutual construct, capped and
 invite-only, where every member is already known to every other. There the list
@@ -696,12 +857,37 @@ device, and says nothing about the message. Without it the honest choice would
 be between losing recordings and delivering them twice.
 
 **Disappearing messages.** The timer is carried inside the sealed payload and
-applied by both devices from their own clocks. The server is not asked to delete
-anything on a schedule, because a server asked to forget is a server trusted to.
-There is no separate "the timer changed" packet, either: a change reaches the
-other side on the next message, and inventing a packet for it would tell the
-server that something about this conversation changed at this moment, for
-nothing.
+applied by every device from its own clock. The deletion that matters is the one
+the devices do: the server is never trusted to forget on request.
+
+A change is also sent in a payload of its own (`t: "timer"`), end-to-end
+encrypted like everything else. It used to ride only on the back of the next
+real message, which is fine when there is one and wrong in the case that matters
+most — somebody turns disappearing messages on, says nothing further, and the
+other side keeps writing into a chat it still believes is permanent. What the
+server learns from the announcement is what it learns from any message: that one
+went to this conversation at this moment. It is a control payload, so it never
+becomes a bubble, and it is deliberately *not* given the retention bound below —
+a thirty-second bound on the message announcing a thirty-second timer would
+delete the announcement off a device that happened to be asleep.
+
+**What the server is told, and why.** Alongside the ciphertext, a send may carry
+`expiresInSeconds` in the clear, which becomes `envelopes.expires_at`. It bounds
+how long the server keeps an envelope it could not deliver, and the retention
+sweep removes it when the time is up. This is a deliberate metadata disclosure,
+named in migration 024: without it, a message set to vanish in thirty seconds
+sits on the server as ciphertext for the full retention period, waiting for a
+device that may never come back. The server learns a retention hint on one
+envelope; it does not learn what any chat's timer is, and nothing it holds is
+readable either way.
+
+The same applies to an attachment's blob: `POST /v1/media?expiresInSeconds=…`
+shortens `media_objects.expires_at`, and the sweep deletes the bytes with it.
+The value is clamped — never longer than the ordinary retention, never shorter
+than an hour — and ignored for avatars, which are not message attachments. The
+client asks for twice the timer plus a day, because the two clocks run one after
+the other: the sender's from the send, the recipient's from whenever their device
+actually picks the message up.
 
 **The clock starts when the message reaches the server, not when it was
 written.** On the receiving side it starts on arrival, which is the same moment
@@ -727,11 +913,27 @@ An expired message takes its decrypted attachment with it. The bubble
 disappearing while the photo stays in the session's plaintext cache is the
 version of this that does not work.
 
-In a group, any member can set it, not only an admin: the mechanism is the
-sender's own number riding inside their own payloads, so a member who wants
-their messages to go can already make that happen. A permission the protocol
-cannot enforce would be a lock drawn on the screen with nothing behind it; the
-announcement is the honest version of the same protection.
+**In a group, only an admin can set it**, and that is enforced where it can be
+rather than only drawn on a screen. The role is the server's — what
+`GET /v1/groups` and `GET /v1/groups/:id` say, never something a device decided
+for itself — and it is checked twice: once on the device making the change, and
+again on *every device that receives one*, which asks the server for the group's
+members before applying it. A patched client can send the payload; nobody acts
+on it.
+
+For the same reason a group's timer is no longer read back off ordinary
+messages. Doing that handed the setting to every member one message at a time,
+and checking a role per message would be a request to the server for each one.
+A group message still lives under the group's timer — that is read from the
+conversation, not from what arrived.
+
+In a one-to-one chat both sides may change it. It is their conversation, and
+there is nobody else's expectation to break.
+
+**Restores and backups.** A restored history is pruned before it is adopted, and
+again on every launch. A backup is a snapshot of a moment; a message that has run
+out since is still gone, and restoring one would undo the feature with a single
+tap on a copy its sender never agreed to.
 
 What none of this buys: a recipient who wants to keep a message can keep it —
 by recording the screen, by holding a second phone up to the speaker, by
@@ -795,6 +997,13 @@ any future weakness in the cipher.
 to contacts on purpose, so a token would be published with it and buy nothing.
 They are authorised by the contact list instead: the owner, or an account that
 has the owner as a contact. A stranger with the id is refused.
+
+**A public channel's picture is the third kind, and is authorised by nothing.**
+`channel_avatar` is served to any caller, and to the web page with no caller at
+all. That is what the kind means: these are the bytes a link preview draws. A
+*private* channel's picture is not this kind — it is an ordinary sealed
+attachment behind its token, and the server refuses to let a private channel
+point at the published kind at all.
 
 **"Not yours" and "no such thing" are the same answer.** Telling them apart
 would say whether an id exists.
@@ -888,6 +1097,37 @@ what it knows about a message: which two accounts, and when.
 **The media is libwebrtc's.** DTLS-SRTP, keys agreed in the handshake between
 the two devices, implemented by the library rather than by Privio. The rule
 against writing our own cryptography applies here as everywhere.
+
+**There is no unencrypted call.** Every session description, incoming and
+outgoing, is read before it is used and refused unless every media section is
+on a DTLS-protected profile, carries no `a=crypto` (SDES puts the media key in
+the document), and commits to one certificate over a strong hash. Plain
+`RTP/AVP` is legal SDP and would be audio in the clear; it is refused, and so
+is any transport profile the policy does not recognise. See
+`app/lib/calls/sdp_policy.dart`.
+
+**The far end is a key, not the name beside it.** `senderAccountId` on an
+envelope is written by the server, so a relay can put any name on anything. It
+cannot make a message open under a key it does not hold — and if it supplies
+its own key under a name this device already pinned, that is a *replacement*,
+and `openEnvelope` reports it. A call whose envelope arrived under a replaced
+key does not ring: the account matching is not enough, and neither is the key
+alone, so both are checked, for the offer and for every signal after it. This
+is stricter than messages deliberately — a message from a changed key is shown
+with a warning, a call is refused, because a call hands over a live microphone
+before anybody can read a warning.
+
+**First contact is still trust on first use**, pinned and never called
+verified. Refusing it would mean nobody could call before writing, and would
+close nothing: on first contact there is by definition nothing to compare.
+"Only calls from verified contacts", off by default and stored per account,
+is the switch for whoever wants the stronger rule.
+
+**A failed check ends the call and says so.** No downgrade, no retry, no
+connect-and-warn. The other side is told the call is over and not which check
+fired, because a relay that learns which check to avoid avoids it. The screen
+says "end-to-end encrypted · verified" only where a person compared a safety
+number. Full account, with the tests that hold each rule: `docs/calls-security.md`.
 
 **What a call still leaks.** Once media flows peer to peer, each side learns
 the other's IP address — that is what a direct connection is. A TURN relay
@@ -1072,6 +1312,16 @@ phone sees what a typo looks like.
 
 **It cannot be the password.** The server refuses to store one that is, because
 an ordinary sign-in would then destroy the account.
+
+**The screen it leaves behind is not a dead end.** At the lock screen the wipe
+destroys the passcode along with everything else, so what it leaves is a lock
+with no input that opens it — the owner's included. The wipe itself still
+passes unremarked, which is what makes it survivable to trigger; it is the
+entry after it that leaves for the sign-in screen. That is where a restart
+already landed, and where a fresh install starts, so nothing is disclosed by
+going there a few seconds earlier. It is the same reasoning that has the wipe
+clear the disguise: an app its own owner cannot get back into is not a safer
+app.
 
 **It is hashed on the device, not stored.** Once the passcode moved behind
 Argon2id, the duress code was the last thing in the local store still written as

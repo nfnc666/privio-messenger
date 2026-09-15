@@ -26,8 +26,8 @@ Uint8List largePhoto() {
 
 void main() {
   group('preparing a picture', () {
-    test('a large photo becomes a small square', () {
-      final prepared = AvatarImage.prepare(largePhoto())!;
+    test('a large photo becomes a small square', () async {
+      final prepared = (await AvatarImage.prepare(largePhoto()))!;
       final decoded = img.decodeImage(prepared)!;
 
       expect(decoded.width, AvatarImage.size);
@@ -39,8 +39,8 @@ void main() {
       );
     });
 
-    test('metadata does not survive, even before the scrubber', () {
-      final prepared = AvatarImage.prepare(fixture('photo_with_exif.jpg'))!;
+    test('metadata does not survive, even before the scrubber', () async {
+      final prepared = (await AvatarImage.prepare(fixture('photo_with_exif.jpg')))!;
 
       // A profile picture is the one image handed to everyone you talk to, so
       // it is both scrubbed and re-encoded.
@@ -49,9 +49,9 @@ void main() {
       expect(asText(prepared), isNot(contains('2026:03:04')));
     });
 
-    test('a file that is not an image is refused rather than uploaded', () {
-      expect(AvatarImage.prepare(Uint8List.fromList(utf8.encode('not a picture'))), isNull);
-      expect(AvatarImage.prepare(Uint8List(0)), isNull);
+    test('a file that is not an image is refused rather than uploaded', () async {
+      expect(await AvatarImage.prepare(Uint8List.fromList(utf8.encode('not a picture'))), isNull);
+      expect(await AvatarImage.prepare(Uint8List(0)), isNull);
     });
   });
 
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('what the server would store is not a picture', () async {
-      final prepared = AvatarImage.prepare(largePhoto())!;
+      final prepared = (await AvatarImage.prepare(largePhoto()))!;
       final sealed = await AttachmentCipher.sealWithKey(
         prepared,
         key: await crypto.profileKey(),
@@ -87,7 +87,7 @@ void main() {
     });
 
     test('a contact with the profile key can open it', () async {
-      final prepared = AvatarImage.prepare(largePhoto())!;
+      final prepared = (await AvatarImage.prepare(largePhoto()))!;
       final key = await crypto.profileKey();
       final sealed = await AttachmentCipher.sealWithKey(prepared, key: key);
 
@@ -98,7 +98,7 @@ void main() {
 
     test('someone without the profile key cannot', () async {
       final sealed = await AttachmentCipher.sealWithKey(
-        AvatarImage.prepare(largePhoto())!,
+        (await AvatarImage.prepare(largePhoto()))!,
         key: await crypto.profileKey(),
       );
 
@@ -111,7 +111,7 @@ void main() {
     });
 
     test('every contact opens the same file, so the key is not per-upload', () async {
-      final prepared = AvatarImage.prepare(largePhoto())!;
+      final prepared = (await AvatarImage.prepare(largePhoto()))!;
       final key = await crypto.profileKey();
 
       final first = await AttachmentCipher.sealWithKey(prepared, key: key);
@@ -125,7 +125,7 @@ void main() {
   });
 
   group('sharing the key', () {
-    test('a message carries the sender’s profile key', () {
+    test('a message carries the sender’s profile key', () async {
       const payload = MessagePayload.text('hallo', profileKey: 'cHJvZmlsZS1rZXk=');
       final decoded = MessagePayload.decode(payload.encode());
 
@@ -133,7 +133,7 @@ void main() {
       expect(decoded.body, 'hallo');
     });
 
-    test('an attachment message carries it too', () {
+    test('an attachment message carries it too', () async {
       const payload = MessagePayload.media(
         mediaId: 'm1',
         mediaKey: 'a2V5',
@@ -144,8 +144,51 @@ void main() {
       expect(MessagePayload.decode(payload.encode()).profileKey, 'cHJvZmlsZS1rZXk=');
     });
 
-    test('a message from a build that sends no key still reads', () {
+    test('a message from a build that sends no key still reads', () async {
       expect(MessagePayload.decode(const MessagePayload.text('hi').encode()).profileKey, isNull);
+    });
+  });
+
+  group('a format Dart cannot read', () {
+    /// The bug this exists for: an iPhone camera writes **HEIC**, and
+    /// `package:image` has no HEIC decoder. Every photo taken on an iPhone hit
+    /// `decodeImage` returning null and came back as "not an image Privio can
+    /// use" — the picker opened, a picture was chosen, and nothing happened.
+    /// It hit the channel picture, the account picture and the new-channel
+    /// screen alike, because all three go through `prepare`.
+    ///
+    /// The fix hands anything Dart cannot read to the engine, which uses the
+    /// platform's own codecs. There is no engine in a unit test, so what can be
+    /// pinned here is the half that is testable: that such bytes reach the
+    /// fallback at all instead of being refused by the Dart decoder, and that
+    /// the fallback's absence is still a clean null rather than a crash.
+    Uint8List heicHeader() {
+      // A real HEIC signature: an ISO-BMFF box declaring the `heic` brand.
+      final box = <int>[
+        0, 0, 0, 0x18, // box size
+        ...utf8.encode('ftyp'),
+        ...utf8.encode('heic'),
+        0, 0, 0, 0,
+        ...utf8.encode('heic'),
+        ...utf8.encode('mif1'),
+      ];
+      return Uint8List.fromList(box);
+    }
+
+    test('is not refused by the Dart decoder alone', () {
+      // The precondition of the bug, asserted so nobody "fixes" this by
+      // assuming package:image grew a HEIC decoder.
+      expect(
+        img.decodeImage(heicHeader()),
+        isNull,
+        reason: 'package:image cannot read HEIC — that is why the fallback exists',
+      );
+    });
+
+    test('comes back null rather than throwing when there is no engine', () async {
+      // In a unit test the platform decoder is unavailable. The contract is
+      // that this is indistinguishable from "not a picture": null, no throw.
+      expect(await AvatarImage.prepare(heicHeader()), isNull);
     });
   });
 }

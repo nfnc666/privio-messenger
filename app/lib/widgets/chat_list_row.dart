@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/chat_text.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'avatar.dart';
 
@@ -25,6 +28,7 @@ class ChatListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final icon = _previewIcons[chat.previewKind];
     final hasUnread = chat.unreadCount > 0;
 
@@ -76,12 +80,12 @@ class ChatListRow extends StatelessWidget {
                       ],
                       Expanded(
                         child: Text(
-                          chat.preview,
+                          previewWords(text, chat.preview),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: chat.typing
                               ? theme.textTheme.bodySmall?.copyWith(
-                                  color: PrivioColors.accent,
+                                  color: context.accents.accent,
                                 )
                               : theme.textTheme.bodySmall,
                         ),
@@ -97,18 +101,18 @@ class ChatListRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  chat.timestamp,
+                  stampWords(text, chat.timestamp),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: hasUnread ? PrivioColors.accent : PrivioColors.textTertiary,
+                    color: hasUnread ? context.accents.accent : PrivioColors.textTertiary,
                   ),
                 ),
                 const SizedBox(height: 6),
                 if (hasUnread)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: const BoxDecoration(
-                      color: PrivioColors.accent,
-                      borderRadius: BorderRadius.all(PrivioRadius.pill),
+                    decoration: BoxDecoration(
+                      color: context.accents.accent,
+                      borderRadius: const BorderRadius.all(PrivioRadius.pill),
                     ),
                     child: Text(
                       '${chat.unreadCount}',

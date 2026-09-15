@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../media/voice.dart';
 import '../media/voice_recorder.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../l10n/app_localizations.dart';
 import 'waveform.dart';
 
 /// Where a recording is in its life.
@@ -77,6 +79,9 @@ class VoiceComposerState extends State<VoiceComposer> {
 
   Future<void> start() async {
     if (_stage != VoiceComposerStage.idle) return;
+    // Read before the first await: after one, this context may be gone, and
+    // the failure it would have described is exactly when that matters.
+    final text = AppText.of(context);
     try {
       await widget.recorder.start();
     } on VoiceRecorderException catch (failure) {
@@ -87,7 +92,7 @@ class VoiceComposerState extends State<VoiceComposer> {
       }
       return;
     } on Object {
-      widget.onFailure('The microphone is not available right now.');
+      widget.onFailure(text.voiceMicUnavailable);
       return;
     }
 
@@ -127,6 +132,7 @@ class VoiceComposerState extends State<VoiceComposer> {
   /// Stops and shows the preview, so nothing is sent without being seen.
   Future<void> stopForPreview() async {
     if (_stage == VoiceComposerStage.idle || _stage == VoiceComposerStage.preview) return;
+    final text = AppText.of(context);
     await _ticks?.cancel();
     _ticks = null;
     try {
@@ -141,7 +147,7 @@ class VoiceComposerState extends State<VoiceComposer> {
       widget.onFailure(failure.message);
     } on Object {
       if (mounted) setState(() => _stage = VoiceComposerStage.idle);
-      widget.onFailure('That recording could not be saved.');
+      widget.onFailure(text.voiceCouldNotSave);
     }
   }
 
@@ -229,6 +235,7 @@ class _RecordingStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     final remaining = VoiceLimits.maxDuration - elapsed;
 
     return Row(
@@ -237,7 +244,7 @@ class _RecordingStrip extends StatelessWidget {
           IconButton(
             onPressed: onCancel,
             icon: const Icon(Icons.delete_outline_rounded, color: PrivioColors.danger),
-            tooltip: 'Cancel',
+            tooltip: text.commonCancel,
           ),
           _RecordingDot(paused: paused),
           const SizedBox(width: PrivioSpacing.sm),
@@ -265,10 +272,10 @@ class _RecordingStrip extends StatelessWidget {
                           color: PrivioColors.textTertiary,
                         ),
                         const SizedBox(width: PrivioSpacing.xs),
-                        Text('Slide to cancel', style: theme.textTheme.bodySmall),
+                        Text(text.voiceSlideToCancel, style: theme.textTheme.bodySmall),
                       ],
                     )
-                  : Waveform(bars: bars, progress: 1, playedColor: PrivioColors.accent),
+                  : Waveform(bars: bars, progress: 1, playedColor: context.accents.accent),
             ),
           ),
           const SizedBox(width: PrivioSpacing.sm),
@@ -283,12 +290,12 @@ class _RecordingStrip extends StatelessWidget {
           IconButton(
             onPressed: onPauseResume,
             icon: Icon(paused ? Icons.play_arrow_rounded : Icons.pause_rounded),
-            tooltip: paused ? 'Resume' : 'Pause',
+            tooltip: paused ? text.voiceResume : text.commonPause,
           ),
           IconButton(
             onPressed: onStop,
-            icon: const Icon(Icons.stop_circle_outlined, color: PrivioColors.accent),
-            tooltip: 'Stop',
+            icon: Icon(Icons.stop_circle_outlined, color: context.accents.accent),
+            tooltip: text.voiceStop,
           ),
       ],
     );
@@ -345,18 +352,19 @@ class _PreviewStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return Row(
       key: const Key('voice-preview-strip'),
         children: [
           IconButton(
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline_rounded, color: PrivioColors.danger),
-            tooltip: 'Delete recording',
+            tooltip: text.voiceDeleteRecording,
           ),
           IconButton(
             onPressed: onPlay,
             icon: const Icon(Icons.play_arrow_rounded),
-            tooltip: 'Listen back',
+            tooltip: text.voiceListenBack,
           ),
           Expanded(child: Waveform(bars: recording.waveform)),
           const SizedBox(width: PrivioSpacing.sm),
