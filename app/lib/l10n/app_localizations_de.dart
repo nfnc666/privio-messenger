@@ -6,39 +6,61 @@ import 'app_localizations.dart';
 
 /// The translations for German (`de`).
 class AppTextDe extends AppText {
-  @override
-  String get proxyTitle => "SOCKS5-Proxy";
-  @override
-  String get proxyEnable => "Proxy verwenden";
-  @override
-  String get proxyHost => "Server (Hostname oder IP)";
-  @override
-  String get proxyPort => "Port";
-  @override
-  String get proxyUsername => "Benutzername (optional)";
-  @override
-  String get proxyPassword => "Passwort (optional)";
-  @override
-  String get proxyScope => "Gilt für dieses Gerät: Anmeldung, Nachrichten, Medien und Sicherungen. Anrufe sind bei aktivem Proxy gesperrt. Kein automatischer Direktzugriff. Änderungen mit Speichern übernehmen.";
-  @override
-  String get proxyPrivacy => "System-Push und im Browser geöffnete Links nutzen diesen Proxy nicht. SOCKS5 verschlüsselt die Proxy-Zugangsdaten nicht; verwende ein vertrauenswürdiges Netz und einen vertrauenswürdigen Proxy. Der Proxy sieht deine IP und das Verbindungsziel; HTTPS bleibt verschlüsselt. Telegram-MTProto-Proxys werden nicht unterstützt.";
-  @override
-  String get proxyTest => "Verbindung testen";
-  @override
-  String get proxySave => "Speichern";
-  @override
-  String get proxyRemove => "Proxy entfernen und direkt verbinden";
-  @override
-  String get proxyInvalid => "Gültigen Server und Port (1–65535) eingeben. Benutzername und Passwort gemeinsam ausfüllen oder beide leer lassen.";
-  @override
-  String get proxyTestSuccess => "Privio ist über diesen Proxy erreichbar. Die Einstellungen sind noch nicht gespeichert.";
-  @override
-  String get proxySaved => "Netzwerkeinstellungen gespeichert.";
-  @override
-  String get proxyFailed => "Aktion fehlgeschlagen. Proxy, Zugangsdaten und Verbindung prüfen und laufende Anrufe beenden. Kein automatischer Direktzugriff.";
-  @override
-  String get proxyCallsBlocked => "Anrufe sind bei aktivem Proxy nicht verfügbar.";
   AppTextDe([String locale = 'de']) : super(locale);
+
+  @override
+  String get proxyTitle => 'SOCKS5-Proxy';
+
+  @override
+  String get proxyEnable => 'Proxy verwenden';
+
+  @override
+  String get proxyHost => 'Server (Hostname oder IP)';
+
+  @override
+  String get proxyPort => 'Port';
+
+  @override
+  String get proxyUsername => 'Benutzername (optional)';
+
+  @override
+  String get proxyPassword => 'Passwort (optional)';
+
+  @override
+  String get proxyScope =>
+      'Gilt für dieses Gerät: Anmeldung, Nachrichten, Medien und Sicherungen. Anrufe sind bei aktivem Proxy gesperrt. Kein automatischer Direktzugriff. Änderungen mit Speichern übernehmen.';
+
+  @override
+  String get proxyPrivacy =>
+      'System-Push und im Browser geöffnete Links nutzen diesen Proxy nicht. SOCKS5 verschlüsselt die Proxy-Zugangsdaten nicht; verwende ein vertrauenswürdiges Netz und einen vertrauenswürdigen Proxy. Der Proxy sieht deine IP und das Verbindungsziel; HTTPS bleibt verschlüsselt. Telegram-MTProto-Proxys werden nicht unterstützt.';
+
+  @override
+  String get proxyTest => 'Verbindung testen';
+
+  @override
+  String get proxySave => 'Speichern';
+
+  @override
+  String get proxyRemove => 'Proxy entfernen und direkt verbinden';
+
+  @override
+  String get proxyInvalid =>
+      'Gültigen Server und Port (1–65535) eingeben. Benutzername und Passwort gemeinsam ausfüllen oder beide leer lassen.';
+
+  @override
+  String get proxyTestSuccess =>
+      'Privio ist über diesen Proxy erreichbar. Die Einstellungen sind noch nicht gespeichert.';
+
+  @override
+  String get proxySaved => 'Netzwerkeinstellungen gespeichert.';
+
+  @override
+  String get proxyFailed =>
+      'Aktion fehlgeschlagen. Proxy, Zugangsdaten und Verbindung prüfen und laufende Anrufe beenden. Kein automatischer Direktzugriff.';
+
+  @override
+  String get proxyCallsBlocked =>
+      'Anrufe sind bei aktivem Proxy nicht verfügbar.';
 
   @override
   String get languageName => 'Sprache';
@@ -4042,4 +4064,98 @@ class AppTextDe extends AppText {
 
   @override
   String get channelVerifiedTooltip => 'Offizieller PRIVIO-Kanal';
+
+  @override
+  String get phoneFieldLabel => 'Telefonnummer (optional)';
+
+  @override
+  String get phoneFieldHint => 'Telefonnummer (optional)';
+
+  @override
+  String get phoneFieldExplain =>
+      'Verknüpfe deine Telefonnummer, damit Kontakte dich finden können. Du kannst PRIVIO auch ohne Telefonnummer nutzen.';
+
+  @override
+  String get phoneCountryCode => 'Ländervorwahl';
+
+  @override
+  String get phoneVerifyTitle => 'Nummer bestätigen';
+
+  @override
+  String phoneVerifySent(String hint) {
+    return 'Wir haben einen Code an $hint gesendet.';
+  }
+
+  @override
+  String get phoneVerifyCode => 'Sechsstelliger Code';
+
+  @override
+  String get phoneVerifyConfirm => 'Bestätigen';
+
+  @override
+  String get phoneVerifyResend => 'Neuen Code senden';
+
+  @override
+  String get phoneVerifySkip => 'Ohne Telefonnummer fortfahren';
+
+  @override
+  String phoneVerifyStub(String code) {
+    return 'Entwicklungsserver: Es wurde keine SMS gesendet. Der Code lautet $code.';
+  }
+
+  @override
+  String get privacyPhoneSection => 'Telefonnummer & Kontakte';
+
+  @override
+  String get phoneAdd => 'Telefonnummer hinzufügen';
+
+  @override
+  String get phoneChange => 'Nummer ändern';
+
+  @override
+  String get phoneRemove => 'Nummer entfernen';
+
+  @override
+  String get phoneRemoveExplain =>
+      'Die Nummer und die Verknüpfung, die der Server zum Auffinden speichert, werden beide gelöscht. Deine Chats bleiben unberührt.';
+
+  @override
+  String get phoneDiscoverable => 'Über meine Telefonnummer gefunden werden';
+
+  @override
+  String get phoneDiscoverableExplain =>
+      'Aus, solange du es nicht einschaltest. Wenn es an ist, sieht jemand mit deiner Nummer im Adressbuch dein PRIVIO-Konto.';
+
+  @override
+  String get phoneContactSync => 'Gerätekontakte synchronisieren';
+
+  @override
+  String get phoneContactSyncExplain =>
+      'Aus, solange du es nicht einschaltest. PRIVIO liest die Telefonnummern aus deinen Kontakten, wandelt jede auf diesem Gerät in einen unlesbaren Wert um und fragt den Server, welche davon zu einem PRIVIO-Konto gehören. Namen, Notizen und das Adressbuch selbst werden nie gesendet und nie auf dem Server gespeichert.';
+
+  @override
+  String get phoneSyncNow => 'Kontakte jetzt abgleichen';
+
+  @override
+  String phoneSyncFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Personen gefunden.',
+      one: '1 Person gefunden.',
+      zero:
+          'Niemand aus deinen Kontakten ist bei PRIVIO, oder niemand hat das Auffinden eingeschaltet.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get phoneImportedRemove => 'Importierte Kontakte entfernen';
+
+  @override
+  String get phoneImportedRemoveExplain =>
+      'Entfernt nur die über den Abgleich hinzugefügten Personen. Deine Chats mit ihnen bleiben.';
+
+  @override
+  String get phoneNotLinkedYet => 'Keine Nummer verknüpft';
 }
