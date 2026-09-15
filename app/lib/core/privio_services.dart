@@ -10,6 +10,7 @@ import '../crypto/safety_number.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
 import '../media/voice_player.dart';
+import '../media/photo_source.dart';
 import '../media/voice_recorder.dart';
 import '../services/backup_service.dart';
 import '../services/call_service.dart';
@@ -32,11 +33,13 @@ class PrivioServices {
     CallService? calls,
     required this.recorder,
     required this.player,
+    PhotoSource? photos,
     required this.backup,
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
-  }) : archive = archive ?? const NoArchive() {
+  })  : photos = photos ?? const NoPhotoSource(),
+        archive = archive ?? const NoArchive() {
     // Assembled here rather than in the initialiser list because it is built
     // out of three of the fields above. A caller may still pass its own, which
     // is how a test drives a call without a microphone in the room.
@@ -93,6 +96,7 @@ class PrivioServices {
       channels: ChannelService(api: api, crypto: crypto, messaging: messaging),
       recorder: PluginVoiceRecorder(),
       player: JustAudioVoicePlayer(),
+      photos: ImagePickerPhotoSource(),
       backup: BackupService(api: api, store: secure, messages: store),
       store: store,
       secureStore: secure,
@@ -125,6 +129,13 @@ class PrivioServices {
   /// and the one part that genuinely needs a microphone stays in one file.
   final VoiceRecorder recorder;
   final VoicePlayer player;
+
+  /// The camera and the system photo picker, behind an interface for the same
+  /// reason the microphone is: a refusal, a cancel and a device with no camera
+  /// all have to be reachable in a test, and none of them can be produced on a
+  /// build machine. Defaults to the one that answers "no camera here", so a
+  /// test that does not care never touches a plugin.
+  final PhotoSource photos;
 
   /// Backups: sealed here, opaque everywhere else.
   final BackupService backup;

@@ -6,39 +6,61 @@ import 'app_localizations.dart';
 
 /// The translations for Spanish Castilian (`es`).
 class AppTextEs extends AppText {
-  @override
-  String get proxyTitle => "Proxy SOCKS5";
-  @override
-  String get proxyEnable => "Usar proxy";
-  @override
-  String get proxyHost => "Servidor (nombre o IP)";
-  @override
-  String get proxyPort => "Puerto";
-  @override
-  String get proxyUsername => "Usuario (opcional)";
-  @override
-  String get proxyPassword => "Contraseña (opcional)";
-  @override
-  String get proxyScope => "Para este dispositivo: acceso, mensajes, archivos y copias. Las llamadas se desactivan con el proxy. Sin conexión directa automática. Guarda los cambios.";
-  @override
-  String get proxyPrivacy => "Las notificaciones del sistema y los enlaces abiertos en el navegador no usan este proxy. SOCKS5 no cifra las credenciales del proxy; utiliza una red y un proxy de confianza. El proxy ve tu IP y el destino; HTTPS sigue cifrado. No admite proxys MTProto de Telegram.";
-  @override
-  String get proxyTest => "Probar conexión";
-  @override
-  String get proxySave => "Guardar";
-  @override
-  String get proxyRemove => "Eliminar proxy y conectar directamente";
-  @override
-  String get proxyInvalid => "Introduce un servidor válido y un puerto (1–65535). Completa usuario y contraseña o deja ambos vacíos.";
-  @override
-  String get proxyTestSuccess => "Privio es accesible mediante este proxy. Los ajustes aún no se han guardado.";
-  @override
-  String get proxySaved => "Ajustes de red guardados.";
-  @override
-  String get proxyFailed => "No se pudo completar. Revisa el proxy, las credenciales y la conexión, y finaliza las llamadas. Sin conexión directa automática.";
-  @override
-  String get proxyCallsBlocked => "Las llamadas no están disponibles con el proxy activo.";
   AppTextEs([String locale = 'es']) : super(locale);
+
+  @override
+  String get proxyTitle => 'Proxy SOCKS5';
+
+  @override
+  String get proxyEnable => 'Usar proxy';
+
+  @override
+  String get proxyHost => 'Servidor (nombre o IP)';
+
+  @override
+  String get proxyPort => 'Puerto';
+
+  @override
+  String get proxyUsername => 'Usuario (opcional)';
+
+  @override
+  String get proxyPassword => 'Contraseña (opcional)';
+
+  @override
+  String get proxyScope =>
+      'Para este dispositivo: acceso, mensajes, archivos y copias. Las llamadas se desactivan con el proxy. Sin conexión directa automática. Guarda los cambios.';
+
+  @override
+  String get proxyPrivacy =>
+      'Las notificaciones del sistema y los enlaces abiertos en el navegador no usan este proxy. SOCKS5 no cifra las credenciales del proxy; utiliza una red y un proxy de confianza. El proxy ve tu IP y el destino; HTTPS sigue cifrado. No admite proxys MTProto de Telegram.';
+
+  @override
+  String get proxyTest => 'Probar conexión';
+
+  @override
+  String get proxySave => 'Guardar';
+
+  @override
+  String get proxyRemove => 'Eliminar proxy y conectar directamente';
+
+  @override
+  String get proxyInvalid =>
+      'Introduce un servidor válido y un puerto (1–65535). Completa usuario y contraseña o deja ambos vacíos.';
+
+  @override
+  String get proxyTestSuccess =>
+      'Privio es accesible mediante este proxy. Los ajustes aún no se han guardado.';
+
+  @override
+  String get proxySaved => 'Ajustes de red guardados.';
+
+  @override
+  String get proxyFailed =>
+      'No se pudo completar. Revisa el proxy, las credenciales y la conexión, y finaliza las llamadas. Sin conexión directa automática.';
+
+  @override
+  String get proxyCallsBlocked =>
+      'Las llamadas no están disponibles con el proxy activo.';
 
   @override
   String get languageName => 'Idioma';
@@ -875,7 +897,7 @@ class AppTextEs extends AppText {
   String get composerHint => 'Escribe un mensaje…';
 
   @override
-  String get composerAttach => 'Adjuntar un archivo';
+  String get composerAttach => 'Adjuntar';
 
   @override
   String get composerTimerOff => 'Los mensajes temporales están desactivados';
@@ -4032,4 +4054,78 @@ class AppTextEs extends AppText {
 
   @override
   String get channelVerifiedTooltip => 'Canal oficial de PRIVIO';
+
+  @override
+  String get composerCamera => 'Cámara';
+
+  @override
+  String get attachPhotos => 'Elegir fotos';
+
+  @override
+  String get attachFile => 'Enviar un archivo';
+
+  @override
+  String get photoTitle => 'Foto';
+
+  @override
+  String get photoPreviewOne => 'Enviar foto';
+
+  @override
+  String photoPreviewMany(int count) {
+    return 'Enviar $count fotos';
+  }
+
+  @override
+  String get photoRetake => 'Repetir';
+
+  @override
+  String get photoCaptionHint => 'Añadir un texto';
+
+  @override
+  String get photoNoCamera =>
+      'En este dispositivo no hay ninguna cámara que Privio pueda abrir.';
+
+  @override
+  String get photoCameraRefused => 'Privio no puede usar la cámara';
+
+  @override
+  String get photoLibraryRefused => 'Privio no puede abrir tus fotos';
+
+  @override
+  String get photoAllowInSettings =>
+      'El sistema lo pregunta una sola vez. Puedes permitirlo en la página de Privio en los ajustes del sistema.';
+
+  @override
+  String get photoOpenSettings => 'Abrir ajustes';
+
+  @override
+  String get photoSettingsFailed =>
+      'No se pudieron abrir los ajustes. Ábrelos tú y permíteselo a Privio.';
+
+  @override
+  String photoFailed(String detail) {
+    return 'No se pudo abrir la cámara: $detail';
+  }
+
+  @override
+  String get photoNoneReadable =>
+      'Privio no pudo leer ninguna de esas imágenes.';
+
+  @override
+  String photoSomeLeftOut(int count) {
+    return '$count de las imágenes no se pudieron leer y se omitieron.';
+  }
+
+  @override
+  String get photoStateSending => 'Enviando';
+
+  @override
+  String get photoStateQueued => 'Esperando conexión';
+
+  @override
+  String get photoStateSent => 'Enviado';
+
+  @override
+  String get photoStateFailed =>
+      'No enviado. Mantén pulsado el mensaje para intentarlo de nuevo.';
 }

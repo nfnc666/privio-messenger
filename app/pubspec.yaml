@@ -67,6 +67,19 @@ dependencies:
   # package drops it. The Dart team's own implementation — Privio writes no
   # cryptographic primitives.
   crypto: ^3.0.6
+  # Taking a photo and choosing one, through the platform's own pickers.
+  #
+  # Chosen over a self-built camera for one reason that outweighs the control a
+  # `camera` package would give: on iOS this uses `PHPickerViewController` and
+  # on Android 13+ the system Photo Picker, and **neither needs a photo-library
+  # permission at all** — the picker runs outside the app and hands back only
+  # what was chosen. Asking for the whole library to send one picture is the
+  # thing this app should not do.
+  #
+  # The camera half opens the system camera, which brings front/back switching
+  # and the flash control with it, writes to the app's own cache rather than the
+  # public gallery, and is the same UI the person already knows.
+  image_picker: ^1.1.2
   record: ^7.1.1
   just_audio: ^0.10.6
   path_provider: ^2.1.6

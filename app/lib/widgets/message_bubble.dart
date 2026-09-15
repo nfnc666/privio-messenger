@@ -10,6 +10,7 @@ import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'custom_emoji_text.dart';
+import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
 
@@ -152,7 +153,18 @@ class MessageBubble extends StatelessWidget {
               if (message.attachment != null) ...[
                 _AttachmentView(attachment: message.attachment!),
                 if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+              ]
+              // A photo that has not been anywhere yet has no attachment to
+              // draw: the bytes are sealed in the outbox and the pointer does
+              // not exist until the server takes them. Without this the bubble
+              // was empty — a picture sent on a bad connection looked like a
+              // message that had failed to say anything.
+              else if (message.kind == MessageKind.photo) ...[
+                _PhotoInFlight(state: message.state),
+                if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
               ],
+              if (mine && message.kind == MessageKind.photo)
+                _PhotoStatus(state: message.state),
               if (message.body.isNotEmpty)
                 CustomEmojiText(
                   message: message,
@@ -242,17 +254,85 @@ class _AttachmentView extends StatelessWidget {
         if (!attachment.isImage) {
           return _FileRow(attachment: attachment);
         }
-        return ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            // A file that claims to be an image but is not must not take the
-            // bubble down with it.
-            errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+        return GestureDetector(
+          // A picture in a bubble is a thumbnail; a tap is how anybody expects
+          // to see the whole of it. The viewer is handed the bytes that are
+          // already decrypted here, so opening it fetches nothing and writes
+          // nothing.
+          onTap: () => PhotoViewer.open(context, bytes: bytes, name: attachment.fileName),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              // A file that claims to be an image but is not must not take the
+              // bubble down with it.
+              errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// A picture that is still on its way out, in the space the picture will take.
+///
+/// The bytes are in the outbox, sealed; there is nothing to show yet and a
+/// blank bubble is worse than a box that says what is happening.
+class _PhotoInFlight extends StatelessWidget {
+  const _PhotoInFlight({required this.state});
+
+  final DeliveryState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final failed = state == DeliveryState.failed;
+    return _AttachmentPlaceholder(
+      child: failed
+          ? const Icon(Icons.error_outline_rounded, color: PrivioColors.danger)
+          : const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+    );
+  }
+}
+
+/// "Sending", "Sent", or "Not sent", under one's own photos.
+///
+/// Only one's own, and only while it is worth saying. `sent` is included
+/// because the brief asks for it and because it is the moment the picture
+/// actually left the phone — and it is not permanent noise: a delivery receipt
+/// moves the message on to `delivered`, and the line goes with it. A photo
+/// sitting on "Sent" for a long time is itself information.
+class _PhotoStatus extends StatelessWidget {
+  const _PhotoStatus({required this.state});
+
+  final DeliveryState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final label = switch (state) {
+      DeliveryState.sending => text.photoStateSending,
+      DeliveryState.queued => text.photoStateQueued,
+      DeliveryState.failed => text.photoStateFailed,
+      DeliveryState.sent => text.photoStateSent,
+      DeliveryState.delivered || DeliveryState.read => null,
+    };
+    if (label == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: PrivioSpacing.xs),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: state == DeliveryState.failed
+                  ? PrivioColors.danger
+                  : PrivioColors.textTertiary,
+            ),
+      ),
     );
   }
 }

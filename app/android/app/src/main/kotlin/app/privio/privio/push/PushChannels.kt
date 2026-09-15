@@ -48,6 +48,17 @@ object PushChannels {
                         }
                     }
 
+                    // Opens this app's page in the system settings.
+                    //
+                    // The iOS half of this channel has answered "openSettings"
+                    // since the notification screen was written; Android never
+                    // did, so the "Open settings" button the app offers after a
+                    // refusal did nothing on half the devices it shipped to.
+                    // The same call now serves the camera and photo refusals,
+                    // because Android has one page for all of them and a second
+                    // channel would be a second name for the same intent.
+                    "openSettings" -> result.success(AppSettings.open(activity))
+
                     else -> result.notImplemented()
                 }
             }

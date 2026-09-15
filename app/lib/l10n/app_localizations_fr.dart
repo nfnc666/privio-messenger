@@ -6,39 +6,61 @@ import 'app_localizations.dart';
 
 /// The translations for French (`fr`).
 class AppTextFr extends AppText {
-  @override
-  String get proxyTitle => "Proxy SOCKS5";
-  @override
-  String get proxyEnable => "Utiliser le proxy";
-  @override
-  String get proxyHost => "Serveur (nom ou IP)";
-  @override
-  String get proxyPort => "Port";
-  @override
-  String get proxyUsername => "Identifiant (facultatif)";
-  @override
-  String get proxyPassword => "Mot de passe (facultatif)";
-  @override
-  String get proxyScope => "Pour cet appareil : connexion, messages, médias et sauvegardes. Les appels sont désactivés avec le proxy. Aucun repli direct. Enregistrez les modifications.";
-  @override
-  String get proxyPrivacy => "Les notifications système et les liens ouverts dans le navigateur ne passent pas par ce proxy. SOCKS5 ne chiffre pas les identifiants du proxy ; utilisez un réseau et un proxy de confiance. Le proxy voit votre IP et la destination ; HTTPS reste chiffré. Les proxys MTProto de Telegram ne sont pas compatibles.";
-  @override
-  String get proxyTest => "Tester la connexion";
-  @override
-  String get proxySave => "Enregistrer";
-  @override
-  String get proxyRemove => "Supprimer le proxy et se connecter directement";
-  @override
-  String get proxyInvalid => "Saisissez un serveur valide et un port (1–65535). Renseignez les deux identifiants ou laissez-les vides.";
-  @override
-  String get proxyTestSuccess => "Privio est accessible via ce proxy. Les réglages ne sont pas encore enregistrés.";
-  @override
-  String get proxySaved => "Réglages réseau enregistrés.";
-  @override
-  String get proxyFailed => "Échec. Vérifiez le proxy, les identifiants et la connexion, et terminez les appels en cours. Aucun repli direct automatique.";
-  @override
-  String get proxyCallsBlocked => "Les appels sont indisponibles lorsque le proxy est actif.";
   AppTextFr([String locale = 'fr']) : super(locale);
+
+  @override
+  String get proxyTitle => 'Proxy SOCKS5';
+
+  @override
+  String get proxyEnable => 'Utiliser le proxy';
+
+  @override
+  String get proxyHost => 'Serveur (nom ou IP)';
+
+  @override
+  String get proxyPort => 'Port';
+
+  @override
+  String get proxyUsername => 'Identifiant (facultatif)';
+
+  @override
+  String get proxyPassword => 'Mot de passe (facultatif)';
+
+  @override
+  String get proxyScope =>
+      'Pour cet appareil : connexion, messages, médias et sauvegardes. Les appels sont désactivés avec le proxy. Aucun repli direct. Enregistrez les modifications.';
+
+  @override
+  String get proxyPrivacy =>
+      'Les notifications système et les liens ouverts dans le navigateur ne passent pas par ce proxy. SOCKS5 ne chiffre pas les identifiants du proxy ; utilisez un réseau et un proxy de confiance. Le proxy voit votre IP et la destination ; HTTPS reste chiffré. Les proxys MTProto de Telegram ne sont pas compatibles.';
+
+  @override
+  String get proxyTest => 'Tester la connexion';
+
+  @override
+  String get proxySave => 'Enregistrer';
+
+  @override
+  String get proxyRemove => 'Supprimer le proxy et se connecter directement';
+
+  @override
+  String get proxyInvalid =>
+      'Saisissez un serveur valide et un port (1–65535). Renseignez les deux identifiants ou laissez-les vides.';
+
+  @override
+  String get proxyTestSuccess =>
+      'Privio est accessible via ce proxy. Les réglages ne sont pas encore enregistrés.';
+
+  @override
+  String get proxySaved => 'Réglages réseau enregistrés.';
+
+  @override
+  String get proxyFailed =>
+      'Échec. Vérifiez le proxy, les identifiants et la connexion, et terminez les appels en cours. Aucun repli direct automatique.';
+
+  @override
+  String get proxyCallsBlocked =>
+      'Les appels sont indisponibles lorsque le proxy est actif.';
 
   @override
   String get languageName => 'Langue';
@@ -877,7 +899,7 @@ class AppTextFr extends AppText {
   String get composerHint => 'Écrivez un message…';
 
   @override
-  String get composerAttach => 'Joindre un fichier';
+  String get composerAttach => 'Joindre';
 
   @override
   String get composerTimerOff => 'Les messages éphémères sont désactivés';
@@ -4039,4 +4061,79 @@ class AppTextFr extends AppText {
 
   @override
   String get channelVerifiedTooltip => 'Canal officiel PRIVIO';
+
+  @override
+  String get composerCamera => 'Appareil photo';
+
+  @override
+  String get attachPhotos => 'Choisir des photos';
+
+  @override
+  String get attachFile => 'Envoyer un fichier';
+
+  @override
+  String get photoTitle => 'Photo';
+
+  @override
+  String get photoPreviewOne => 'Envoyer la photo';
+
+  @override
+  String photoPreviewMany(int count) {
+    return 'Envoyer $count photos';
+  }
+
+  @override
+  String get photoRetake => 'Reprendre';
+
+  @override
+  String get photoCaptionHint => 'Ajouter une légende';
+
+  @override
+  String get photoNoCamera =>
+      'Cet appareil n\'a pas d\'appareil photo que Privio puisse ouvrir.';
+
+  @override
+  String get photoCameraRefused =>
+      'Privio n\'a pas le droit d\'utiliser l\'appareil photo';
+
+  @override
+  String get photoLibraryRefused =>
+      'Privio n\'a pas le droit d\'ouvrir vos photos';
+
+  @override
+  String get photoAllowInSettings =>
+      'Le système ne le demande qu\'une fois. Vous pouvez l\'autoriser sur la page de Privio dans les réglages du système.';
+
+  @override
+  String get photoOpenSettings => 'Ouvrir les réglages';
+
+  @override
+  String get photoSettingsFailed =>
+      'Les réglages n\'ont pas pu être ouverts. Ouvrez-les vous-même et autorisez-le pour Privio.';
+
+  @override
+  String photoFailed(String detail) {
+    return 'L\'appareil photo n\'a pas pu être ouvert : $detail';
+  }
+
+  @override
+  String get photoNoneReadable => 'Privio n\'a pu lire aucune de ces images.';
+
+  @override
+  String photoSomeLeftOut(int count) {
+    return '$count des images n\'ont pas pu être lues et ont été laissées de côté.';
+  }
+
+  @override
+  String get photoStateSending => 'Envoi en cours';
+
+  @override
+  String get photoStateQueued => 'En attente d\'un réseau';
+
+  @override
+  String get photoStateSent => 'Envoyée';
+
+  @override
+  String get photoStateFailed =>
+      'Non envoyée. Appuyez longuement sur le message pour réessayer.';
 }

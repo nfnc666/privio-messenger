@@ -69,22 +69,6 @@ abstract class AppText {
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
-  String get proxyTitle;
-  String get proxyEnable;
-  String get proxyHost;
-  String get proxyPort;
-  String get proxyUsername;
-  String get proxyPassword;
-  String get proxyScope;
-  String get proxyPrivacy;
-  String get proxyTest;
-  String get proxySave;
-  String get proxyRemove;
-  String get proxyInvalid;
-  String get proxyTestSuccess;
-  String get proxySaved;
-  String get proxyFailed;
-  String get proxyCallsBlocked;
 
   static AppText of(BuildContext context) {
     return Localizations.of<AppText>(context, AppText)!;
@@ -118,6 +102,102 @@ abstract class AppText {
     Locale('fr'),
     Locale('it'),
   ];
+
+  /// No description provided for @proxyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5 proxy'**
+  String get proxyTitle;
+
+  /// No description provided for @proxyEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Use proxy'**
+  String get proxyEnable;
+
+  /// No description provided for @proxyHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Server (hostname or IP)'**
+  String get proxyHost;
+
+  /// No description provided for @proxyPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get proxyPort;
+
+  /// No description provided for @proxyUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get proxyUsername;
+
+  /// No description provided for @proxyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password (optional)'**
+  String get proxyPassword;
+
+  /// No description provided for @proxyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'For this device, including login, messages, media and backups. Calls are disabled while the proxy is active. No direct fallback. Save to apply changes.'**
+  String get proxyScope;
+
+  /// No description provided for @proxyPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'System push notifications and links opened in a browser do not use this proxy. SOCKS5 does not encrypt proxy credentials; use a trusted network/proxy. The proxy sees your IP and destination, but HTTPS stays encrypted. Telegram MTProto proxies are not supported.'**
+  String get proxyPrivacy;
+
+  /// No description provided for @proxyTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get proxyTest;
+
+  /// No description provided for @proxySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get proxySave;
+
+  /// No description provided for @proxyRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove proxy and connect directly'**
+  String get proxyRemove;
+
+  /// No description provided for @proxyInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid server and port (1–65535). Enter both username and password, or leave both empty.'**
+  String get proxyInvalid;
+
+  /// No description provided for @proxyTestSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio is reachable through this proxy. Settings have not been saved.'**
+  String get proxyTestSuccess;
+
+  /// No description provided for @proxySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Network settings saved.'**
+  String get proxySaved;
+
+  /// No description provided for @proxyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete this action. Check the proxy, credentials and connection, and end any active call. No automatic direct fallback.'**
+  String get proxyFailed;
+
+  /// No description provided for @proxyCallsBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls are unavailable while the proxy is active.'**
+  String get proxyCallsBlocked;
 
   /// The settings row that opens the language picker.
   ///
@@ -1460,7 +1540,7 @@ abstract class AppText {
   /// No description provided for @composerAttach.
   ///
   /// In en, this message translates to:
-  /// **'Attach a file'**
+  /// **'Attach'**
   String get composerAttach;
 
   /// No description provided for @composerTimerOff.
@@ -6814,6 +6894,132 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Official Privio channel'**
   String get channelVerifiedTooltip;
+
+  /// No description provided for @composerCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get composerCamera;
+
+  /// No description provided for @attachPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photos'**
+  String get attachPhotos;
+
+  /// No description provided for @attachFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Send a file'**
+  String get attachFile;
+
+  /// No description provided for @photoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo'**
+  String get photoTitle;
+
+  /// No description provided for @photoPreviewOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Send photo'**
+  String get photoPreviewOne;
+
+  /// No description provided for @photoPreviewMany.
+  ///
+  /// In en, this message translates to:
+  /// **'Send {count} photos'**
+  String photoPreviewMany(int count);
+
+  /// No description provided for @photoRetake.
+  ///
+  /// In en, this message translates to:
+  /// **'Retake'**
+  String get photoRetake;
+
+  /// No description provided for @photoCaptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a caption'**
+  String get photoCaptionHint;
+
+  /// No description provided for @photoNoCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no camera on this device that Privio can open.'**
+  String get photoNoCamera;
+
+  /// No description provided for @photoCameraRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio may not use the camera'**
+  String get photoCameraRefused;
+
+  /// No description provided for @photoLibraryRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio may not open your photos'**
+  String get photoLibraryRefused;
+
+  /// No description provided for @photoAllowInSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'The system asks only once. You can allow it on Privio\'s page in the system settings.'**
+  String get photoAllowInSettings;
+
+  /// No description provided for @photoOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get photoOpenSettings;
+
+  /// No description provided for @photoSettingsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the settings. Open them yourself and allow it for Privio.'**
+  String get photoSettingsFailed;
+
+  /// No description provided for @photoFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The camera could not be opened: {detail}'**
+  String photoFailed(String detail);
+
+  /// No description provided for @photoNoneReadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio could not read any of those pictures.'**
+  String get photoNoneReadable;
+
+  /// No description provided for @photoSomeLeftOut.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of the pictures could not be read and were left out.'**
+  String photoSomeLeftOut(int count);
+
+  /// No description provided for @photoStateSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get photoStateSending;
+
+  /// No description provided for @photoStateQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for a network'**
+  String get photoStateQueued;
+
+  /// No description provided for @photoStateSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent'**
+  String get photoStateSent;
+
+  /// No description provided for @photoStateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sent. Hold the message to try again.'**
+  String get photoStateFailed;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

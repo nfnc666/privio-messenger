@@ -19,6 +19,7 @@ import 'channel_thread_screen.dart';
 import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
+import '../widgets/photo_viewer.dart';
 import '../widgets/privio_back_button.dart';
 
 /// One channel's feed.
@@ -2384,7 +2385,7 @@ class _AttachmentTileState extends State<_AttachmentTile> {
       return GestureDetector(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => _ImageViewer(bytes: opened, name: attachment.name),
+            builder: (_) => PhotoViewer(bytes: opened, name: attachment.name),
           ),
         ),
         child: ClipRRect(
@@ -2443,41 +2444,6 @@ String _readableSize(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} kB';
   return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-}
-
-/// A picture at full size, with pinch and pan.
-///
-/// The bytes are the ones already decrypted in memory for the feed — opening
-/// this writes nothing to disk and asks the server for nothing a second time.
-class _ImageViewer extends StatelessWidget {
-  const _ImageViewer({required this.bytes, this.name});
-
-  final Uint8List bytes;
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: PrivioColors.background,
-      appBar: AppBar(
-        backgroundColor: PrivioColors.background,
-        leading: const PrivioBackButton(),
-        title: Text(
-          name ?? AppText.of(context).channelPicture,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-      ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 1,
-          maxScale: 6,
-          child: Image.memory(bytes),
-        ),
-      ),
-    );
-  }
 }
 
 /// What a channel adds up to.
