@@ -24,7 +24,7 @@ class _RecordingTransport implements ProxyTransport {
   Never get client => throw UnimplementedError();
 
   @override
-  WebSocketChannel connect(Uri uri) {
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols}) {
     connects += 1;
     throw UnimplementedError('not a real socket');
   }
