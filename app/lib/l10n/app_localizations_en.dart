@@ -6,6 +6,38 @@ import 'app_localizations.dart';
 
 /// The translations for English (`en`).
 class AppTextEn extends AppText {
+  @override
+  String get proxyTitle => "SOCKS5 proxy";
+  @override
+  String get proxyEnable => "Use proxy";
+  @override
+  String get proxyHost => "Server (hostname or IP)";
+  @override
+  String get proxyPort => "Port";
+  @override
+  String get proxyUsername => "Username (optional)";
+  @override
+  String get proxyPassword => "Password (optional)";
+  @override
+  String get proxyScope => "For this device, including login, messages, media and backups. Calls are disabled while the proxy is active. No direct fallback. Save to apply changes.";
+  @override
+  String get proxyPrivacy => "System push notifications and links opened in a browser do not use this proxy. SOCKS5 does not encrypt proxy credentials; use a trusted network/proxy. The proxy sees your IP and destination, but HTTPS stays encrypted. Telegram MTProto proxies are not supported.";
+  @override
+  String get proxyTest => "Test connection";
+  @override
+  String get proxySave => "Save";
+  @override
+  String get proxyRemove => "Remove proxy and connect directly";
+  @override
+  String get proxyInvalid => "Enter a valid server and port (1–65535). Enter both username and password, or leave both empty.";
+  @override
+  String get proxyTestSuccess => "Privio is reachable through this proxy. Settings have not been saved.";
+  @override
+  String get proxySaved => "Network settings saved.";
+  @override
+  String get proxyFailed => "Could not complete this action. Check the proxy, credentials and connection, and end any active call. No automatic direct fallback.";
+  @override
+  String get proxyCallsBlocked => "Calls are unavailable while the proxy is active.";
   AppTextEn([String locale = 'en']) : super(locale);
 
   @override

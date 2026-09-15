@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../network/proxy_controller.dart';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
@@ -67,6 +68,9 @@ class WebRtcCallPeer implements CallPeer {
 
   @override
   Future<void> open({required CallMedia media}) async {
+    if (ProxyController.instance.blocksCalls) {
+      throw StateError('Calls are disabled while a proxy is active');
+    }
     try {
       _local = await rtc.navigator.mediaDevices.getUserMedia({
         'audio': true,
@@ -89,6 +93,9 @@ class WebRtcCallPeer implements CallPeer {
       );
     }
 
+    if (ProxyController.instance.blocksCalls) {
+      throw StateError('Proxy enabled while opening call');
+    }
     final connection = await rtc.createPeerConnection({
       'iceServers': _iceServers,
       // Trickle ICE: candidates go out as they are found rather than all at

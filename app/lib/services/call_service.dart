@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import '../network/proxy_controller.dart';
 
 import 'package:flutter/widgets.dart';
 
@@ -184,6 +185,11 @@ class CallService extends ChangeNotifier {
   /// Opens the microphone first: being told "Privio cannot use your
   /// microphone" before anyone's phone rings is better than after.
   Future<void> place(CallParty party, {CallMedia media = CallMedia.audio}) async {
+    if (ProxyController.instance.blocksCalls) {
+      _failure = const Failure(FailureKind.proxyCallsBlocked);
+      notifyListeners();
+      return;
+    }
     if (isBusy) return;
     _failure = null;
 
@@ -246,6 +252,11 @@ class CallService extends ChangeNotifier {
 
   /// Picks up the call that is ringing.
   Future<void> accept() async {
+    if (ProxyController.instance.blocksCalls) {
+      _failure = const Failure(FailureKind.proxyCallsBlocked);
+      notifyListeners();
+      return;
+    }
     final call = _call;
     final offer = _pendingOffer;
     if (call == null || call.state != CallState.ringing || offer == null) return;

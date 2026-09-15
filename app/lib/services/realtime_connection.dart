@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../network/proxy_controller.dart';
 
 /// The live connection to the server's delivery socket.
 ///
@@ -19,7 +20,7 @@ class RealtimeConnection {
     required this.baseUrl,
     required this.token,
     WebSocketChannel Function(Uri)? connect,
-  }) : _connect = connect ?? WebSocketChannel.connect;
+  }) : _connect = connect ?? ProxyController.instance.connect;
 
   final Uri baseUrl;
   final String token;

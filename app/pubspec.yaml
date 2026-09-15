@@ -22,6 +22,7 @@ dependencies:
   intl: any
   # Talks to the Privio API. Nothing leaves the device unencrypted.
   http: ^1.2.2
+  socks5_proxy: 2.1.1
   # Keychain on iOS, AES-GCM over the Keystore on Android. Holds the session
   # token, the archive key and the recovery key.
   #
