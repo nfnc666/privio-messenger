@@ -6,11 +6,9 @@ import '../core/app_icon.dart';
 /// What the platform underneath can actually change about the launcher entry.
 ///
 /// Not a boolean, because a platform can manage one and not the other. Android
-/// changes both, through its launcher aliases. iOS is not asked at all: it can
-/// swap an icon and cannot change a name — an app's display name is fixed at
-/// build time with no public API — and a calculator icon still labelled Privio
-/// is a disguise that says its own name, so the whole feature is withheld
-/// there rather than shipped half-working.
+/// changes both through launcher aliases. iOS supports alternate icons but
+/// cannot change the name. The native capability keeps icon colours available
+/// while the separate disguise policy keeps calculator disguise Android-only.
 @immutable
 class LauncherCapability {
   const LauncherCapability({required this.icon, required this.name});
@@ -79,14 +77,9 @@ class PlatformLauncherDisguise implements LauncherDisguise {
 
   static const MethodChannel _channel = MethodChannel('app.privio/launcher');
 
-  /// iOS has no handler on the other end of this channel, on purpose. Asking
-  /// anyway would work — it would answer nothing — but not asking is the
-  /// clearer statement that the feature is not offered there.
-  static bool get _supported => defaultTargetPlatform != TargetPlatform.iOS;
-
   @override
   Future<LauncherCapability> capability() async {
-    if (kIsWeb || !_supported) return LauncherCapability.none;
+    if (kIsWeb) return LauncherCapability.none;
     try {
       final answer = await _channel.invokeMapMethod<String, dynamic>('capability');
       if (answer == null) return LauncherCapability.none;
@@ -105,7 +98,7 @@ class PlatformLauncherDisguise implements LauncherDisguise {
 
   @override
   Future<void> show(LauncherEntry entry) async {
-    if (kIsWeb || !_supported) {
+    if (kIsWeb) {
       throw const LauncherDisguiseException('This platform cannot change the app icon.');
     }
     try {
@@ -119,7 +112,7 @@ class PlatformLauncherDisguise implements LauncherDisguise {
 
   @override
   Future<LauncherEntry?> current() async {
-    if (kIsWeb || !_supported) return null;
+    if (kIsWeb) return null;
     try {
       return LauncherEntry.forWireName(await _channel.invokeMethod<String>('current'));
     } on PlatformException {
