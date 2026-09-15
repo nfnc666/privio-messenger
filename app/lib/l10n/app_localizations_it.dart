@@ -3716,4 +3716,193 @@ class AppTextIt extends AppText {
   String appIconChoose(String colour) {
     return 'Icona in $colour';
   }
+
+  @override
+  String get failureStickerNotAnImage =>
+      'Questo file non è un’immagine PNG né WebP.';
+
+  @override
+  String get failureStickerAnimated =>
+      'Gli sticker animati non sono ancora supportati. Usa un PNG o un WebP fermo.';
+
+  @override
+  String failureStickerTooLarge(int limit) {
+    return 'Uno sticker deve essere più piccolo di $limit KB.';
+  }
+
+  @override
+  String failureStickerTooWide(int limit) {
+    return 'Uno sticker può essere al massimo di $limit×$limit pixel.';
+  }
+
+  @override
+  String failureStickerTooSmall(int limit) {
+    return 'Uno sticker deve essere almeno di $limit×$limit pixel.';
+  }
+
+  @override
+  String get failureStickerPackFull =>
+      'Questo pacchetto è pieno. Rimuovi qualcosa per fare spazio.';
+
+  @override
+  String get failureStickerTooManyPacks =>
+      'Hai tanti pacchetti quanti Privio ne gestisce. Eliminane uno per crearne un altro.';
+
+  @override
+  String get failureStickerPackNotFound => 'Questo pacchetto non esiste più.';
+
+  @override
+  String get failureStickerLinkDead =>
+      'Questo link non apre più nulla: è stato ritirato oppure il pacchetto è stato eliminato.';
+
+  @override
+  String get settingsStickers => 'Sticker ed emoji';
+
+  @override
+  String get stickersTitle => 'Sticker ed emoji';
+
+  @override
+  String get stickersMyPacks => 'I miei pacchetti';
+
+  @override
+  String get stickersInstalled => 'Aggiunti';
+
+  @override
+  String get stickersEmptyTitle => 'Ancora nessun pacchetto';
+
+  @override
+  String get stickersEmptyBody =>
+      'Crea un pacchetto con immagini tue, oppure apri un link che ti hanno mandato.';
+
+  @override
+  String get stickersNewPack => 'Nuovo pacchetto';
+
+  @override
+  String get stickersNewStickerPack => 'Pacchetto di sticker';
+
+  @override
+  String get stickersNewEmojiPack => 'Pacchetto di emoji';
+
+  @override
+  String get stickersNameLabel => 'Nome';
+
+  @override
+  String get stickersNameHint => 'Come si chiama questo pacchetto';
+
+  @override
+  String get stickersCreate => 'Crea';
+
+  @override
+  String get stickersRename => 'Rinomina';
+
+  @override
+  String get stickersDelete => 'Elimina il pacchetto';
+
+  @override
+  String stickersDeleteConfirm(String title) {
+    return 'Eliminare «$title»?';
+  }
+
+  @override
+  String get stickersDeleteExplain =>
+      'Il link smette di funzionare e il pacchetto sparisce dal selettore. Gli sticker già inviati restano visibili in quelle conversazioni.';
+
+  @override
+  String get stickersRemovePack => 'Rimuovi dai miei pacchetti';
+
+  @override
+  String get stickersAddPack => 'Aggiungi il pacchetto';
+
+  @override
+  String get stickersAlreadyAdded => 'È già nei tuoi pacchetti';
+
+  @override
+  String get stickersShare => 'Condividi questo pacchetto';
+
+  @override
+  String get stickersSharedOn => 'Chi ha il link può aggiungerlo';
+
+  @override
+  String get stickersSharedOff => 'Privato. Lo vedi solo tu.';
+
+  @override
+  String get stickersShareExplain =>
+      'Un pacchetto è privato finché non lo condividi. Le immagini degli sticker non sono cifrate: un link è pensato per persone che non hanno nessuna tua chiave, quindi chi ha il link — e anche questo server — può vederle. Ritirare il link impedisce nuove aggiunte; non lo toglie a chi lo ha già.';
+
+  @override
+  String get stickersCopyLink => 'Copia il link';
+
+  @override
+  String get stickersLinkCopied => 'Link copiato';
+
+  @override
+  String get stickersWithdrawLink => 'Ritira il link';
+
+  @override
+  String get stickersNewLinkNote =>
+      'Condividere di nuovo crea un link nuovo e annulla il precedente.';
+
+  @override
+  String get stickersAddItem => 'Aggiungi un’immagine';
+
+  @override
+  String get stickersItemEmoji => 'Emoji per questo';
+
+  @override
+  String get stickersItemEmojiWhy =>
+      'Che cosa rappresenta: quello che mostra al suo posto un’app senza questo pacchetto, e come lo ritrovi dopo.';
+
+  @override
+  String get stickersEmptyPack => 'Questo pacchetto è ancora vuoto.';
+
+  @override
+  String stickersItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count immagini',
+      one: '1 immagine',
+      zero: 'Vuoto',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stickersRemoveItem => 'Rimuovi';
+
+  @override
+  String get stickersReorderHint => 'Tieni premuto e trascina per riordinare.';
+
+  @override
+  String get stickersCropTitle => 'Ritaglia';
+
+  @override
+  String get stickersCropHint =>
+      'Trascina e pizzica per scegliere il quadrato. La trasparenza viene mantenuta.';
+
+  @override
+  String get stickersUse => 'Usa';
+
+  @override
+  String get stickersPreviewTitle => 'Pacchetto di sticker';
+
+  @override
+  String get stickersOpenLinkTitle => 'Apri un link di pacchetto';
+
+  @override
+  String get stickersOpenLinkHint =>
+      'Incolla il link o il codice che ti hanno mandato.';
+
+  @override
+  String get stickersOpen => 'Apri';
+
+  @override
+  String get stickersKindSticker => 'Sticker';
+
+  @override
+  String get stickersKindEmoji => 'Emoji personalizzate';
+
+  @override
+  String get stickersPickFailed =>
+      'Non è stato possibile aprire questa immagine.';
 }

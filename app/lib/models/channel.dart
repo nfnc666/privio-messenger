@@ -1147,6 +1147,23 @@ class ChannelLinkByHandle extends ChannelLinkTarget {
   final String handle;
 }
 
+/// A shared sticker or custom-emoji pack.
+///
+/// Part of this family rather than its own, and that is the point: every Privio
+/// link arrives through the same door, so a sticker link tapped in another app
+/// reaches the parser that already runs on launch instead of needing a second
+/// one. The sealed hierarchy then makes the compiler name every place that has
+/// to decide what to do with it — which is how this was added without a link
+/// silently falling through to "not a Privio link".
+///
+/// The code is a capability, like a private channel's invite code, and it is
+/// revocable: the owner can replace it, which stops the old link.
+class StickerPackLink extends ChannelLinkTarget {
+  const StickerPackLink(this.code);
+
+  final String code;
+}
+
 /// When somebody was last seen, so far as they let anyone see it.
 ///
 /// A fact with a shape, not a sentence: the words differ per language and per

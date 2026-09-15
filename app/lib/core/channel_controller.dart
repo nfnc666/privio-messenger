@@ -451,6 +451,12 @@ class ChannelController extends ChangeNotifier {
           channel = found;
         case ChannelLinkByHandle(:final handle):
           channel = await _channels.byHandle(handle);
+        case StickerPackLink():
+          // Not a channel, and not this controller's to open. The screen that
+          // handles a pending link routes a pack link to the sticker screen;
+          // reaching here means something asked *this* object to preview one,
+          // and answering with a channel would be answering the wrong question.
+          channel = null;
       }
     });
     return channel;

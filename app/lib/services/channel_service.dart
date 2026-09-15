@@ -820,6 +820,16 @@ class ChannelService {
   static const String channelLinkHost = 'privio.channel';
   static const String groupLinkHost = 'privio.group';
 
+  /// Where a sticker-pack link points.
+  ///
+  /// The channel host, deliberately, rather than a fourth domain: the app-link
+  /// files that make a tapped link open Privio rather than a browser are
+  /// published per host and verified per host, so a new domain would be a link
+  /// that opens nothing until somebody sets that up. The `/s/` in the path is
+  /// what names it, which is how every other kind here is told apart anyway.
+  static String linkForStickerPack(String shareCode) =>
+      'https://$channelLinkHost/s/$shareCode';
+
   /// The link to share for a private channel. It holds the code and nothing
   /// else, so it is safe to post anywhere a link can be posted — the code is
   /// the capability, and it is unguessable.
@@ -871,6 +881,7 @@ class ChannelService {
   ///     /<handle>         a public channel, by name
   ///     /c/<code>         what every shipped build used to generate
   ///     /g/<code>         a group
+  ///     /s/<code>         a shared sticker or custom-emoji pack
   ///     privio://…        the same paths under the app's own scheme
   ///
   /// A leading `/open` is stripped first. That is the path the web page's
@@ -897,6 +908,12 @@ class ChannelService {
       segments = segments.sublist(1);
     }
     if (segments.isEmpty) return null;
+
+    // A sticker pack, before the channel kinds: `/s/<code>`.
+    final sticker = segments.indexOf('s');
+    if (sticker >= 0 && sticker + 1 < segments.length && segments[sticker + 1].isNotEmpty) {
+      return StickerPackLink(segments[sticker + 1]);
+    }
 
     const kinds = {'c': InviteKind.channel, 'g': InviteKind.group};
     for (final entry in kinds.entries) {
