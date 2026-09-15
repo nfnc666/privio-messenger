@@ -39,6 +39,7 @@ decides that, never the client.
 | Route | Notes |
 | --- | --- |
 | `DELETE /v1/accounts/me/avatar` | |
+| `DELETE /v1/accounts/me/status` | removes the profile status; removing nothing is not an error |
 | `DELETE /v1/accounts/me` | |
 | `DELETE /v1/backup` | |
 | `DELETE /v1/blocks/:id` | |
@@ -95,7 +96,7 @@ decides that, never the client.
 | `GET /v1/users/:username` | |
 | `GET /v1/users/id/:accountId` | |
 | `GET /v1/ws` | |
-| `PATCH /v1/accounts/me` | |
+| `PATCH /v1/accounts/me` | `privacy.profileStatus` is `everyone`\|`contacts`\|`nobody`, separate from `lastSeen` |
 | `PATCH /v1/channels/:id` | also `{reactionEmojis, commentsEnabled}`; needs `canEditChannel` |
 | `PATCH /v1/channels/:id/posts/:postId` | the author only — an admin may delete, not rewrite |
 | `PATCH /v1/groups/:id` | |
@@ -143,6 +144,7 @@ decides that, never the client.
 | `POST /v1/sessions/revoke-all` | |
 | `POST /v1/sessions` | |
 | `PUT /v1/accounts/me/avatar` | |
+| `PUT /v1/accounts/me/status` | `{text?, emoji?, expiresAt?}`; empty text and no emoji is a removal; an expiry already past is refused |
 | `PUT /v1/accounts/me/recovery` | |
 | `PUT /v1/backup` | |
 | `PUT /v1/channels/:id/members/:accountId/role` | |

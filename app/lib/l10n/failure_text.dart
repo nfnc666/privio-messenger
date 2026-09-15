@@ -11,6 +11,7 @@ import 'app_localizations.dart';
 extension FailureText on Failure {
   String words(AppText text) => switch (kind) {
         FailureKind.unreachable => text.failureUnreachable,
+        FailureKind.statusNotSaved => text.accountStatusCouldNotSave,
         FailureKind.unreachableCheckConnection => text.failureUnreachableCheckConnection,
         FailureKind.unreachableTryAgain => text.failureUnreachableTryAgain,
         FailureKind.couldNotSave => text.failureCouldNotSave,

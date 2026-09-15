@@ -1723,6 +1723,70 @@ class AppTextEn extends AppText {
   String get accountStatusDefault => 'Hey there! I am using Privio.';
 
   @override
+  String get accountStatusNone => 'Not set';
+
+  @override
+  String get accountStatusTitle => 'Status';
+
+  @override
+  String get accountStatusHint => 'What are you up to?';
+
+  @override
+  String get accountStatusEmoji => 'Emoji';
+
+  @override
+  String get accountStatusEmojiNone => 'None';
+
+  @override
+  String get accountStatusClearsAfter => 'Clears after';
+
+  @override
+  String get accountStatusNeverClears => 'Never';
+
+  @override
+  String get accountStatus30Minutes => '30 minutes';
+
+  @override
+  String get accountStatus1Hour => '1 hour';
+
+  @override
+  String get accountStatus4Hours => '4 hours';
+
+  @override
+  String get accountStatusToday => 'Today';
+
+  @override
+  String get accountStatus1Week => '1 week';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Until $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Your status was not saved. What you typed is still here — try again.';
+
+  @override
+  String get accountStatusSaving => 'Saving…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Anyone allowed to see your status reads this. It is not encrypted the way your messages are, and it is not your online status.';
+
+  @override
+  String get privacyProfileStatus => 'Status';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Everyone';
+
+  @override
+  String get privacyProfileStatusContacts => 'My contacts';
+
+  @override
+  String get privacyProfileStatusNobody => 'Nobody';
+
+  @override
   String get accountId => 'Account ID';
 
   @override

@@ -19,6 +19,7 @@ import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
+import 'status_controller.dart';
 import 'locale_controller.dart';
 import 'secure_store.dart';
 
@@ -96,6 +97,7 @@ class AppState extends ChangeNotifier {
   ChannelController? _channels;
   LicenseController? _license;
   SecurityController? _security;
+  StatusController? _profileStatus;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -258,6 +260,13 @@ class AppState extends ChangeNotifier {
 
   /// The second factor, who may see your last-seen, and who is blocked.
   SecurityController get security => _security ??= SecurityController(services.api);
+
+  /// The line this account published about itself.
+  ///
+  /// Its own controller rather than a field on [SecurityController], because a
+  /// status is not a security setting and the two are read at different moments
+  /// — this one on every sign-in, that one only when a settings screen opens.
+  StatusController get profileStatus => _profileStatus ??= StatusController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and reads
@@ -456,6 +465,11 @@ class AppState extends ChangeNotifier {
       // sign-in rather than at the first call: a security setting that waits
       // for a restart is one somebody will believe is on when it is not.
       detached(services.calls.loadSettings(account));
+      // The account's own status line. `load` resets to nothing first and takes
+      // the id it is loading for, so the previous account's status is never on
+      // screen while this one's read is in flight, and an answer that arrives
+      // after another switch is dropped rather than applied.
+      detached(profileStatus.load(account));
     }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
@@ -717,6 +731,8 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _profileStatus?.dispose();
+    _profileStatus = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -823,6 +839,8 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _profileStatus?.dispose();
+    _profileStatus = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -883,6 +901,8 @@ class AppState extends ChangeNotifier {
     _license = null;
     _security?.dispose();
     _security = null;
+    _profileStatus?.dispose();
+    _profileStatus = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;

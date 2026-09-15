@@ -86,6 +86,42 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     if (chosen != null) await security.setLastSeen(chosen);
   }
 
+  String _profileStatusLabel(AppText text, String value) => switch (value) {
+        'contacts' => text.privacyProfileStatusContacts,
+        'nobody' => text.privacyProfileStatusNobody,
+        _ => text.privacyProfileStatusEveryone,
+      };
+
+  /// Who may read the line this account published about itself.
+  ///
+  /// Its own chooser beside last-seen rather than folded into it. They read the
+  /// same three values and mean different things: one hides an observation the
+  /// server made, the other withholds something the user wrote.
+  Future<void> _chooseProfileStatus(SecurityController security) async {
+    final text = AppText.of(context);
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final value in SecurityController.profileStatusChoices)
+              ListTile(
+                title: Text(_profileStatusLabel(text, value)),
+                trailing: value == security.profileStatus
+                    ? Icon(Icons.check_rounded, color: context.accents.accent)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(value),
+              ),
+            const SizedBox(height: PrivioSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null) await security.setProfileStatusVisibility(chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
@@ -113,6 +149,11 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 label: text.privacyLastSeen,
                 value: _lastSeenLabel(text, security.lastSeen),
                 onTap: () => _chooseLastSeen(security),
+              ),
+              SettingsRow(
+                label: text.privacyProfileStatus,
+                value: _profileStatusLabel(text, security.profileStatus),
+                onTap: () => _chooseProfileStatus(security),
               ),
             ],
           ),

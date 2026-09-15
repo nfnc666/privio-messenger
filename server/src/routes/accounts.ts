@@ -5,6 +5,7 @@ import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as accounts from '../services/accounts.js';
+import { ownStatus } from '../services/status.js';
 import type { BlobStorage } from '../services/storage.js';
 import { deviceRegistrationSchema, registerDevice } from '../services/devices.js';
 import {
@@ -48,6 +49,9 @@ const privacySchema = z.object({
   readReceipts: z.boolean().optional(),
   typingIndicators: z.boolean().optional(),
   whoCanAddMeToGroups: z.enum(['everyone', 'contacts']).optional(),
+  // Who may read the profile status. Its own key, never `lastSeen` — see
+  // `services/status.ts`.
+  profileStatus: z.enum(['everyone', 'contacts', 'nobody']).optional(),
 });
 
 const registerSchema = z.object({
@@ -63,6 +67,24 @@ const loginSchema = z.object({
   totpCode: z.string().regex(/^\d{6}$/).optional(),
   device: deviceRegistrationSchema,
 });
+
+/**
+ * Clears the four status columns and reports what is left, which is nothing.
+ *
+ * Shared by the removal endpoint and by a save whose text and emoji are both
+ * empty, so the two cannot drift into storing different kinds of "no status" —
+ * an empty string in one path and a NULL in the other would read differently
+ * to every consumer of the column.
+ */
+async function clearStatus(accountId: string) {
+  const { rows } = await pool.query<accounts.AccountRow>(
+    `UPDATE accounts
+     SET status_text = NULL, status_emoji = NULL, status_expires_at = NULL, status_updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [accountId],
+  );
+  return ownStatus(rows[0]!);
+}
 
 const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   /** Create an account and its first device. No phone number, no email. */
@@ -172,6 +194,10 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     return {
       ...accounts.publicProfile(account),
       deviceId,
+      // Their own, so no visibility check — but still through `ownStatus`, which
+      // is what drops one whose moment has passed. An owner who saw an expired
+      // status here would edit a line nobody else can read.
+      status: ownStatus(account),
       privacy: account.privacy,
       twoFactorEnabled: account.totp_enabled_at !== null,
       duressCodeSet: account.duress_code_hash !== null,
@@ -433,6 +459,68 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
       await pool.query('UPDATE media_objects SET expires_at = now() WHERE id = $1', [removed]);
     }
     return { avatarMediaId: null };
+  });
+
+  /**
+   * Set or replace the profile status.
+   *
+   * The account is `auth(request)` and nothing else. There is no id in the
+   * path, none in the body, and no branch that would accept one — which is the
+   * whole of "a user may only change their own status": not a check that could
+   * be forgotten, but an endpoint with nowhere to put somebody else's name.
+   *
+   * An empty text with no emoji is a removal, so a client that clears the field
+   * and saves gets the same result as one that pressed Remove. Two ways to
+   * express one intention, one stored outcome.
+   */
+  app.put('/v1/accounts/me/status', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+    const { accountId } = auth(request);
+    const body = parse(
+      z.object({
+        text: z.string().trim().max(140).nullable().optional(),
+        // One to eight UTF-16 units: enough for a flag or a family, short of a
+        // second status line smuggled in beside the first.
+        emoji: z.string().trim().min(1).max(8).nullable().optional(),
+        expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+      }),
+      request.body,
+    );
+
+    const text = body.text?.trim() ? body.text.trim() : null;
+    const emoji = body.emoji?.trim() ? body.emoji.trim() : null;
+    if (text === null && emoji === null) {
+      const cleared = await clearStatus(accountId);
+      return { status: cleared };
+    }
+
+    // Refused rather than stored and immediately hidden. A client that sends a
+    // moment already gone has a clock problem or a bug, and answering "saved"
+    // to something that will never be visible is the sort of quiet success this
+    // endpoint must not report.
+    let expiresAt: Date | null = null;
+    if (body.expiresAt != null) {
+      expiresAt = new Date(body.expiresAt);
+      if (Number.isNaN(expiresAt.getTime())) {
+        throw ApiError.badRequest('invalid_expiry', 'Expiry is not a moment in time');
+      }
+      if (expiresAt.getTime() <= Date.now()) {
+        throw ApiError.badRequest('expiry_in_past', 'A status cannot expire before it is set');
+      }
+    }
+
+    const { rows } = await pool.query<accounts.AccountRow>(
+      `UPDATE accounts
+       SET status_text = $2, status_emoji = $3, status_expires_at = $4, status_updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [accountId, text, emoji, expiresAt],
+    );
+    return { status: ownStatus(rows[0]!) };
+  });
+
+  /** Remove the profile status. Idempotent: removing nothing is not an error. */
+  app.delete('/v1/accounts/me/status', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
+    const { accountId } = auth(request);
+    return { status: await clearStatus(accountId) };
   });
 
   app.delete('/v1/accounts/me', { preHandler: (r) => app.requireAuth(r) }, async (request) => {

@@ -1740,6 +1740,70 @@ class AppTextFr extends AppText {
   String get accountStatusDefault => 'Salut ! J’utilise Privio.';
 
   @override
+  String get accountStatusNone => 'Non défini';
+
+  @override
+  String get accountStatusTitle => 'Statut';
+
+  @override
+  String get accountStatusHint => 'Que faites-vous ?';
+
+  @override
+  String get accountStatusEmoji => 'Émoji';
+
+  @override
+  String get accountStatusEmojiNone => 'Aucun';
+
+  @override
+  String get accountStatusClearsAfter => 'Disparaît après';
+
+  @override
+  String get accountStatusNeverClears => 'Jamais';
+
+  @override
+  String get accountStatus30Minutes => '30 minutes';
+
+  @override
+  String get accountStatus1Hour => '1 heure';
+
+  @override
+  String get accountStatus4Hours => '4 heures';
+
+  @override
+  String get accountStatusToday => 'Aujourd\'hui';
+
+  @override
+  String get accountStatus1Week => '1 semaine';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Jusqu\'à $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Votre statut n\'a pas été enregistré. Ce que vous avez écrit est toujours là — réessayez.';
+
+  @override
+  String get accountStatusSaving => 'Enregistrement…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Toute personne autorisée à voir votre statut lit ceci. Il n\'est pas chiffré comme vos messages, et ce n\'est pas votre statut en ligne.';
+
+  @override
+  String get privacyProfileStatus => 'Statut';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Tout le monde';
+
+  @override
+  String get privacyProfileStatusContacts => 'Mes contacts';
+
+  @override
+  String get privacyProfileStatusNobody => 'Personne';
+
+  @override
   String get accountId => 'Identifiant du compte';
 
   @override

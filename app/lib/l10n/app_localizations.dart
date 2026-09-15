@@ -2959,6 +2959,126 @@ abstract class AppText {
   /// **'Hey there! I am using Privio.'**
   String get accountStatusDefault;
 
+  /// No description provided for @accountStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get accountStatusNone;
+
+  /// No description provided for @accountStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get accountStatusTitle;
+
+  /// No description provided for @accountStatusHint.
+  ///
+  /// In en, this message translates to:
+  /// **'What are you up to?'**
+  String get accountStatusHint;
+
+  /// No description provided for @accountStatusEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get accountStatusEmoji;
+
+  /// No description provided for @accountStatusEmojiNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get accountStatusEmojiNone;
+
+  /// No description provided for @accountStatusClearsAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'Clears after'**
+  String get accountStatusClearsAfter;
+
+  /// No description provided for @accountStatusNeverClears.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get accountStatusNeverClears;
+
+  /// No description provided for @accountStatus30Minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'30 minutes'**
+  String get accountStatus30Minutes;
+
+  /// No description provided for @accountStatus1Hour.
+  ///
+  /// In en, this message translates to:
+  /// **'1 hour'**
+  String get accountStatus1Hour;
+
+  /// No description provided for @accountStatus4Hours.
+  ///
+  /// In en, this message translates to:
+  /// **'4 hours'**
+  String get accountStatus4Hours;
+
+  /// No description provided for @accountStatusToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get accountStatusToday;
+
+  /// No description provided for @accountStatus1Week.
+  ///
+  /// In en, this message translates to:
+  /// **'1 week'**
+  String get accountStatus1Week;
+
+  /// The moment a status clears, on the account row.
+  ///
+  /// In en, this message translates to:
+  /// **'Until {time}'**
+  String accountStatusUntil(String time);
+
+  /// No description provided for @accountStatusCouldNotSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Your status was not saved. What you typed is still here — try again.'**
+  String get accountStatusCouldNotSave;
+
+  /// No description provided for @accountStatusSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get accountStatusSaving;
+
+  /// No description provided for @accountStatusExplainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone allowed to see your status reads this. It is not encrypted the way your messages are, and it is not your online status.'**
+  String get accountStatusExplainer;
+
+  /// No description provided for @privacyProfileStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get privacyProfileStatus;
+
+  /// No description provided for @privacyProfileStatusEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get privacyProfileStatusEveryone;
+
+  /// No description provided for @privacyProfileStatusContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'My contacts'**
+  String get privacyProfileStatusContacts;
+
+  /// No description provided for @privacyProfileStatusNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody'**
+  String get privacyProfileStatusNobody;
+
   /// No description provided for @accountId.
   ///
   /// In en, this message translates to:

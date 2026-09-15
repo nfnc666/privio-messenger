@@ -1739,6 +1739,70 @@ class AppTextEs extends AppText {
   String get accountStatusDefault => '¡Hola! Estoy usando Privio.';
 
   @override
+  String get accountStatusNone => 'Sin definir';
+
+  @override
+  String get accountStatusTitle => 'Estado';
+
+  @override
+  String get accountStatusHint => '¿Qué estás haciendo?';
+
+  @override
+  String get accountStatusEmoji => 'Emoji';
+
+  @override
+  String get accountStatusEmojiNone => 'Ninguno';
+
+  @override
+  String get accountStatusClearsAfter => 'Se borra tras';
+
+  @override
+  String get accountStatusNeverClears => 'Nunca';
+
+  @override
+  String get accountStatus30Minutes => '30 minutos';
+
+  @override
+  String get accountStatus1Hour => '1 hora';
+
+  @override
+  String get accountStatus4Hours => '4 horas';
+
+  @override
+  String get accountStatusToday => 'Hoy';
+
+  @override
+  String get accountStatus1Week => '1 semana';
+
+  @override
+  String accountStatusUntil(String time) {
+    return 'Hasta las $time';
+  }
+
+  @override
+  String get accountStatusCouldNotSave =>
+      'Tu estado no se guardó. Lo que escribiste sigue aquí: inténtalo de nuevo.';
+
+  @override
+  String get accountStatusSaving => 'Guardando…';
+
+  @override
+  String get accountStatusExplainer =>
+      'Quien pueda ver tu estado leerá esto. No está cifrado como tus mensajes, y no es tu estado de conexión.';
+
+  @override
+  String get privacyProfileStatus => 'Estado';
+
+  @override
+  String get privacyProfileStatusEveryone => 'Todos';
+
+  @override
+  String get privacyProfileStatusContacts => 'Mis contactos';
+
+  @override
+  String get privacyProfileStatusNobody => 'Nadie';
+
+  @override
   String get accountId => 'ID de la cuenta';
 
   @override

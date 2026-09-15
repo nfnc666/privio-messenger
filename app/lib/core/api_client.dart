@@ -179,6 +179,26 @@ class PrivioApiClient {
 
   Future<void> clearAvatar() async => _send('DELETE', '/v1/accounts/me/avatar');
 
+  /// Sets the profile status. Text and emoji are both optional; sending
+  /// neither is how a status is removed through this route.
+  ///
+  /// There is no account id in the call because there is none in the endpoint:
+  /// the server takes the account from the session, so this can only ever write
+  /// the status of whoever is signed in.
+  Future<Map<String, dynamic>> setStatus({
+    String? text,
+    String? emoji,
+    DateTime? expiresAt,
+  }) =>
+      _send('PUT', '/v1/accounts/me/status', body: {
+        'text': text,
+        'emoji': emoji,
+        'expiresAt': expiresAt?.toUtc().toIso8601String(),
+      });
+
+  Future<Map<String, dynamic>> clearStatus() =>
+      _send('DELETE', '/v1/accounts/me/status');
+
   /// Sets or clears the duress code. Passing null removes it.
   ///
   /// The current password is required, and the server refuses a code equal to

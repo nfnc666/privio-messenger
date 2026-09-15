@@ -91,6 +91,21 @@ const READABLE: Record<string, string> = {
   // migration 022.
   'channel_reports.reason': 'one of five fixed words, never free text',
 
+  // The profile status. The one piece of content-bearing text a *person types*
+  // that this server can read, and it is here knowingly rather than by
+  // oversight. It cannot be sealed the way an avatar is: an avatar is opened
+  // with the profile key, which only people who have been written to hold,
+  // whereas a status may be addressed to anyone its owner allows — including
+  // people who have never exchanged a message and therefore hold no key.
+  //
+  // So what limits a status is the access rule in `services/status.ts`, not the
+  // cryptography, and the sheet where it is typed says so before anybody types
+  // anything. Someone who wants a line only one reader can open sends a
+  // message. See docs/security-model.md, "The profile status is plaintext on
+  // the server, on purpose".
+  'accounts.status_text': 'published by its owner to an audience they choose; see docs/security-model.md',
+  'accounts.status_emoji': 'the same, held apart from the text so a client can draw it beside the line',
+
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
   'licenses.status': 'active or revoked',

@@ -13,6 +13,13 @@ export interface AccountRow {
   privacy: PrivacySettings;
   avatar_media_id: string | null;
   avatar_updated_at: Date | null;
+  // The profile status. Read and written through `services/status.ts`, which
+  // owns the expiry and the visibility rule — nothing should reach these four
+  // directly except the update statement that sets them.
+  status_text: string | null;
+  status_emoji: string | null;
+  status_expires_at: Date | null;
+  status_updated_at: Date | null;
   created_at: Date;
   last_seen_at: Date;
 }
@@ -22,6 +29,13 @@ export interface PrivacySettings {
   readReceipts?: boolean;
   typingIndicators?: boolean;
   whoCanAddMeToGroups?: 'everyone' | 'contacts';
+  /**
+   * Who may read the profile status.
+   *
+   * Separate from `lastSeen` on purpose — see `services/status.ts` for why one
+   * switch must not decide both. Absent means `everyone`.
+   */
+  profileStatus?: 'everyone' | 'contacts' | 'nobody';
 }
 
 export async function findByUsername(username: string): Promise<AccountRow | null> {
@@ -72,7 +86,11 @@ export async function wipeAccount(accountId: string, storage: BlobStorage): Prom
     orphaned.push(...[...backups, ...media].map((r) => r.storage_key));
     await client.query(
       `UPDATE accounts
-       SET recovery_blob = NULL, totp_secret = NULL, totp_enabled_at = NULL, duress_code_hash = NULL
+       SET recovery_blob = NULL, totp_secret = NULL, totp_enabled_at = NULL, duress_code_hash = NULL,
+           -- The status goes too. It is the one thing on this row the account
+           -- published *to other people*, so a wipe that left it would leave a
+           -- line about somebody still readable by everyone it was shared with.
+           status_text = NULL, status_emoji = NULL, status_expires_at = NULL, status_updated_at = NULL
        WHERE id = $1`,
       [accountId],
     );
