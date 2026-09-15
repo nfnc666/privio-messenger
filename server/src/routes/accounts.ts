@@ -5,6 +5,7 @@ import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as accounts from '../services/accounts.js';
+import * as official from '../services/official_channel.js';
 import { ownStatus } from '../services/status.js';
 import type { BlobStorage } from '../services/storage.js';
 import { deviceRegistrationSchema, registerDevice } from '../services/devices.js';
@@ -127,6 +128,11 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
       return { accountId, ...device };
     });
 
+    // The official channel, once in this account's life. Detached on purpose:
+    // it is a nicety, and a channel that could not be joined must not be the
+    // reason somebody cannot finish signing up.
+    await official.ensureSubscribed(result.accountId).catch(() => {});
+
     const session = await createSession(result.accountId, result.deviceId, request.headers['user-agent']);
     reply.code(201);
     return {
@@ -175,6 +181,12 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     }
 
     const device = await withTransaction((client) => registerDevice(client, account.id, body.device));
+    // Existing accounts reach the official channel here, on their next sign-in.
+    // It runs once and then never again, because the offer row it writes is
+    // what the next call looks at — so somebody who removed the channel does
+    // not find it back after a re-login, which is the whole point.
+    await official.ensureSubscribed(account.id).catch(() => {});
+
     const session = await createSession(account.id, device.deviceId, request.headers['user-agent']);
     return {
       accountId: account.id,

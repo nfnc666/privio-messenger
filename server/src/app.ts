@@ -19,6 +19,7 @@ import licenseRoutes from './routes/licenses.js';
 import adminRoutes from './routes/admin.js';
 import { mediaRoutes } from './routes/media.js';
 import { phoneRoutes } from './routes/phone.js';
+import * as officialChannel from './services/official_channel.js';
 import { smsSenderFrom } from './services/sms.js';
 import stickerRoutes from './routes/stickers.js';
 import botRoutes from './routes/bots.js';
@@ -171,6 +172,10 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // configuration fails here — where a deployment notices — rather than when
   // somebody is waiting for a text. See `services/sms.ts`.
   await app.register(phoneRoutes(smsSenderFrom()));
+  // Loaded before the first request rather than on first use: the cache answers
+  // `verified: false` until it is filled, and the one channel that must never
+  // be answered that way is the official one.
+  await officialChannel.refresh();
   await app.register(botRoutes);
   // The assistant has to exist before anybody can write to it, and it is
   // ensured rather than assumed — see `ensureAssistant`.

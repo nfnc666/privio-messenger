@@ -9,6 +9,7 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/search_field.dart';
 import 'channel_feed_screen.dart';
@@ -256,11 +257,11 @@ class ChannelListRow extends StatelessWidget {
       title: Row(
         children: [
           Flexible(
-            child: Text(
-              channel.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: ChannelName(
+              name: channel.title,
+              verified: channel.verified,
               style: theme.textTheme.titleSmall,
+              badgeSize: 15,
             ),
           ),
           if (!channel.hasKey) ...[

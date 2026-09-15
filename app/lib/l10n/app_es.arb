@@ -1116,5 +1116,6 @@
   "failurePhoneUnchanged": "Ese número ya está verificado en esta cuenta.",
   "failurePhoneNotLinked": "En esta cuenta no hay ningún número verificado.",
   "failurePhoneLookupBudgetSpent": "PRIVIO ha comparado hoy todos los números que compara para esta cuenta. Inténtalo mañana.",
-  "failureContactsPermissionDenied": "PRIVIO no tiene acceso a tus contactos. Puedes seguir añadiendo personas con su PRIVIO ID o un enlace de invitación."
+  "failureContactsPermissionDenied": "PRIVIO no tiene acceso a tus contactos. Puedes seguir añadiendo personas con su PRIVIO ID o un enlace de invitación.",
+  "channelVerifiedTooltip": "Canal oficial de PRIVIO"
 }

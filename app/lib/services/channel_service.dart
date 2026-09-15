@@ -1706,6 +1706,7 @@ class ChannelService {
         ),
         inviteCode: raw['inviteCode'] as String?,
         restrictSaving: raw['restrictSaving'] as bool? ?? false,
+        verified: raw['verified'] as bool? ?? false,
         // A server from before reactions existed sends nothing here, and a
         // channel with no bar at all would look like the feature is missing
         // rather than unset — so the default set stands in.

@@ -10,6 +10,7 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
@@ -383,10 +384,21 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
-                    child: Text(
-                      channel.title,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    // Centred as a row, so the badge sits beside the name
+                    // rather than under it.
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            channel.title,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                        if (channel.verified) const VerifiedBadge(size: 22),
+                      ],
                     ),
                   ),
                 ),

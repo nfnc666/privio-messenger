@@ -18,6 +18,7 @@ import {
   revokeAllAdminSessions,
 } from '../services/admin_auth.js';
 import { audit, auditFailedLogin, readAuditLog } from '../services/admin_audit.js';
+import * as official from '../services/official_channel.js';
 import * as licenses from '../services/licenses.js';
 import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
@@ -250,6 +251,174 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     await pool.query('UPDATE admin_users SET totp_enabled_at = now() WHERE id = $1', [me.adminId]);
     return { enabled: true };
   });
+
+  // ---------------------------------------------------------------------------
+  // The official channel
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Finds the channels a handle could mean, so an operator can pick by id.
+   *
+   * The point of this route is that it does **not** decide anything. It answers
+   * with every public channel whose handle or title looks like what was asked
+   * for, each with its id, its owner and when it was created — and the operator
+   * reads that, confirms the owner is who they expect, and designates the one
+   * they chose *by id*. A route that took a handle and designated whatever it
+   * found would be a badge that follows a name, which is the failure this whole
+   * feature is arranged to prevent.
+   */
+  app.get('/v1/admin/official-channel/candidates', guard, async (request) => {
+    actor(request);
+    const query = parse(z.object({ handle: z.string().trim().min(1).max(64) }), request.query);
+    const needle = query.handle.replace(/^@/, '').toLowerCase();
+
+    const { rows } = await pool.query(
+      `SELECT c.id, c.handle, c.title, c.visibility, c.member_count, c.created_at,
+              c.avatar_media_id, c.description,
+              c.owner_account_id, a.username AS owner_username, a.display_name AS owner_display_name,
+              (SELECT count(*) FROM channel_posts p
+                WHERE p.channel_id = c.id AND p.deleted_at IS NULL)::int AS posts
+         FROM channels c
+         JOIN accounts a ON a.id = c.owner_account_id
+        WHERE c.deleted_at IS NULL
+          AND (lower(c.handle) = $1 OR lower(c.handle) LIKE $1 || '%' OR lower(c.title) = $1)
+        ORDER BY (lower(c.handle) = $1) DESC, c.member_count DESC
+        LIMIT 25`,
+      [needle],
+    );
+
+    return {
+      candidates: rows.map((row) => ({
+        id: row.id,
+        handle: row.handle,
+        title: row.title,
+        visibility: row.visibility,
+        description: row.description,
+        avatarMediaId: row.avatar_media_id,
+        memberCount: row.member_count,
+        posts: row.posts,
+        owner: {
+          accountId: row.owner_account_id,
+          username: row.owner_username,
+          displayName: row.owner_display_name,
+        },
+        createdAt: (row.created_at as Date).toISOString(),
+        // Whether this one already carries the badge.
+        official: official.isOfficial(row.id),
+      })),
+    };
+  });
+
+  app.get('/v1/admin/official-channel', guard, async (request) => {
+    actor(request);
+    return { official: await currentOfficialJson() };
+  });
+
+  /**
+   * Designates a channel as the official one, by id.
+   *
+   * `expectedHandle` and `expectedOwner` are required and are checked against
+   * the row before anything is written. They are not how the channel is found —
+   * the id is — they are how an operator who pasted the wrong uuid finds out
+   * before the badge moves rather than afterwards. Getting either wrong is a
+   * refusal that names what it actually found.
+   *
+   * Nothing about the channel is modified: not its picture, not its
+   * description, not its posts, and not one row of its membership. This writes
+   * a single row in a different table.
+   */
+  app.put('/v1/admin/official-channel', guard, async (request) => {
+    const me = actor(request, 'operators');
+    const body = parse(
+      z.object({
+        channelId: uuidSchema,
+        expectedHandle: z.string().trim().min(1).max(64),
+        expectedOwner: z.string().trim().min(1).max(64),
+      }),
+      request.body,
+    );
+
+    const { rows } = await pool.query(
+      `SELECT c.id, c.handle, c.visibility, c.owner_account_id, a.username AS owner_username
+         FROM channels c JOIN accounts a ON a.id = c.owner_account_id
+        WHERE c.id = $1 AND c.deleted_at IS NULL`,
+      [body.channelId],
+    );
+    const channel = rows[0];
+    if (!channel) throw ApiError.notFound('channel_not_found', 'No such channel');
+
+    const handle = (channel.handle as string | null) ?? '';
+    if (handle.toLowerCase() !== body.expectedHandle.replace(/^@/, '').toLowerCase()) {
+      throw ApiError.badRequest(
+        'handle_mismatch',
+        `That channel's handle is "${handle}", not "${body.expectedHandle}".`,
+      );
+    }
+    if ((channel.owner_username as string).toLowerCase() !== body.expectedOwner.replace(/^@/, '').toLowerCase()) {
+      throw ApiError.badRequest(
+        'owner_mismatch',
+        `That channel is owned by "${channel.owner_username}", not "${body.expectedOwner}".`,
+      );
+    }
+    if (channel.visibility !== 'public') {
+      // A private channel cannot be the official one: nobody could be
+      // subscribed to it without its key, and a badge on something unreachable
+      // says nothing to anybody.
+      throw ApiError.badRequest('not_public', 'The official channel has to be a public channel.');
+    }
+
+    await official.designate(
+      channel.id as string,
+      handle,
+      channel.owner_account_id as string,
+      me.username,
+    );
+    await audit(me, {
+      action: 'official_channel.designate',
+      targetType: 'channel',
+      targetId: channel.id as string,
+      detail: { handle, owner: channel.owner_username },
+      ip: request.ip,
+    });
+    return { official: await currentOfficialJson() };
+  });
+
+  app.delete('/v1/admin/official-channel', guard, async (request) => {
+    const me = actor(request, 'operators');
+    await official.clear();
+    await audit(me, { action: 'official_channel.clear', ip: request.ip });
+    return { official: null };
+  });
+
+  /** The designation as the panel shows it, with the channel it points at. */
+  async function currentOfficialJson() {
+    const set = await official.current();
+    if (!set) return null;
+    const { rows } = await pool.query(
+      `SELECT c.handle, c.title, c.member_count, a.username AS owner_username
+         FROM channels c JOIN accounts a ON a.id = c.owner_account_id
+        WHERE c.id = $1`,
+      [set.channelId],
+    );
+    const now = rows[0];
+    return {
+      channelId: set.channelId,
+      designatedHandle: set.designatedHandle,
+      setAt: set.setAt.toISOString(),
+      setBy: set.setBy,
+      // What the channel looks like *now*, so a handle or an owner that has
+      // changed since designation is visible rather than silently carried.
+      current: now
+        ? {
+            handle: now.handle,
+            title: now.title,
+            memberCount: now.member_count,
+            ownerUsername: now.owner_username,
+          }
+        : null,
+      handleChanged: now ? now.handle !== set.designatedHandle : null,
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Dashboard

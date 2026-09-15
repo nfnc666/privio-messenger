@@ -151,6 +151,17 @@ const READABLE: Record<string, string> = {
   // questions — a bot's name — and nothing a person said to another person.
   'botcreator_state.step': 'the assistant s own state machine, not a conversation between people',
 
+  // Which channel carries the verification badge, and who said so.
+  //
+  // Neither column decides anything — the badge is decided by `channel_id`, a
+  // uuid, and these two are the evidence beside it. The handle is what it was
+  // at the moment of designation, kept so that a later audit can see whether
+  // the channel has since been renamed; `set_by` is an operator's username. A
+  // channel's handle is already readable (it is how a public channel is found),
+  // and an operator's username is not user data at all.
+  'official_channel.designated_handle': 'what the handle was when it was designated, as evidence',
+  'official_channel.set_by': 'which operator designated it',
+
   // Phone numbers, and the shape of what is *not* here.
   //
   // There is no phone-number column in this schema and these three are the

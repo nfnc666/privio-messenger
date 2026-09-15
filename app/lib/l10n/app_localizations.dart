@@ -6792,6 +6792,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.'**
   String get failureContactsPermissionDenied;
+
+  /// No description provided for @channelVerifiedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Official Privio channel'**
+  String get channelVerifiedTooltip;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

@@ -4013,4 +4013,7 @@ class AppTextIt extends AppText {
   @override
   String get failureContactsPermissionDenied =>
       'PRIVIO non ha accesso ai tuoi contatti. Puoi comunque aggiungere persone con il loro PRIVIO ID o un link di invito.';
+
+  @override
+  String get channelVerifiedTooltip => 'Canale ufficiale PRIVIO';
 }

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction, type PoolClient } from '../db/pool.js';
+import * as official from '../services/official_channel.js';
 import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
@@ -156,6 +157,17 @@ function publicView(row: Record<string, unknown>) {
           room: row.live_room ?? null,
         }
       : null,
+    /**
+     * Whether this is *the* official Privio channel.
+     *
+     * Decided by comparing the channel's **id** against the designated one, in
+     * `services/official_channel.ts`. Never by its handle or its title: a
+     * public channel called "Privio Official" with a handle one character
+     * different is something anybody can register, and a badge keyed on a name
+     * would decorate it. There is no way for a client to ask for this to be
+     * true — it is computed here, on every response, from a row an operator set.
+     */
+    verified: official.isOfficial(row.id),
     createdAt: (row.created_at as Date).toISOString(),
   };
 }
@@ -654,6 +666,10 @@ const channelRoutes =
     // Ask for the key straight away rather than waiting for the client to think
     // of it: a member who cannot read the channel is the common case here.
     await recordKeyRequest('channel', params.id, accountId, deviceId);
+    // Coming back of one's own accord. Recorded so the stored fact matches what
+    // is true; it does not re-arm the automatic subscribe, which runs once per
+    // account and has already run.
+    if (joined) await official.noteRejoined(accountId, params.id);
     await wakeKeyHolders(bus, 'channel', params.id, deviceId);
     return { joined, role: member?.role ?? null, permissions: member?.permissions ?? null };
   });
@@ -685,6 +701,10 @@ const channelRoutes =
       return rotateKeyEpoch(client, params.id);
     });
     await clearKeyRequestsFor('channel', params.id, accountId);
+    // Leaving the official channel is a decision, and it is written down so the
+    // next sign-in does not undo it. The offer row is what stops the re-add;
+    // this records that it was deliberate rather than merely offered.
+    await official.noteLeft(accountId, params.id);
     // The remaining members' devices are told, so one of them generates the new
     // key rather than the channel sitting on a rotation nobody has completed.
     await wakeKeyHolders(bus, 'channel', params.id, deviceId);

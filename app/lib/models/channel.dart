@@ -356,6 +356,7 @@ class ChannelInfo {
     this.permissions = const ChannelPermissions(),
     this.inviteCode,
     this.restrictSaving = false,
+    this.verified = false,
     this.hasKey = false,
     this.keyEpoch = 1,
     this.hasCurrentKey = true,
@@ -401,6 +402,19 @@ class ChannelInfo {
   final String? inviteCode;
 
   final bool restrictSaving;
+
+  /// Whether this is *the* official Privio channel.
+  ///
+  /// Comes from the server and from nowhere else, and the server decides it by
+  /// comparing the channel's **id** against a designated one — never its handle
+  /// or its title. A channel called "Privio Official" that somebody else
+  /// registered arrives here with this false, which is the entire point: a
+  /// badge that followed a name would decorate the impostor.
+  ///
+  /// Defaults to false, so a response from a server that predates the field, or
+  /// a cached channel written before it, is unverified rather than accidentally
+  /// verified.
+  final bool verified;
 
   /// The emojis this channel offers under a post. Set by an admin; the server
   /// refuses a reaction that is not one of them.
@@ -557,6 +571,7 @@ class ChannelInfo {
         permissions: permissions ?? this.permissions,
         inviteCode: inviteCode,
         restrictSaving: restrictSaving,
+        verified: verified,
         reactionEmojis: reactionEmojis,
         commentsEnabled: commentsEnabled,
         invite: invite,
@@ -595,6 +610,7 @@ class ChannelInfo {
         permissions: permissions,
         inviteCode: inviteCode,
         restrictSaving: restrictSaving,
+        verified: verified,
         reactionEmojis: reactionEmojis,
         commentsEnabled: commentsEnabled,
         invite: invite,
