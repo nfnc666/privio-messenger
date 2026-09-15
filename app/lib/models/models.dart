@@ -1,3 +1,4 @@
+import '../media/attachment.dart' show CustomEmojiRef;
 import 'package:flutter/foundation.dart';
 
 
@@ -46,6 +47,13 @@ enum MessageKind {
   photo,
   video,
   file,
+
+  /// A sticker: a picture sent on its own, drawn without a bubble.
+  ///
+  /// Its own kind rather than a photo, because the two are not the same thing
+  /// to look at or to handle — a sticker has no caption, no bubble, no download
+  /// and no save, and it is the pack it came from that a tap should open.
+  sticker,
 
   /// What is left after someone took a message back. It keeps its place in the
   /// conversation and carries nothing else.
@@ -191,6 +199,55 @@ class SystemNotice {
   }
 }
 
+/// Which sticker a message is, and where its picture comes from.
+///
+/// All three ids together, because each answers a different question and the
+/// message has to go on answering all of them after the pack has changed:
+/// [itemId] is what a reaction or a favourite points at, [packId] is what a tap
+/// offers, and [mediaId] is what draws it. A pack that has been deleted leaves
+/// the first two naming nothing — and the message still renders, from the
+/// third, or from the fallback character in its body.
+@immutable
+class StickerRef {
+  const StickerRef({
+    required this.itemId,
+    required this.packId,
+    required this.mediaId,
+  });
+
+  static StickerRef? fromJson(Map<String, dynamic>? raw) {
+    if (raw == null) return null;
+    final itemId = raw['itemId'] as String?;
+    final mediaId = raw['mediaId'] as String?;
+    if (itemId == null || mediaId == null) return null;
+    return StickerRef(
+      itemId: itemId,
+      packId: raw['packId'] as String? ?? '',
+      mediaId: mediaId,
+    );
+  }
+
+  final String itemId;
+  final String packId;
+  final String mediaId;
+
+  Map<String, dynamic> toJson() => {
+        'itemId': itemId,
+        'packId': packId,
+        'mediaId': mediaId,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is StickerRef &&
+      other.itemId == itemId &&
+      other.packId == packId &&
+      other.mediaId == mediaId;
+
+  @override
+  int get hashCode => Object.hash(itemId, packId, mediaId);
+}
+
 @immutable
 class Message {
   const Message({
@@ -216,6 +273,9 @@ class Message {
     this.reactions = const {},
     this.receipts = const {},
     this.notice,
+    this.sticker,
+    this.customEmoji,
+    this.reactionStickers = const {},
   });
 
   final String id;
@@ -242,6 +302,28 @@ class Message {
 
   /// Set when this message carries a file rather than only text.
   final Attachment? attachment;
+
+  /// Set when this message *is* a sticker.
+  ///
+  /// [body] still holds the character it stands for, so a message whose picture
+  /// cannot be fetched — a pack deleted, a device offline — is still something
+  /// rather than a grey square.
+  final StickerRef? sticker;
+
+  /// Custom emoji to draw over spans of [body], if the reader has the packs.
+  ///
+  /// An overlay: [body] already reads correctly without it. See
+  /// [CustomEmojiRef].
+  final List<CustomEmojiRef>? customEmoji;
+
+  /// For the reactions that were made with a custom emoji: who used which item.
+  ///
+  /// Keyed by account id, like [reactions], and always a *subset* of it — the
+  /// character in `reactions` is what a reader without the pack sees, and this
+  /// says which ones can be drawn as pictures instead. Kept apart rather than
+  /// making `reactions` a richer type, so every existing reader of `reactions`
+  /// goes on working and an unknown pack degrades by simply not being here.
+  final Map<String, StickerRef> reactionStickers;
 
   /// When this message disappears, if the chat has a timer running.
   ///
@@ -304,6 +386,7 @@ class Message {
     DateTime? expiresAt,
     Map<String, String>? reactions,
     Map<String, DeliveryState>? receipts,
+    Map<String, StickerRef>? reactionStickers,
   }) =>
       Message(
         id: id,
@@ -324,7 +407,10 @@ class Message {
         replySender: replySender,
         reactions: reactions ?? this.reactions,
         receipts: receipts ?? this.receipts,
+        reactionStickers: reactionStickers ?? this.reactionStickers,
         notice: notice,
+        sticker: sticker,
+        customEmoji: customEmoji,
       );
 }
 

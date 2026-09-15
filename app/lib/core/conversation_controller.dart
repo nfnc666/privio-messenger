@@ -869,22 +869,43 @@ class ConversationController extends ChangeNotifier {
   /// Applied here first and sent after: a reaction that waits for the network
   /// to round-trip feels broken, and the worst case is a reaction the other
   /// side never hears about — which is what the next one will fix.
-  Future<void> react(String conversationId, Message target, String emoji) async {
+  /// Reacts to a message, or takes the reaction back when it is already yours.
+  ///
+  /// [sticker] makes it a custom-emoji reaction. [emoji] is still required and
+  /// still travels: it is the character anybody without the pack sees, so a
+  /// custom reaction never arrives as nothing.
+  Future<void> react(
+    String conversationId,
+    Message target,
+    String emoji, {
+    StickerRef? sticker,
+  }) async {
     final me = accountId;
     final clientId = target.clientId;
     if (me == null || clientId == null) return;
 
-    final chosen = target.reactions[me] == emoji ? '' : emoji;
+    // Pressing the same one again takes it back — and "the same one" has to
+    // mean the same picture too, or two different custom emoji sharing a
+    // fallback character would cancel each other.
+    final same = target.reactions[me] == emoji && target.reactionStickers[me] == sticker;
+    final chosen = same ? '' : emoji;
     _services.store.applyReaction(
       conversationId: conversationId,
       targetClientId: clientId,
       accountId: me,
       emoji: chosen,
+      sticker: chosen.isEmpty ? null : sticker,
     );
     _persist();
     notifyListeners();
 
-    final payload = MessagePayload.reaction(reactionTo: clientId, reactionEmoji: chosen);
+    final payload = MessagePayload.reaction(
+      reactionTo: clientId,
+      reactionEmoji: chosen,
+      stickerItemId: chosen.isEmpty ? null : sticker?.itemId,
+      stickerPackId: chosen.isEmpty ? null : sticker?.packId,
+      stickerMediaId: chosen.isEmpty ? null : sticker?.mediaId,
+    );
     final conversation = _services.store.conversationWith(conversationId);
     try {
       if (conversation?.isGroup ?? false) {
@@ -1082,11 +1103,112 @@ class ConversationController extends ChangeNotifier {
       targetClientId: payload.reactionTo!,
       accountId: fromAccountId,
       emoji: payload.reactionEmoji ?? '',
+      sticker: _stickerIn(payload),
     );
     if (changed) {
       _persist();
       notifyListeners();
     }
+  }
+
+  /// The custom item a payload names, or null.
+  ///
+  /// Shared by the sticker path and the reaction path because both answer the
+  /// same question from the same three fields, and a second copy would be a
+  /// second place to forget the null check.
+  static StickerRef? _stickerIn(MessagePayload payload) {
+    final itemId = payload.stickerItemId;
+    final mediaId = payload.stickerMediaId;
+    if (itemId == null || mediaId == null) return null;
+    return StickerRef(
+      itemId: itemId,
+      packId: payload.stickerPackId ?? '',
+      mediaId: mediaId,
+    );
+  }
+
+  /// Sends a sticker.
+  ///
+  /// Shaped exactly like [send] on purpose: it is a message, it queues while
+  /// offline, it takes a reply and the chat's disappearing timer, and it fails
+  /// the same way with the same words. The only thing that differs is what the
+  /// bubble draws.
+  ///
+  /// [fallback] is the character the sticker stands for and it is not optional:
+  /// it is what the other side shows if their build predates stickers, if they
+  /// do not have the pack, or if the pack has since been deleted.
+  Future<void> sendSticker(
+    String conversationId, {
+    required String itemId,
+    required String packId,
+    required String mediaId,
+    required String fallback,
+    Message? replyTo,
+  }) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+
+    final clientId = _newClientId();
+    final timer = conversation.disappearAfter;
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: fallback,
+        kind: MessageKind.sticker,
+        sticker: StickerRef(itemId: itemId, packId: packId, mediaId: mediaId),
+        sentAt: DateTime.now(),
+        isMine: true,
+        state: DeliveryState.sending,
+        replyToId: replyTo?.clientId,
+        replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
+        replySender: replyTo == null
+            ? null
+            : replyTo.isMine
+                ? 'You'
+                : replyTo.senderName ?? conversation.title,
+      ),
+    );
+    notifyListeners();
+
+    final payload = MessagePayload.sticker(
+      stickerItemId: itemId,
+      stickerPackId: packId,
+      stickerMediaId: mediaId,
+      body: fallback,
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      clientId: clientId,
+      replyToId: replyTo?.clientId,
+      replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
+      replySender: replyTo == null
+          ? null
+          : replyTo.isMine
+              ? null
+              : 'You',
+    );
+
+    try {
+      if (conversation.isGroup) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
+      }
+      _markSent(conversationId, clientId, timer);
+      _failure = null;
+      _persist();
+    } on Object catch (failure) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
+      _failure = switch (failure) {
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
+      };
+    }
+    notifyListeners();
   }
 
   /// A short quote of [message], as it travels with a reply.
@@ -1102,6 +1224,10 @@ class ConversationController extends ChangeNotifier {
       MessageKind.photo => 'Photo',
       MessageKind.video => 'Video',
       MessageKind.file => message.attachment?.fileName ?? 'File',
+      // Never reached in practice: a sticker's body is the character it stands
+      // for, so the branch above returns that — which is a better quote than
+      // the word "Sticker" anyway, because it is the thing that was sent.
+      MessageKind.sticker => 'Sticker',
       MessageKind.deleted => 'Deleted message',
       // Never reached: a notice always has a body, and nothing replies to one.
       MessageKind.notice || MessageKind.undelivered => '',
@@ -2059,11 +2185,7 @@ class ConversationController extends ChangeNotifier {
         // It reached the server, which is all this device can honestly claim
         // about a message it did not send itself.
         state: DeliveryState.sent,
-        kind: payload.isVoice
-            ? MessageKind.voice
-            : payload.isMedia
-                ? _kindFor(payload.mediaType!)
-                : MessageKind.text,
+        kind: _kindOf(payload),
         voiceDuration: payload.voiceDuration,
         waveform: payload.waveform,
         expiresAt: timer == null ? null : sentAt.add(timer),
@@ -2080,8 +2202,23 @@ class ConversationController extends ChangeNotifier {
                 fileName: payload.fileName,
               )
             : null,
+        sticker: _stickerIn(payload),
+        customEmoji: payload.customEmoji,
       ),
     );
+  }
+
+  /// What kind of message a payload makes.
+  ///
+  /// One place rather than the same three-deep ternary in both builders — the
+  /// sync path and the receive path had drifted apart before, and a sticker
+  /// that rendered as a bubble on one's own other device and a picture on
+  /// everybody else's would be exactly that bug again.
+  static MessageKind _kindOf(MessagePayload payload) {
+    if (payload.isSticker) return MessageKind.sticker;
+    if (payload.isVoice) return MessageKind.voice;
+    if (payload.isMedia) return _kindFor(payload.mediaType!);
+    return MessageKind.text;
   }
 
   bool _hasMessageWithClientId(String conversationId, String clientId) =>
@@ -2110,11 +2247,7 @@ class ConversationController extends ChangeNotifier {
       isMine: false,
       senderName: senderName,
       senderAccountId: incoming.senderAccountId,
-      kind: payload.isVoice
-          ? MessageKind.voice
-          : payload.isMedia
-              ? _kindFor(payload.mediaType!)
-              : MessageKind.text,
+      kind: _kindOf(payload),
       voiceDuration: payload.voiceDuration,
       waveform: payload.waveform,
       // The timer starts when it arrives here, from the sender's number. Both
@@ -2133,6 +2266,8 @@ class ConversationController extends ChangeNotifier {
               fileName: payload.fileName,
             )
           : null,
+      sticker: _stickerIn(payload),
+      customEmoji: payload.customEmoji,
     );
   }
 

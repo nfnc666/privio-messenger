@@ -246,11 +246,18 @@ abstract interface class MessageStore {
   /// Records [emoji] from [accountId] on the message with [targetClientId], or
   /// removes their reaction when [emoji] is empty. Returns whether anything
   /// changed.
+  /// Records a reaction, or removes it when [emoji] is empty.
+  ///
+  /// [sticker] is set when the reaction was made with a custom emoji. It is
+  /// always accompanied by a real character in [emoji] — the picture is an
+  /// extra, not a replacement — so a reader whose pack is gone still sees a
+  /// reaction rather than a blank chip.
   bool applyReaction({
     required String conversationId,
     required String targetClientId,
     required String accountId,
     required String emoji,
+    StickerRef? sticker,
   });
 
   /// Takes a message back.
@@ -461,6 +468,7 @@ class InMemoryMessageStore implements MessageStore {
     required String targetClientId,
     required String accountId,
     required String emoji,
+    StickerRef? sticker,
   }) {
     final conversation = _conversations[conversationId];
     if (conversation == null) return false;
@@ -473,13 +481,24 @@ class InMemoryMessageStore implements MessageStore {
 
     final message = conversation.messages[index];
     final reactions = Map<String, String>.from(message.reactions);
+    final stickers = Map<String, StickerRef>.from(message.reactionStickers);
     if (emoji.isEmpty) {
+      stickers.remove(accountId);
       if (reactions.remove(accountId) == null) return false;
     } else {
-      if (reactions[accountId] == emoji) return false;
+      // Same character *and* same picture is a no-op; the same character with a
+      // different custom item is a change, which is why the sticker is part of
+      // the comparison rather than written blindly afterwards.
+      if (reactions[accountId] == emoji && stickers[accountId] == sticker) return false;
       reactions[accountId] = emoji;
+      if (sticker == null) {
+        stickers.remove(accountId);
+      } else {
+        stickers[accountId] = sticker;
+      }
     }
-    conversation.messages[index] = message.copyWith(reactions: reactions);
+    conversation.messages[index] =
+        message.copyWith(reactions: reactions, reactionStickers: stickers);
     return true;
   }
 
