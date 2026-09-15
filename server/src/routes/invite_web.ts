@@ -200,6 +200,7 @@ interface ChannelRow {
   description: string | null;
   member_count: number;
   deleted_at: Date | null;
+  suspended_at: Date | null;
   invite_expires_at: Date | null;
   invite_max_uses: number | null;
   invite_uses: number;
@@ -317,13 +318,14 @@ export const inviteWebRoutes =
       const path = `/${request.params.handle}`;
       const { rows } = await pool.query<ChannelRow>(
         `SELECT id, visibility, handle, title, description, member_count, deleted_at,
-                avatar_media_id
+                suspended_at, avatar_media_id
          FROM channels WHERE handle = $1`,
         [request.params.handle],
       );
       const channel = rows[0];
       if (!channel) return sendProblem(request, reply, 'not_found', path);
       if (channel.deleted_at) return sendProblem(request, reply, 'deleted', path);
+      if (channel.suspended_at) return sendProblem(request, reply, 'suspended', path);
       // A handle only ever belongs to a public channel, but the check is here
       // rather than assumed: a private channel must not become nameable by a
       // column that happened to be filled in.
@@ -360,7 +362,7 @@ export const inviteWebRoutes =
   ): Promise<string> {
     const { rows } = await pool.query<ChannelRow>(
       `SELECT id, visibility, handle, title, description, member_count, deleted_at,
-              avatar_media_id,
+              suspended_at, avatar_media_id,
               invite_expires_at, invite_max_uses, invite_uses, invite_needs_approval
        FROM channels WHERE invite_code = $1`,
       [code],
@@ -370,6 +372,7 @@ export const inviteWebRoutes =
     // private channel that is the point: the existence is the secret.
     if (!channel) return sendProblem(request, reply, 'not_found', path);
     if (channel.deleted_at) return sendProblem(request, reply, 'deleted', path);
+    if (channel.suspended_at) return sendProblem(request, reply, 'suspended', path);
 
     const expired =
       channel.invite_expires_at !== null && channel.invite_expires_at.getTime() <= Date.now();

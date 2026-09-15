@@ -10,7 +10,7 @@ import type { ChannelNotifier } from '../services/channel_notifications.js';
 import * as livestreams from '../services/livestreams.js';
 import { ApiError } from '../util/errors.js';
 import { verifySecret } from '../util/crypto.js';
-import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
+import { base64Bytes, booleanQuery, parse, uuidSchema } from '../util/validate.js';
 import {
   clearKeyRequest,
   clearKeyRequestsFor,
@@ -467,9 +467,14 @@ const channelRoutes =
       request.query,
     );
 
+    // `suspended_at IS NULL` here, on the handle lookup and on the invite-code
+    // lookup together are what a suspension *is*: the three ways a stranger
+    // reaches a channel they are not already in. Members are unaffected, which
+    // is not leniency — their device holds the key and the server could not
+    // take it back if it wanted to. See migration 027.
     const { rows } = await pool.query(
       `SELECT * FROM channels
-       WHERE visibility = 'public' AND deleted_at IS NULL
+       WHERE visibility = 'public' AND deleted_at IS NULL AND suspended_at IS NULL
          AND ($1::text IS NULL OR title ILIKE '%' || $1 || '%'
               OR description ILIKE '%' || $1 || '%'
               OR handle ILIKE '%' || $1 || '%')
@@ -497,7 +502,8 @@ const channelRoutes =
     const params = parse(z.object({ handle: handleSchema }), request.params);
     const { rows } = await pool.query(
       `SELECT * FROM channels
-       WHERE handle = $1 AND visibility = 'public' AND deleted_at IS NULL`,
+       WHERE handle = $1 AND visibility = 'public' AND deleted_at IS NULL
+         AND suspended_at IS NULL`,
       [params.handle],
     );
     if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
@@ -508,7 +514,7 @@ const channelRoutes =
     auth(request);
     const params = parse(z.object({ code: z.string().min(4).max(64) }), request.params);
     const { rows } = await pool.query(
-      'SELECT * FROM channels WHERE invite_code = $1 AND deleted_at IS NULL',
+      'SELECT * FROM channels WHERE invite_code = $1 AND deleted_at IS NULL AND suspended_at IS NULL',
       [params.code],
     );
     if (!rows[0]) throw ApiError.notFound('channel_not_found', 'No such channel');
@@ -563,6 +569,19 @@ const channelRoutes =
     if (channel.visibility === 'private' && !usedTheLink) {
       // Same answer as a channel that does not exist.
       throw ApiError.notFound('channel_not_found', 'No such channel');
+    }
+
+    // A suspended channel takes no new members. The three lookup routes stop
+    // handing its id out, but an id already known — bookmarked, pasted, kept
+    // from before — would otherwise still get somebody in through this door,
+    // and a suspension with a door left open is not one. Its own code rather
+    // than a 404: whoever is asking already has the id, so pretending the
+    // channel does not exist would mislead without hiding anything.
+    if (channel.suspended_at) {
+      throw ApiError.forbidden(
+        'channel_suspended',
+        'This channel was reported and is not accepting new members on this server',
+      );
     }
 
     // Already in, and nothing below should run again for them — not the
@@ -1667,7 +1686,11 @@ const channelRoutes =
          * knowing that something is queued, and the ordinary feed never shows
          * it — a scheduled post is invisible until it is due, to everyone.
          */
-        scheduled: z.coerce.boolean().optional(),
+        // Not `z.coerce.boolean()`: that is `Boolean(value)`, and every
+         // non-empty string is truthy, so `?scheduled=false` asked for the
+         // waiting room — and got a 403 for a subscriber reading their ordinary
+         // feed. See `booleanQuery` in util/validate.ts.
+        scheduled: booleanQuery(false),
       }),
       request.query,
     );
@@ -1751,7 +1774,7 @@ const channelRoutes =
                   ELSE p.publish_at IS NULL OR p.publish_at <= now()
              END
        ORDER BY p.id DESC LIMIT $3`,
-      [params.id, query.before ?? null, query.limit, accountId, query.scheduled ?? false],
+      [params.id, query.before ?? null, query.limit, accountId, query.scheduled],
     );
 
     return {

@@ -16,6 +16,7 @@ import {
   startChannelNotificationSweeper,
 } from './services/channel_notifications.js';
 import licenseRoutes from './routes/licenses.js';
+import adminRoutes from './routes/admin.js';
 import { mediaRoutes } from './routes/media.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
@@ -164,6 +165,10 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(groupRoutes(deps.bus));
   await app.register(channelRoutes(deps.bus, channelNotifier));
   await app.register(licenseRoutes);
+  // The operator API. Its own credential, its own session table, and nothing in
+  // it that can read a message — see the header of `routes/admin.ts` for what
+  // it deliberately cannot do.
+  await app.register(adminRoutes);
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));
