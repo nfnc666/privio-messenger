@@ -101,6 +101,7 @@ void main() {
 
   for (final locale in AppText.supportedLocales) {
     testWidgets('iOS notifications and settings button in ${locale.languageCode}', (tester) async {
+      try {
       controller = makeController();
       final state = NotificationState(controller);
       addTearDown(controller.dispose);
@@ -132,11 +133,15 @@ void main() {
       expect(find.text(text.notificationsSettingsFailed), findsOneWidget);
       expect(unifiedCalls, isEmpty);
       expect(tester.takeException(), isNull);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
   }
 
   testWidgets('Android retains UnifiedPush UI and registration', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
     controller = makeController();
     final state = NotificationState(controller);
     addTearDown(controller.dispose);
@@ -158,5 +163,8 @@ void main() {
     expect(unifiedCalls, containsAll(['isAvailable', 'register']));
     expect(requests.single['provider'], 'unifiedpush');
     expect(vendorCalls, isEmpty);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }
