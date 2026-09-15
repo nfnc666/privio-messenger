@@ -4155,4 +4155,87 @@ class AppTextFr extends AppText {
 
   @override
   String get phoneNotLinkedYet => 'Aucun numéro associé';
+
+  @override
+  String get settingsBots => 'Bots';
+
+  @override
+  String get botsTitle => 'Mes bots';
+
+  @override
+  String get botsEmptyTitle => 'Aucun bot pour l’instant';
+
+  @override
+  String get botsEmptyBody =>
+      'Un bot est un compte que vous pilotez via une API HTTP. Créez-en un et @botcreator vous guidera.';
+
+  @override
+  String get botsCreate => 'Créer un bot';
+
+  @override
+  String get botsNameLabel => 'Nom';
+
+  @override
+  String get botsUsernameLabel => 'Nom d’utilisateur';
+
+  @override
+  String get botsDescriptionLabel => 'Description';
+
+  @override
+  String get botsCommandsLabel => 'Commandes';
+
+  @override
+  String get botsCommandsHint => 'Un par ligne : commande — ce qu’elle fait';
+
+  @override
+  String get botsDisable => 'Désactiver ce bot';
+
+  @override
+  String get botsDisabled => 'Désactivé';
+
+  @override
+  String get botsDelete => 'Supprimer le bot';
+
+  @override
+  String botsDeleteConfirm(String username) {
+    return 'Supprimer @$username ?';
+  }
+
+  @override
+  String get botsToken => 'Jeton d’API';
+
+  @override
+  String get botsTokenNew => 'Créer un nouveau jeton';
+
+  @override
+  String get botsTokenRevoke => 'Révoquer les jetons';
+
+  @override
+  String get botsTokenOnce =>
+      'Ce jeton n’est affiché que cette fois. Il est stocké sous forme d’empreinte et ne peut plus être lu. Un nouveau jeton remplace l’ancien.';
+
+  @override
+  String get botsTokenCopy => 'Copier le jeton';
+
+  @override
+  String get botsTokenCopied => 'Jeton copié';
+
+  @override
+  String get botsTokenDone => 'Je l’ai enregistré';
+
+  @override
+  String get botsBadge => 'BOT';
+
+  @override
+  String get botsNotEncrypted =>
+      'Une conversation avec un bot n’est pas chiffrée de bout en bout. La personne qui gère le bot peut lire ce que vous lui envoyez, et ce serveur aussi. Vos autres conversations, groupes et canaux ne changent pas.';
+
+  @override
+  String get botsUnderstood => 'J’ai compris';
+
+  @override
+  String get botcreatorTitle => 'Bot Creator';
+
+  @override
+  String get botcreatorHint => 'Tapez une commande, ou /help';
 }

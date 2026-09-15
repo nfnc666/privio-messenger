@@ -4117,4 +4117,87 @@ class AppTextEn extends AppText {
 
   @override
   String get phoneNotLinkedYet => 'No number linked';
+
+  @override
+  String get settingsBots => 'Bots';
+
+  @override
+  String get botsTitle => 'My bots';
+
+  @override
+  String get botsEmptyTitle => 'No bots yet';
+
+  @override
+  String get botsEmptyBody =>
+      'A bot is an account you run over an HTTP API. Create one and @botcreator will walk you through it.';
+
+  @override
+  String get botsCreate => 'Create a bot';
+
+  @override
+  String get botsNameLabel => 'Name';
+
+  @override
+  String get botsUsernameLabel => 'Username';
+
+  @override
+  String get botsDescriptionLabel => 'Description';
+
+  @override
+  String get botsCommandsLabel => 'Commands';
+
+  @override
+  String get botsCommandsHint => 'One per line: command — what it does';
+
+  @override
+  String get botsDisable => 'Switch this bot off';
+
+  @override
+  String get botsDisabled => 'Switched off';
+
+  @override
+  String get botsDelete => 'Delete bot';
+
+  @override
+  String botsDeleteConfirm(String username) {
+    return 'Delete @$username?';
+  }
+
+  @override
+  String get botsToken => 'API token';
+
+  @override
+  String get botsTokenNew => 'Create a new token';
+
+  @override
+  String get botsTokenRevoke => 'Revoke tokens';
+
+  @override
+  String get botsTokenOnce =>
+      'This is the only time this token is shown. It is stored as a digest and cannot be read again. A new token replaces the old one.';
+
+  @override
+  String get botsTokenCopy => 'Copy token';
+
+  @override
+  String get botsTokenCopied => 'Token copied';
+
+  @override
+  String get botsTokenDone => 'I have saved it';
+
+  @override
+  String get botsBadge => 'BOT';
+
+  @override
+  String get botsNotEncrypted =>
+      'A conversation with a bot is not end-to-end encrypted. The person who runs the bot can read what you send it, and so can this server. Your other chats, groups and channels are unchanged.';
+
+  @override
+  String get botsUnderstood => 'I understand';
+
+  @override
+  String get botcreatorTitle => 'Bot Creator';
+
+  @override
+  String get botcreatorHint => 'Type a command, or /help';
 }

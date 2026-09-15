@@ -7044,6 +7044,162 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'No number linked'**
   String get phoneNotLinkedYet;
+
+  /// No description provided for @settingsBots.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots'**
+  String get settingsBots;
+
+  /// No description provided for @botsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My bots'**
+  String get botsTitle;
+
+  /// No description provided for @botsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No bots yet'**
+  String get botsEmptyTitle;
+
+  /// No description provided for @botsEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A bot is an account you run over an HTTP API. Create one and @botcreator will walk you through it.'**
+  String get botsEmptyBody;
+
+  /// No description provided for @botsCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a bot'**
+  String get botsCreate;
+
+  /// No description provided for @botsNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get botsNameLabel;
+
+  /// No description provided for @botsUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get botsUsernameLabel;
+
+  /// No description provided for @botsDescriptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get botsDescriptionLabel;
+
+  /// No description provided for @botsCommandsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands'**
+  String get botsCommandsLabel;
+
+  /// No description provided for @botsCommandsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'One per line: command — what it does'**
+  String get botsCommandsHint;
+
+  /// No description provided for @botsDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch this bot off'**
+  String get botsDisable;
+
+  /// No description provided for @botsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched off'**
+  String get botsDisabled;
+
+  /// No description provided for @botsDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete bot'**
+  String get botsDelete;
+
+  /// No description provided for @botsDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete @{username}?'**
+  String botsDeleteConfirm(String username);
+
+  /// No description provided for @botsToken.
+  ///
+  /// In en, this message translates to:
+  /// **'API token'**
+  String get botsToken;
+
+  /// No description provided for @botsTokenNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new token'**
+  String get botsTokenNew;
+
+  /// No description provided for @botsTokenRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke tokens'**
+  String get botsTokenRevoke;
+
+  /// No description provided for @botsTokenOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the only time this token is shown. It is stored as a digest and cannot be read again. A new token replaces the old one.'**
+  String get botsTokenOnce;
+
+  /// No description provided for @botsTokenCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy token'**
+  String get botsTokenCopy;
+
+  /// No description provided for @botsTokenCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Token copied'**
+  String get botsTokenCopied;
+
+  /// No description provided for @botsTokenDone.
+  ///
+  /// In en, this message translates to:
+  /// **'I have saved it'**
+  String get botsTokenDone;
+
+  /// No description provided for @botsBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'BOT'**
+  String get botsBadge;
+
+  /// No description provided for @botsNotEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'A conversation with a bot is not end-to-end encrypted. The person who runs the bot can read what you send it, and so can this server. Your other chats, groups and channels are unchanged.'**
+  String get botsNotEncrypted;
+
+  /// No description provided for @botsUnderstood.
+  ///
+  /// In en, this message translates to:
+  /// **'I understand'**
+  String get botsUnderstood;
+
+  /// No description provided for @botcreatorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot Creator'**
+  String get botcreatorTitle;
+
+  /// No description provided for @botcreatorHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a command, or /help'**
+  String get botcreatorHint;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

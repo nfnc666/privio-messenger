@@ -4158,4 +4158,87 @@ class AppTextDe extends AppText {
 
   @override
   String get phoneNotLinkedYet => 'Keine Nummer verknüpft';
+
+  @override
+  String get settingsBots => 'Bots';
+
+  @override
+  String get botsTitle => 'Meine Bots';
+
+  @override
+  String get botsEmptyTitle => 'Noch keine Bots';
+
+  @override
+  String get botsEmptyBody =>
+      'Ein Bot ist ein Konto, das du über eine HTTP-Schnittstelle betreibst. Leg einen an, und @botcreator führt dich durch.';
+
+  @override
+  String get botsCreate => 'Bot anlegen';
+
+  @override
+  String get botsNameLabel => 'Name';
+
+  @override
+  String get botsUsernameLabel => 'Benutzername';
+
+  @override
+  String get botsDescriptionLabel => 'Beschreibung';
+
+  @override
+  String get botsCommandsLabel => 'Befehle';
+
+  @override
+  String get botsCommandsHint => 'Einer pro Zeile: Befehl — was er tut';
+
+  @override
+  String get botsDisable => 'Diesen Bot ausschalten';
+
+  @override
+  String get botsDisabled => 'Ausgeschaltet';
+
+  @override
+  String get botsDelete => 'Bot löschen';
+
+  @override
+  String botsDeleteConfirm(String username) {
+    return '@$username löschen?';
+  }
+
+  @override
+  String get botsToken => 'API-Token';
+
+  @override
+  String get botsTokenNew => 'Neues Token erstellen';
+
+  @override
+  String get botsTokenRevoke => 'Tokens widerrufen';
+
+  @override
+  String get botsTokenOnce =>
+      'Dieses Token wird nur dieses eine Mal angezeigt. Es wird als Prüfsumme gespeichert und kann nicht erneut gelesen werden. Ein neues Token ersetzt das alte.';
+
+  @override
+  String get botsTokenCopy => 'Token kopieren';
+
+  @override
+  String get botsTokenCopied => 'Token kopiert';
+
+  @override
+  String get botsTokenDone => 'Ich habe es gespeichert';
+
+  @override
+  String get botsBadge => 'BOT';
+
+  @override
+  String get botsNotEncrypted =>
+      'Eine Unterhaltung mit einem Bot ist nicht Ende-zu-Ende-verschlüsselt. Wer den Bot betreibt, kann lesen, was du ihm schickst — und dieser Server ebenfalls. Deine anderen Chats, Gruppen und Kanäle bleiben unverändert.';
+
+  @override
+  String get botsUnderstood => 'Verstanden';
+
+  @override
+  String get botcreatorTitle => 'Bot Creator';
+
+  @override
+  String get botcreatorHint => 'Befehl eingeben oder /help';
 }

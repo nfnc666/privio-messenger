@@ -23,6 +23,7 @@ import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
 import 'screen_shield_controller.dart';
+import 'bot_controller.dart';
 import 'phone_controller.dart';
 import 'sticker_controller.dart';
 import 'status_controller.dart';
@@ -109,6 +110,7 @@ class AppState extends ChangeNotifier {
   StatusController? _profileStatus;
   StickerController? _stickers;
   PhoneController? _phone;
+  BotController? _bots;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -298,6 +300,9 @@ class AppState extends ChangeNotifier {
 
   /// The optional phone number, its two consents, and contact matching.
   PhoneController get phone => _phone ??= PhoneController(services.api);
+
+  /// The bots this account owns, and the conversation with @botcreator.
+  BotController get bots => _bots ??= BotController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and reads
@@ -795,6 +800,8 @@ class AppState extends ChangeNotifier {
     _stickers = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -907,6 +914,8 @@ class AppState extends ChangeNotifier {
     _stickers = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -974,6 +983,8 @@ class AppState extends ChangeNotifier {
     _stickers = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
