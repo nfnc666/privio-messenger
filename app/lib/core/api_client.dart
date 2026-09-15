@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import '../network/proxy_controller.dart';
 
 /// A failed API call, carrying the server's stable error code.
 class ApiException implements Exception {
@@ -61,7 +62,7 @@ void detached(Future<void> work) => unawaited(
 /// method that is not explicitly a public profile field.
 class PrivioApiClient {
   PrivioApiClient({required this.baseUrl, http.Client? client})
-      : _client = client ?? http.Client();
+      : _client = client ?? ProxyController.instance.newClient();
 
   /// Where the API lives. The realtime socket is derived from it.
   final Uri baseUrl;
@@ -79,6 +80,7 @@ class PrivioApiClient {
   int _session = 0;
 
   bool get isAuthenticated => _token != null;
+  void invalidateTransportRequests() { _session += 1; }
 
   void useToken(String? token) {
     _token = token;

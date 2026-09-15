@@ -6,6 +6,38 @@ import 'app_localizations.dart';
 
 /// The translations for French (`fr`).
 class AppTextFr extends AppText {
+  @override
+  String get proxyTitle => "Proxy SOCKS5";
+  @override
+  String get proxyEnable => "Utiliser le proxy";
+  @override
+  String get proxyHost => "Serveur (nom ou IP)";
+  @override
+  String get proxyPort => "Port";
+  @override
+  String get proxyUsername => "Identifiant (facultatif)";
+  @override
+  String get proxyPassword => "Mot de passe (facultatif)";
+  @override
+  String get proxyScope => "Pour cet appareil : connexion, messages, médias et sauvegardes. Les appels sont désactivés avec le proxy. Aucun repli direct. Enregistrez les modifications.";
+  @override
+  String get proxyPrivacy => "Les notifications système et les liens ouverts dans le navigateur ne passent pas par ce proxy. SOCKS5 ne chiffre pas les identifiants du proxy ; utilisez un réseau et un proxy de confiance. Le proxy voit votre IP et la destination ; HTTPS reste chiffré. Les proxys MTProto de Telegram ne sont pas compatibles.";
+  @override
+  String get proxyTest => "Tester la connexion";
+  @override
+  String get proxySave => "Enregistrer";
+  @override
+  String get proxyRemove => "Supprimer le proxy et se connecter directement";
+  @override
+  String get proxyInvalid => "Saisissez un serveur valide et un port (1–65535). Renseignez les deux identifiants ou laissez-les vides.";
+  @override
+  String get proxyTestSuccess => "Privio est accessible via ce proxy. Les réglages ne sont pas encore enregistrés.";
+  @override
+  String get proxySaved => "Réglages réseau enregistrés.";
+  @override
+  String get proxyFailed => "Échec. Vérifiez le proxy, les identifiants et la connexion, et terminez les appels en cours. Aucun repli direct automatique.";
+  @override
+  String get proxyCallsBlocked => "Les appels sont indisponibles lorsque le proxy est actif.";
   AppTextFr([String locale = 'fr']) : super(locale);
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../network/proxy_controller.dart';
 
 import '../calls/call.dart';
 import '../calls/ice_servers.dart';
@@ -79,6 +80,7 @@ class PrivioServices {
   }) async {
     // One instance, shared: it holds the archive key the passcode opened, and
     // two of them would mean one half of the app locked out of the other.
+    await ProxyController.instance.load();
     final secure = secureStore ?? KeystoreSecureStore();
     final api = PrivioApiClient(baseUrl: Uri.parse(baseUrl ?? apiBaseUrl));
     final crypto = await PrivioCrypto.open(cryptoStorage ?? const KeystoreCryptoStorage());

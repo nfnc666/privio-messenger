@@ -6,6 +6,38 @@ import 'app_localizations.dart';
 
 /// The translations for German (`de`).
 class AppTextDe extends AppText {
+  @override
+  String get proxyTitle => "SOCKS5-Proxy";
+  @override
+  String get proxyEnable => "Proxy verwenden";
+  @override
+  String get proxyHost => "Server (Hostname oder IP)";
+  @override
+  String get proxyPort => "Port";
+  @override
+  String get proxyUsername => "Benutzername (optional)";
+  @override
+  String get proxyPassword => "Passwort (optional)";
+  @override
+  String get proxyScope => "Gilt für dieses Gerät: Anmeldung, Nachrichten, Medien und Sicherungen. Anrufe sind bei aktivem Proxy gesperrt. Kein automatischer Direktzugriff. Änderungen mit Speichern übernehmen.";
+  @override
+  String get proxyPrivacy => "System-Push und im Browser geöffnete Links nutzen diesen Proxy nicht. SOCKS5 verschlüsselt die Proxy-Zugangsdaten nicht; verwende ein vertrauenswürdiges Netz und einen vertrauenswürdigen Proxy. Der Proxy sieht deine IP und das Verbindungsziel; HTTPS bleibt verschlüsselt. Telegram-MTProto-Proxys werden nicht unterstützt.";
+  @override
+  String get proxyTest => "Verbindung testen";
+  @override
+  String get proxySave => "Speichern";
+  @override
+  String get proxyRemove => "Proxy entfernen und direkt verbinden";
+  @override
+  String get proxyInvalid => "Gültigen Server und Port (1–65535) eingeben. Benutzername und Passwort gemeinsam ausfüllen oder beide leer lassen.";
+  @override
+  String get proxyTestSuccess => "Privio ist über diesen Proxy erreichbar. Die Einstellungen sind noch nicht gespeichert.";
+  @override
+  String get proxySaved => "Netzwerkeinstellungen gespeichert.";
+  @override
+  String get proxyFailed => "Aktion fehlgeschlagen. Proxy, Zugangsdaten und Verbindung prüfen und laufende Anrufe beenden. Kein automatischer Direktzugriff.";
+  @override
+  String get proxyCallsBlocked => "Anrufe sind bei aktivem Proxy nicht verfügbar.";
   AppTextDe([String locale = 'de']) : super(locale);
 
   @override

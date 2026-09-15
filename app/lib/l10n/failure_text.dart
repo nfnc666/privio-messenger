@@ -10,6 +10,7 @@ import 'app_localizations.dart';
 /// and not the rule — see `docs/localisation.md`.
 extension FailureText on Failure {
   String words(AppText text) => switch (kind) {
+        FailureKind.proxyCallsBlocked => text.proxyCallsBlocked,
         FailureKind.unreachable => text.failureUnreachable,
         FailureKind.statusNotSaved => text.accountStatusCouldNotSave,
         FailureKind.unreachableCheckConnection => text.failureUnreachableCheckConnection,

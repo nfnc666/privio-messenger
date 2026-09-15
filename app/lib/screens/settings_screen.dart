@@ -6,6 +6,8 @@ import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'about_screen.dart';
+import 'proxy_screen.dart';
+import '../network/proxy_controller.dart';
 import 'appearance_screen.dart';
 import 'backup_screen.dart';
 import 'devices_screen.dart';
@@ -58,6 +60,9 @@ class SettingsScreen extends StatelessWidget {
                 label: text.settingsStorage,
                 onTap: () => open(const StorageScreen()),
               ),
+              if (ProxyController.supported)
+                SettingsRow(icon: Icons.lan_outlined, label: text.proxyTitle,
+                  onTap: () => open(const ProxyScreen())),
               SettingsRow(
                 icon: Icons.devices_outlined,
                 label: text.settingsDevices,
@@ -113,4 +118,3 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
-
