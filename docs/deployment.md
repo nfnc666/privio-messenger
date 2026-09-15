@@ -189,7 +189,6 @@ each exists, is in `server/src/config.ts`.
 | `APNS_ENVIRONMENT` | **production** | a TestFlight build needs `sandbox` |
 | `FCM_PROJECT_ID` / `_CLIENT_EMAIL` / `_PRIVATE_KEY` | unset | all three together or none |
 | `LIVEKIT_URL` / `_API_KEY` / `_API_SECRET` | unset | a media server for channel livestreams; all three together or none |
-| `TRANSLATION_URL` | unset | a translation endpoint offered to devices; see `docs/channels.md` before enabling |
 
 **Channel livestreams are off until `LIVEKIT_*` is set**, and the app says so
 rather than offering a control that does nothing. A livestream is the one thing
@@ -199,11 +198,9 @@ encrypted: the media server can see it. Privio also has no SFU client yet, so
 setting these three gets you a room and a token, not video. `docs/channels.md`
 has the whole picture.
 
-**`TRANSLATION_URL` is not a feature switch.** The server holds ciphertext and
-no key, so it cannot translate anything; translation would happen on the reader's
-device and the text would leave it in the clear. Configuring this only makes an
-endpoint available — it still needs per-channel opt-in and per-reader consent,
-neither of which is built.
+Automatic content translation is not offered. The former `TRANSLATION_URL`
+setting has been removed; remove it from existing deployment environments if
+present. Interface language selection is unaffected.
 
 ### What production refuses, and what it merely warns about
 

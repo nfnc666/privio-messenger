@@ -738,8 +738,6 @@ class AppTextDe extends AppText {
   @override
   String get editChannelAppearance => 'Darstellung';
 
-  @override
-  String get editChannelAutoTranslate => 'Auto-Übersetzung';
 
   @override
   String get editChannelDirectMessages => 'Direktnachrichten';
@@ -811,13 +809,7 @@ class AppTextDe extends AppText {
   @override
   String get livestreamCouldNotStart => 'Der Stream ließ sich nicht starten.';
 
-  @override
-  String get translationNotSetUpTitle =>
-      'Auto-Übersetzung ist nicht eingerichtet';
 
-  @override
-  String get translationNotSetUpBody =>
-      'Einen Beitrag zu übersetzen heißt, seinen Inhalt an einen Übersetzungsdienst zu schicken. Der Server von Privio kann das nicht — er hält Chiffrat und keinen Schlüssel —, es müsste also auf deinem Gerät geschehen, und der Text würde es im Klartext verlassen.\n\nDas ist eine Entscheidung, die der Betreiber freischalten und jede lesende Person zulassen muss. Bis beides geschehen ist, bleibt es aus. Es wurde kein Beitrag irgendwohin gesendet.';
 
   @override
   String get visibilityPublicTitle => 'Dieser Kanal ist öffentlich';
