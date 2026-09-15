@@ -88,7 +88,8 @@ class ProxyController extends ChangeNotifier {
     if (_config != null) await _write(jsonEncode(_config!.toJson()));
   }
 
-  WebSocketChannel connect(Uri uri) => transport.connect(uri);
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols}) =>
+      transport.connect(uri, protocols: protocols);
   http.Client newClient() => _PolicyClient(this);
 
   /// Checks the actual Privio endpoint, without authentication or redirects.
