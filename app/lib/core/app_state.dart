@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../network/proxy_config.dart';
+import '../network/proxy_controller.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -982,12 +984,24 @@ class AppState extends ChangeNotifier {
       // belonging to an account they have just left.
     }
     await _store.wipe();
+    await ProxyController.instance.persistAfterLogout();
     locale.signedOut();
     accent.signedOut();
     detached(screenShield.signedOut());
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;
+    notifyListeners();
+  }
+
+  Future<void> setProxy(ProxyConfig? config) async {
+    if (services.calls.isBusy) throw StateError('End the call first');
+    await ProxyController.instance.save(config);
+    services.api.invalidateTransportRequests();
+    _conversations?.stop();
+    if (_stage == AppStage.ready && _sessionToken != null) {
+      _conversations?.start(token: _sessionToken);
+    }
     notifyListeners();
   }
 

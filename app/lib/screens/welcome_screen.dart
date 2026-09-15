@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../network/proxy_controller.dart';
+import 'proxy_screen.dart';
 
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
@@ -84,6 +86,10 @@ class WelcomeScreen extends StatelessWidget {
               // backup. Reinstalling, or adding a second device, is not an
               // unusual thing to be doing on this screen.
               TextButton(onPressed: onSignIn, child: Text(text.welcomeHaveAccount)),
+              if (ProxyController.supported)
+                TextButton(onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ProxyScreen())),
+                  child: Text(text.proxyTitle)),
               TextButton(
                 onPressed: onImportBackup,
                 child: Text(text.welcomeImportBackup),

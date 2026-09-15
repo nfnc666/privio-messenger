@@ -99,6 +99,7 @@ enum FailureKind {
   distributorUnreachable,
 
   // Calls.
+  proxyCallsBlocked,
   callDevicesUnavailable,
   callMicrophoneUnavailable,
   callNotOpen,

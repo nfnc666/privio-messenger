@@ -69,6 +69,22 @@ abstract class AppText {
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
+  String get proxyTitle;
+  String get proxyEnable;
+  String get proxyHost;
+  String get proxyPort;
+  String get proxyUsername;
+  String get proxyPassword;
+  String get proxyScope;
+  String get proxyPrivacy;
+  String get proxyTest;
+  String get proxySave;
+  String get proxyRemove;
+  String get proxyInvalid;
+  String get proxyTestSuccess;
+  String get proxySaved;
+  String get proxyFailed;
+  String get proxyCallsBlocked;
 
   static AppText of(BuildContext context) {
     return Localizations.of<AppText>(context, AppText)!;
