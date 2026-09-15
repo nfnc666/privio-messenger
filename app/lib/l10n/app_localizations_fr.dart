@@ -3708,11 +3708,204 @@ class AppTextFr extends AppText {
   }
 
   @override
-  String get notificationsIphoneNote => 'Vous pouvez gérer les notifications de Privio dans les réglages de l’iPhone.';
+  String get failureStickerNotAnImage =>
+      'Ce fichier n’est ni une image PNG ni une image WebP.';
 
   @override
-  String get notificationsOpenIphoneSettings => 'Ouvrir les réglages de l’iPhone';
+  String get failureStickerAnimated =>
+      'Les autocollants animés ne sont pas encore pris en charge. Utilisez un PNG ou un WebP fixe.';
 
   @override
-  String get notificationsSettingsFailed => 'Impossible d’ouvrir les réglages. Ouvrez l’app Réglages et sélectionnez Privio.';
+  String failureStickerTooLarge(int limit) {
+    return 'Un autocollant doit faire moins de $limit Ko.';
+  }
+
+  @override
+  String failureStickerTooWide(int limit) {
+    return 'Un autocollant fait au maximum $limit×$limit pixels.';
+  }
+
+  @override
+  String failureStickerTooSmall(int limit) {
+    return 'Un autocollant doit faire au moins $limit×$limit pixels.';
+  }
+
+  @override
+  String get failureStickerPackFull =>
+      'Ce paquet est plein. Retirez un élément pour faire de la place.';
+
+  @override
+  String get failureStickerTooManyPacks =>
+      'Vous avez autant de paquets que Privio en gère. Supprimez-en un pour en créer un autre.';
+
+  @override
+  String get failureStickerPackNotFound => 'Ce paquet n’existe plus.';
+
+  @override
+  String get failureStickerLinkDead =>
+      'Ce lien n’ouvre plus rien : il a été retiré, ou le paquet a été supprimé.';
+
+  @override
+  String get settingsStickers => 'Autocollants et émojis';
+
+  @override
+  String get stickersTitle => 'Autocollants et émojis';
+
+  @override
+  String get stickersMyPacks => 'Mes paquets';
+
+  @override
+  String get stickersInstalled => 'Ajoutés';
+
+  @override
+  String get stickersEmptyTitle => 'Aucun paquet pour l’instant';
+
+  @override
+  String get stickersEmptyBody =>
+      'Créez un paquet à partir de vos images, ou ouvrez un lien que quelqu’un vous a envoyé.';
+
+  @override
+  String get stickersNewPack => 'Nouveau paquet';
+
+  @override
+  String get stickersNewStickerPack => 'Paquet d’autocollants';
+
+  @override
+  String get stickersNewEmojiPack => 'Paquet d’émojis';
+
+  @override
+  String get stickersNameLabel => 'Nom';
+
+  @override
+  String get stickersNameHint => 'Le nom de ce paquet';
+
+  @override
+  String get stickersCreate => 'Créer';
+
+  @override
+  String get stickersRename => 'Renommer';
+
+  @override
+  String get stickersDelete => 'Supprimer le paquet';
+
+  @override
+  String stickersDeleteConfirm(String title) {
+    return 'Supprimer « $title » ?';
+  }
+
+  @override
+  String get stickersDeleteExplain =>
+      'Le lien cesse de fonctionner et le paquet quitte votre sélecteur. Les autocollants déjà envoyés restent visibles dans ces conversations.';
+
+  @override
+  String get stickersRemovePack => 'Retirer de mes paquets';
+
+  @override
+  String get stickersAddPack => 'Ajouter le paquet';
+
+  @override
+  String get stickersAlreadyAdded => 'Déjà dans vos paquets';
+
+  @override
+  String get stickersShare => 'Partager ce paquet';
+
+  @override
+  String get stickersSharedOn =>
+      'Toute personne disposant du lien peut l’ajouter';
+
+  @override
+  String get stickersSharedOff => 'Privé. Vous seul le voyez.';
+
+  @override
+  String get stickersShareExplain =>
+      'Un paquet est privé jusqu’à ce que vous le partagiez. Les images des autocollants ne sont pas chiffrées : un lien s’adresse à des personnes qui ne détiennent aucune de vos clés, donc quiconque a le lien — et ce serveur aussi — peut les voir. Retirer le lien empêche de nouveaux ajouts ; il ne le reprend pas à ceux qui l’ont déjà.';
+
+  @override
+  String get stickersCopyLink => 'Copier le lien';
+
+  @override
+  String get stickersLinkCopied => 'Lien copié';
+
+  @override
+  String get stickersWithdrawLink => 'Retirer le lien';
+
+  @override
+  String get stickersNewLinkNote =>
+      'Partager à nouveau crée un nouveau lien et annule le précédent.';
+
+  @override
+  String get stickersAddItem => 'Ajouter une image';
+
+  @override
+  String get stickersItemEmoji => 'Émoji correspondant';
+
+  @override
+  String get stickersItemEmojiWhy =>
+      'Ce qu’il représente : ce qu’affiche à sa place une application qui n’a pas ce paquet, et comment le retrouver ensuite.';
+
+  @override
+  String get stickersEmptyPack => 'Ce paquet est encore vide.';
+
+  @override
+  String stickersItemCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+      zero: 'Vide',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stickersRemoveItem => 'Retirer';
+
+  @override
+  String get stickersReorderHint =>
+      'Appuyez longuement et faites glisser pour réorganiser.';
+
+  @override
+  String get stickersCropTitle => 'Recadrer';
+
+  @override
+  String get stickersCropHint =>
+      'Faites glisser et pincez pour choisir le carré. La transparence est conservée.';
+
+  @override
+  String get stickersUse => 'Utiliser';
+
+  @override
+  String get stickersPreviewTitle => 'Paquet d’autocollants';
+
+  @override
+  String get stickersOpenLinkTitle => 'Ouvrir un lien de paquet';
+
+  @override
+  String get stickersOpenLinkHint =>
+      'Collez le lien ou le code que l’on vous a envoyé.';
+
+  @override
+  String get stickersOpen => 'Ouvrir';
+
+  @override
+  String get stickersKindSticker => 'Autocollants';
+
+  @override
+  String get stickersKindEmoji => 'Émojis personnalisés';
+
+  @override
+  String get stickersPickFailed => 'Cette image n’a pas pu être ouverte.';
+
+  @override
+  String get notificationsIphoneNote =>
+      'Vous pouvez gérer les notifications de Privio dans les réglages de l’iPhone.';
+
+  @override
+  String get notificationsOpenIphoneSettings =>
+      'Ouvrir les réglages de l’iPhone';
+
+  @override
+  String get notificationsSettingsFailed =>
+      'Impossible d’ouvrir les réglages. Ouvrez l’app Réglages et sélectionnez Privio.';
 }

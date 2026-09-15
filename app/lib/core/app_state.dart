@@ -21,6 +21,7 @@ import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
 import 'screen_shield_controller.dart';
+import 'sticker_controller.dart';
 import 'status_controller.dart';
 import 'locale_controller.dart';
 import 'secure_store.dart';
@@ -103,6 +104,7 @@ class AppState extends ChangeNotifier {
   LicenseController? _license;
   SecurityController? _security;
   StatusController? _profileStatus;
+  StickerController? _stickers;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -281,6 +283,14 @@ class AppState extends ChangeNotifier {
   /// status is not a security setting and the two are read at different moments
   /// — this one on every sign-in, that one only when a settings screen opens.
   StatusController get profileStatus => _profileStatus ??= StatusController(services.api);
+
+  /// This account's sticker and custom-emoji packs.
+  ///
+  /// Held here rather than made by the picker, because the picker is not the
+  /// only reader: the message list asks it which pack a received sticker comes
+  /// from, and a controller created per screen would have nothing to answer
+  /// with until that screen had been opened.
+  StickerController get stickers => _stickers ??= StickerController(services.api);
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and reads
@@ -504,6 +514,9 @@ class AppState extends ChangeNotifier {
       // screen while this one's read is in flight, and an answer that arrives
       // after another switch is dropped rather than applied.
       detached(profileStatus.load(account));
+      // The packs, for the same reason and with the same guard: they belong to
+      // the account, and an answer that arrives after a switch is dropped.
+      if (stickers.accountId != account) detached(stickers.load(account));
     }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
@@ -768,6 +781,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _stickers?.dispose();
+    _stickers = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -876,6 +891,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _stickers?.dispose();
+    _stickers = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -939,6 +956,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _stickers?.dispose();
+    _stickers = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;

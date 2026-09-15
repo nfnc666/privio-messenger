@@ -1,3 +1,4 @@
+import '../core/sticker_controller.dart';
 import '../core/failure.dart';
 import '../services/wake_up.dart';
 import 'app_localizations.dart';
@@ -78,6 +79,16 @@ extension FailureText on Failure {
         FailureKind.callIdentityChanged => text.failureCallIdentityChanged(detail ?? ''),
         FailureKind.callWrongParty => text.failureCallWrongParty,
         FailureKind.callNotVerified => text.failureCallNotVerified(detail ?? ''),
+        FailureKind.stickerNotAnImage => text.failureStickerNotAnImage,
+        FailureKind.stickerAnimated => text.failureStickerAnimated,
+        FailureKind.stickerTooLarge =>
+          text.failureStickerTooLarge(StickerLimits.maxKilobytes),
+        FailureKind.stickerTooWide => text.failureStickerTooWide(StickerLimits.maxEdge),
+        FailureKind.stickerTooSmall => text.failureStickerTooSmall(StickerLimits.minEdge),
+        FailureKind.stickerPackFull => text.failureStickerPackFull,
+        FailureKind.stickerTooManyPacks => text.failureStickerTooManyPacks,
+        FailureKind.stickerPackNotFound => text.failureStickerPackNotFound,
+        FailureKind.stickerLinkDead => text.failureStickerLinkDead,
         FailureKind.appIconUnsupported => text.failureAppIconUnsupported,
         FailureKind.appIconHiddenByDisguise => text.failureAppIconHiddenByDisguise,
         FailureKind.unexpected => text.failureUnexpected,

@@ -896,6 +896,93 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
       _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
 
+  // --- Sticker and emoji packs ----------------------------------------------
+
+  /// Every pack this account owns or has installed, with its items.
+  ///
+  /// One call rather than a list and then a read per pack: the picker needs
+  /// all of it before it can draw a single tab, and a screen that fills in one
+  /// row at a time is a screen that looks broken on a slow connection.
+  Future<Map<String, dynamic>> stickerPacks() => _send('GET', '/v1/sticker-packs');
+
+  Future<Map<String, dynamic>> createStickerPack({
+    required String title,
+    required String kind,
+  }) =>
+      _send('POST', '/v1/sticker-packs', body: {'title': title, 'kind': kind});
+
+  Future<Map<String, dynamic>> stickerPack(String id) =>
+      _send('GET', '/v1/sticker-packs/$id');
+
+  /// Looks a pack up by the code in a share link, without installing it.
+  ///
+  /// This is what makes "preview before you add it" possible: somebody handed
+  /// a link sees what is in the pack and then decides, rather than finding out
+  /// by installing it.
+  Future<Map<String, dynamic>> stickerPackByCode(String code) =>
+      _send('GET', '/v1/sticker-packs/by-code/$code');
+
+  Future<Map<String, dynamic>> renameStickerPack(String id, String title) =>
+      _send('PATCH', '/v1/sticker-packs/$id', body: {'title': title});
+
+  Future<void> deleteStickerPack(String id) async =>
+      _send('DELETE', '/v1/sticker-packs/$id');
+
+  /// Shares a pack, and returns it with its code.
+  ///
+  /// A fresh code every time, on the server's side: pressing share again is
+  /// how somebody replaces a link they regret sending, so it has to invalidate
+  /// the previous one rather than hand back the same string.
+  Future<Map<String, dynamic>> shareStickerPack(String id) =>
+      _send('POST', '/v1/sticker-packs/$id/share');
+
+  Future<void> unshareStickerPack(String id) async =>
+      _send('DELETE', '/v1/sticker-packs/$id/share');
+
+  Future<Map<String, dynamic>> addStickerItem(
+    String packId, {
+    required String mediaId,
+    required String emoji,
+  }) =>
+      _send('POST', '/v1/sticker-packs/$packId/items',
+          body: {'mediaId': mediaId, 'emoji': emoji});
+
+  Future<Map<String, dynamic>> setStickerItemEmoji(
+    String packId,
+    String itemId,
+    String emoji,
+  ) =>
+      _send('PATCH', '/v1/sticker-packs/$packId/items/$itemId', body: {'emoji': emoji});
+
+  Future<void> removeStickerItem(String packId, String itemId) async =>
+      _send('DELETE', '/v1/sticker-packs/$packId/items/$itemId');
+
+  /// Sets the whole order at once, as a list of item ids.
+  ///
+  /// The whole list rather than "move this one to index 4", because a reorder
+  /// that arrives while somebody else's edit is in flight would otherwise
+  /// leave a gap or a duplicate. The server assigns positions in two passes
+  /// for the same reason.
+  Future<void> reorderStickerItems(String packId, List<String> itemIds) async =>
+      _send('PUT', '/v1/sticker-packs/$packId/order', body: {'itemIds': itemIds});
+
+  Future<Map<String, dynamic>> installStickerPack(String id, {String? code}) =>
+      _send('POST', '/v1/sticker-packs/$id/install',
+          body: {if (code != null) 'code': code});
+
+  Future<void> uninstallStickerPack(String id) async =>
+      _send('DELETE', '/v1/sticker-packs/$id/install');
+
+  /// Favourites and recently used, which belong to the account and come back
+  /// after signing out and in again.
+  Future<Map<String, dynamic>> stickerUses() => _send('GET', '/v1/sticker-uses');
+
+  Future<void> noteStickersUsed(List<String> itemIds) async =>
+      _send('POST', '/v1/sticker-uses', body: {'itemIds': itemIds});
+
+  Future<void> setStickerFavourite(String itemId, bool favourite) async =>
+      _send('PUT', '/v1/sticker-uses/$itemId/favourite', body: {'favourite': favourite});
+
   // --- Media and backup -----------------------------------------------------
 
   /// An uploaded blob: where it lives, and what opens it.
@@ -907,17 +994,27 @@ class PrivioApiClient {
     List<int> sealedBytes, {
     bool avatar = false,
     bool channelAvatar = false,
+    bool sticker = false,
     int? expiresInSeconds,
   }) async {
-    // Three kinds, and the kind decides who may download. `channel_avatar` is
+    // Four kinds, and the kind decides who may download. `channel_avatar` is
     // the one that is served to anyone — a public channel's picture is drawn on
     // a web page by people who hold no key — so it is only ever passed for
     // bytes that were deliberately not sealed.
-    final kind = channelAvatar
-        ? const {'kind': 'channel_avatar'}
-        : avatar
-            ? const {'kind': 'avatar'}
-            : null;
+    //
+    // `sticker` is the other unsealed one, and for the same reason: a pack is
+    // handed to somebody as a link, and a recipient of a link holds no key of
+    // the author's. It is also the one kind whose bytes the server checks —
+    // type, size and dimensions, read out of the header rather than taken from
+    // what the client claims. So a sticker upload can be *refused*, which an
+    // attachment never is, and the caller has to be ready for that.
+    final kind = sticker
+        ? const {'kind': 'sticker'}
+        : channelAvatar
+            ? const {'kind': 'channel_avatar'}
+            : avatar
+                ? const {'kind': 'avatar'}
+                : null;
     // An attachment to a message that is set to disappear is worth keeping only
     // as long as the message can still be fetched and read. Passed to the
     // server because a timer that only runs on a screen leaves the ciphertext

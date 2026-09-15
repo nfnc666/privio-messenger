@@ -35,4 +35,9 @@ export class ApiError extends Error {
   static payloadTooLarge(code: string, message: string) {
     return new ApiError(413, code, message);
   }
+
+  /** Sending faster than a limit allows. The caller is expected to back off. */
+  static tooManyRequests(code: string, message: string) {
+    return new ApiError(429, code, message);
+  }
 }

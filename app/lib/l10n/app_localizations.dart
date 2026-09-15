@@ -1582,15 +1582,8 @@ abstract class AppText {
   /// No description provided for @notificationsPhoneNote.
   ///
   /// In en, this message translates to:
-  /// Phone notification preferences are managed in system settings.
+  /// **'Sound, vibration, the light and whether anything shows on the lock screen belong to your phone\'s own settings for Privio, not to this screen.'**
   String get notificationsPhoneNote;
-
-  String get notificationsIphoneNote;
-
-  String get notificationsOpenIphoneSettings;
-
-  String get notificationsSettingsFailed;
-
 
   /// No description provided for @notificationsDelivery.
   ///
@@ -6295,6 +6288,342 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'{colour} icon'**
   String appIconChoose(String colour);
+
+  /// No description provided for @failureStickerNotAnImage.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is not a PNG or a WebP image.'**
+  String get failureStickerNotAnImage;
+
+  /// No description provided for @failureStickerAnimated.
+  ///
+  /// In en, this message translates to:
+  /// **'Animated stickers are not supported yet. Use a still PNG or WebP.'**
+  String get failureStickerAnimated;
+
+  /// No description provided for @failureStickerTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'A sticker has to be smaller than {limit} KB.'**
+  String failureStickerTooLarge(int limit);
+
+  /// No description provided for @failureStickerTooWide.
+  ///
+  /// In en, this message translates to:
+  /// **'A sticker can be at most {limit}×{limit} pixels.'**
+  String failureStickerTooWide(int limit);
+
+  /// No description provided for @failureStickerTooSmall.
+  ///
+  /// In en, this message translates to:
+  /// **'A sticker has to be at least {limit}×{limit} pixels.'**
+  String failureStickerTooSmall(int limit);
+
+  /// No description provided for @failureStickerPackFull.
+  ///
+  /// In en, this message translates to:
+  /// **'This pack is full. Remove something to make room.'**
+  String get failureStickerPackFull;
+
+  /// No description provided for @failureStickerTooManyPacks.
+  ///
+  /// In en, this message translates to:
+  /// **'You have as many packs as Privio holds. Delete one to make another.'**
+  String get failureStickerTooManyPacks;
+
+  /// No description provided for @failureStickerPackNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'That pack is no longer there.'**
+  String get failureStickerPackNotFound;
+
+  /// No description provided for @failureStickerLinkDead.
+  ///
+  /// In en, this message translates to:
+  /// **'This link no longer opens anything: it was withdrawn, or the pack was deleted.'**
+  String get failureStickerLinkDead;
+
+  /// No description provided for @settingsStickers.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers & Emoji'**
+  String get settingsStickers;
+
+  /// No description provided for @stickersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers & Emoji'**
+  String get stickersTitle;
+
+  /// No description provided for @stickersMyPacks.
+  ///
+  /// In en, this message translates to:
+  /// **'My packs'**
+  String get stickersMyPacks;
+
+  /// No description provided for @stickersInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get stickersInstalled;
+
+  /// No description provided for @stickersEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No packs yet'**
+  String get stickersEmptyTitle;
+
+  /// No description provided for @stickersEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Make a pack from your own pictures, or open a link somebody sent you.'**
+  String get stickersEmptyBody;
+
+  /// No description provided for @stickersNewPack.
+  ///
+  /// In en, this message translates to:
+  /// **'New pack'**
+  String get stickersNewPack;
+
+  /// No description provided for @stickersNewStickerPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker pack'**
+  String get stickersNewStickerPack;
+
+  /// No description provided for @stickersNewEmojiPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji pack'**
+  String get stickersNewEmojiPack;
+
+  /// No description provided for @stickersNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get stickersNameLabel;
+
+  /// No description provided for @stickersNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'What this pack is called'**
+  String get stickersNameHint;
+
+  /// No description provided for @stickersCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get stickersCreate;
+
+  /// No description provided for @stickersRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get stickersRename;
+
+  /// No description provided for @stickersDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete pack'**
+  String get stickersDelete;
+
+  /// No description provided for @stickersDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{title}”?'**
+  String stickersDeleteConfirm(String title);
+
+  /// No description provided for @stickersDeleteExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'The link stops working and the pack leaves your picker. Stickers from it that you have already sent stay readable in those conversations.'**
+  String get stickersDeleteExplain;
+
+  /// No description provided for @stickersRemovePack.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from my packs'**
+  String get stickersRemovePack;
+
+  /// No description provided for @stickersAddPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Add pack'**
+  String get stickersAddPack;
+
+  /// No description provided for @stickersAlreadyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Already in your packs'**
+  String get stickersAlreadyAdded;
+
+  /// No description provided for @stickersShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share this pack'**
+  String get stickersShare;
+
+  /// No description provided for @stickersSharedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone with the link can add it'**
+  String get stickersSharedOn;
+
+  /// No description provided for @stickersSharedOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Private. Only you can see it.'**
+  String get stickersSharedOff;
+
+  /// No description provided for @stickersShareExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'A pack is private until you share it. Sticker pictures are not encrypted: a link is meant for people who hold no key of yours, so anyone who has the link — and this server — can see them. Withdrawing the link stops new people adding the pack; it does not take it back from people who already have it.'**
+  String get stickersShareExplain;
+
+  /// No description provided for @stickersCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get stickersCopyLink;
+
+  /// No description provided for @stickersLinkCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Link copied'**
+  String get stickersLinkCopied;
+
+  /// No description provided for @stickersWithdrawLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdraw the link'**
+  String get stickersWithdrawLink;
+
+  /// No description provided for @stickersNewLinkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing again makes a new link and stops the old one.'**
+  String get stickersNewLinkNote;
+
+  /// No description provided for @stickersAddItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a picture'**
+  String get stickersAddItem;
+
+  /// No description provided for @stickersItemEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji for this one'**
+  String get stickersItemEmoji;
+
+  /// No description provided for @stickersItemEmojiWhy.
+  ///
+  /// In en, this message translates to:
+  /// **'What it stands for: what a client without this pack shows in its place, and how you find it later.'**
+  String get stickersItemEmojiWhy;
+
+  /// No description provided for @stickersEmptyPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing in this pack yet.'**
+  String get stickersEmptyPack;
+
+  /// No description provided for @stickersItemCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Empty} =1{1 picture} other{{count} pictures}}'**
+  String stickersItemCount(int count);
+
+  /// No description provided for @stickersRemoveItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get stickersRemoveItem;
+
+  /// No description provided for @stickersReorderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold and drag to reorder.'**
+  String get stickersReorderHint;
+
+  /// No description provided for @stickersCropTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get stickersCropTitle;
+
+  /// No description provided for @stickersCropHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag and pinch to choose the square. Transparency is kept.'**
+  String get stickersCropHint;
+
+  /// No description provided for @stickersUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use'**
+  String get stickersUse;
+
+  /// No description provided for @stickersPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker pack'**
+  String get stickersPreviewTitle;
+
+  /// No description provided for @stickersOpenLinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a pack link'**
+  String get stickersOpenLinkTitle;
+
+  /// No description provided for @stickersOpenLinkHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the link or the code somebody sent you.'**
+  String get stickersOpenLinkHint;
+
+  /// No description provided for @stickersOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get stickersOpen;
+
+  /// No description provided for @stickersKindSticker.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers'**
+  String get stickersKindSticker;
+
+  /// No description provided for @stickersKindEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom emoji'**
+  String get stickersKindEmoji;
+
+  /// No description provided for @stickersPickFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'That picture could not be opened.'**
+  String get stickersPickFailed;
+
+  /// No description provided for @notificationsIphoneNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You can manage notifications for Privio in iPhone Settings.'**
+  String get notificationsIphoneNote;
+
+  /// No description provided for @notificationsOpenIphoneSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open iPhone Settings'**
+  String get notificationsOpenIphoneSettings;
+
+  /// No description provided for @notificationsSettingsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open Settings. Open the Settings app and select Privio.'**
+  String get notificationsSettingsFailed;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

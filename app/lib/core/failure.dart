@@ -116,6 +116,23 @@ enum FailureKind {
   /// Strict mode. Carries [Failure.detail]: who, by username.
   callNotVerified,
 
+  // Stickers and custom emoji.
+  //
+  // The server refuses an upload by code; these are the codes this app has its
+  // own words for. It checks the bytes rather than trusting what the client
+  // says they are, so any of them can arrive even from a build that pre-checked.
+  stickerNotAnImage,
+  stickerAnimated,
+  stickerTooLarge,
+  stickerTooWide,
+  stickerTooSmall,
+  stickerPackFull,
+  stickerTooManyPacks,
+  stickerPackNotFound,
+
+  /// A share link that opens nothing: revoked, or the pack deleted.
+  stickerLinkDead,
+
   // The home-screen icon.
   appIconUnsupported,
   appIconHiddenByDisguise,

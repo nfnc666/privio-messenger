@@ -106,6 +106,51 @@ const READABLE: Record<string, string> = {
   'accounts.status_text': 'published by its owner to an audience they choose; see docs/security-model.md',
   'accounts.status_emoji': 'the same, held apart from the text so a client can draw it beside the line',
 
+  // Sticker and emoji packs. A pack is *published by link* — the point of the
+  // feature is handing somebody a URL and having them see what is in it before
+  // they install it — and a recipient of a link holds no key of the author's.
+  // Sealing the title would mean either shipping a key inside the link, which
+  // is the same as not sealing it, or a preview that cannot say what it is
+  // previewing. So the pack's own labels are readable and the *content* is not:
+  // the images go through `media_objects` like every other attachment, keyed
+  // and fetched with a download token, and this server stores the pack's name,
+  // not its pictures. See migration 028.
+  'sticker_packs.title': 'shown in a link preview to people who hold no key of the author s',
+  'sticker_packs.kind': 'sticker or emoji, which decides where the picker shows it',
+  'sticker_packs.share_code': 'the capability in a share link, meant to be handed out, and revocable',
+  // The keyboard character a custom item stands in for — `:heart:`, in effect.
+  // Not something a person wrote in a conversation: it is the label on a
+  // button in a picker, and it travels in the pack, not in a message.
+  'sticker_items.emoji': 'the fallback character an item stands for, part of the pack s own description',
+
+  // Bots. Everything below is readable **on purpose and only for bots**, and
+  // the reason is one the feature cannot avoid: a bot is a program on somebody
+  // else's server reached over HTTP. It holds no Signal keys, so for it to
+  // receive a sealed message this server would have to hold its identity key
+  // and open the envelope for it — the one capability the whole design exists
+  // to deny itself.
+  //
+  // The choice made instead of weakening that: bot conversations do not join
+  // the encrypted path at all. They live here, in their own table, they never
+  // touch `envelopes`, a test asserts that they never start to, and the app
+  // says so in plain words before the first message to a bot is sent. What is
+  // readable is exactly a bot chat and nothing else. See docs/bots.md.
+  'bot_messages.body': 'a bot chat is not end-to-end encrypted, knowingly; see docs/bots.md',
+  'bot_messages.scope': 'direct, group or channel — which delivery rule applies',
+  'bot_messages.author': 'user or bot, which decides whether it is delivered to the operator',
+  // The bot's own public description and its command menu, both written by its
+  // owner to be shown to everybody who opens the chat.
+  'bots.description': 'the bot s public description, shown to anyone who opens it',
+  'bots.commands': 'the command menu the owner publishes',
+  // Names nobody may register, and why. Not user data: this table is the
+  // policy, and it is readable because the server enforces it.
+  'reserved_usernames.username': 'the policy the server enforces, not user data',
+  'reserved_usernames.reason': 'why the name is held, for whoever reads the table next',
+  // How far a conversation with @botcreator has got: `{"at":"awaitingUsername",
+  // "name":"..."}`. It holds the half-finished answers to the assistant's own
+  // questions — a bot's name — and nothing a person said to another person.
+  'botcreator_state.step': 'the assistant s own state machine, not a conversation between people',
+
   // Licensing, which is an order record rather than anything about a person.
   'licenses.source': 'key, apple or google',
   'licenses.status': 'active or revoked',
@@ -197,6 +242,10 @@ describe('what the server can read', () => {
       ['sessions', 'token_hash'],
       ['licenses', 'key_hash'],
       ['media_objects', 'download_token_hash'],
+      // A bot API token is a credential like any other, so it is held the same
+      // way. Listing it here rather than arguing for it in READABLE is the
+      // point: the type is checked, not the note beside it.
+      ['bot_tokens', 'token_hash'],
     ]) {
       const { rows } = await pool.query<{ data_type: string }>(
         `SELECT data_type FROM information_schema.columns

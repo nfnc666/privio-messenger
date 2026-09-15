@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
 import type { BlobStorage } from '../services/storage.js';
 import { ApiError } from '../util/errors.js';
+import { checkSticker, STICKER_LIMITS, type ImageRefusal } from '../services/image_header.js';
 import { parse, uuidSchema } from '../util/validate.js';
 
 /**
@@ -97,6 +98,26 @@ async function mayDownload(
     return rows.length > 0;
   }
 
+  // A sticker is downloadable by anybody who can reach the pack it is in:
+  // its owner, anybody who installed it, and anybody presenting a live share
+  // code. The pack route is what checks the code; by the time an id is being
+  // downloaded, membership is the question, and an object no pack points at
+  // belongs to its uploader alone.
+  if (object.kind === 'sticker') {
+    const { rows } = await pool.query(
+      `SELECT 1
+         FROM sticker_items i
+         JOIN sticker_packs p ON p.id = i.pack_id
+        WHERE i.media_id = $1 AND p.deleted_at IS NULL
+          AND (p.owner_account_id = $2
+               OR EXISTS (SELECT 1 FROM sticker_installs s
+                           WHERE s.pack_id = p.id AND s.account_id = $2))
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return rows.length > 0;
+  }
+
   if (object.kind === 'avatar') {
     const { rows } = await pool.query(
       'SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2',
@@ -111,6 +132,29 @@ async function mayDownload(
   const offered = hash(presented);
   // Constant time, so a wrong token cannot be walked into a right one.
   return offered.length === stored.length && timingSafeEqual(offered, stored);
+}
+
+/**
+ * Why a sticker upload was refused, in words the app can show.
+ *
+ * English here and translated on the device, like every other server message:
+ * the server cannot know which language the person uploading reads, so what
+ * travels is the code and this is the fallback for a client that does not know
+ * it yet.
+ */
+function stickerRefusalMessage(refusal: ImageRefusal): string {
+  switch (refusal) {
+    case 'not_an_image':
+      return 'That file is not a PNG or a WebP image.';
+    case 'unsupported_format':
+      return 'Animated stickers are not supported yet. Use a static PNG or WebP.';
+    case 'too_large':
+      return `A sticker must be under ${Math.round(STICKER_LIMITS.maxBytes / 1024)} KB.`;
+    case 'dimensions_too_large':
+      return `A sticker must be at most ${STICKER_LIMITS.maxEdge}×${STICKER_LIMITS.maxEdge} pixels.`;
+    case 'dimensions_too_small':
+      return `A sticker must be at least ${STICKER_LIMITS.minEdge}×${STICKER_LIMITS.minEdge} pixels.`;
+  }
 }
 
 export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
@@ -128,7 +172,7 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
         }
         const { kind, expiresInSeconds } = parse(
           z.object({
-            kind: z.enum(['attachment', 'avatar', 'channel_avatar']).default('attachment'),
+            kind: z.enum(['attachment', 'avatar', 'channel_avatar', 'sticker']).default('attachment'),
             /**
              * How long this blob is worth keeping, for an attachment to a
              * message that is set to disappear.
@@ -153,6 +197,22 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
           }),
           request.query,
         );
+        // A sticker is the one upload whose *contents* are checked, and it is
+        // checked here rather than trusted from the client: the type comes from
+        // the magic bytes, the dimensions from the header, and the declared
+        // content type is not consulted at all. See `services/image_header.ts`.
+        //
+        // Every other kind stays opaque on purpose — an attachment is
+        // ciphertext and the server could not look inside it if it wanted to.
+        // A sticker is stored unencrypted because a pack is shared by link with
+        // people who hold no key, so this is the one place where looking is
+        // both possible and worth doing.
+        if (kind === 'sticker') {
+          const checked = checkSticker(body);
+          if (checked.refusal) {
+            throw ApiError.badRequest(checked.refusal, stickerRefusalMessage(checked.refusal));
+          }
+        }
         const storageKey = await storage.put(body);
         const defaultTtl = config.MEDIA_TTL_DAYS * 86_400_000;
         // Only ever shorter. An uploader asking for longer is asking for the
@@ -162,6 +222,14 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
           kind === 'attachment' && expiresInSeconds
             ? Math.min(expiresInSeconds * 1000, defaultTtl)
             : defaultTtl;
+        // Every kind is uploaded with the ordinary window, including a
+        // sticker. An upload is not yet anybody's picture: it becomes one when
+        // something points at it, and *that* is where its life is extended —
+        // `PUT /v1/accounts/me/avatar`, the channel avatar route and
+        // `POST /v1/sticker-packs/:id/items` all promote the object they
+        // adopt, and set it back to now() when they let it go. Granting the
+        // long life here instead would keep an upload nobody ever attached for
+        // a hundred years.
         const expiresAt = new Date(Date.now() + ttl);
 
         // Handed back once and never stored. Losing it means losing the blob,

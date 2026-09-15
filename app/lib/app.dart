@@ -11,6 +11,7 @@ import 'screens/calculator_screen.dart';
 import 'screens/call_screen.dart';
 import 'screens/nav_shell.dart';
 import 'screens/pin_screen.dart';
+import 'screens/sticker_pack_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme/privio_colors.dart';
@@ -174,6 +175,17 @@ class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
 
   Future<void> _open(AppState state, ChannelLinkTarget target) async {
     if (_opening) return;
+    // A pack link is not a channel link and must not go to the channel
+    // controller: it names a sticker pack, and the screen that opens one shows
+    // what is in it with an Add button rather than adding it. Handled here
+    // because this is the one place every Privio link arrives, whether it was
+    // tapped in another app or the app was launched by it.
+    if (target is StickerPackLink) {
+      _opening = true;
+      await _openPack(state, target.code);
+      _opening = false;
+      return;
+    }
     _opening = true;
     final controller = state.channels;
     final channel = await controller.preview(target);
@@ -199,6 +211,32 @@ class _DeepLinkOpenerState extends State<_DeepLinkOpener> {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => ChannelFeedScreen(channel: channel)));
+  }
+
+  /// Opens a shared sticker pack from the code in a link.
+  Future<void> _openPack(AppState state, String code) async {
+    final controller = state.stickers;
+    final pack = await controller.previewByCode(code);
+    if (!mounted) return;
+
+    // Taken only now, for the same reason as a channel link: cleared on read,
+    // a failed fetch would leave the person with nothing and no explanation.
+    state.deepLinks.taken();
+
+    final text = AppText.of(context);
+    if (pack == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.failure?.words(text) ?? text.failureStickerLinkDead),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StickerPackScreen(packId: pack.id, preview: pack, shareCode: code),
+      ),
+    );
   }
 
   void _reportUnreadable(AppState state) {
