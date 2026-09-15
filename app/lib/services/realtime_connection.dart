@@ -20,37 +20,27 @@ class RealtimeConnection {
     required this.baseUrl,
     required this.token,
     WebSocketChannel Function(Uri)? connect,
-  }) : _connect = connect ?? _defaultConnect;
+  }) : _connect = connect;
 
-  /// How the socket is opened when nothing was injected.
-  ///
-  /// Through the proxy **only when one is switched on**, and through
-  /// `WebSocketChannel.connect` otherwise — which is what this did before the
-  /// proxy existed, and what it has to go on doing for every install that has
-  /// no proxy configured.
-  ///
-  /// Reaching for `ProxyController.instance` unconditionally meant every
-  /// connection went through the proxy transport's own long-lived `HttpClient`,
-  /// including on the ordinary path where there is no proxy. That client is
-  /// built once, inside a singleton, so in a widget test it captures the
-  /// binding's mocked `HttpClient` and then carries it into later tests; the
-  /// WebSocket handshake fails, `dart:_http` calls `detachSocket()` on the
-  /// mocked response in its *error* path, and the `UnsupportedError` that
-  /// throws escapes into the zone rather than arriving on `ready` or on the
-  /// stream — which is why `_open`'s guards did not catch it. Forty-eight tests
-  /// across the suite went red, every one of them a test that signs in.
-  ///
-  /// `enabled` is the controller's own fail-closed answer: true when a proxy is
-  /// configured *and* true when its settings could not be read, so a device
-  /// that is meant to be proxied never quietly falls back to a direct socket.
-  static WebSocketChannel _defaultConnect(Uri uri) =>
-      ProxyController.instance.enabled
-          ? ProxyController.instance.connect(uri)
-          : WebSocketChannel.connect(uri);
+  static const String _authProtocolPrefix = 'privio-auth.';
+
+  /// Opens the default socket with the session credential in the WebSocket
+  /// subprotocol header rather than in the URL. URLs are commonly retained by
+  /// reverse proxies and access logs; a bearer token must never become part of
+  /// that logging surface.
+  static WebSocketChannel _defaultConnect(Uri uri, String token) {
+    final protocols = <String>['privio-v1', '$_authProtocolPrefix$token'];
+    return ProxyController.instance.enabled
+        ? ProxyController.instance.connect(uri, protocols: protocols)
+        : WebSocketChannel.connect(uri, protocols: protocols);
+  }
 
   final Uri baseUrl;
   final String token;
-  final WebSocketChannel Function(Uri) _connect;
+
+  /// Tests may inject their old URI-only connector. Production uses
+  /// [_defaultConnect], which carries authentication separately from the URL.
+  final WebSocketChannel Function(Uri)? _connect;
 
   /// Reconnect delay, doubling up to the cap. A server coming back from a
   /// restart should not be met with every client at once.
@@ -64,17 +54,8 @@ class RealtimeConnection {
   final _keyRequests = StreamController<void>.broadcast();
   final _connected = ValueNotifier<bool>(false);
 
-  /// Batches of envelopes as the server pushes them, still encrypted.
   Stream<List<dynamic>> get envelopes => _envelopes.stream;
-
-  /// "Somebody in a group or channel you are in is waiting for its key."
-  ///
-  /// Carries nothing: what to do about it is entirely this device's business,
-  /// and the server could not say more if it wanted to — it has never had a
-  /// key to talk about.
   Stream<void> get keyRequests => _keyRequests.stream;
-
-  /// Whether the socket is currently up, for a connection indicator.
   ValueListenable<bool> get connected => _connected;
 
   WebSocketChannel? _channel;
@@ -89,10 +70,8 @@ class RealtimeConnection {
     return baseUrl.replace(
       scheme: scheme,
       path: '/v1/ws',
-      // The token goes in the query because browsers cannot set headers on a
-      // WebSocket handshake. It is inside TLS, and the server accepts a header
-      // too for the platforms that can send one.
-      queryParameters: {'token': token},
+      query: '',
+      fragment: '',
     );
   }
 
@@ -104,13 +83,8 @@ class RealtimeConnection {
   void _open() {
     _reconnect?.cancel();
     try {
-      final channel = _connect(_socketUrl);
+      final channel = _connect?.call(_socketUrl) ?? _defaultConnect(_socketUrl, token);
       _channel = channel;
-      // A handshake that fails — no signal, a captive portal, a proxy that
-      // refuses — reports it on `ready`, not on the stream. The retry is driven
-      // by the stream's onError below, but an error nobody looks at on that
-      // future is an unhandled exception in the zone: on a phone with no
-      // reception, one per attempt.
       unawaited(channel.ready.catchError((Object _) {}));
       _subscription = channel.stream.listen(
         _onFrame,
@@ -132,7 +106,7 @@ class RealtimeConnection {
     try {
       frame = jsonDecode(raw) as Map<String, dynamic>;
     } on Object {
-      return; // A frame we cannot parse is not a reason to drop the connection.
+      return;
     }
 
     switch (frame['type']) {
@@ -142,10 +116,9 @@ class RealtimeConnection {
       case 'key-request':
         _keyRequests.add(null);
       case 'error':
-        // The server refuses the token: reconnecting with it will not help.
         if (frame['code'] == 'unauthorized') close();
       default:
-        break; // pong, and anything added later.
+        break;
     }
   }
 

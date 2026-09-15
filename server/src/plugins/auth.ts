@@ -23,15 +23,46 @@ function bearerToken(request: FastifyRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
+/**
+ * A key request belongs to the device that is waiting for the key.
+ *
+ * Historically the holder that *sent* a key deleted the request. Because every
+ * member can see pending requests, that also meant every member could delete a
+ * request without sending anything and permanently starve a new device of the
+ * E2EE group/channel key. Clearing is now an acknowledgement by the requesting
+ * device itself. The route shape is kept for compatibility, but a session may
+ * acknowledge only its own device id.
+ */
+function enforceOwnKeyRequestAck(request: FastifyRequest, context: AuthContext): void {
+  if (request.method !== 'DELETE') return;
+  const path = request.url.split('?', 1)[0] ?? '';
+  const match = path.match(/^\/v1\/(?:groups|channels)\/[^/]+\/key-requests\/([^/]+)$/);
+  if (!match) return;
+
+  let requestedDeviceId: string;
+  try {
+    requestedDeviceId = decodeURIComponent(match[1]!);
+  } catch {
+    throw ApiError.badRequest('invalid_device', 'Invalid device id');
+  }
+  if (requestedDeviceId !== context.deviceId) {
+    throw ApiError.forbidden(
+      'key_request_not_owned',
+      'Only the device waiting for this key may acknowledge its request',
+    );
+  }
+}
+
 const authPlugin: FastifyPluginAsync = async (app) => {
   app.decorateRequest('auth', undefined);
 
   app.decorate('requireAuth', async (request: FastifyRequest) => {
     const token = bearerToken(request);
     if (!token) throw ApiError.unauthorized('missing_token', 'Bearer token required');
-    const auth = await resolveSession(token);
-    if (!auth) throw ApiError.unauthorized('invalid_token', 'Session is invalid or expired');
-    request.auth = auth;
+    const context = await resolveSession(token);
+    if (!context) throw ApiError.unauthorized('invalid_token', 'Session is invalid or expired');
+    request.auth = context;
+    enforceOwnKeyRequestAck(request, context);
   });
 
   /**
