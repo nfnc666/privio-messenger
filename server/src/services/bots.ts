@@ -38,6 +38,34 @@ export const BOT_LIMITS = {
 } as const;
 
 /**
+ * Long-poll clients may open more than one request by mistake (or on purpose).
+ * Without a shared gate each request used to execute one database query every
+ * second, so N concurrent polls meant N queries/second for one bot. Keep the
+ * database work bounded per bot regardless of how many HTTP requests are open.
+ *
+ * This is deliberately process-local: it protects the database from connection
+ * fan-out on each server instance without adding durable tracking of a bot's
+ * polling behaviour. Horizontal deployments therefore get at most one query
+ * per interval per instance, still a strict bound instead of per connection.
+ */
+const POLL_DB_MIN_INTERVAL_MS = 900;
+const nextPollAt = new Map<string, number>();
+
+function reservePoll(botId: string): boolean {
+  const now = Date.now();
+  const next = nextPollAt.get(botId) ?? 0;
+  if (now < next) return false;
+
+  const releaseAt = now + POLL_DB_MIN_INTERVAL_MS;
+  nextPollAt.set(botId, releaseAt);
+  const timer = setTimeout(() => {
+    if (nextPollAt.get(botId) === releaseAt) nextPollAt.delete(botId);
+  }, POLL_DB_MIN_INTERVAL_MS + 100);
+  timer.unref?.();
+  return true;
+}
+
+/**
  * The stored form of a token: a SHA-256 digest as bytes.
  *
  * Bytes rather than base64 because that is what every other credential digest
@@ -163,8 +191,14 @@ export async function isRateLimited(botId: string): Promise<boolean> {
  * One statement, so two pollers cannot both take the same row: the `UPDATE …
  * RETURNING` over a subselect with `FOR UPDATE SKIP LOCKED` is what makes a
  * duplicated delivery impossible rather than unlikely.
+ *
+ * The shared poll reservation above additionally means concurrent long polls do
+ * not multiply database traffic. Calls inside the sub-second gate answer empty;
+ * the long-poll loop will try again on its next tick.
  */
 export async function takeUpdates(botId: string, limit: number) {
+  if (!reservePoll(botId)) return [];
+
   const { rows } = await pool.query<{
     id: string;
     account_id: string;
