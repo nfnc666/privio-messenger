@@ -3908,4 +3908,51 @@ class AppTextFr extends AppText {
   @override
   String get notificationsSettingsFailed =>
       'Impossible d’ouvrir les réglages. Ouvrez l’app Réglages et sélectionnez Privio.';
+
+  @override
+  String get pickerEmoji => 'Émojis';
+
+  @override
+  String get pickerStickers => 'Autocollants';
+
+  @override
+  String get pickerMine => 'Les miens';
+
+  @override
+  String get pickerFavourites => 'Favoris';
+
+  @override
+  String get pickerRecent => 'Utilisés récemment';
+
+  @override
+  String get pickerNoStickers => 'Aucun paquet d’autocollants pour l’instant.';
+
+  @override
+  String get pickerNoCustomEmoji => 'Aucun émoji personnalisé pour l’instant.';
+
+  @override
+  String get pickerManagePacks => 'Gérer les paquets';
+
+  @override
+  String get pickerAddFavourite => 'Ajouter aux favoris';
+
+  @override
+  String get pickerRemoveFavourite => 'Retirer des favoris';
+
+  @override
+  String get pickerOpenPack => 'Ouvrir le paquet';
+
+  @override
+  String stickerFromPack(String title) {
+    return 'Autocollant de « $title »';
+  }
+
+  @override
+  String get stickerPackGone => 'Ce paquet ne vous est pas accessible.';
+
+  @override
+  String get chatSticker => 'Autocollant';
+
+  @override
+  String get pickerOpenTooltip => 'Autocollants et émojis';
 }

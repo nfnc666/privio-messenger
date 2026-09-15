@@ -479,7 +479,12 @@ class ConversationController extends ChangeNotifier {
   ///
   /// The message appears immediately as `sending` and only becomes `sent` once
   /// the server has taken it, so the UI never claims delivery it cannot back up.
-  Future<void> send(String conversationId, String text, {Message? replyTo}) async {
+  Future<void> send(
+    String conversationId,
+    String text, {
+    Message? replyTo,
+    List<CustomEmojiRef>? customEmoji,
+  }) async {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null || text.trim().isEmpty) return;
 
@@ -506,12 +511,14 @@ class ConversationController extends ChangeNotifier {
             : replyTo.isMine
                 ? 'You'
                 : replyTo.senderName ?? conversation.title,
+        customEmoji: customEmoji,
       ),
     );
     notifyListeners();
 
     final payload = MessagePayload.text(
       body,
+      customEmoji: customEmoji,
       groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
       expiresInSeconds: timer?.inSeconds,
       // Carried so a retry — this one's or the transport's — is recognisable as

@@ -1015,4 +1015,14 @@ class PrivioScope extends InheritedNotifier<AppState> {
     assert(scope?.notifier != null, 'PrivioScope is missing from the tree');
     return scope!.notifier!;
   }
+
+  /// The state, or null when there is none above this widget.
+  ///
+  /// For widgets that are *better* with the app around them and still correct
+  /// without it — a message bubble that can draw a custom emoji when there is
+  /// somewhere to fetch it from, and the plain character when there is not. A
+  /// widget that asserts its way out of rendering is a widget that cannot be
+  /// put in a preview, a test, or a screen that has not signed in yet.
+  static AppState? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PrivioScope>()?.notifier;
 }

@@ -6624,6 +6624,96 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Could not open Settings. Open the Settings app and select Privio.'**
   String get notificationsSettingsFailed;
+
+  /// No description provided for @pickerEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get pickerEmoji;
+
+  /// No description provided for @pickerStickers.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers'**
+  String get pickerStickers;
+
+  /// No description provided for @pickerMine.
+  ///
+  /// In en, this message translates to:
+  /// **'Mine'**
+  String get pickerMine;
+
+  /// No description provided for @pickerFavourites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favourites'**
+  String get pickerFavourites;
+
+  /// No description provided for @pickerRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently used'**
+  String get pickerRecent;
+
+  /// No description provided for @pickerNoStickers.
+  ///
+  /// In en, this message translates to:
+  /// **'No sticker packs yet.'**
+  String get pickerNoStickers;
+
+  /// No description provided for @pickerNoCustomEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'No custom emoji yet.'**
+  String get pickerNoCustomEmoji;
+
+  /// No description provided for @pickerManagePacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage packs'**
+  String get pickerManagePacks;
+
+  /// No description provided for @pickerAddFavourite.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to favourites'**
+  String get pickerAddFavourite;
+
+  /// No description provided for @pickerRemoveFavourite.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from favourites'**
+  String get pickerRemoveFavourite;
+
+  /// No description provided for @pickerOpenPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Open pack'**
+  String get pickerOpenPack;
+
+  /// No description provided for @stickerFromPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker from “{title}”'**
+  String stickerFromPack(String title);
+
+  /// No description provided for @stickerPackGone.
+  ///
+  /// In en, this message translates to:
+  /// **'This pack is not available to you.'**
+  String get stickerPackGone;
+
+  /// No description provided for @chatSticker.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker'**
+  String get chatSticker;
+
+  /// No description provided for @pickerOpenTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers and emoji'**
+  String get pickerOpenTooltip;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

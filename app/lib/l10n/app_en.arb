@@ -1266,5 +1266,21 @@
   "stickersPickFailed": "That picture could not be opened.",
   "notificationsIphoneNote": "You can manage notifications for Privio in iPhone Settings.",
   "notificationsOpenIphoneSettings": "Open iPhone Settings",
-  "notificationsSettingsFailed": "Could not open Settings. Open the Settings app and select Privio."
+  "notificationsSettingsFailed": "Could not open Settings. Open the Settings app and select Privio.",
+  "pickerEmoji": "Emoji",
+  "pickerStickers": "Stickers",
+  "pickerMine": "Mine",
+  "pickerFavourites": "Favourites",
+  "pickerRecent": "Recently used",
+  "pickerNoStickers": "No sticker packs yet.",
+  "pickerNoCustomEmoji": "No custom emoji yet.",
+  "pickerManagePacks": "Manage packs",
+  "pickerAddFavourite": "Add to favourites",
+  "pickerRemoveFavourite": "Remove from favourites",
+  "pickerOpenPack": "Open pack",
+  "stickerFromPack": "Sticker from “{title}”",
+  "@stickerFromPack": {"placeholders": {"title": {"type": "String"}}},
+  "stickerPackGone": "This pack is not available to you.",
+  "chatSticker": "Sticker",
+  "pickerOpenTooltip": "Stickers and emoji"
 }

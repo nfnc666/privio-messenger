@@ -3916,4 +3916,51 @@ class AppTextIt extends AppText {
   @override
   String get notificationsSettingsFailed =>
       'Impossibile aprire le impostazioni. Apri l’app Impostazioni e seleziona Privio.';
+
+  @override
+  String get pickerEmoji => 'Emoji';
+
+  @override
+  String get pickerStickers => 'Sticker';
+
+  @override
+  String get pickerMine => 'I miei';
+
+  @override
+  String get pickerFavourites => 'Preferiti';
+
+  @override
+  String get pickerRecent => 'Usati di recente';
+
+  @override
+  String get pickerNoStickers => 'Ancora nessun pacchetto di sticker.';
+
+  @override
+  String get pickerNoCustomEmoji => 'Ancora nessuna emoji personalizzata.';
+
+  @override
+  String get pickerManagePacks => 'Gestisci i pacchetti';
+
+  @override
+  String get pickerAddFavourite => 'Aggiungi ai preferiti';
+
+  @override
+  String get pickerRemoveFavourite => 'Togli dai preferiti';
+
+  @override
+  String get pickerOpenPack => 'Apri il pacchetto';
+
+  @override
+  String stickerFromPack(String title) {
+    return 'Sticker da «$title»';
+  }
+
+  @override
+  String get stickerPackGone => 'Questo pacchetto non è disponibile per te.';
+
+  @override
+  String get chatSticker => 'Sticker';
+
+  @override
+  String get pickerOpenTooltip => 'Sticker ed emoji';
 }

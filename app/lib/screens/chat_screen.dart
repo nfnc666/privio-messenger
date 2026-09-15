@@ -9,14 +9,18 @@ import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
+import '../core/sticker_controller.dart';
 import '../crypto/safety_number.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/models.dart';
+import '../media/attachment.dart' show CustomEmojiRef;
 import '../media/voice.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
+import 'sticker_pack_screen.dart';
+import 'stickers_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
@@ -25,6 +29,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/scrub_notice.dart';
+import '../widgets/sticker_picker.dart';
 
 /// One conversation. Everything shown here was decrypted on this device, and
 /// everything typed here is sealed before it leaves it.
@@ -56,6 +61,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Message? _replyingTo;
 
   final TextEditingController _composer = TextEditingController();
+
+  /// Custom emoji put into the message being written, with where they sit.
+  ///
+  /// Held beside the field rather than inside it, because a `TextEditingValue`
+  /// has nowhere to keep them: the field holds the fallback characters, which
+  /// is exactly what makes the draft an ordinary sentence. Cleared when the
+  /// message goes.
+  final List<CustomEmojiRef> _pendingEmoji = [];
 
   /// A positioned list rather than a plain one, because a search result has to
   /// land on a message that may be hundreds of lines up. A ScrollController can
@@ -138,12 +151,39 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _send() async {
-    final text = _composer.text.trim();
+    final raw = _composer.text;
+    final text = raw.trim();
     if (text.isEmpty) return;
     final replyTo = _replyingTo;
+
+    // The body is trimmed, so every span shifts left by whatever the leading
+    // whitespace was — and anything that no longer fits the trimmed text is
+    // dropped rather than sent pointing at nothing. Silent, because what is
+    // left is the sentence with its ordinary characters in it, which is what
+    // the person typed.
+    final lead = raw.length - raw.trimLeft().length;
+    final spans = [
+      for (final ref in _pendingEmoji)
+        CustomEmojiRef(
+          itemId: ref.itemId,
+          packId: ref.packId,
+          mediaId: ref.mediaId,
+          offset: ref.offset - lead,
+          length: ref.length,
+        ),
+    ].where((ref) => ref.fits(text)).toList(growable: false);
+
     _composer.clear();
-    setState(() => _replyingTo = null);
-    await PrivioScope.of(context).conversations.send(widget.accountId, text, replyTo: replyTo);
+    setState(() {
+      _replyingTo = null;
+      _pendingEmoji.clear();
+    });
+    await PrivioScope.of(context).conversations.send(
+          widget.accountId,
+          text,
+          replyTo: replyTo,
+          customEmoji: spans.isEmpty ? null : spans,
+        );
     _scrollToEnd();
   }
 
@@ -171,6 +211,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  if (!queued)
+                    // The way to a custom emoji. Six quick ones plus a door to
+                    // the rest is the shape that keeps the long press a
+                    // one-tap gesture for the common case.
+                    GestureDetector(
+                      onTap: () => Navigator.of(sheetContext).pop('react:more'),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: PrivioColors.surfaceRaised,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_reaction_outlined,
+                          size: 20,
+                          color: PrivioColors.textSecondary,
+                        ),
+                      ),
+                    ),
                   for (final emoji in queued ? const <String>[] : ConversationController.quickReactions)
                     GestureDetector(
                       onTap: () => Navigator.of(sheetContext).pop('react:$emoji'),
@@ -260,11 +321,41 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _confirmDelete(state, message);
       return;
     }
+    if (action == 'react:more') {
+      await _reactWithCustom(state, message);
+      return;
+    }
     await state.conversations.react(
       widget.accountId,
       message,
       action.substring('react:'.length),
     );
+  }
+
+  /// Reacts with something out of the picker.
+  ///
+  /// A custom emoji reacts as a picture *with* its fallback character, so the
+  /// reaction reaches somebody without the pack as an ordinary one. A plain
+  /// emoji from the same picker is just a reaction. Picking a sticker here
+  /// reacts with the character it stands for — a sticker is a message, and
+  /// putting one in a reaction chip would be a different feature.
+  Future<void> _reactWithCustom(AppState state, Message message) async {
+    final controller = state.stickers;
+    final choice = await showStickerPicker(context, controller);
+    if (choice == null || !mounted) return;
+
+    switch (choice) {
+      case InsertCustomEmoji(:final pack, :final item) || SendSticker(:final pack, :final item):
+        unawaited(controller.noteUsed([item.id]));
+        await state.conversations.react(
+          widget.accountId,
+          message,
+          item.emoji,
+          sticker: StickerRef(itemId: item.id, packId: pack.id, mediaId: item.mediaId),
+        );
+      case InsertEmoji(:final emoji):
+        await state.conversations.react(widget.accountId, message, emoji);
+    }
   }
 
   /// Asks which kind of delete this is, and says plainly what each one can and
@@ -315,6 +406,132 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// Picks a file and sends it. The bytes are read into memory rather than
   /// handed over as a path, because they have to be scrubbed and sealed before
   /// anything leaves the device.
+  /// Offers the pack a sticker came from.
+  ///
+  /// Two answers, and the second one is the honest limit of what a sticker
+  /// carries. A pack this account owns or has added opens. Anything else does
+  /// not, and says so.
+  ///
+  /// The reason it cannot do better: a pack is reached by its **share code**,
+  /// not by its id, and the code is what the owner revokes. A sticker carries
+  /// the id — enough to fetch the picture and to recognise the pack, not enough
+  /// to open one that was never shared with this reader. Putting the code in
+  /// every message would make revoking it useless, since it would already be in
+  /// everybody's history. So the tap is honest about reaching a wall rather
+  /// than spinning at one.
+  Future<void> _openStickerPack(StickerRef sticker) async {
+    final text = AppText.of(context);
+    final controller = PrivioScope.of(context).stickers;
+
+    if (controller.packById(sticker.packId) != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StickerPackScreen(packId: sticker.packId),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text.stickerPackGone)),
+    );
+  }
+
+  /// Opens the picker, and does what was picked.
+  ///
+  /// The three outcomes are three different actions and the sealed result is
+  /// what stops one being mistaken for another: a sticker is *sent*, a custom
+  /// emoji is *inserted into what is being written*, and a plain emoji is a
+  /// character like any other.
+  Future<void> _pickSticker() async {
+    final state = PrivioScope.of(context);
+    final controller = state.stickers;
+    final choice = await showStickerPicker(
+      context,
+      controller,
+      onManagePacks: () {
+        Navigator.of(context).pop();
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const StickersScreen()),
+        );
+      },
+    );
+    if (choice == null || !mounted) return;
+
+    switch (choice) {
+      case SendSticker(:final pack, :final item):
+        // Recorded as used before the send rather than after: the recents row
+        // is about what somebody reached for, and a send that fails is still
+        // something they reached for.
+        unawaited(controller.noteUsed([item.id]));
+        await state.conversations.sendSticker(
+          widget.accountId,
+          itemId: item.id,
+          packId: pack.id,
+          mediaId: item.mediaId,
+          fallback: item.emoji,
+          replyTo: _replyingTo,
+        );
+        if (mounted) setState(() => _replyingTo = null);
+      case InsertCustomEmoji(:final pack, :final item):
+        unawaited(controller.noteUsed([item.id]));
+        _insertCustomEmoji(pack, item);
+      case InsertEmoji(:final emoji):
+        _insertAtCursor(emoji, spans: null);
+    }
+  }
+
+  /// Puts a custom emoji into the field, and remembers where it went.
+  ///
+  /// The *character* goes into the text — so the field, the draft and anything
+  /// that reads the field see an ordinary sentence — and the span is kept
+  /// beside it, to travel with the message. That is the same split the payload
+  /// makes, held here so the two cannot disagree.
+  void _insertCustomEmoji(StickerPack pack, StickerItem item) {
+    final offset = _insertAtCursor(item.emoji, spans: null);
+    setState(() {
+      _pendingEmoji.add(
+        CustomEmojiRef(
+          itemId: item.id,
+          packId: pack.id,
+          mediaId: item.mediaId,
+          offset: offset,
+          length: item.emoji.length,
+        ),
+      );
+    });
+  }
+
+  /// Inserts text at the cursor and returns where it landed.
+  int _insertAtCursor(String inserted, {List<CustomEmojiRef>? spans}) {
+    final selection = _composer.selection;
+    final text = _composer.text;
+    final at = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+
+    // Everything already marked that sits after the insertion point moves by
+    // the same amount. Without this, typing an emoji in the middle of a
+    // sentence would leave every later picture pointing one word to the left.
+    for (var i = 0; i < _pendingEmoji.length; i++) {
+      final ref = _pendingEmoji[i];
+      if (ref.offset >= end) {
+        _pendingEmoji[i] = CustomEmojiRef(
+          itemId: ref.itemId,
+          packId: ref.packId,
+          mediaId: ref.mediaId,
+          offset: ref.offset + inserted.length - (end - at),
+          length: ref.length,
+        );
+      }
+    }
+
+    _composer.value = TextEditingValue(
+      text: text.replaceRange(at, end, inserted),
+      selection: TextSelection.collapsed(offset: at + inserted.length),
+    );
+    return at;
+  }
+
   Future<void> _attach() async {
     final text = AppText.of(context);
     PlatformFile? picked;
@@ -738,6 +955,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         highlighted: message.clientId != null &&
                             message.clientId == _highlighted,
                         onLongPress: () => _openMessageActions(state, message),
+                        onStickerTap: message.sticker == null
+                            ? null
+                            : () => unawaited(_openStickerPack(message.sticker!)),
                       );
                     },
                   ),
@@ -769,6 +989,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   controller: _composer,
                   onSend: _send,
                   onAttach: _attach,
+                  onPickSticker: _pickSticker,
                   onHoldStart: _startRecording,
                   onHoldUpdate: (dx) {
                     _voiceKey.currentState?.onDragUpdate(dx);
@@ -851,6 +1072,7 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    required this.onPickSticker,
     required this.onHoldStart,
     required this.onHoldUpdate,
     required this.onHoldEnd,
@@ -865,6 +1087,9 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
+
+  /// Opens the sticker and emoji picker.
+  final VoidCallback? onPickSticker;
 
   /// Hold the microphone to record, slide left to throw it away, let go to
   /// stop. [onHoldUpdate] receives the horizontal movement of the finger.
@@ -914,6 +1139,14 @@ class _Composer extends StatelessWidget {
                 onPressed: onAttach,
                 icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
                 tooltip: AppText.of(context).composerAttach,
+              ),
+              IconButton(
+                onPressed: onPickSticker,
+                icon: const Icon(
+                  Icons.emoji_emotions_outlined,
+                  color: PrivioColors.textSecondary,
+                ),
+                tooltip: AppText.of(context).pickerOpenTooltip,
               ),
               _TimerButton(timer: disappearAfter, onPressed: onChooseTimer),
               Expanded(

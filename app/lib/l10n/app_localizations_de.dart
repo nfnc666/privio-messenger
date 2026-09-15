@@ -3910,4 +3910,51 @@ class AppTextDe extends AppText {
   @override
   String get notificationsSettingsFailed =>
       'Die Einstellungen konnten nicht geöffnet werden. Öffne die Einstellungen-App und wähle Privio.';
+
+  @override
+  String get pickerEmoji => 'Emoji';
+
+  @override
+  String get pickerStickers => 'Sticker';
+
+  @override
+  String get pickerMine => 'Meine';
+
+  @override
+  String get pickerFavourites => 'Favoriten';
+
+  @override
+  String get pickerRecent => 'Zuletzt benutzt';
+
+  @override
+  String get pickerNoStickers => 'Noch keine Sticker-Pakete.';
+
+  @override
+  String get pickerNoCustomEmoji => 'Noch keine eigenen Emojis.';
+
+  @override
+  String get pickerManagePacks => 'Pakete verwalten';
+
+  @override
+  String get pickerAddFavourite => 'Zu Favoriten hinzufügen';
+
+  @override
+  String get pickerRemoveFavourite => 'Aus Favoriten entfernen';
+
+  @override
+  String get pickerOpenPack => 'Paket öffnen';
+
+  @override
+  String stickerFromPack(String title) {
+    return 'Sticker aus „$title\"';
+  }
+
+  @override
+  String get stickerPackGone => 'Dieses Paket ist für dich nicht verfügbar.';
+
+  @override
+  String get chatSticker => 'Sticker';
+
+  @override
+  String get pickerOpenTooltip => 'Sticker und Emoji';
 }

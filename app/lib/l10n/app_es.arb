@@ -1088,5 +1088,20 @@
   "stickersPickFailed": "No se pudo abrir esa imagen.",
   "notificationsIphoneNote": "Puedes gestionar las notificaciones de Privio en los ajustes del iPhone.",
   "notificationsOpenIphoneSettings": "Abrir ajustes del iPhone",
-  "notificationsSettingsFailed": "No se pudieron abrir los ajustes. Abre la app Ajustes y selecciona Privio."
+  "notificationsSettingsFailed": "No se pudieron abrir los ajustes. Abre la app Ajustes y selecciona Privio.",
+  "pickerEmoji": "Emojis",
+  "pickerStickers": "Stickers",
+  "pickerMine": "Míos",
+  "pickerFavourites": "Favoritos",
+  "pickerRecent": "Usados hace poco",
+  "pickerNoStickers": "Todavía no hay paquetes de stickers.",
+  "pickerNoCustomEmoji": "Todavía no hay emojis propios.",
+  "pickerManagePacks": "Gestionar paquetes",
+  "pickerAddFavourite": "Añadir a favoritos",
+  "pickerRemoveFavourite": "Quitar de favoritos",
+  "pickerOpenPack": "Abrir el paquete",
+  "stickerFromPack": "Sticker de «{title}»",
+  "stickerPackGone": "Este paquete no está disponible para ti.",
+  "chatSticker": "Sticker",
+  "pickerOpenTooltip": "Stickers y emojis"
 }
