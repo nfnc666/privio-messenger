@@ -117,6 +117,29 @@ enum FailureKind {
   /// Strict mode. Carries [Failure.detail]: who, by username.
   callNotVerified,
 
+  // An optional phone number, and finding contacts by one.
+  //
+  // The number is never an identity here: none of these is a sign-in failure,
+  // and none of them blocks anything. The worst any of them does is leave an
+  // account without a number, which is a state the whole app supports.
+  phoneInvalid,
+  phoneSmsUnavailable,
+  phoneDiscoveryUnavailable,
+  phoneWrongCode,
+  phoneCodeExpired,
+  phoneTooManyAttempts,
+  phoneTooManySends,
+  phoneResendTooSoon,
+  phoneNoVerification,
+  phoneUnchanged,
+  phoneNotLinked,
+  phoneLookupBudgetSpent,
+
+  /// The operating system refused the address book. Not an error to argue
+  /// with — the manual ways of adding somebody still work, and the sentence
+  /// says so.
+  contactsPermissionDenied,
+
   // Stickers and custom emoji.
   //
   // The server refuses an upload by code; these are the codes this app has its

@@ -98,22 +98,40 @@ async function mayDownload(
     return rows.length > 0;
   }
 
-  // A sticker is downloadable by anybody who can reach the pack it is in:
-  // its owner, anybody who installed it, and anybody presenting a live share
-  // code. The pack route is what checks the code; by the time an id is being
-  // downloaded, membership is the question, and an object no pack points at
-  // belongs to its uploader alone.
+  // A sticker's **picture** is downloadable by any signed-in account that can
+  // name its id. The id is the capability.
+  //
+  // This is deliberately wider than "the pack's owner and whoever installed
+  // it", and the reason is the thing stickers are for. A sticker is sent to
+  // people, and almost nobody you send one to has installed the pack it came
+  // from. Under the narrower rule the recipient's client fetched, got a 404,
+  // and drew the fallback character — so sending a sticker to anyone outside
+  // your own pack's audience did not work at all.
+  //
+  // What that costs, stated plainly rather than left to be discovered: a
+  // sticker picture is not private. It was never encrypted — see
+  // `docs/stickers.md` — and now anybody holding its id can fetch it. The id
+  // is a random uuid that travels only inside sealed envelopes, so the server
+  // still never learns who was sent one, and it cannot be guessed; but a
+  // recipient can pass it on, exactly as they could pass on the picture.
+  //
+  // Two things this does **not** open, which is what keeps it narrow enough to
+  // be worth having:
+  //
+  //  - The pack. Its title, its other stickers and installing it all still go
+  //    through `findForViewer`, which wants ownership, an install or a live
+  //    share code. One sticker's id gets you that sticker.
+  //  - An upload nobody has put in a pack. That is still its uploader's alone,
+  //    which is what stops an id being a download before it has been attached.
   if (object.kind === 'sticker') {
+    if (object.owner_account_id === accountId) return true;
     const { rows } = await pool.query(
       `SELECT 1
          FROM sticker_items i
          JOIN sticker_packs p ON p.id = i.pack_id
         WHERE i.media_id = $1 AND p.deleted_at IS NULL
-          AND (p.owner_account_id = $2
-               OR EXISTS (SELECT 1 FROM sticker_installs s
-                           WHERE s.pack_id = p.id AND s.account_id = $2))
         LIMIT 1`,
-      [object.id, accountId],
+      [object.id],
     );
     return rows.length > 0;
   }

@@ -4,6 +4,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../media/attachment.dart' show CustomEmojiRef;
 import '../core/secure_store.dart';
 import '../models/channel.dart';
 import '../models/models.dart';
@@ -378,6 +379,18 @@ abstract final class ArchiveCodec {
                       'replySender': message.replySender,
                   },
                   if (message.reactions.isNotEmpty) 'reactions': message.reactions,
+                  if (message.reactionStickers.isNotEmpty)
+                    'reactionStickers': {
+                      for (final entry in message.reactionStickers.entries)
+                        entry.key: entry.value.toJson(),
+                    },
+                  // A sticker and its custom-emoji overlay are written here so
+                  // a restored archive still draws them. Both degrade on their
+                  // own: the body keeps the fallback characters, so an archive
+                  // read by a build without these fields is still readable.
+                  if (message.sticker != null) 'sticker': message.sticker!.toJson(),
+                  if (message.customEmoji != null && message.customEmoji!.isNotEmpty)
+                    'customEmoji': [for (final ref in message.customEmoji!) ref.toJson()],
                   // The event behind a system notice, so a restored archive
                   // still renders it in whatever language the reader is in
                   // now — rather than in the one it was written in.
@@ -405,6 +418,32 @@ abstract final class ArchiveCodec {
 
   static Duration? _decodeTimer(Object? seconds) =>
       seconds == null ? null : Duration(seconds: seconds as int);
+
+  /// Custom-emoji spans out of an archive, keeping only the ones that fit.
+  ///
+  /// Checked against the body for the same reason the wire format is: an
+  /// archive can have been written by another build, or edited, and a span past
+  /// the end of the text would be a crash while restoring rather than a
+  /// slightly wrong picture.
+  static List<CustomEmojiRef>? _decodeCustomEmoji(List<dynamic>? raw, String body) {
+    if (raw == null || raw.isEmpty) return null;
+    final refs = raw
+        .whereType<Map<String, dynamic>>()
+        .map(CustomEmojiRef.fromJson)
+        .where((ref) => ref.fits(body))
+        .toList(growable: false);
+    return refs.isEmpty ? null : refs;
+  }
+
+  static Map<String, StickerRef> _decodeReactionStickers(Map<String, dynamic>? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    final out = <String, StickerRef>{};
+    for (final entry in raw.entries) {
+      final ref = StickerRef.fromJson(entry.value as Map<String, dynamic>?);
+      if (ref != null) out[entry.key] = ref;
+    }
+    return out;
+  }
 
   static Attachment? _decodeAttachment(Map<String, dynamic>? raw) => raw == null
       ? null
@@ -455,6 +494,14 @@ abstract final class ArchiveCodec {
               ),
             ),
             attachment: _decodeAttachment(message['attachment'] as Map<String, dynamic>?),
+            sticker: StickerRef.fromJson(message['sticker'] as Map<String, dynamic>?),
+            customEmoji: _decodeCustomEmoji(
+              message['customEmoji'] as List<dynamic>?,
+              message['body'] as String? ?? '',
+            ),
+            reactionStickers: _decodeReactionStickers(
+              message['reactionStickers'] as Map<String, dynamic>?,
+            ),
           ),
       ];
 

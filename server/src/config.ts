@@ -49,6 +49,41 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   /**
+   * The key the contact-discovery hashes are stored under.
+   *
+   * Empty means the feature is off: the routes answer "not configured" rather
+   * than hashing under an empty key and producing a table that looks protected
+   * and is not. Generate with `openssl rand -base64 32` and keep it out of the
+   * database — its whole job is to be somewhere a database dump is not.
+   *
+   * Changing it invalidates every stored link, because the hashes no longer
+   * match. That is the correct behaviour for a rotated key and it means
+   * everybody has to verify their number again; see docs/phone-contacts.md.
+   */
+  CONTACT_DISCOVERY_PEPPER: z.string().default(''),
+
+  /**
+   * Which service sends the text messages. `none` is the default and means the
+   * verification routes refuse with `sms_not_configured` rather than pretending.
+   */
+  SMS_PROVIDER: z.enum(['none', 'twilio']).default('none'),
+  TWILIO_ACCOUNT_SID: z.string().default(''),
+  TWILIO_AUTH_TOKEN: z.string().default(''),
+  /** The sending number or alphanumeric sender id. */
+  TWILIO_FROM: z.string().default(''),
+
+  /**
+   * Returns the verification code in the API response instead of sending it.
+   *
+   * **A development stub, and it says so in every response that uses it.**
+   * Refused outright when NODE_ENV is production — see `app.ts` — because a
+   * deployment where anybody can read their own code out of the response is a
+   * deployment with no verification at all. It exists so the flow can be worked
+   * on without a paid SMS account, not so it can be shipped.
+   */
+  SMS_DEV_ECHO: z.coerce.boolean().default(false),
+
+  /**
    * Where the invite pages live, as an absolute origin
    * (`https://privio.channel`). Empty means "wherever this request arrived",
    * which is the right default for a deployment that has no domain of its own

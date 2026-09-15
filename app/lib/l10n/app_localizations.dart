@@ -6640,6 +6640,174 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Could not open Settings. Open the Settings app and select Privio.'**
   String get notificationsSettingsFailed;
+
+  /// No description provided for @pickerEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get pickerEmoji;
+
+  /// No description provided for @pickerStickers.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers'**
+  String get pickerStickers;
+
+  /// No description provided for @pickerMine.
+  ///
+  /// In en, this message translates to:
+  /// **'Mine'**
+  String get pickerMine;
+
+  /// No description provided for @pickerFavourites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favourites'**
+  String get pickerFavourites;
+
+  /// No description provided for @pickerRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently used'**
+  String get pickerRecent;
+
+  /// No description provided for @pickerNoStickers.
+  ///
+  /// In en, this message translates to:
+  /// **'No sticker packs yet.'**
+  String get pickerNoStickers;
+
+  /// No description provided for @pickerNoCustomEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'No custom emoji yet.'**
+  String get pickerNoCustomEmoji;
+
+  /// No description provided for @pickerManagePacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage packs'**
+  String get pickerManagePacks;
+
+  /// No description provided for @pickerAddFavourite.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to favourites'**
+  String get pickerAddFavourite;
+
+  /// No description provided for @pickerRemoveFavourite.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from favourites'**
+  String get pickerRemoveFavourite;
+
+  /// No description provided for @pickerOpenPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Open pack'**
+  String get pickerOpenPack;
+
+  /// No description provided for @stickerFromPack.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker from “{title}”'**
+  String stickerFromPack(String title);
+
+  /// No description provided for @stickerPackGone.
+  ///
+  /// In en, this message translates to:
+  /// **'This pack is not available to you.'**
+  String get stickerPackGone;
+
+  /// No description provided for @chatSticker.
+  ///
+  /// In en, this message translates to:
+  /// **'Sticker'**
+  String get chatSticker;
+
+  /// No description provided for @pickerOpenTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Stickers and emoji'**
+  String get pickerOpenTooltip;
+
+  /// No description provided for @failurePhoneInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'That is not a phone number Privio can use. Include the country code, like +49.'**
+  String get failurePhoneInvalid;
+
+  /// No description provided for @failurePhoneSmsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server cannot send text messages yet, so a number cannot be verified here. You can keep using Privio without one.'**
+  String get failurePhoneSmsUnavailable;
+
+  /// No description provided for @failurePhoneDiscoveryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server has contact discovery switched off.'**
+  String get failurePhoneDiscoveryUnavailable;
+
+  /// No description provided for @failurePhoneWrongCode.
+  ///
+  /// In en, this message translates to:
+  /// **'That code is not right.'**
+  String get failurePhoneWrongCode;
+
+  /// No description provided for @failurePhoneCodeExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'That code has expired. Ask for a new one.'**
+  String get failurePhoneCodeExpired;
+
+  /// No description provided for @failurePhoneTooManyAttempts.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many wrong codes. Ask for a new one.'**
+  String get failurePhoneTooManyAttempts;
+
+  /// No description provided for @failurePhoneTooManySends.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio has sent that code as many times as it will. Try again later.'**
+  String get failurePhoneTooManySends;
+
+  /// No description provided for @failurePhoneResendTooSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait a moment before asking for another code.'**
+  String get failurePhoneResendTooSoon;
+
+  /// No description provided for @failurePhoneNoVerification.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask for a code first.'**
+  String get failurePhoneNoVerification;
+
+  /// No description provided for @failurePhoneUnchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'That number is already verified on this account.'**
+  String get failurePhoneUnchanged;
+
+  /// No description provided for @failurePhoneNotLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no verified number on this account.'**
+  String get failurePhoneNotLinked;
+
+  /// No description provided for @failurePhoneLookupBudgetSpent.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio has matched as many numbers for this account today as it will. Try again tomorrow.'**
+  String get failurePhoneLookupBudgetSpent;
+
+  /// No description provided for @failureContactsPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.'**
+  String get failureContactsPermissionDenied;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

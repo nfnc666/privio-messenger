@@ -3,11 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/sticker_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/notice_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import 'custom_emoji_text.dart';
+import 'sticker_tile.dart';
 import 'voice_bubble.dart';
 
 /// One message in a conversation.
@@ -19,6 +22,7 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     super.key,
     this.onLongPress,
+    this.onStickerTap,
     this.highlighted = false,
   });
 
@@ -30,6 +34,9 @@ class MessageBubble extends StatelessWidget {
 
   /// Opens the reply-and-react sheet. Null in places where neither applies.
   final VoidCallback? onLongPress;
+
+  /// Offers the pack a sticker came from. Null where there is nowhere to go.
+  final VoidCallback? onStickerTap;
 
   @override
   Widget build(BuildContext context) {
@@ -130,13 +137,28 @@ class MessageBubble extends StatelessWidget {
               // come out of the sealed payload, so it is complete before the
               // audio has been fetched.
               VoiceBubble(message: message, mine: mine)
+            else if (message.sticker != null)
+              // Inside the bubble's column but drawn as a picture: it keeps the
+              // reply quote, the sender's name and the ticks that every other
+              // message has, and loses only the background — which would fight
+              // with the sticker's own transparency.
+              StickerMessage(
+                sticker: message.sticker!,
+                fallback: message.body,
+                controller: PrivioScope.maybeOf(context)?.stickers,
+                onTap: onStickerTap,
+              )
             else ...[
               if (message.attachment != null) ...[
                 _AttachmentView(attachment: message.attachment!),
                 if (message.body.isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
               ],
               if (message.body.isNotEmpty)
-                Text(message.body, style: theme.textTheme.bodyMedium),
+                CustomEmojiText(
+                  message: message,
+                  controller: PrivioScope.maybeOf(context)?.stickers,
+                  style: theme.textTheme.bodyMedium,
+                ),
             ],
             const SizedBox(height: 3),
             Row(
@@ -179,7 +201,12 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
             if (message.reactions.isNotEmpty)
-              _Reactions(reactions: message.reactions, mine: mine),
+              _Reactions(
+                reactions: message.reactions,
+                stickers: message.reactionStickers,
+                controller: PrivioScope.maybeOf(context)?.stickers,
+                mine: mine,
+              ),
           ],
         ),
       ),
@@ -465,16 +492,38 @@ class _QuotedMessage extends StatelessWidget {
 /// Grouped by emoji with a count, because five people agreeing is one fact and
 /// five chips would be five.
 class _Reactions extends StatelessWidget {
-  const _Reactions({required this.reactions, required this.mine});
+  const _Reactions({
+    required this.reactions,
+    required this.stickers,
+    required this.controller,
+    required this.mine,
+  });
 
   final Map<String, String> reactions;
+
+  /// The custom items behind some of those characters, by account id. Always a
+  /// subset: every reaction has a character, and only some have a picture.
+  final Map<String, StickerRef> stickers;
+
+  /// Null with no app around this widget: the chips fall back to characters.
+  final StickerController? controller;
+
   final bool mine;
 
   @override
   Widget build(BuildContext context) {
+    // Grouped by what is *shown*, which is the character for a plain reaction
+    // and the item for a custom one — two different custom emoji that fall back
+    // to the same character are two chips, because they are two things.
     final counts = <String, int>{};
-    for (final emoji in reactions.values) {
-      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    final pictures = <String, StickerRef>{};
+    final characters = <String, String>{};
+    for (final entry in reactions.entries) {
+      final sticker = stickers[entry.key];
+      final key = sticker == null ? entry.value : 'item:${sticker.itemId}';
+      counts[key] = (counts[key] ?? 0) + 1;
+      characters[key] = entry.value;
+      if (sticker != null) pictures[key] = sticker;
     }
 
     return Padding(
@@ -494,9 +543,26 @@ class _Reactions extends StatelessWidget {
                 borderRadius: const BorderRadius.all(PrivioRadius.pill),
                 border: Border.all(color: PrivioColors.border),
               ),
-              child: Text(
-                entry.value > 1 ? '${entry.key} ${entry.value}' : entry.key,
-                style: const TextStyle(fontSize: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (pictures[entry.key] != null && controller != null)
+                    StickerTile(
+                      controller: controller!,
+                      mediaId: pictures[entry.key]!.mediaId,
+                      // The character the sender sent, so a chip whose picture
+                      // cannot be fetched is still a reaction.
+                      emoji: characters[entry.key] ?? '',
+                      size: 16,
+                    )
+                  else
+                    Text(characters[entry.key] ?? '', style: const TextStyle(fontSize: 12)),
+                  if (entry.value > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 3),
+                      child: Text('${entry.value}', style: const TextStyle(fontSize: 12)),
+                    ),
+                ],
               ),
             ),
         ],

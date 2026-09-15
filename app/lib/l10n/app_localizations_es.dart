@@ -3932,4 +3932,101 @@ class AppTextEs extends AppText {
   @override
   String get notificationsSettingsFailed =>
       'No se pudieron abrir los ajustes. Abre la app Ajustes y selecciona Privio.';
+
+  @override
+  String get pickerEmoji => 'Emojis';
+
+  @override
+  String get pickerStickers => 'Stickers';
+
+  @override
+  String get pickerMine => 'Míos';
+
+  @override
+  String get pickerFavourites => 'Favoritos';
+
+  @override
+  String get pickerRecent => 'Usados hace poco';
+
+  @override
+  String get pickerNoStickers => 'Todavía no hay paquetes de stickers.';
+
+  @override
+  String get pickerNoCustomEmoji => 'Todavía no hay emojis propios.';
+
+  @override
+  String get pickerManagePacks => 'Gestionar paquetes';
+
+  @override
+  String get pickerAddFavourite => 'Añadir a favoritos';
+
+  @override
+  String get pickerRemoveFavourite => 'Quitar de favoritos';
+
+  @override
+  String get pickerOpenPack => 'Abrir el paquete';
+
+  @override
+  String stickerFromPack(String title) {
+    return 'Sticker de «$title»';
+  }
+
+  @override
+  String get stickerPackGone => 'Este paquete no está disponible para ti.';
+
+  @override
+  String get chatSticker => 'Sticker';
+
+  @override
+  String get pickerOpenTooltip => 'Stickers y emojis';
+
+  @override
+  String get failurePhoneInvalid =>
+      'Ese no es un número de teléfono que PRIVIO pueda usar. Incluye el prefijo del país, por ejemplo +34.';
+
+  @override
+  String get failurePhoneSmsUnavailable =>
+      'Este servidor todavía no puede enviar SMS, así que aquí no se puede verificar un número. Puedes seguir usando PRIVIO sin él.';
+
+  @override
+  String get failurePhoneDiscoveryUnavailable =>
+      'En este servidor la búsqueda de contactos está desactivada.';
+
+  @override
+  String get failurePhoneWrongCode => 'Ese código no es correcto.';
+
+  @override
+  String get failurePhoneCodeExpired =>
+      'Ese código ha caducado. Pide uno nuevo.';
+
+  @override
+  String get failurePhoneTooManyAttempts =>
+      'Demasiados códigos incorrectos. Pide uno nuevo.';
+
+  @override
+  String get failurePhoneTooManySends =>
+      'PRIVIO ha enviado ese código todas las veces que lo hace. Inténtalo más tarde.';
+
+  @override
+  String get failurePhoneResendTooSoon =>
+      'Espera un momento antes de pedir otro código.';
+
+  @override
+  String get failurePhoneNoVerification => 'Pide primero un código.';
+
+  @override
+  String get failurePhoneUnchanged =>
+      'Ese número ya está verificado en esta cuenta.';
+
+  @override
+  String get failurePhoneNotLinked =>
+      'En esta cuenta no hay ningún número verificado.';
+
+  @override
+  String get failurePhoneLookupBudgetSpent =>
+      'PRIVIO ha comparado hoy todos los números que compara para esta cuenta. Inténtalo mañana.';
+
+  @override
+  String get failureContactsPermissionDenied =>
+      'PRIVIO no tiene acceso a tus contactos. Puedes seguir añadiendo personas con su PRIVIO ID o un enlace de invitación.';
 }

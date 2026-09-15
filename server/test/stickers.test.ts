@@ -394,12 +394,25 @@ describe('sticker packs', () => {
       });
       assert.equal(asOwner.statusCode, 200);
 
+      // Anybody signed in who can name the id, because a sticker is sent to
+      // people and almost none of them have installed the pack. The id is the
+      // capability and it travels only inside sealed envelopes — see the note
+      // on `mayDownload` in routes/media.ts.
       const asStranger = await h.app.inject({
         method: 'GET',
         url: `/v1/media/${item.mediaId}`,
         headers: bearer(bob),
       });
-      assert.equal(asStranger.statusCode, 404);
+      assert.equal(asStranger.statusCode, 200);
+
+      // But the *pack* is not opened by it: a private pack is still invisible
+      // to somebody who was merely sent one of its stickers.
+      const asPack = await h.app.inject({
+        method: 'GET',
+        url: `/v1/sticker-packs/${pack.id}`,
+        headers: bearer(bob),
+      });
+      assert.equal(asPack.statusCode, 404);
 
       const shared = await h.app.inject({
         method: 'POST',
@@ -420,6 +433,27 @@ describe('sticker packs', () => {
       });
       assert.equal(asInstaller.statusCode, 200);
     });
+    it('an upload in no pack is still its uploader s alone', async () => {
+      // The other half of "the id is the capability": it becomes one when a
+      // pack points at the object, not when the object exists. Otherwise an id
+      // would be a download before anybody had decided to publish it.
+      const loose = await upload(alice);
+
+      const asStranger = await h.app.inject({
+        method: 'GET',
+        url: `/v1/media/${loose}`,
+        headers: bearer(bob),
+      });
+      assert.equal(asStranger.statusCode, 404);
+
+      const asOwner = await h.app.inject({
+        method: 'GET',
+        url: `/v1/media/${loose}`,
+        headers: bearer(alice),
+      });
+      assert.equal(asOwner.statusCode, 200);
+    });
+
     it('outlive the attachment window only once a pack points at them', async () => {
       // Where a sticker's long life is granted, and the reason it is granted
       // there: an upload is on the ordinary attachment clock until something

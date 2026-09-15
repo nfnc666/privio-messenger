@@ -147,6 +147,70 @@ class SyncEnvelope {
   Map<String, dynamic> toJson() => {'c': conversationId, 'g': isGroup, 'p': payload};
 }
 
+/// One custom emoji, and where it sits in a message's text.
+///
+/// Offsets are UTF-16 code units into [MessagePayload.body] — the same unit
+/// Dart's own `String` is indexed in, so a client applies these without
+/// re-encoding anything. [length] is how many of them the fallback character
+/// occupies, which is rarely one: most emoji are a surrogate pair, and many are
+/// several joined together.
+@immutable
+class CustomEmojiRef {
+  const CustomEmojiRef({
+    required this.itemId,
+    required this.packId,
+    required this.mediaId,
+    required this.offset,
+    required this.length,
+  });
+
+  factory CustomEmojiRef.fromJson(Map<String, dynamic> json) => CustomEmojiRef(
+        itemId: json['i'] as String? ?? '',
+        packId: json['p'] as String? ?? '',
+        mediaId: json['m'] as String? ?? '',
+        offset: (json['o'] as num?)?.toInt() ?? 0,
+        length: (json['l'] as num?)?.toInt() ?? 0,
+      );
+
+  final String itemId;
+  final String packId;
+  final String mediaId;
+  final int offset;
+  final int length;
+
+  /// Whether this reference makes sense against [body].
+  ///
+  /// Checked on the way in rather than trusted: the spans arrive from another
+  /// device, and an offset past the end of the text would be a crash in a
+  /// message list rather than a slightly wrong picture. Anything that does not
+  /// fit is dropped and the fallback character it pointed at stays visible.
+  bool fits(String body) =>
+      itemId.isNotEmpty &&
+      mediaId.isNotEmpty &&
+      length > 0 &&
+      offset >= 0 &&
+      offset + length <= body.length;
+
+  Map<String, dynamic> toJson() => {
+        'i': itemId,
+        'p': packId,
+        'm': mediaId,
+        'o': offset,
+        'l': length,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is CustomEmojiRef &&
+      other.itemId == itemId &&
+      other.mediaId == mediaId &&
+      other.offset == offset &&
+      other.length == length;
+
+  @override
+  int get hashCode => Object.hash(itemId, mediaId, offset, length);
+}
+
 class MessagePayload {
   const MessagePayload.text(
     this.body, {
@@ -157,6 +221,7 @@ class MessagePayload {
     this.replyToId,
     this.replyPreview,
     this.replySender,
+    this.customEmoji,
   })  : mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -179,7 +244,10 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null;
 
   /// A key handed to one device, sealed inside an ordinary message.
   ///
@@ -218,7 +286,11 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// A reaction to one message.
   ///
@@ -228,6 +300,9 @@ class MessagePayload {
   const MessagePayload.reaction({
     required String this.reactionTo,
     required String this.reactionEmoji,
+    this.stickerItemId,
+    this.stickerPackId,
+    this.stickerMediaId,
   })  : body = '',
         deleteTo = null,
         mediaId = null,
@@ -256,7 +331,63 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        customEmoji = null;
+
+  /// A sticker.
+  ///
+  /// Three ids and a character, and the character is the important one: [body]
+  /// carries the emoji the sticker stands for, so a client that has never heard
+  /// of this payload kind decodes it as an ordinary text message and shows that
+  /// emoji rather than nothing. That is the whole fallback story for older
+  /// builds, and it costs one field.
+  ///
+  /// [stickerItemId] is stable: it names this picture in this pack for as long
+  /// as both exist, and it is what a message goes on pointing at after the pack
+  /// has been renamed, reordered or added to. [stickerMediaId] rides beside it
+  /// so the picture can be fetched by a reader who has no copy of the pack at
+  /// all — which is the ordinary case, since most people you send a sticker to
+  /// have not installed the pack it came from.
+  ///
+  /// Nothing here is a key, because a sticker is not sealed — see
+  /// `docs/stickers.md`. The id is the capability, and it travels only inside
+  /// this sealed envelope.
+  const MessagePayload.sticker({
+    required String this.stickerItemId,
+    required String this.stickerPackId,
+    required String this.stickerMediaId,
+    required this.body,
+    this.profileKey,
+    this.groupKey,
+    this.expiresInSeconds,
+    this.clientId,
+    this.replyToId,
+    this.replyPreview,
+    this.replySender,
+  })  : mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        deleteTo = null,
+        reactionEmoji = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        receiptGroupId = null,
+        customEmoji = null;
 
   /// A request to take a message back.
   ///
@@ -296,7 +427,11 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// "Start again — I cannot read what you are sending."
   ///
@@ -337,7 +472,11 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         sync = null,
-        call = null;
+        call = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// A receipt for messages that arrived, or were read.
   ///
@@ -375,7 +514,11 @@ class MessagePayload {
         sync = null,
         call = null,
         sessionReset = false,
-        timerChange = false;
+        timerChange = false,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// "Still typing." Carries a timestamp rather than a duration so a stale one
   /// — delivered late, or after the app was closed — can be recognised as stale
@@ -410,7 +553,11 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   const MessagePayload.media({
     required String this.mediaId,
@@ -443,7 +590,11 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// One step in setting up, or tearing down, a call.
   ///
@@ -482,7 +633,11 @@ class MessagePayload {
         mediaToken = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// A copy of something this account sent, for its own other devices.
   ///
@@ -518,7 +673,11 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
-        receiptGroupId = null;
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   /// "This chat now deletes itself after N seconds" — or, with null, "it no
   /// longer does".
@@ -567,7 +726,11 @@ class MessagePayload {
         replyPreview = null,
         replySender = null,
         sync = null,
-        call = null;
+        call = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
 
   factory MessagePayload.decode(String raw) {
     // Anything that is not our JSON is a plain message from an older build.
@@ -614,7 +777,35 @@ class MessagePayload {
       return MessagePayload.reaction(
         reactionTo: json['rt'] as String,
         reactionEmoji: json['re'] as String? ?? '',
+        // A custom-emoji reaction, when the sender had one. Absent from every
+        // older client, which is why `re` is still required and still carries a
+        // real character: a reader without these three fields shows that.
+        stickerItemId: json['si'] as String?,
+        stickerPackId: json['sp'] as String?,
+        stickerMediaId: json['sm'] as String?,
       );
+    }
+    if (json['t'] == 'sticker') {
+      final itemId = json['si'] as String?;
+      final mediaId = json['sm'] as String?;
+      // A sticker with no id to fetch is not a sticker. Falling through to text
+      // shows the emoji in `b`, which is the same thing an older client does
+      // with the whole payload — one behaviour rather than two.
+      if (itemId != null && mediaId != null) {
+        return MessagePayload.sticker(
+          stickerItemId: itemId,
+          stickerPackId: json['sp'] as String? ?? '',
+          stickerMediaId: mediaId,
+          body: json['b'] as String? ?? '',
+          profileKey: profileKey,
+          groupKey: groupKey,
+          expiresInSeconds: expiresInSeconds,
+          clientId: clientId,
+          replyToId: quote.id,
+          replyPreview: quote.preview,
+          replySender: quote.sender,
+        );
+      }
     }
     if (json['t'] == 'receipt') {
       return MessagePayload.receipt(
@@ -655,8 +846,9 @@ class MessagePayload {
         replySender: quote.sender,
       );
     }
+    final body = json['b'] as String? ?? '';
     return MessagePayload.text(
-      json['b'] as String? ?? '',
+      body,
       profileKey: profileKey,
       groupKey: groupKey,
       expiresInSeconds: expiresInSeconds,
@@ -664,11 +856,60 @@ class MessagePayload {
       replyToId: quote.id,
       replyPreview: quote.preview,
       replySender: quote.sender,
+      customEmoji: _customEmojiIn(json, body),
     );
   }
 
+  /// The custom-emoji spans in a payload, keeping only the ones that fit.
+  ///
+  /// A span from another device that runs past the end of the text would be a
+  /// range error inside a message list — a crash, on a message somebody sent
+  /// you. Dropping it leaves the fallback character visible, which is the worst
+  /// this can do.
+  static List<CustomEmojiRef>? _customEmojiIn(Map<String, dynamic> json, String body) {
+    final raw = json['ce'] as List<dynamic>?;
+    if (raw == null || raw.isEmpty) return null;
+    final refs = raw
+        .whereType<Map<String, dynamic>>()
+        .map(CustomEmojiRef.fromJson)
+        .where((ref) => ref.fits(body))
+        .toList(growable: false);
+    return refs.isEmpty ? null : refs;
+  }
+
   /// A caption, or the message text.
+  ///
+  /// For a sticker this is the emoji it stands for, which is what an older
+  /// client shows in its place. For a message carrying custom emoji this is the
+  /// sentence *with the fallback characters already in it* — see [customEmoji].
   final String body;
+
+  /// Which sticker this is: stable for the life of the item.
+  ///
+  /// Also set on a reaction made with a custom emoji, where it names the item
+  /// the reaction is drawn from. One field rather than two because it answers
+  /// the same question in both places — "which custom item does this refer to".
+  final String? stickerItemId;
+
+  /// The pack it came from, so tapping it can offer the pack.
+  final String? stickerPackId;
+
+  /// Where the picture is fetched from.
+  final String? stickerMediaId;
+
+  /// Custom emoji to draw over spans of [body].
+  ///
+  /// **An overlay, not a substitution.** The body always contains readable
+  /// characters — the fallback emoji, in the places the custom ones go — and
+  /// this list says which spans a client that has the pack may replace with a
+  /// picture. So a build that has never heard of custom emoji shows a perfectly
+  /// ordinary sentence, and one whose pack has been deleted shows the same
+  /// sentence rather than a row of empty squares.
+  ///
+  /// That is the opposite of putting a marker in the text and hoping every
+  /// reader understands it, which is how these usually end up rendering as
+  /// `[[emoji:8f21…]]` in somebody's notification.
+  final List<CustomEmojiRef>? customEmoji;
 
   final String? mediaId;
 
@@ -844,6 +1085,15 @@ class MessagePayload {
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
+
+  /// Whether this is a sticker. Distinct from [isMedia]: a sticker is not an
+  /// attachment, carries no key, and is drawn without a bubble.
+  bool get isSticker => stickerItemId != null && stickerMediaId != null && reactionTo == null;
+
+  /// Whether this reaction was made with a custom emoji rather than a
+  /// character. [reactionEmoji] is still set, and is what a client without the
+  /// pack shows.
+  bool get isCustomReaction => isReaction && stickerItemId != null;
   bool get isSessionReset => sessionReset;
 
   /// Whether this payload's only purpose is to move the chat's timer.
@@ -888,6 +1138,7 @@ class MessagePayload {
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
     if (isKeyDelivery) return 'key';
+    if (isSticker) return 'sticker';
     if (isMedia) return 'media';
     return 'text';
   }
@@ -907,7 +1158,19 @@ class MessagePayload {
         },
         if (isTyping) 'ta': typingAt,
         if (isDeletion) 'dt': deleteTo,
-        if (isReaction) ...{'rt': reactionTo, 're': reactionEmoji},
+        if (isReaction) ...{
+          'rt': reactionTo,
+          // Always a real character, even on a custom reaction: it is what a
+          // reader without the pack — or without this version — shows.
+          're': reactionEmoji,
+        },
+        if (stickerItemId != null) ...{
+          'si': stickerItemId,
+          if (stickerPackId != null) 'sp': stickerPackId,
+          if (stickerMediaId != null) 'sm': stickerMediaId,
+        },
+        if (customEmoji != null && customEmoji!.isNotEmpty)
+          'ce': [for (final ref in customEmoji!) ref.toJson()],
         if (replyToId != null) ...{
           'qi': replyToId,
           if (replyPreview != null) 'qp': replyPreview,

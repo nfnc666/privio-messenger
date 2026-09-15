@@ -60,6 +60,13 @@ dependencies:
   # as a transitive dependency of `image`; named now because the scrubber
   # depends on it directly.
   archive: ^4.0.0
+  # HMAC-SHA256 for blinding a phone number before it is sent for contact
+  # matching. Already here as a transitive dependency of `cryptography`; named
+  # now because `core/phone_number.dart` depends on it directly, and a direct
+  # use of a transitive dependency is a build that breaks the day the middle
+  # package drops it. The Dart team's own implementation — Privio writes no
+  # cryptographic primitives.
+  crypto: ^3.0.6
   record: ^7.1.1
   just_audio: ^0.10.6
   path_provider: ^2.1.6
