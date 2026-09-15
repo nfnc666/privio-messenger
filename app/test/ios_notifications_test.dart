@@ -143,10 +143,10 @@ void main() {
     addTearDown(state.dispose);
     await tester.pumpWidget(PrivioScope(
       notifier: state,
-      child: MaterialApp(
+      child: const MaterialApp(
         localizationsDelegates: AppText.localizationsDelegates,
         supportedLocales: AppText.supportedLocales,
-        home: const NotificationsScreen(),
+        home: NotificationsScreen(),
       ),
     ));
     await tester.pumpAndSettle();

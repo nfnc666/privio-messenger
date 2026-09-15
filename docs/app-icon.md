@@ -41,8 +41,8 @@ from what the launcher will show, and no fourth set of files to keep in step.
 Alternate app icons, declared in the asset catalog:
 
 * `AppIcon-blue.appiconset` … `AppIcon-yellow.appiconset` next to `AppIcon`.
-* `ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES` lists the seven, and
-  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS = YES` gets them compiled
+* `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` lists the seven, and
+  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES` gets them compiled
   in — both added to all three Runner build configurations.
 * `ios/Runner/LauncherIcon.swift` swaps them with
   `UIApplication.setAlternateIconName`, and reads the current one back from
@@ -136,8 +136,8 @@ their own runners, and both passed:
 * `iOS — unsigned build` runs a full `xcodebuild -configuration Release -sdk
   iphoneos` on a macOS runner. That compiles `LauncherIcon.swift`, accepts the
   edited `project.pbxproj`, and runs `actool` over the asset catalogue with
-  `ASSETCATALOG_COMPILER_ALTERNATE_APP_ICON_NAMES` and
-  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APP_ICON_ASSETS` — so the seven alternate
+  `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` and
+  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` — so the seven alternate
   icon sets are compiled into the bundle, not merely listed in a setting.
 
 That is also why `test/app_icon_assets_test.dart` exists: it reads the manifest,
@@ -158,3 +158,7 @@ Compiling is not running. None of the following has been observed:
 **A new build is required for any of it.** The assets and the native code are
 only in the bundle after one, so nothing here can be checked from a TestFlight
 build made before this change.
+
+## Build 41 correction
+
+Inspection of the actual Build 41 IPA showed no CFBundleAlternateIcons for either iPhone or iPad. The earlier claim that a successful actool run established inclusion was incorrect: the two settings had APP_ICON instead of APPICON, so Xcode ignored them. The corrected settings are now supplemented by tools/check_ios_icons.py, which checks the compiled Info.plist in unsigned CI builds and the exported IPA before TestFlight upload. A device test is still required.
