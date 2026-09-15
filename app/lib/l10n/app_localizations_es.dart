@@ -978,6 +978,29 @@ class AppTextEs extends AppText {
   String get privacyDuressCode => 'Código de coacción';
 
   @override
+  String get privacyScreenShield => 'Protección de pantalla';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Bloquea las capturas y las grabaciones de pantalla de la aplicación.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Oculta el contenido sensible cuando se detecta una grabación o una transmisión de pantalla. En iOS las capturas de pantalla no se pueden impedir de forma fiable.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Este dispositivo no puede proteger la pantalla.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Esto solo protege tu propio dispositivo. No impide que otras personas graben su pantalla ni que alguien haga una foto con otra cámara.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'Hay una grabación de pantalla en curso. Privio permanece oculto hasta que termine.';
+
+  @override
   String get privacySet => 'Definido';
 
   @override

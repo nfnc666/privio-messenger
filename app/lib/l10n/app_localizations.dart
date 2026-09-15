@@ -1693,6 +1693,42 @@ abstract class AppText {
   /// **'Duress Code'**
   String get privacyDuressCode;
 
+  /// No description provided for @privacyScreenShield.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen protection'**
+  String get privacyScreenShield;
+
+  /// No description provided for @privacyScreenShieldAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocks screenshots and screen recordings of the app.'**
+  String get privacyScreenShieldAndroid;
+
+  /// No description provided for @privacyScreenShieldIos.
+  ///
+  /// In en, this message translates to:
+  /// **'Hides sensitive content when a screen recording or screen sharing is detected. Screenshots cannot be reliably prevented on iOS.'**
+  String get privacyScreenShieldIos;
+
+  /// No description provided for @privacyScreenShieldUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This device cannot protect the screen.'**
+  String get privacyScreenShieldUnavailable;
+
+  /// No description provided for @privacyScreenShieldScope.
+  ///
+  /// In en, this message translates to:
+  /// **'This protects your own device only. It cannot stop anyone else recording their screen, and it cannot stop a photograph taken with another camera.'**
+  String get privacyScreenShieldScope;
+
+  /// No description provided for @privacyScreenShieldCovering.
+  ///
+  /// In en, this message translates to:
+  /// **'A screen recording is running. Privio is hidden until it stops.'**
+  String get privacyScreenShieldCovering;
+
   /// No description provided for @privacySet.
   ///
   /// In en, this message translates to:

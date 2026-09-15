@@ -982,6 +982,29 @@ class AppTextIt extends AppText {
   String get privacyDuressCode => 'Codice di emergenza';
 
   @override
+  String get privacyScreenShield => 'Protezione dello schermo';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Blocca screenshot e registrazioni dello schermo dell\'app.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Nasconde i contenuti sensibili quando viene rilevata una registrazione o una condivisione dello schermo. Su iOS gli screenshot non possono essere impediti in modo affidabile.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Questo dispositivo non può proteggere lo schermo.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Protegge soltanto il tuo dispositivo. Non impedisce ad altri di registrare il proprio schermo, né una foto scattata con un\'altra fotocamera.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'È in corso una registrazione dello schermo. Privio resta nascosto finché non termina.';
+
+  @override
   String get privacySet => 'Impostato';
 
   @override

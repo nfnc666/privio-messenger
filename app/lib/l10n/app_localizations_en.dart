@@ -972,6 +972,29 @@ class AppTextEn extends AppText {
   String get privacyDuressCode => 'Duress Code';
 
   @override
+  String get privacyScreenShield => 'Screen protection';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Blocks screenshots and screen recordings of the app.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Hides sensitive content when a screen recording or screen sharing is detected. Screenshots cannot be reliably prevented on iOS.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'This device cannot protect the screen.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'This protects your own device only. It cannot stop anyone else recording their screen, and it cannot stop a photograph taken with another camera.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'A screen recording is running. Privio is hidden until it stops.';
+
+  @override
   String get privacySet => 'Set';
 
   @override

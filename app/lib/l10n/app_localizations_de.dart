@@ -980,6 +980,29 @@ class AppTextDe extends AppText {
   String get privacyDuressCode => 'Notfallcode';
 
   @override
+  String get privacyScreenShield => 'Bildschirmschutz';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Blockiert Screenshots und Bildschirmaufnahmen der App.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Verbirgt sensible Inhalte bei erkennbarer Bildschirmaufnahme oder Bildschirmübertragung. Screenshots können auf iOS nicht zuverlässig verhindert werden.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Dieses Gerät kann den Bildschirm nicht schützen.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Das schützt nur dein eigenes Gerät. Es verhindert keine Aufnahmen auf den Geräten anderer Teilnehmer und kein Foto mit einer externen Kamera.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'Eine Bildschirmaufnahme läuft. Privio ist verborgen, bis sie endet.';
+
+  @override
   String get privacySet => 'Gesetzt';
 
   @override

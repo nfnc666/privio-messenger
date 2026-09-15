@@ -14,11 +14,13 @@ import 'passcode.dart';
 import 'edition.dart';
 import 'failure.dart';
 import 'license_controller.dart';
+import '../security/screen_shield.dart';
 import '../services/push_wake.dart';
 import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import 'security_controller.dart';
+import 'screen_shield_controller.dart';
 import 'status_controller.dart';
 import 'locale_controller.dart';
 import 'secure_store.dart';
@@ -49,6 +51,7 @@ class AppState extends ChangeNotifier {
     SecureStore? store,
     PrivioEdition? edition,
     LauncherDisguise? launcher,
+    ScreenShield? screenShield,
     PushWakeListener? pushWake,
     IncomingLinks? links,
     bool? supportsDisguise,
@@ -57,6 +60,7 @@ class AppState extends ChangeNotifier {
         deepLinks = DeepLinkController(source: links ?? const NoIncomingLinks()),
         _store = store ?? KeystoreSecureStore(),
         _launcherDisguise = launcher ?? const PlatformLauncherDisguise(),
+        _screenShield = screenShield ?? PlatformScreenShield(),
         disguiseSupported = supportsDisguise ?? platformSupportsDisguise,
         edition = edition ?? PrivioEdition.current;
 
@@ -87,6 +91,7 @@ class AppState extends ChangeNotifier {
   /// The app's entry in the launcher. Injectable so a test can drive a device
   /// that refuses the change, which is a case no emulator here can produce.
   final LauncherDisguise _launcherDisguise;
+  final ScreenShield _screenShield;
 
   /// Which build this is. Injectable only so a test can be a store build; a
   /// shipped app has exactly one, fixed at compile time.
@@ -125,6 +130,15 @@ class AppState extends ChangeNotifier {
   /// Which colour the home-screen icon wears. Per installation rather than per
   /// account — see [AppIconController].
   late final AppIconController appIcon = AppIconController(_store, _launcherDisguise);
+
+  /// Whether this account has asked the operating system to protect its screen.
+  ///
+  /// Per account, like the accent and the language beside it — and unlike the
+  /// icon, which belongs to the phone. What the two platforms actually do about
+  /// it differs, and [ScreenShieldController] carries the capability rather
+  /// than flattening it.
+  late final ScreenShieldController screenShield =
+      ScreenShieldController(_screenShield, _store);
 
   AppStage _stage = AppStage.splash;
   String? _username;
@@ -298,6 +312,22 @@ class AppState extends ChangeNotifier {
     // something else — which is the one thing this setting must not do.
     final storedAccountId = _accountId;
     if (storedAccountId != null) await accent.load(storedAccountId);
+    // The screen protection is deliberately **not** read here, unlike the accent
+    // above it. Two reasons, and the second is the one that decided it:
+    //
+    // 1. It would be redundant. `_onSignedIn` runs at the end of this method on
+    //    a cold start with a session, and loads it there — the same call that
+    //    covers the account-switch path.
+    // 2. It must not be awaited. Reading it asks the platform, and awaiting a
+    //    channel round-trip inside `initialise` is awaiting the splash on
+    //    something that may never answer: it deadlocked every widget test that
+    //    boots an `AppState`, and on a device with a slow or wedged channel it
+    //    would park the app on the splash screen for a setting the app works
+    //    perfectly well without.
+    //
+    // The cost is a few frames at the very start of a cold launch during which
+    // the flag is being applied. What is on screen for those frames is the
+    // splash, which shows nothing worth protecting.
     _setProgress(0.7);
 
     _textScale = await _store.readTextScale() ?? 1;
@@ -461,6 +491,10 @@ class AppState extends ChangeNotifier {
       // the app is on screen and the reset-then-read is what keeps one
       // account's colour off the next account's screen.
       if (accent.accountId != account) detached(accent.load(account));
+      // The account-switch path. Already loaded on a cold start, and the reset
+      // inside `load` is what stops one account's protection covering the next
+      // account's screen.
+      if (screenShield.accountId != account) detached(screenShield.load(account));
       // Whether this account takes calls only from confirmed contacts. Read at
       // sign-in rather than at the first call: a security setting that waits
       // for a restart is one somebody will believe is on when it is not.
@@ -723,6 +757,7 @@ class AppState extends ChangeNotifier {
     // equally quiet, for the same reason.
     locale.signedOut(notify: false);
     accent.signedOut(notify: false);
+    detached(screenShield.signedOut(notify: false));
     _conversations?.dispose();
     _conversations = null;
     _channels?.dispose();
@@ -847,6 +882,7 @@ class AppState extends ChangeNotifier {
     await _store.wipe();
     locale.signedOut();
     accent.signedOut();
+    detached(screenShield.signedOut());
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
@@ -929,6 +965,7 @@ class AppState extends ChangeNotifier {
     await _store.wipe();
     locale.signedOut();
     accent.signedOut();
+    detached(screenShield.signedOut());
     _username = null;
     _accountId = null;
     _stage = AppStage.welcome;

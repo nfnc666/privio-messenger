@@ -61,7 +61,13 @@ who-and-when; a global passive adversary correlating timing is out of scope.
 
 **A malicious recipient.** Anyone you message can screenshot, copy or forward
 it. "Restrict content saving" raises the effort; it is not a security control
-and is not presented as one.
+and is not presented as one. **Screen protection** (Settings → Privacy &
+Security) is about *your own* device and nothing else: on Android it asks the
+window manager to refuse screenshots and recordings of Privio, on iOS it covers
+the interface while a recording or a screen share is running — and on iOS
+screenshots cannot be blocked at all. It does not reach the other end of a
+conversation, and Privio never tells anybody that a screenshot was taken. See
+`docs/screen-protection.md`.
 
 **A lost recovery key.** Backups cannot be recovered without it. This is the
 cost of the server not holding a key, and it is the right trade.

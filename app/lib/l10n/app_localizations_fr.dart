@@ -981,6 +981,29 @@ class AppTextFr extends AppText {
   String get privacyDuressCode => 'Code de contrainte';
 
   @override
+  String get privacyScreenShield => 'Protection de l\'écran';
+
+  @override
+  String get privacyScreenShieldAndroid =>
+      'Bloque les captures et les enregistrements d\'écran de l\'application.';
+
+  @override
+  String get privacyScreenShieldIos =>
+      'Masque le contenu sensible lorsqu\'un enregistrement ou un partage d\'écran est détecté. Sur iOS, les captures d\'écran ne peuvent pas être empêchées de manière fiable.';
+
+  @override
+  String get privacyScreenShieldUnavailable =>
+      'Cet appareil ne peut pas protéger l\'écran.';
+
+  @override
+  String get privacyScreenShieldScope =>
+      'Cela ne protège que votre propre appareil. Cela n\'empêche pas les autres d\'enregistrer leur écran, ni une photo prise avec un autre appareil.';
+
+  @override
+  String get privacyScreenShieldCovering =>
+      'Un enregistrement d\'écran est en cours. Privio reste masqué jusqu\'à la fin.';
+
+  @override
   String get privacySet => 'Défini';
 
   @override

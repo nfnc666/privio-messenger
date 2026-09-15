@@ -80,7 +80,7 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
       // language without a notification of its own — see
       // [LocaleController.signedOut].
       child: ListenableBuilder(
-        listenable: Listenable.merge([_state, _state.locale, _state.accent]),
+        listenable: Listenable.merge([_state, _state.locale, _state.accent, _state.screenShield]),
         builder: (context, _) => MaterialApp(
           // Not localised, deliberately: this is the app's name, which is the
           // same word in every language.
@@ -114,7 +114,21 @@ class _PrivioAppState extends State<PrivioApp> with WidgetsBindingObserver {
               // The cover goes outermost: a call screen is content too, and the
               // app switcher must not photograph who is on it.
               child: PrivacyCover(
-                hidden: _lifecycle != AppLifecycleState.resumed,
+                // Two reasons to cover, and they are genuinely different.
+                //
+                // The first is the app switcher, which photographs the frame at
+                // `inactive` and has always been covered here for every account
+                // on every platform — it is not the Screen protection setting
+                // and does not wait for one.
+                //
+                // The second is iOS telling us a recording or a mirrored
+                // display is running, which only happens when an account has
+                // turned the setting on. Android never raises it: there the
+                // window manager has already handed the recorder black frames,
+                // and covering as well would blank the screen for somebody who
+                // is simply using their phone. See `ScreenShieldController`.
+                hidden: _lifecycle != AppLifecycleState.resumed ||
+                    _state.screenShield.shouldCover,
                 // Inside the cover and above the navigator: the opener needs a
                 // navigator to push onto, and it must not be photographed by the
                 // app switcher any more than anything else is.
@@ -347,6 +361,12 @@ class PrivacyCover extends StatelessWidget {
     if (!hidden) return child;
     final state = PrivioScope.of(context);
     final skin = state.disguise;
+    // Said only when a capture is what put the cover up — which is the one case
+    // where somebody is looking at their *own* covered screen and would
+    // otherwise think the app had broken. The app-switcher cover stays silent:
+    // that frame is only ever seen in the switcher, where a sentence about
+    // screen recordings would be a caption nobody asked for.
+    final capturing = state.screenShield.shouldCover;
     return Stack(
       children: [
         // Kept in the tree, not thrown away: this is a screenshot being taken,
@@ -355,7 +375,9 @@ class PrivacyCover extends StatelessWidget {
         child,
         Positioned.fill(
           key: coverKey,
-          child: skin == null ? const _NeutralCover() : CalculatorScreen(skin: skin),
+          child: skin == null
+              ? _NeutralCover(capturing: capturing)
+              : CalculatorScreen(skin: skin),
         ),
       ],
     );
@@ -365,12 +387,33 @@ class PrivacyCover extends StatelessWidget {
 /// The cover for a device with no disguise: the app's own mark on its own
 /// background, and nothing that was on screen a moment ago.
 class _NeutralCover extends StatelessWidget {
-  const _NeutralCover();
+  const _NeutralCover({this.capturing = false});
+
+  /// Whether to explain why this is here. See [PrivacyCover.build].
+  final bool capturing;
 
   @override
-  Widget build(BuildContext context) => const ColoredBox(
+  Widget build(BuildContext context) => ColoredBox(
     color: PrivioColors.background,
-    child: Center(child: PrivioMark(size: 72)),
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const PrivioMark(size: 72),
+          if (capturing) ...[
+            const SizedBox(height: PrivioSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+              child: Text(
+                AppText.of(context).privacyScreenShieldCovering,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
   );
 }
 
