@@ -542,6 +542,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// camera roll.
   Future<void> _attach() async {
     final text = AppText.of(context);
+    final timer = PrivioScope.of(context).conversations.disappearAfter(widget.accountId);
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PrivioColors.surface,
@@ -559,12 +560,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               title: Text(text.attachFile),
               onTap: () => Navigator.of(sheetContext).pop('file'),
             ),
+            const Divider(height: 1, color: PrivioColors.border),
+            // The timer's control lives here now that the bar is three things
+            // wide. Its *state* does not: when it is on, the chip in the field
+            // says so without anybody opening anything — see [_TimerChip].
+            ListTile(
+              leading: Icon(
+                timer == null ? Icons.timer_outlined : Icons.timer_rounded,
+                color: timer == null ? null : context.accents.accent,
+              ),
+              title: Text(text.privacyDisappearing),
+              subtitle: Text(
+                timer == null
+                    ? text.commonOff
+                    : DisappearingTimerSheet.badge(text, timer),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('timer'),
+            ),
           ],
         ),
       ),
     );
     if (choice == null || !mounted) return;
     if (choice == 'photos') return _pickPhotos();
+    if (choice == 'timer') return _chooseTimer(PrivioScope.of(context));
     return _attachFile();
   }
 
@@ -1322,44 +1341,30 @@ class _Composer extends StatelessWidget {
             if (recording)
               Expanded(child: voice)
             else ...[
-              IconButton(
-                onPressed: onAttach,
-                icon: const Icon(Icons.add_rounded, color: PrivioColors.textSecondary),
+              // One round button outside the field, then the field itself, then
+              // the microphone. Three things across the bar instead of six.
+              //
+              // The row used to hold four icons *before* the text field, and on
+              // a phone that left the field a column two words wide — the thing
+              // people are actually here to use was the smallest thing in the
+              // row. Everything that is not needed while typing moved into this
+              // button's menu; everything that is stayed, inside the field where
+              // it costs no width.
+              _RoundButton(
+                icon: Icons.add_rounded,
                 tooltip: AppText.of(context).composerAttach,
+                onPressed: onAttach,
               ),
-              IconButton(
-                onPressed: onPickSticker,
-                icon: const Icon(
-                  Icons.emoji_emotions_outlined,
-                  color: PrivioColors.textSecondary,
-                ),
-                tooltip: AppText.of(context).pickerOpenTooltip,
-              ),
-              IconButton(
-                onPressed: onCamera,
-                icon: const Icon(
-                  Icons.photo_camera_outlined,
-                  color: PrivioColors.textSecondary,
-                ),
-                tooltip: AppText.of(context).composerCamera,
-              ),
-              // Unchanged and in the same place. The disappearing-messages
-              // timer is the one button here whose state somebody can be hurt
-              // by not seeing, and the camera goes beside it rather than over
-              // it.
-              _TimerButton(timer: disappearAfter, onPressed: onChooseTimer),
+              const SizedBox(width: PrivioSpacing.sm),
               Expanded(
-                child: TextField(
+                child: _Field(
                   controller: controller,
-                  minLines: 1,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                  onChanged: onTyping,
-                  onSubmitted: (_) => onSend(),
-                  decoration: InputDecoration(
-                    hintText: AppText.of(context).composerHint,
-                    isDense: true,
-                  ),
+                  onSend: onSend,
+                  onTyping: onTyping,
+                  onPickSticker: onPickSticker,
+                  onCamera: onCamera,
+                  disappearAfter: disappearAfter,
+                  onChooseTimer: onChooseTimer,
                 ),
               ),
               // Mounted but not shown, so the recorder's state survives the
@@ -1383,18 +1388,222 @@ class _Composer extends StatelessWidget {
   }
 }
 
-/// The disappearing-message timer, in the composer where it is decided.
+
+/// One icon in a circle, the size of a comfortable thumb.
 ///
-/// It used to live only in the overflow menu, which is the wrong place for it:
-/// the timer governs the message you are *about to write*, so it belongs beside
-/// the field you write it in, showing its state before you type rather than
-/// after you go looking.
+/// Its own widget rather than an `IconButton` so the two buttons flanking the
+/// field are the same shape and the same 44 points, whatever the icon inside
+/// them is.
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            icon,
+            size: 24,
+            color: onPressed == null
+                ? PrivioColors.textTertiary
+                : PrivioColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The message field, with the things you reach for *while writing* inside it.
 ///
-/// Off it is an outline, the same weight as the attachment button next to it.
-/// On it turns green and wears the duration, because a chat that silently
-/// deletes itself is the one way this feature can hurt somebody — they keep
-/// writing, and what they wrote is gone. The state has to be visible without
-/// being asked for.
+/// Telegram's shape, and for Telegram's reason: an icon inside the rounded
+/// field costs no width from the text, so the field stays the widest thing in
+/// the row instead of the narrowest.
+///
+/// What is inside and what is not is the whole decision:
+///
+/// * **Emoji and stickers, and the camera**, because both belong to the message
+///   being written. Tapping either does not leave the chat.
+/// * **The disappearing-messages timer, but only when it is on** — see
+///   [_TimerChip]. Off, it lives in the plus menu with the other things you go
+///   and fetch.
+/// * Everything else — a file, the photo library — is in the plus menu. None of
+///   it is needed mid-sentence.
+class _Field extends StatelessWidget {
+  const _Field({
+    required this.controller,
+    required this.onSend,
+    required this.onTyping,
+    required this.onPickSticker,
+    required this.onCamera,
+    required this.disappearAfter,
+    required this.onChooseTimer,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSend;
+  final void Function(String text) onTyping;
+  final VoidCallback? onPickSticker;
+  final VoidCallback? onCamera;
+  final Duration? disappearAfter;
+  final VoidCallback onChooseTimer;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      decoration: const BoxDecoration(
+        color: PrivioColors.surfaceRaised,
+        borderRadius: BorderRadius.all(PrivioRadius.button),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (disappearAfter != null)
+            _TimerChip(timer: disappearAfter!, onPressed: onChooseTimer),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: disappearAfter == null ? PrivioSpacing.md : PrivioSpacing.xs,
+                top: PrivioSpacing.md,
+                bottom: PrivioSpacing.md,
+              ),
+              child: TextField(
+                controller: controller,
+                minLines: 1,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: onTyping,
+                onSubmitted: (_) => onSend(),
+                // The container above draws the shape, so the field draws
+                // nothing: two rounded rectangles inside each other is what the
+                // old bar looked like once the icons were moved in.
+                decoration: InputDecoration(
+                  hintText: text.composerHint,
+                  isDense: true,
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
+          _InlineIcon(
+            icon: Icons.emoji_emotions_outlined,
+            tooltip: text.pickerOpenTooltip,
+            onPressed: onPickSticker,
+          ),
+          _InlineIcon(
+            icon: Icons.photo_camera_outlined,
+            tooltip: text.composerCamera,
+            onPressed: onCamera,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A smaller icon, sized to sit inside the field without stretching it.
+class _InlineIcon extends StatelessWidget {
+  const _InlineIcon({required this.icon, required this.tooltip, required this.onPressed});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 40,
+          height: 44,
+          child: Icon(
+            icon,
+            size: 22,
+            color: onPressed == null
+                ? PrivioColors.textTertiary
+                : PrivioColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The disappearing-message timer, shown only while it is **on**.
+///
+/// The control moved into the plus menu; this is what is left in the bar, and
+/// leaving it here was not a layout decision. A chat that silently deletes
+/// itself is the one way this feature can hurt somebody — they keep writing,
+/// and what they wrote is gone. That state has to be visible without being
+/// asked for, right next to the field they are about to type into.
+///
+/// Off, there is nothing to warn about and nothing is drawn: the timer is then
+/// one row in the plus menu, with its state written next to it.
+class _TimerChip extends StatelessWidget {
+  const _TimerChip({required this.timer, required this.onPressed});
+
+  final Duration timer;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final badge = DisappearingTimerSheet.badge(text, timer);
+    return Tooltip(
+      message: text.composerTimerOn(badge),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: const BorderRadius.all(PrivioRadius.button),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PrivioSpacing.sm,
+            PrivioSpacing.sm,
+            PrivioSpacing.xs,
+            PrivioSpacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.timer_rounded, size: 18, color: context.accents.accent),
+              const SizedBox(width: 3),
+              Text(
+                badge,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: context.accents.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// The chat is held because the contact's safety number changed.
 ///
@@ -1446,61 +1655,6 @@ class _HeldBanner extends StatelessWidget {
   }
 }
 
-class _TimerButton extends StatelessWidget {
-  const _TimerButton({required this.timer, required this.onPressed});
-
-  final Duration? timer;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final on = timer != null;
-    final text = AppText.of(context);
-    // Sized to match the 48-point touch target of the IconButton beside it, so
-    // the two sit on the same baseline and neither crowds the text field.
-    return Tooltip(
-      message: on
-          ? text.composerTimerOn(DisappearingTimerSheet.badge(text, timer!))
-          : text.composerTimerOff,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(24),
-        child: SizedBox(
-          height: 48,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.sm),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  on ? Icons.timer_rounded : Icons.timer_outlined,
-                  size: 22,
-                  color: on ? context.accents.accent : PrivioColors.textSecondary,
-                ),
-                if (on) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    DisappearingTimerSheet.badge(text, timer!),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: context.accents.accent,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Send, or the microphone — whichever the moment calls for.
-///
-/// One widget so the microphone is never unmounted mid-hold: the release of a
-/// long press goes to the recognizer that won the arena, and a recognizer whose
-/// widget has gone reports nothing at all.
 class _TrailingAction extends StatelessWidget {
   const _TrailingAction({
     required this.controller,
