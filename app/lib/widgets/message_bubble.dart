@@ -24,6 +24,7 @@ class MessageBubble extends StatelessWidget {
     super.key,
     this.onLongPress,
     this.onStickerTap,
+    this.onSenderTap,
     this.highlighted = false,
   });
 
@@ -38,6 +39,14 @@ class MessageBubble extends StatelessWidget {
 
   /// Offers the pack a sticker came from. Null where there is nowhere to go.
   final VoidCallback? onStickerTap;
+
+  /// Opens the sender's profile. Set in groups, where a name is drawn above the
+  /// message and somebody reading it may have no idea who that is.
+  ///
+  /// Null everywhere else, and the name then draws exactly as it did: a
+  /// one-to-one chat labels nothing, and a message of one's own has a profile
+  /// that is reached from the account screen rather than from a bubble.
+  final VoidCallback? onSenderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -104,9 +113,16 @@ class MessageBubble extends StatelessWidget {
             if (message.senderName != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  message.senderName!,
-                  style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                // Tappable where there is a profile to open. Wrapped in a
+                // gesture rather than made a TextButton so the line keeps the
+                // size and spacing it had — a name that suddenly became a
+                // button would push every group message down a few points.
+                child: GestureDetector(
+                  onTap: onSenderTap,
+                  child: Text(
+                    message.senderName!,
+                    style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                  ),
                 ),
               ),
             if (message.kind == MessageKind.deleted)

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/channel.dart';
+import '../models/models.dart';
 import '../services/channel_service.dart';
 import 'api_client.dart';
 import 'failure.dart';
@@ -749,7 +750,7 @@ class ChannelController extends ChangeNotifier {
         _members.remove(channelId);
       });
 
-  Future<bool> report(String channelId, ChannelReportReason reason) =>
+  Future<bool> report(String channelId, ReportReason reason) =>
       _run(() async => _channels.report(channelId, reason));
 
   final Map<String, ChannelStats> _stats = {};

@@ -115,7 +115,7 @@ class FakeAccountServer {
         }
         if (request.method == 'DELETE' && path.startsWith('/v1/blocks/')) {
           final id = path.split('/').last;
-          blocked = [...blocked.where((entry) => entry['accountId'] != id)];
+          blocked = [...blocked.where((entry) => entry['id'] != id)];
           return _json({'unblocked': true});
         }
         return _json(const {});
@@ -329,10 +329,13 @@ void main() {
     });
 
     test('the blocked list is the account\'s, and lifting one removes it', () async {
+      // `id`, which is what `GET /v1/blocks` actually sends. The fake used to
+      // say `accountId`, so the test passed against a shape no server produces
+      // while the real one threw on the cast — see `BlockedUser.fromJson`.
       final server = FakeAccountServer()
         ..blocked = [
-          {'accountId': 'acc-1', 'username': 'mallory'},
-          {'accountId': 'acc-2', 'username': 'trudy', 'displayName': 'T'},
+          {'id': 'acc-1', 'username': 'mallory'},
+          {'id': 'acc-2', 'username': 'trudy', 'displayName': 'T'},
         ];
       final security = controllerFor(server);
       await security.loadBlocks();
@@ -343,7 +346,7 @@ void main() {
 
       await security.unblock('acc-1');
       expect(security.blocked!.single.accountId, 'acc-2');
-      expect(server.blocked.single['accountId'], 'acc-2');
+      expect(server.blocked.single['id'], 'acc-2');
     });
 
     test('one screen open reads the account once, not twice', () async {

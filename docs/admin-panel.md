@@ -137,6 +137,29 @@ channel back in the queue for a decision already made. Clearing a channel does
 not delete the reports — somebody did report it, and the next operator deserves
 to know it was judged fine before.
 
+## Reports about people
+
+`GET /v1/admin/reports/accounts`, grouped per account, with counts per reason —
+the same shape as the channel queue and for the same reason: ten reports are one
+thing to look at.
+
+It is **read-only, and thinner than the channel queue on purpose**. A channel
+has a public title and description an operator can read before deciding. An
+account has a username and nothing else the server may look at, and there is no
+message history to quote because the server never held one in the clear. What
+this answers is how many people reported somebody and on what grounds. That is a
+signal, not evidence, and it is worth showing only as long as nobody mistakes it
+for the second thing.
+
+There is deliberately **no suspend to go with it**. Suspending a channel removes
+things the server controls — a listing, a handle, an invite code. What
+suspending a *person* would mean for conversations the server cannot read is a
+design decision, not a query, and shipping a button before making it would be
+the kind of moderation that looks like an action and is not one.
+
+See [`contact-profile.md`](contact-profile.md) for what a reporter is told
+before they pick a reason.
+
 ## The audit log
 
 `admin_audit_log` is append-only. There is no `UPDATE` or `DELETE` path to it

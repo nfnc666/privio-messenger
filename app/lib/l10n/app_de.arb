@@ -1186,7 +1186,13 @@
   "photoTitle": "Foto",
   "photoPreviewOne": "Foto senden",
   "photoPreviewMany": "{count} Fotos senden",
-  "@photoPreviewMany": {"placeholders": {"count": {"type": "int"}}},
+  "@photoPreviewMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoRetake": "Erneut aufnehmen",
   "photoCaptionHint": "Bildtext hinzufügen",
   "photoNoCamera": "Auf diesem Gerät gibt es keine Kamera, die PRIVIO öffnen kann.",
@@ -1196,10 +1202,22 @@
   "photoOpenSettings": "Einstellungen öffnen",
   "photoSettingsFailed": "Die Einstellungen liessen sich nicht öffnen. Öffne sie selbst und erlaube es für PRIVIO.",
   "photoFailed": "Die Kamera liess sich nicht öffnen: {detail}",
-  "@photoFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@photoFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "photoNoneReadable": "PRIVIO konnte keines dieser Bilder lesen.",
   "photoSomeLeftOut": "{count} der Bilder liessen sich nicht lesen und wurden weggelassen.",
-  "@photoSomeLeftOut": {"placeholders": {"count": {"type": "int"}}},
+  "@photoSomeLeftOut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoStateSending": "Wird gesendet",
   "photoStateQueued": "Wartet auf eine Verbindung",
   "photoStateSent": "Gesendet",
@@ -1212,9 +1230,21 @@
   "securityEventADevice": "ein Gerät",
   "securityEventAContact": "ein Kontakt",
   "securityEventDeviceAdded": "Neues Gerät verknüpft: {name}",
-  "@securityEventDeviceAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventDeviceRemoved": "Gerät abgemeldet: {name}",
-  "@securityEventDeviceRemoved": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventPasswordChanged": "Passwort geändert",
   "securityEventTwoFactorOn": "Zwei-Faktor-Authentifizierung eingeschaltet",
   "securityEventTwoFactorOff": "Zwei-Faktor-Authentifizierung ausgeschaltet",
@@ -1224,11 +1254,29 @@
   "securityEventProxyOn": "Verbindung über den SOCKS5-Proxy",
   "securityEventProxyOff": "Proxy ausgeschaltet — direkte Verbindung",
   "securityEventKeyChanged": "Der Sicherheitscode von {name} hat sich geändert",
-  "@securityEventKeyChanged": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventKeyChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventContactVerified": "{name} bestätigt",
-  "@securityEventContactVerified": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventContactVerified": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventVerificationCleared": "Bestätigung von {name} zurückgezogen",
-  "@securityEventVerificationCleared": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventVerificationCleared": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventScreenLock": "Bildschirmsperre geändert",
   "securityEventDuressCode": "Notfallcode geändert",
   "safetyScanTheirs": "Ihren Code fotografieren",
@@ -1239,7 +1287,13 @@
   "privacyBlockOnKeyChange": "Chats nach einem Schlüsselwechsel anhalten",
   "privacyBlockOnKeyChangeNote": "Wenn sich der Sicherheitscode eines Kontakts ändert, den Chat anhalten, bis du den neuen verglichen hast. Das Senden wird bei einem geänderten Schlüssel ohnehin verweigert.",
   "chatHeldByKeyChange": "Der Sicherheitscode von {name} hat sich geändert. Dieser Chat ist angehalten, bis du den neuen verglichen hast.",
-  "@chatHeldByKeyChange": {"placeholders": {"name": {"type": "String"}}},
+  "@chatHeldByKeyChange": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatHeldCompareNow": "Jetzt vergleichen",
   "privacyDashboardRow": "Datenschutz-Übersicht",
   "privacyDashboardTitle": "Datenschutz-Übersicht",
@@ -1268,5 +1322,35 @@
   "privacyDashboardProxyDirect": "Direkt",
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Der Inhalt ist verschlüsselt; dass eine Nachricht von dir an jemanden ging und wann, ist es nicht. Der Server von PRIVIO sieht das, weil er sie zustellen muss.",
-  "privacyOverview": "Übersicht"
+  "privacyOverview": "Übersicht",
+  "profileTitle": "Profil",
+  "profileMessageAction": "Nachricht",
+  "profileCallAction": "Anruf",
+  "profileVideoAction": "Video",
+  "profilePrivioId": "PRIVIO-ID",
+  "profileIdCopied": "PRIVIO-ID kopiert",
+  "profileAddContact": "Zu Kontakten hinzufügen",
+  "profileRemoveContact": "Aus Kontakten entfernen",
+  "profileRemoveContactTitle": "{name} entfernen?",
+  "profileRemoveContactBody": "Die Person verlässt deine Kontakte. Der Chat und seine Nachrichten bleiben unverändert.",
+  "profileContactAdded": "Zu Kontakten hinzugefügt",
+  "profileContactRemoved": "Aus Kontakten entfernt",
+  "profileCouldNotAddContact": "Kontakt konnte nicht hinzugefügt werden",
+  "profileCouldNotRemoveContact": "Kontakt konnte nicht entfernt werden",
+  "profileBlockedTitle": "Du hast dieses Konto blockiert",
+  "profileBlockedBody": "Nichts, was von dort gesendet wird, erreicht dich. Die Person erfährt es nicht und sieht keinen Unterschied.",
+  "profileLastSeen": "Zuletzt online {when}",
+  "profileYouTitle": "Das ist dein eigenes Profil",
+  "profileYouBody": "Bild, Name und Status änderst du im Konto-Bereich.",
+  "profileGoneTitle": "Dieses Konto gibt es nicht mehr",
+  "profileGoneBody": "Es wurde gelöscht, oder es gab es nie. Nachrichten in deinem Chat bleiben, wie sie sind.",
+  "profileCouldNotLoad": "Profil konnte nicht geladen werden",
+  "profileReport": "Konto melden",
+  "profileReportTitle": "{name} melden",
+  "profileReportBody": "Die Moderation erfährt den Grund und sonst nichts. Der PRIVIO-Server hat deine Nachrichten nie im Klartext, deshalb kann nichts davon beigelegt werden.",
+  "profileReported": "Meldung eingereicht",
+  "profileAlreadyReported": "Deine frühere Meldung zu diesem Konto liegt weiterhin vor",
+  "profileCouldNotReport": "Meldung konnte nicht eingereicht werden",
+  "profileOpenProfile": "Profil öffnen",
+  "profileVerifyAction": "Prüfen"
 }

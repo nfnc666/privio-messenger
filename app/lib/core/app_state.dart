@@ -20,6 +20,7 @@ import '../security/screen_shield.dart';
 import '../services/push_wake.dart';
 import 'deep_links.dart';
 import '../services/wake_up.dart';
+import 'profile_controller.dart';
 import 'privio_services.dart';
 import '../models/security_event.dart';
 import 'security_controller.dart';
@@ -110,6 +111,7 @@ class AppState extends ChangeNotifier {
   LicenseController? _license;
   SecurityController? _security;
   StatusController? _profileStatus;
+  ProfileController? _profiles;
   StickerController? _stickers;
   SecurityEventController? _securityEvents;
   PhoneController? _phone;
@@ -296,6 +298,13 @@ class AppState extends ChangeNotifier {
   /// status is not a security setting and the two are read at different moments
   /// — this one on every sign-in, that one only when a settings screen opens.
   StatusController get profileStatus => _profileStatus ??= StatusController(services.api);
+
+  /// Other people's profiles, as this account is allowed to see them.
+  ///
+  /// Held here rather than made by the profile screen, because the screen is
+  /// pushed and popped and the cache has to outlive it — and because binding it
+  /// to the signed-in account is this object's job, not a widget's.
+  ProfileController get profiles => _profiles ??= ProfileController(services.api);
 
   /// This account's sticker and custom-emoji packs.
   ///
@@ -551,6 +560,10 @@ class AppState extends ChangeNotifier {
       // screen while this one's read is in flight, and an answer that arrives
       // after another switch is dropped rather than applied.
       detached(profileStatus.load(account));
+      // Whose view of other people this cache holds. Bound rather than loaded:
+      // there is nothing to fetch until somebody opens a profile, and the
+      // binding is what makes the previous account's answers unreachable.
+      profiles.bindTo(account);
       // The packs, for the same reason and with the same guard: they belong to
       // the account, and an answer that arrives after a switch is dropped.
       if (stickers.accountId != account) detached(stickers.load(account));
@@ -844,6 +857,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _profiles?.dispose();
+    _profiles = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a
@@ -969,6 +984,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _profiles?.dispose();
+    _profiles = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a
@@ -1049,6 +1066,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _profiles?.dispose();
+    _profiles = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a

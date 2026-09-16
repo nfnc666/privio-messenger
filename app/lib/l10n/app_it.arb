@@ -1186,7 +1186,13 @@
   "photoTitle": "Foto",
   "photoPreviewOne": "Invia foto",
   "photoPreviewMany": "Invia {count} foto",
-  "@photoPreviewMany": {"placeholders": {"count": {"type": "int"}}},
+  "@photoPreviewMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoRetake": "Scatta di nuovo",
   "photoCaptionHint": "Aggiungi una didascalia",
   "photoNoCamera": "Su questo dispositivo non c'è una fotocamera che Privio possa aprire.",
@@ -1196,10 +1202,22 @@
   "photoOpenSettings": "Apri le impostazioni",
   "photoSettingsFailed": "Non è stato possibile aprire le impostazioni. Aprile tu e consentilo a Privio.",
   "photoFailed": "Non è stato possibile aprire la fotocamera: {detail}",
-  "@photoFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@photoFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "photoNoneReadable": "Privio non è riuscito a leggere nessuna di quelle immagini.",
   "photoSomeLeftOut": "{count} delle immagini non si sono potute leggere e sono state escluse.",
-  "@photoSomeLeftOut": {"placeholders": {"count": {"type": "int"}}},
+  "@photoSomeLeftOut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoStateSending": "Invio in corso",
   "photoStateQueued": "In attesa di una rete",
   "photoStateSent": "Inviata",
@@ -1212,9 +1230,21 @@
   "securityEventADevice": "un dispositivo",
   "securityEventAContact": "un contatto",
   "securityEventDeviceAdded": "Nuovo dispositivo collegato: {name}",
-  "@securityEventDeviceAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventDeviceRemoved": "Dispositivo disconnesso: {name}",
-  "@securityEventDeviceRemoved": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventPasswordChanged": "Password cambiata",
   "securityEventTwoFactorOn": "Autenticazione a due fattori attivata",
   "securityEventTwoFactorOff": "Autenticazione a due fattori disattivata",
@@ -1224,11 +1254,29 @@
   "securityEventProxyOn": "Connessione tramite il proxy SOCKS5",
   "securityEventProxyOff": "Proxy disattivato — connessione diretta",
   "securityEventKeyChanged": "Il codice di sicurezza di {name} è cambiato",
-  "@securityEventKeyChanged": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventKeyChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventContactVerified": "{name} verificato",
-  "@securityEventContactVerified": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventContactVerified": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventVerificationCleared": "Verifica di {name} ritirata",
-  "@securityEventVerificationCleared": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventVerificationCleared": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventScreenLock": "Blocco schermo modificato",
   "securityEventDuressCode": "Codice di emergenza modificato",
   "safetyScanTheirs": "Fotografa il suo codice",
@@ -1239,7 +1287,13 @@
   "privacyBlockOnKeyChange": "Sospendi le chat dopo un cambio di chiave",
   "privacyBlockOnKeyChangeNote": "Se il codice di sicurezza di un contatto cambia, sospendi la chat finché non hai confrontato quello nuovo. L’invio viene comunque rifiutato con una chiave cambiata.",
   "chatHeldByKeyChange": "Il codice di sicurezza di {name} è cambiato. Questa chat è sospesa finché non confronti quello nuovo.",
-  "@chatHeldByKeyChange": {"placeholders": {"name": {"type": "String"}}},
+  "@chatHeldByKeyChange": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatHeldCompareNow": "Confrontalo ora",
   "privacyDashboardRow": "Pannello privacy",
   "privacyDashboardTitle": "Pannello privacy",
@@ -1268,5 +1322,35 @@
   "privacyDashboardProxyDirect": "Diretta",
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Il contenuto è cifrato; che un messaggio sia partito da te verso qualcuno, e quando, non lo è. Il server di Privio lo vede perché deve consegnarlo.",
-  "privacyOverview": "Panoramica"
+  "privacyOverview": "Panoramica",
+  "profileTitle": "Profilo",
+  "profileMessageAction": "Messaggio",
+  "profileCallAction": "Chiama",
+  "profileVideoAction": "Video",
+  "profilePrivioId": "ID Privio",
+  "profileIdCopied": "ID Privio copiato",
+  "profileAddContact": "Aggiungi ai contatti",
+  "profileRemoveContact": "Rimuovi dai contatti",
+  "profileRemoveContactTitle": "Rimuovere {name}?",
+  "profileRemoveContactBody": "Esce dai tuoi contatti. La chat e i suoi messaggi restano come sono.",
+  "profileContactAdded": "Aggiunto ai contatti",
+  "profileContactRemoved": "Rimosso dai contatti",
+  "profileCouldNotAddContact": "Impossibile aggiungere questo contatto",
+  "profileCouldNotRemoveContact": "Impossibile rimuovere questo contatto",
+  "profileBlockedTitle": "Hai bloccato questo account",
+  "profileBlockedBody": "Niente di ciò che invia ti raggiunge. Non viene avvisato e non nota alcuna differenza.",
+  "profileLastSeen": "Ultimo accesso {when}",
+  "profileYouTitle": "Questo è il tuo profilo",
+  "profileYouBody": "Immagine, nome e stato si cambiano nella schermata Account.",
+  "profileGoneTitle": "Questo account non esiste più",
+  "profileGoneBody": "È stato eliminato, oppure non è mai esistito. I messaggi già presenti nella chat restano come sono.",
+  "profileCouldNotLoad": "Impossibile caricare questo profilo",
+  "profileReport": "Segnala questo account",
+  "profileReportTitle": "Segnala {name}",
+  "profileReportBody": "Alla moderazione arriva il motivo e nient’altro. Il server di Privio non ha mai i vostri messaggi in chiaro, quindi non si può allegare nulla di scritto.",
+  "profileReported": "Segnalazione inviata",
+  "profileAlreadyReported": "La tua segnalazione precedente su questo account è ancora agli atti",
+  "profileCouldNotReport": "Impossibile inviare la segnalazione",
+  "profileOpenProfile": "Apri profilo",
+  "profileVerifyAction": "Verifica"
 }

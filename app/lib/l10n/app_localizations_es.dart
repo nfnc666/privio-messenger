@@ -4498,4 +4498,106 @@ class AppTextEs extends AppText {
 
   @override
   String get privacyOverview => 'Resumen';
+
+  @override
+  String get profileTitle => 'Perfil';
+
+  @override
+  String get profileMessageAction => 'Mensaje';
+
+  @override
+  String get profileCallAction => 'Llamar';
+
+  @override
+  String get profileVideoAction => 'Vídeo';
+
+  @override
+  String get profilePrivioId => 'ID de Privio';
+
+  @override
+  String get profileIdCopied => 'ID de Privio copiado';
+
+  @override
+  String get profileAddContact => 'Añadir a contactos';
+
+  @override
+  String get profileRemoveContact => 'Quitar de contactos';
+
+  @override
+  String profileRemoveContactTitle(String name) {
+    return '¿Quitar a $name?';
+  }
+
+  @override
+  String get profileRemoveContactBody =>
+      'Sale de tus contactos. El chat y sus mensajes se quedan como están.';
+
+  @override
+  String get profileContactAdded => 'Añadido a contactos';
+
+  @override
+  String get profileContactRemoved => 'Quitado de contactos';
+
+  @override
+  String get profileCouldNotAddContact => 'No se pudo añadir este contacto';
+
+  @override
+  String get profileCouldNotRemoveContact => 'No se pudo quitar este contacto';
+
+  @override
+  String get profileBlockedTitle => 'Has bloqueado esta cuenta';
+
+  @override
+  String get profileBlockedBody =>
+      'Nada de lo que envíen te llega. No se les avisa y no notan ninguna diferencia.';
+
+  @override
+  String profileLastSeen(String when) {
+    return 'Última vez $when';
+  }
+
+  @override
+  String get profileYouTitle => 'Este es tu propio perfil';
+
+  @override
+  String get profileYouBody =>
+      'Tu foto, tu nombre y tu estado se cambian en la pantalla de cuenta.';
+
+  @override
+  String get profileGoneTitle => 'Esta cuenta ya no existe';
+
+  @override
+  String get profileGoneBody =>
+      'Se eliminó, o nunca existió. Los mensajes que ya están en tu chat se quedan como están.';
+
+  @override
+  String get profileCouldNotLoad => 'No se pudo cargar este perfil';
+
+  @override
+  String get profileReport => 'Denunciar esta cuenta';
+
+  @override
+  String profileReportTitle(String name) {
+    return 'Denunciar a $name';
+  }
+
+  @override
+  String get profileReportBody =>
+      'La moderación conoce el motivo y nada más. El servidor de Privio nunca guarda vuestros mensajes, así que no se puede adjuntar nada de lo escrito.';
+
+  @override
+  String get profileReported => 'Denuncia enviada';
+
+  @override
+  String get profileAlreadyReported =>
+      'Tu denuncia anterior sobre esta cuenta sigue registrada';
+
+  @override
+  String get profileCouldNotReport => 'No se pudo enviar la denuncia';
+
+  @override
+  String get profileOpenProfile => 'Abrir perfil';
+
+  @override
+  String get profileVerifyAction => 'Verificar';
 }

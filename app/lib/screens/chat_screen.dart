@@ -19,6 +19,7 @@ import '../media/photo.dart';
 import '../media/photo_source.dart';
 import '../media/voice.dart';
 import '../services/system_settings.dart';
+import 'contact_profile_screen.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
@@ -115,6 +116,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _openGroupInfo() => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => GroupInfoScreen(groupId: widget.accountId),
+        ),
+      );
+
+  /// Opens somebody's profile.
+  ///
+  /// A push rather than a replacement, and that is the whole of what keeps the
+  /// chat as it was: this screen's State stays alive underneath, so the
+  /// half-written message in `_composer`, the reply being composed and the
+  /// scroll position are all still there when the profile is popped. Nothing
+  /// here saves or restores them — the correct implementation is the one that
+  /// does not tear the chat down in the first place.
+  Future<void> _openProfile(String accountId, {String? name}) =>
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ContactProfileScreen(
+            accountId: accountId,
+            knownName: name,
+            // True only in a one-to-one chat with that same person: then this
+            // chat is the screen underneath, and "Message" over there means
+            // "go back to it" rather than "open another one".
+            openedFromTheirChat: !widget.isGroup && accountId == widget.accountId,
+          ),
         ),
       );
 
@@ -1014,45 +1037,55 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           appBar: AppBar(
             leading: const PrivioBackButton(),
             titleSpacing: 0,
-            title: Row(
-              children: [
-                PrivioAvatar(
-                  label: widget.title,
-                  size: 34,
-                  seed: widget.accountId.hashCode.abs(),
-                  isGroup: widget.isGroup,
-                  imageBytes: state.conversations.avatarFor(widget.accountId),
-                ),
-                const SizedBox(width: PrivioSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      Text(
-                        state.conversations.isTyping(widget.accountId)
-                            ? text.chatTyping
-                            : widget.isGroup
-                                ? _groupSubtitle(state)
-                                : _encryptionSubtitle(state),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: state.conversations.hasIdentityChange(widget.accountId) ||
-                                  state.conversations.hasKeyChangeAlert(widget.accountId) ||
-                                  _verification == VerificationState.changed
-                              ? PrivioColors.warning
-                              : context.accents.accent,
-                        ),
-                      ),
-                    ],
+            // The picture and the name open something now. In a group that is
+            // the group's own screen, as it always was; in a one-to-one chat it
+            // is the other person's profile, which had no way in at all.
+            title: InkWell(
+              onTap: () => unawaited(
+                widget.isGroup
+                    ? _openGroupInfo()
+                    : _openProfile(widget.accountId, name: widget.title),
+              ),
+              child: Row(
+                children: [
+                  PrivioAvatar(
+                    label: widget.title,
+                    size: 34,
+                    seed: widget.accountId.hashCode.abs(),
+                    isGroup: widget.isGroup,
+                    imageBytes: state.conversations.avatarFor(widget.accountId),
                   ),
-                ),
-              ],
+                  const SizedBox(width: PrivioSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        Text(
+                          state.conversations.isTyping(widget.accountId)
+                              ? text.chatTyping
+                              : widget.isGroup
+                                  ? _groupSubtitle(state)
+                                  : _encryptionSubtitle(state),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: state.conversations.hasIdentityChange(widget.accountId) ||
+                                    state.conversations.hasKeyChangeAlert(widget.accountId) ||
+                                    _verification == VerificationState.changed
+                                ? PrivioColors.warning
+                                : context.accents.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             actions: [
               if (widget.isGroup)
@@ -1147,6 +1180,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),
+                        // Only where there is an id to open. A message filed
+                        // before senders were recorded has a name and no
+                        // account behind it, and a tap that looked somebody up
+                        // by that name could land on the wrong person.
+                        onSenderTap: message.senderAccountId == null
+                            ? null
+                            : () => unawaited(
+                                  _openProfile(
+                                    message.senderAccountId!,
+                                    name: message.senderName,
+                                  ),
+                                ),
                       );
                     },
                   ),

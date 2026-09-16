@@ -137,6 +137,22 @@ the interesting failures live (encoding, clock skew, notification behaviour).
 | C5 | Kill the admin app in the middle of a rotation (immediately after the removal), reopen it: the rotation finishes — key promoted, private channel name readable by a member who joined afterwards | This was the bug fixed in this milestone; it is worth doing twice | | | | not run | |
 | C6 | Two admins remove someone at the same moment: one key version is spent, not two, and the channel stays publishable | Needs two handsets and some coordination | | | | not run | |
 
+## 6b. Opening a profile from a chat
+
+Covered by `app/test/contact_profile_test.dart`; none of it has been run on a
+phone. See [`contact-profile.md`](contact-profile.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | Tap the header of a one-to-one chat: the profile that opens is **that** person — name, `@handle` and picture match who you were talking to | — | | | | not run | |
+| P2 | Type half a message, open the profile, come back: the draft and the scroll position are exactly as they were | A soft keyboard dismissing and reappearing is the part a widget test cannot reproduce | | | | not run | |
+| P3 | In a group, tap a sender's name: that sender's profile opens, not the group's | — | | | | not run | |
+| P4 | Tap the group's own header: the group screen opens, as before | — | | | | not run | |
+| P5 | **Message** from a profile reached elsewhere lands in the existing chat with its history — not a second, empty one | — | | | | not run | |
+| P6 | Block from the profile, then open the blocked person again: the banner and **Unblock** are there, and unblocking restores the ordinary actions | Needs a second account | | | | not run | |
+| P7 | A contact who has hidden their status and last-seen shows neither — and no row anywhere saying something is hidden | Needs a second account with `lastSeen: nobody` and `profileStatus: nobody` | | | | not run | |
+| P8 | Tap the large picture: it opens full-screen and pinch-zooms. With no picture, the tap does nothing | Only a contact whose profile key has arrived has a picture at all | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.

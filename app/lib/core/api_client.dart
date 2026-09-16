@@ -252,6 +252,13 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> addContact(String username) =>
       _send('POST', '/v1/contacts', body: {'username': username});
 
+  /// Removes somebody from this account's address book.
+  ///
+  /// The server has had this since the first contacts migration and nothing in
+  /// the app could ask for it: a contact could be added and never dropped.
+  Future<void> removeContact(String accountId) async =>
+      _send('DELETE', '/v1/contacts/$accountId');
+
   Future<Map<String, dynamic>> lookup(String username) =>
       _send('GET', '/v1/users/$username');
 
@@ -269,6 +276,14 @@ class PrivioApiClient {
 
   Future<void> unblock(String accountId) async =>
       _send('DELETE', '/v1/blocks/$accountId');
+
+  /// Reports an account, with one of the reasons the server accepts.
+  ///
+  /// Separate from [block] on purpose and at both ends: reporting somebody and
+  /// refusing to hear from them are two decisions, and neither is allowed to
+  /// silently perform the other.
+  Future<Map<String, dynamic>> reportUser(String accountId, String reason) =>
+      _send('POST', '/v1/users/$accountId/report', body: {'reason': reason});
 
   // --- Keys and messages ----------------------------------------------------
 

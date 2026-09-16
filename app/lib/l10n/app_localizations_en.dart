@@ -4465,4 +4465,106 @@ class AppTextEn extends AppText {
 
   @override
   String get privacyOverview => 'Overview';
+
+  @override
+  String get profileTitle => 'Profile';
+
+  @override
+  String get profileMessageAction => 'Message';
+
+  @override
+  String get profileCallAction => 'Call';
+
+  @override
+  String get profileVideoAction => 'Video';
+
+  @override
+  String get profilePrivioId => 'Privio ID';
+
+  @override
+  String get profileIdCopied => 'Privio ID copied';
+
+  @override
+  String get profileAddContact => 'Add to contacts';
+
+  @override
+  String get profileRemoveContact => 'Remove from contacts';
+
+  @override
+  String profileRemoveContactTitle(String name) {
+    return 'Remove $name?';
+  }
+
+  @override
+  String get profileRemoveContactBody =>
+      'They leave your contacts. The chat and its messages stay where they are.';
+
+  @override
+  String get profileContactAdded => 'Added to contacts';
+
+  @override
+  String get profileContactRemoved => 'Removed from contacts';
+
+  @override
+  String get profileCouldNotAddContact => 'Could not add this contact';
+
+  @override
+  String get profileCouldNotRemoveContact => 'Could not remove this contact';
+
+  @override
+  String get profileBlockedTitle => 'You blocked this account';
+
+  @override
+  String get profileBlockedBody =>
+      'Nothing they send reaches you. They are not told, and see no difference.';
+
+  @override
+  String profileLastSeen(String when) {
+    return 'Last seen $when';
+  }
+
+  @override
+  String get profileYouTitle => 'This is your own profile';
+
+  @override
+  String get profileYouBody =>
+      'Your picture, name and status are yours to change on the Account screen.';
+
+  @override
+  String get profileGoneTitle => 'This account no longer exists';
+
+  @override
+  String get profileGoneBody =>
+      'It was deleted, or it never existed. Messages already in your chat stay as they are.';
+
+  @override
+  String get profileCouldNotLoad => 'Could not load this profile';
+
+  @override
+  String get profileReport => 'Report this account';
+
+  @override
+  String profileReportTitle(String name) {
+    return 'Report $name';
+  }
+
+  @override
+  String get profileReportBody =>
+      'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.';
+
+  @override
+  String get profileReported => 'Report filed';
+
+  @override
+  String get profileAlreadyReported =>
+      'Your earlier report about this account is still on file';
+
+  @override
+  String get profileCouldNotReport => 'Could not file the report';
+
+  @override
+  String get profileOpenProfile => 'Open profile';
+
+  @override
+  String get profileVerifyAction => 'Verify';
 }

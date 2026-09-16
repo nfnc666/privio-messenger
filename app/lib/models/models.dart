@@ -41,6 +41,28 @@ extension on String {
   String characters1() => isEmpty ? '' : substring(0, 1).toUpperCase();
 }
 
+/// Why something is being reported.
+///
+/// One enum for a channel and for a person, because the server takes the same
+/// five words for both and the person choosing one is answering the same
+/// question. The wire values are what the server checks and never change; the
+/// words shown are translations, in `l10n/channel_text.dart`.
+///
+/// A fixed set, never free text: a text box is where somebody pastes the
+/// content they are reporting, which would put the very thing the encryption
+/// protects into a column the server can read.
+enum ReportReason {
+  spam('spam'),
+  abuse('abuse'),
+  illegal('illegal'),
+  impersonation('impersonation'),
+  other('other');
+
+  const ReportReason(this.wire);
+
+  final String wire;
+}
+
 enum MessageKind {
   text,
   voice,

@@ -366,10 +366,21 @@ class MessagingService {
   /// "Typing." Cheap, frequent, and worthless a few seconds later, so it
   /// carries the moment it was sent and the reader decides whether that is
   /// still now.
-  Future<void> sendTyping(String username) => sendPayload(
-        username,
-        MessagePayload.typing(DateTime.now().millisecondsSinceEpoch),
-      );
+  ///
+  /// `async` with an `await` rather than a returned expression, and that is not
+  /// a style choice: `sendPayload` answers `Future<int>`, so the shorter form
+  /// returned a future whose *runtime* type was `Future<int>` behind a
+  /// `Future<void>` signature. The one caller attaches
+  /// `.catchError((_) {})` — and a handler returning nothing is not an `int`,
+  /// so the moment a typing notice actually failed, the swallow threw
+  /// `ArgumentError` instead of swallowing. Typing into a chat with no network
+  /// is exactly when that happens.
+  Future<void> sendTyping(String username) async {
+    await sendPayload(
+      username,
+      MessagePayload.typing(DateTime.now().millisecondsSinceEpoch),
+    );
+  }
 
   /// Attaches this account's profile key, which is how contacts become able to
   /// open its profile picture without the server ever learning the key.

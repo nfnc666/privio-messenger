@@ -7662,6 +7662,186 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Overview'**
   String get privacyOverview;
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get profileTitle;
+
+  /// No description provided for @profileMessageAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get profileMessageAction;
+
+  /// No description provided for @profileCallAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Call'**
+  String get profileCallAction;
+
+  /// No description provided for @profileVideoAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get profileVideoAction;
+
+  /// No description provided for @profilePrivioId.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio ID'**
+  String get profilePrivioId;
+
+  /// No description provided for @profileIdCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio ID copied'**
+  String get profileIdCopied;
+
+  /// No description provided for @profileAddContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to contacts'**
+  String get profileAddContact;
+
+  /// No description provided for @profileRemoveContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from contacts'**
+  String get profileRemoveContact;
+
+  /// No description provided for @profileRemoveContactTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}?'**
+  String profileRemoveContactTitle(String name);
+
+  /// No description provided for @profileRemoveContactBody.
+  ///
+  /// In en, this message translates to:
+  /// **'They leave your contacts. The chat and its messages stay where they are.'**
+  String get profileRemoveContactBody;
+
+  /// No description provided for @profileContactAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to contacts'**
+  String get profileContactAdded;
+
+  /// No description provided for @profileContactRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed from contacts'**
+  String get profileContactRemoved;
+
+  /// No description provided for @profileCouldNotAddContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not add this contact'**
+  String get profileCouldNotAddContact;
+
+  /// No description provided for @profileCouldNotRemoveContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not remove this contact'**
+  String get profileCouldNotRemoveContact;
+
+  /// No description provided for @profileBlockedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You blocked this account'**
+  String get profileBlockedTitle;
+
+  /// No description provided for @profileBlockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing they send reaches you. They are not told, and see no difference.'**
+  String get profileBlockedBody;
+
+  /// No description provided for @profileLastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {when}'**
+  String profileLastSeen(String when);
+
+  /// No description provided for @profileYouTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This is your own profile'**
+  String get profileYouTitle;
+
+  /// No description provided for @profileYouBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your picture, name and status are yours to change on the Account screen.'**
+  String get profileYouBody;
+
+  /// No description provided for @profileGoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This account no longer exists'**
+  String get profileGoneTitle;
+
+  /// No description provided for @profileGoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'It was deleted, or it never existed. Messages already in your chat stay as they are.'**
+  String get profileGoneBody;
+
+  /// No description provided for @profileCouldNotLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this profile'**
+  String get profileCouldNotLoad;
+
+  /// No description provided for @profileReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report this account'**
+  String get profileReport;
+
+  /// No description provided for @profileReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report {name}'**
+  String profileReportTitle(String name);
+
+  /// No description provided for @profileReportBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.'**
+  String get profileReportBody;
+
+  /// No description provided for @profileReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Report filed'**
+  String get profileReported;
+
+  /// No description provided for @profileAlreadyReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your earlier report about this account is still on file'**
+  String get profileAlreadyReported;
+
+  /// No description provided for @profileCouldNotReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not file the report'**
+  String get profileCouldNotReport;
+
+  /// No description provided for @profileOpenProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Open profile'**
+  String get profileOpenProfile;
+
+  /// No description provided for @profileVerifyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify'**
+  String get profileVerifyAction;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

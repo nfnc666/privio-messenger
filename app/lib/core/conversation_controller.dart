@@ -525,6 +525,23 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  /// Drops somebody from this account's address book.
+  ///
+  /// The conversation and its messages stay: an address book entry and a chat
+  /// are different things, and deleting somebody's messages because you stopped
+  /// listing them would be destroying history nobody asked to lose.
+  Future<bool> removeContact(String accountId) async {
+    try {
+      await _services.api.removeContact(accountId);
+      await refreshContacts();
+      return true;
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Ensures a conversation exists for [username], returning its account id.
   Future<String?> openConversation(String username) async {
     try {

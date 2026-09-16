@@ -14,6 +14,7 @@ import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
+import '../widgets/profile_action_button.dart';
 import '../widgets/settings_row.dart';
 import 'channel_admins_screen.dart';
 import 'channel_edit_screen.dart';
@@ -419,7 +420,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                   child: Row(
                     children: [
-                      _ActionButton(
+                      ProfileActionButton(
                         icon: Icons.podcasts_rounded,
                         label: 'livestream',
                         // Dimmed rather than hidden where the server has no
@@ -431,7 +432,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         onTap: () => unawaited(_live_()),
                       ),
                       const SizedBox(width: PrivioSpacing.sm),
-                      _ActionButton(
+                      ProfileActionButton(
                         icon: channel.muted
                             ? Icons.notifications_off_rounded
                             : Icons.notifications_rounded,
@@ -440,7 +441,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         onTap: () => unawaited(_toggleMute()),
                       ),
                       const SizedBox(width: PrivioSpacing.sm),
-                      _ActionButton(
+                      ProfileActionButton(
                         icon: Icons.search_rounded,
                         label: 'search',
                         onTap: () {
@@ -454,7 +455,7 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         },
                       ),
                       const SizedBox(width: PrivioSpacing.sm),
-                      _ActionButton(
+                      ProfileActionButton(
                         icon: Icons.more_horiz_rounded,
                         label: 'more',
                         onTap: () => unawaited(_more()),
@@ -582,65 +583,6 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
 }
 
 /// One of the four round-cornered actions under the channel's name.
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.dimmed = false,
-    this.highlighted = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  /// The action exists but cannot do anything here — it still opens, and what
-  /// it opens says why.
-  final bool dimmed;
-
-  /// Its state is on: muted, or a stream running.
-  final bool highlighted;
-
-  @override
-  Widget build(BuildContext context) {
-    final colour = dimmed
-        ? PrivioColors.textTertiary
-        : highlighted
-            ? context.accents.bright
-            : context.accents.accent;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(PrivioSpacing.md),
-        child: Container(
-          height: 68,
-          decoration: BoxDecoration(
-            color: PrivioColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(PrivioSpacing.md),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: colour, size: 22),
-              const SizedBox(height: PrivioSpacing.xs),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: colour, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// The dark rounded card every group on this screen sits in.
 class _Card extends StatelessWidget {
   const _Card({required this.children});

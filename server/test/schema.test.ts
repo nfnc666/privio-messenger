@@ -90,6 +90,12 @@ const READABLE: Record<string, string> = {
   // readable column, written by a person with every reason to. See
   // migration 022.
   'channel_reports.reason': 'one of five fixed words, never free text',
+  // The same five words, about a person rather than a channel. Doubly fixed
+  // here: the server cannot read a single message either side of this report
+  // sent, so a free field would be the *only* place the reported content could
+  // land, and somebody trying to get it in front of a moderator would put it
+  // there. See migration 033.
+  'account_reports.reason': 'one of five fixed words, never free text',
 
   // The profile status. The one piece of content-bearing text a *person types*
   // that this server can read, and it is here knowingly rather than by

@@ -4509,4 +4509,108 @@ class AppTextDe extends AppText {
 
   @override
   String get privacyOverview => 'Übersicht';
+
+  @override
+  String get profileTitle => 'Profil';
+
+  @override
+  String get profileMessageAction => 'Nachricht';
+
+  @override
+  String get profileCallAction => 'Anruf';
+
+  @override
+  String get profileVideoAction => 'Video';
+
+  @override
+  String get profilePrivioId => 'PRIVIO-ID';
+
+  @override
+  String get profileIdCopied => 'PRIVIO-ID kopiert';
+
+  @override
+  String get profileAddContact => 'Zu Kontakten hinzufügen';
+
+  @override
+  String get profileRemoveContact => 'Aus Kontakten entfernen';
+
+  @override
+  String profileRemoveContactTitle(String name) {
+    return '$name entfernen?';
+  }
+
+  @override
+  String get profileRemoveContactBody =>
+      'Die Person verlässt deine Kontakte. Der Chat und seine Nachrichten bleiben unverändert.';
+
+  @override
+  String get profileContactAdded => 'Zu Kontakten hinzugefügt';
+
+  @override
+  String get profileContactRemoved => 'Aus Kontakten entfernt';
+
+  @override
+  String get profileCouldNotAddContact =>
+      'Kontakt konnte nicht hinzugefügt werden';
+
+  @override
+  String get profileCouldNotRemoveContact =>
+      'Kontakt konnte nicht entfernt werden';
+
+  @override
+  String get profileBlockedTitle => 'Du hast dieses Konto blockiert';
+
+  @override
+  String get profileBlockedBody =>
+      'Nichts, was von dort gesendet wird, erreicht dich. Die Person erfährt es nicht und sieht keinen Unterschied.';
+
+  @override
+  String profileLastSeen(String when) {
+    return 'Zuletzt online $when';
+  }
+
+  @override
+  String get profileYouTitle => 'Das ist dein eigenes Profil';
+
+  @override
+  String get profileYouBody =>
+      'Bild, Name und Status änderst du im Konto-Bereich.';
+
+  @override
+  String get profileGoneTitle => 'Dieses Konto gibt es nicht mehr';
+
+  @override
+  String get profileGoneBody =>
+      'Es wurde gelöscht, oder es gab es nie. Nachrichten in deinem Chat bleiben, wie sie sind.';
+
+  @override
+  String get profileCouldNotLoad => 'Profil konnte nicht geladen werden';
+
+  @override
+  String get profileReport => 'Konto melden';
+
+  @override
+  String profileReportTitle(String name) {
+    return '$name melden';
+  }
+
+  @override
+  String get profileReportBody =>
+      'Die Moderation erfährt den Grund und sonst nichts. Der PRIVIO-Server hat deine Nachrichten nie im Klartext, deshalb kann nichts davon beigelegt werden.';
+
+  @override
+  String get profileReported => 'Meldung eingereicht';
+
+  @override
+  String get profileAlreadyReported =>
+      'Deine frühere Meldung zu diesem Konto liegt weiterhin vor';
+
+  @override
+  String get profileCouldNotReport => 'Meldung konnte nicht eingereicht werden';
+
+  @override
+  String get profileOpenProfile => 'Profil öffnen';
+
+  @override
+  String get profileVerifyAction => 'Prüfen';
 }
