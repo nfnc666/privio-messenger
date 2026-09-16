@@ -21,7 +21,9 @@ import '../services/push_wake.dart';
 import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
+import '../models/security_event.dart';
 import 'security_controller.dart';
+import 'security_event_controller.dart';
 import 'screen_shield_controller.dart';
 import 'bot_controller.dart';
 import 'phone_controller.dart';
@@ -109,6 +111,7 @@ class AppState extends ChangeNotifier {
   SecurityController? _security;
   StatusController? _profileStatus;
   StickerController? _stickers;
+  SecurityEventController? _securityEvents;
   PhoneController? _phone;
   BotController? _bots;
   WakeUpController? _wakeUp;
@@ -281,7 +284,11 @@ class AppState extends ChangeNotifier {
   WakeUpController get wakeUp => _wakeUp ??= WakeUpController(services.api);
 
   /// The second factor, who may see your last-seen, and who is blocked.
-  SecurityController get security => _security ??= SecurityController(services.api);
+  SecurityController get security =>
+      // The store is what lets it notice a device somebody else linked: the
+      // detection is a diff against what this phone last saw, and without a
+      // place to keep that it silently does nothing.
+      _security ??= SecurityController(services.api, store: _store);
 
   /// The line this account published about itself.
   ///
@@ -303,6 +310,24 @@ class AppState extends ChangeNotifier {
 
   /// The bots this account owns, and the conversation with @botcreator.
   BotController get bots => _bots ??= BotController(services.api);
+
+  /// What has happened to this account's security, kept on this device only.
+  ///
+  /// Reads and writes `services.securityLog`, which seals with the archive key
+  /// — so the list lives exactly as long as the message history on this phone
+  /// and dies in the same instant. There is no server side to it, on purpose:
+  /// see `screens/security_activity_screen.dart`.
+  SecurityEventController get securityEvents =>
+      _securityEvents ??= SecurityEventController(services.securityLog);
+
+  /// Files a security event for whoever is signed in.
+  ///
+  /// Routed through here rather than handed the controller directly, so the
+  /// things that *produce* events — the security controller, the proxy, the
+  /// crypto layer — never hold a reference to the list that displays them, and
+  /// an account switch between the action and the write is caught in one place.
+  void _recordSecurityEvent(SecurityEventKind kind, {String? subject}) =>
+      detached(securityEvents.record(kind, subject: subject));
 
   /// Runs the "initialising secure environment" step: opens the keystore, loads
   /// this device's identity, restores a session if there is one, and reads
@@ -532,6 +557,24 @@ class AppState extends ChangeNotifier {
       // The phone link, under the same rule: per account, and an answer that
       // arrives after a switch is dropped rather than applied.
       if (phone.accountId != account) detached(phone.load(account));
+      phone.onSecurityEvent = _recordSecurityEvent;
+      // The local security log, and the wire that feeds it. Both before any
+      // screen can ask for them, so an event that happens in the first seconds
+      // after sign-in is filed under the account it belongs to rather than
+      // dropped for want of an owner.
+      if (securityEvents.accountId != account) detached(securityEvents.load(account));
+      security
+        ..accountId = account
+        ..onSecurityEvent = _recordSecurityEvent;
+      conversations.onSecurityEvent = _recordSecurityEvent;
+      // Whether a changed safety number locks the chat. Read at sign-in rather
+      // than when a chat opens: a security setting that waits for a screen is
+      // one somebody will believe is on when it is not.
+      detached(conversations.loadKeyChangeBlocking(account));
+      ProxyController.instance.onRoutingChanged = ({required bool enabled}) =>
+          _recordSecurityEvent(
+            enabled ? SecurityEventKind.proxyEnabled : SecurityEventKind.proxyDisabled,
+          );
     }
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
@@ -626,6 +669,7 @@ class AppState extends ChangeNotifier {
     await _store.setPasscode(passcode, kind);
     _screenLockSet = true;
     _passcodeKind = kind;
+    _recordSecurityEvent(SecurityEventKind.screenLockChanged);
     notifyListeners();
   }
 
@@ -639,6 +683,10 @@ class AppState extends ChangeNotifier {
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;
+    // One event for both, and deliberately without saying which: the log lives
+    // on the phone, and a line reading "screen lock removed" tells whoever
+    // picked the phone up that there is nothing in their way.
+    _recordSecurityEvent(SecurityEventKind.screenLockChanged);
     notifyListeners();
   }
 
@@ -798,6 +846,17 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    // The security log goes with the history it is sealed beside. Keeping a
+    // list of when this account changed its password, on a phone the account is
+    // no longer on, would be a record with an owner and no owner's consent.
+    //
+    // Straight at the log rather than through the controller: the controller
+    // may never have been built — nobody opened the screen — and building one
+    // here only to dispose it two lines later leaves a `notifyListeners` from
+    // the in-flight clear landing on a disposed object.
+    detached(_services?.securityLog.clear() ?? Future<void>.value());
+    _securityEvents?.dispose();
+    _securityEvents = null;
     _phone?.dispose();
     _phone = null;
     _bots?.dispose();
@@ -912,6 +971,17 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    // The security log goes with the history it is sealed beside. Keeping a
+    // list of when this account changed its password, on a phone the account is
+    // no longer on, would be a record with an owner and no owner's consent.
+    //
+    // Straight at the log rather than through the controller: the controller
+    // may never have been built — nobody opened the screen — and building one
+    // here only to dispose it two lines later leaves a `notifyListeners` from
+    // the in-flight clear landing on a disposed object.
+    detached(_services?.securityLog.clear() ?? Future<void>.value());
+    _securityEvents?.dispose();
+    _securityEvents = null;
     _phone?.dispose();
     _phone = null;
     _bots?.dispose();
@@ -981,6 +1051,17 @@ class AppState extends ChangeNotifier {
     _profileStatus = null;
     _stickers?.dispose();
     _stickers = null;
+    // The security log goes with the history it is sealed beside. Keeping a
+    // list of when this account changed its password, on a phone the account is
+    // no longer on, would be a record with an owner and no owner's consent.
+    //
+    // Straight at the log rather than through the controller: the controller
+    // may never have been built — nobody opened the screen — and building one
+    // here only to dispose it two lines later leaves a `notifyListeners` from
+    // the in-flight clear landing on a disposed object.
+    detached(_services?.securityLog.clear() ?? Future<void>.value());
+    _securityEvents?.dispose();
+    _securityEvents = null;
     _phone?.dispose();
     _phone = null;
     _bots?.dispose();

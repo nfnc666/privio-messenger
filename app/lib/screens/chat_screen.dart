@@ -15,13 +15,17 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../models/models.dart';
 import '../media/attachment.dart' show CustomEmojiRef;
+import '../media/photo.dart';
+import '../media/photo_source.dart';
 import '../media/voice.dart';
+import '../services/system_settings.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
 import 'sticker_pack_screen.dart';
 import 'stickers_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
+import '../widgets/photo_preview_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/accent.dart';
@@ -532,7 +536,166 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return at;
   }
 
+  /// The plus button. A menu rather than a file picker, because a chat is
+  /// mostly photographs and the old button opened a file browser to get to
+  /// them — three taps and a filesystem to send a picture that was in the
+  /// camera roll.
   Future<void> _attach() async {
+    final text = AppText.of(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(text.attachPhotos),
+              onTap: () => Navigator.of(sheetContext).pop('photos'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file_rounded),
+              title: Text(text.attachFile),
+              onTap: () => Navigator.of(sheetContext).pop('file'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'photos') return _pickPhotos();
+    return _attachFile();
+  }
+
+  /// Opens the camera, and nothing else. The permission is asked for here, at
+  /// the moment the camera is wanted, rather than at startup — a messenger
+  /// that asks for the camera on first run has not explained why it wants it.
+  Future<void> _capture() async {
+    final camera = PrivioScope.of(context).services.photos;
+    var again = true;
+    while (again && mounted) {
+      final pick = await camera.capture();
+      if (!mounted) return;
+      again = await _handlePick(pick, allowRetake: true);
+    }
+  }
+
+  Future<void> _pickPhotos() async {
+    final pick = await PrivioScope.of(context).services.photos.pickImages();
+    if (!mounted) return;
+    await _handlePick(pick, allowRetake: false);
+  }
+
+  /// Turns one of the [PhotoPick] cases into either a preview or a sentence.
+  ///
+  /// Returns true when the person asked to take the picture again, so the
+  /// camera loop above reopens rather than recursing into itself.
+  Future<bool> _handlePick(PhotoPick pick, {required bool allowRetake}) async {
+    final text = AppText.of(context);
+    switch (pick) {
+      // A cancel is a decision, not an error. Nothing is prepared, nothing is
+      // uploaded, and nothing is said about it.
+      case PhotoCancelled():
+        return false;
+      case PhotoUnavailable():
+        _showError(text.photoNoCamera);
+        return false;
+      case PhotoRefused(:final camera):
+        await _explainRefusal(camera: camera);
+        return false;
+      case PhotoFailed(:final detail):
+        _showError(text.photoFailed(detail));
+        return false;
+      case PhotoPicked(:final photos):
+        return _prepareAndPreview(photos, allowRetake: allowRetake);
+    }
+  }
+
+  Future<bool> _prepareAndPreview(
+    List<PickedPhoto> picked, {
+    required bool allowRetake,
+  }) async {
+    final text = AppText.of(context);
+    // Captured before the first await: the account is what these photos belong
+    // to, and a preview stays open for as long as somebody takes to write a
+    // caption. Everything below is checked against it.
+    final controller = PrivioScope.of(context).conversations;
+    final account = controller.accountId;
+
+    final prepared = await PhotoImage.prepareAll([for (final photo in picked) photo.bytes]);
+    if (!mounted) return false;
+    if (prepared.isEmpty) {
+      _showError(text.photoNoneReadable);
+      return false;
+    }
+    if (prepared.length < picked.length) {
+      _showError(text.photoSomeLeftOut(picked.length - prepared.length));
+    }
+
+    final result = await PhotoPreviewSheet.open(
+      context,
+      photos: prepared,
+      allowRetake: allowRetake,
+    );
+    if (!mounted) return false;
+    if (result is PhotoPreviewRetake) return true;
+    // Null is the cancel, and the close button, and the last picture being
+    // removed. All three mean the same thing: nothing goes out.
+    if (result is! PhotoPreviewSend) return false;
+
+    // The switch may have happened while the preview was open. `sendPhotos`
+    // checks this again for itself — this one is so the screen does not scroll
+    // somebody else's chat.
+    final now = PrivioScope.of(context).conversations;
+    if (!identical(now, controller) || now.accountId != account) return false;
+
+    await controller.sendPhotos(
+      widget.accountId,
+      result.photos,
+      caption: result.caption,
+      account: account,
+    );
+    if (!mounted) return false;
+    _scrollToEnd();
+    // The same notice every other attachment shows, and for the same reason:
+    // what came out of the file is worth one line rather than an assumption.
+    final report = result.photos.first.report;
+    ScrubNotice.show(context, report);
+    return false;
+  }
+
+  /// A refused camera or photo permission, with the one thing that can be done
+  /// about it. Android and iOS both stop showing their dialog after the first
+  /// no, so "try again" is not an option to offer — the settings page is.
+  Future<void> _explainRefusal({required bool camera}) async {
+    final text = AppText.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final opened = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text(camera ? text.photoCameraRefused : text.photoLibraryRefused),
+        content: Text(text.photoAllowInSettings),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(text.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(text.photoOpenSettings),
+          ),
+        ],
+      ),
+    );
+    if (opened != true) return;
+    if (!await const SystemSettings().open()) {
+      messenger.showSnackBar(SnackBar(content: Text(text.photoSettingsFailed)));
+    }
+  }
+
+  Future<void> _attachFile() async {
     final text = AppText.of(context);
     PlatformFile? picked;
     try {
@@ -815,6 +978,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       builder: (context, _) {
         final messages = state.conversations.messagesWith(widget.accountId);
         _messageCount = messages.length;
+        // A one-to-one chat whose safety number changed, on an account that
+        // asked to be stopped rather than warned. Groups are not held: a group
+        // key change is a different event with different causes, and locking
+        // a group of twelve because one member reinstalled is not a security
+        // control anybody would leave switched on.
+        final held = !widget.isGroup &&
+            state.conversations.isHeldByKeyChange(widget.accountId);
         // Once, on the way in: a search sent us to a particular line.
         if (widget.jumpTo != null && !_jumped) {
           _jumped = true;
@@ -963,6 +1133,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              // The chat is held because the safety number changed and the
+              // account asked to be stopped. Above the composer rather than at
+              // the top of the transcript: it is about the message somebody is
+              // about to write, not about the ones already there.
+              if (held)
+                _HeldBanner(
+                  name: widget.title,
+                  onOpen: () => unawaited(_openSafetyNumber()),
+                ),
               if (_replyingTo != null)
                 _ReplyBar(
                   message: _replyingTo!,
@@ -987,9 +1166,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 listenable: _voiceRebuild,
                 builder: (context, _) => _Composer(
                   controller: _composer,
-                  onSend: _send,
-                  onAttach: _attach,
-                  onPickSticker: _pickSticker,
+                  onSend: held ? () {} : _send,
+                  onAttach: held ? null : _attach,
+                  onCamera: held ? null : _capture,
+                  onPickSticker: held ? null : _pickSticker,
                   onHoldStart: _startRecording,
                   onHoldUpdate: (dx) {
                     _voiceKey.currentState?.onDragUpdate(dx);
@@ -1072,6 +1252,7 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    required this.onCamera,
     required this.onPickSticker,
     required this.onHoldStart,
     required this.onHoldUpdate,
@@ -1087,6 +1268,12 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
+
+  /// Opens the camera. Its own button rather than a third entry in the
+  /// attachment menu: taking a picture and sending it is the single commonest
+  /// thing anybody does in a chat, and two taps of indirection is what makes
+  /// people reach for another app to do it.
+  final VoidCallback? onCamera;
 
   /// Opens the sticker and emoji picker.
   final VoidCallback? onPickSticker;
@@ -1148,6 +1335,18 @@ class _Composer extends StatelessWidget {
                 ),
                 tooltip: AppText.of(context).pickerOpenTooltip,
               ),
+              IconButton(
+                onPressed: onCamera,
+                icon: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: PrivioColors.textSecondary,
+                ),
+                tooltip: AppText.of(context).composerCamera,
+              ),
+              // Unchanged and in the same place. The disappearing-messages
+              // timer is the one button here whose state somebody can be hurt
+              // by not seeing, and the camera goes beside it rather than over
+              // it.
               _TimerButton(timer: disappearAfter, onPressed: onChooseTimer),
               Expanded(
                 child: TextField(
@@ -1196,6 +1395,57 @@ class _Composer extends StatelessWidget {
 /// deletes itself is the one way this feature can hurt somebody — they keep
 /// writing, and what they wrote is gone. The state has to be visible without
 /// being asked for.
+
+/// The chat is held because the contact's safety number changed.
+///
+/// Not a red error bar: nothing has gone wrong and nothing has failed. What has
+/// happened is that the person on the other end cannot be shown to be the
+/// person who was there yesterday, and this account asked to be stopped at that
+/// point rather than warned past it. The way out is the number, so the banner
+/// is the way to it.
+class _HeldBanner extends StatelessWidget {
+  const _HeldBanner({required this.name, required this.onOpen});
+
+  final String name;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    return Container(
+      key: const Key('chat-held-by-key-change'),
+      width: double.infinity,
+      color: PrivioColors.warning.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: PrivioSpacing.gutter,
+        vertical: PrivioSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            text.chatHeldByKeyChange(name),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: PrivioColors.warning),
+          ),
+          const SizedBox(height: PrivioSpacing.sm),
+          TextButton(
+            onPressed: onOpen,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(text.chatHeldCompareNow),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TimerButton extends StatelessWidget {
   const _TimerButton({required this.timer, required this.onPressed});
 

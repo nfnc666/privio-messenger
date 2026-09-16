@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../models/security_event.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/channel_text.dart';
 import '../data/recovery_key.dart';
@@ -142,7 +143,12 @@ class _BackupScreenState extends State<BackupScreen> {
     try {
       final contents = await _backup.restoreFromServer(key);
       if (!mounted) return;
-      await PrivioScope.of(context).conversations.adoptRestored();
+      final state = PrivioScope.of(context);
+      await state.conversations.adoptRestored();
+      // Filed after the restore succeeded, not before: a restore that failed
+      // is not a restore, and a security log that records attempts would say
+      // this device was restored onto when it was not.
+      unawaited(state.securityEvents.record(SecurityEventKind.backupRestored));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

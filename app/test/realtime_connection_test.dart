@@ -81,13 +81,27 @@ void main() {
     }
   }
 
-  test('authenticates the handshake with the session token', () async {
+  test('the session token is not in the handshake URL', () async {
+    // It used to be, and this test used to assert that it was. #123 moved it
+    // into a WebSocket subprotocol header, for the reason written on
+    // `_defaultConnect`: a URL is retained by reverse proxies and access logs,
+    // and a bearer token must never become part of that logging surface.
+    //
+    // The assertion is inverted rather than deleted. A test that checked the
+    // old behaviour and was removed leaves nothing watching the new one, and
+    // the thing worth watching is precisely that the token stops appearing
+    // where it used to.
     connect(token: 'secret-token').start();
     await waitUntil(() => server.handshakes.isNotEmpty, reason: 'never connected');
 
     final uri = server.handshakes.single;
     expect(uri.path, '/v1/ws');
-    expect(uri.queryParameters['token'], 'secret-token');
+    expect(uri.queryParameters['token'], isNull);
+    expect(
+      uri.toString(),
+      isNot(contains('secret-token')),
+      reason: 'not under another parameter name, and not in the fragment either',
+    );
   });
 
   test('delivers pushed envelopes without any polling', () async {

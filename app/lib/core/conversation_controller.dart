@@ -9,6 +9,7 @@ import '../data/outbox.dart';
 import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
+import '../media/photo.dart';
 import '../crypto/privio_crypto.dart';
 import 'message_search.dart';
 import '../media/voice.dart';
@@ -17,6 +18,7 @@ import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
 import '../models/models.dart';
+import '../models/security_event.dart';
 import 'api_client.dart';
 import 'failure.dart';
 import 'privio_services.dart';
@@ -137,10 +139,27 @@ class ConversationController extends ChangeNotifier {
   Future<void> _raiseKeyChanges() async {
     for (final change in _services.crypto.takeIdentityReplacements()) {
       if (change.accountId == accountId) continue; // one of my own devices
-      _keyChangeAlerts.add(change.accountId);
+      // Only the first device of theirs to change raises a line in the
+      // security log. A contact who reinstalls brings several new device keys
+      // at once, and five identical warnings about one event teach the reader
+      // to scroll past them.
+      final first = _keyChangeAlerts.add(change.accountId);
       await _services.crypto.raiseKeyChangeAlert(change.accountId);
+      if (first) {
+        onSecurityEvent?.call(
+          SecurityEventKind.contactKeyChanged,
+          subject: _services.store.conversationWith(change.accountId)?.user?.displayName,
+        );
+      }
     }
   }
+
+  /// Where a security event goes, or null when nothing is listening.
+  ///
+  /// A callback rather than a reference to the controller that displays the
+  /// list, so the conversation layer never depends on a settings screen. Set by
+  /// [AppState] at sign-in.
+  void Function(SecurityEventKind kind, {String? subject})? onSecurityEvent;
 
   /// Records a refused send so the chat can say why rather than showing a
   /// message stuck at "failed" with no explanation.
@@ -166,6 +185,59 @@ class ConversationController extends ChangeNotifier {
 
   bool get readReceiptsEnabled => _readReceipts;
   bool get typingIndicatorsEnabled => _typingIndicators;
+
+  bool _blockOnKeyChange = false;
+
+  /// Whether a chat locks itself when the contact's safety number changes.
+  ///
+  /// **A local setting and only a local one.** It is read from and written to
+  /// this device's keystore; the server is never told, because a server that
+  /// knew which of its users refuse unexplained key changes would know exactly
+  /// which of them not to try it on.
+  bool get blockOnKeyChange => _blockOnKeyChange;
+
+  /// Reads the setting for [account]. Off until it has answered, which is the
+  /// safe default for a *lock*: a chat must not be unusable because a keystore
+  /// read was slow.
+  Future<void> loadKeyChangeBlocking(String account) async {
+    final block = await _services.secureStore.readBlockOnKeyChange(account);
+    if (accountId != account) return;
+    _blockOnKeyChange = block;
+    notifyListeners();
+  }
+
+  Future<void> setBlockOnKeyChange(bool block) async {
+    final account = accountId;
+    _blockOnKeyChange = block;
+    notifyListeners();
+    if (account != null) {
+      await _services.secureStore.writeBlockOnKeyChange(account, block);
+    }
+  }
+
+  /// Whether this conversation is held until the new number has been looked at.
+  ///
+  /// Two sources, and both are already facts this class keeps: a key change
+  /// seen on an *incoming* message ([hasKeyChangeAlert]) and one that refused
+  /// an *outgoing* one ([hasIdentityChange]). Either means the person on the
+  /// other end is not provably the person who was there yesterday.
+  ///
+  /// What the lock does and does not do is worth being exact about, because the
+  /// difference is the difference between a security control and a comfort
+  /// blanket:
+  ///
+  /// * **Sending is refused on a changed key whether this is on or off.** That
+  ///   is the crypto layer's pinning and it has never been optional — see
+  ///   [IdentityChangedException]. This setting does not add that.
+  /// * What it adds is that the chat stops *looking* usable: the composer is
+  ///   disabled and says why, rather than accepting a message that will fail.
+  /// * **Messages already received are not deleted or hidden.** Privio does not
+  ///   throw away something it has already decrypted; the chat is marked
+  ///   instead. Deleting them would destroy evidence of exactly the event the
+  ///   user is being warned about.
+  bool isHeldByKeyChange(String conversationId) =>
+      _blockOnKeyChange &&
+      (hasKeyChangeAlert(conversationId) || hasIdentityChange(conversationId));
 
   /// True while the other side of [conversationId] is typing.
   bool isTyping(String conversationId) =>
@@ -1474,6 +1546,93 @@ class ConversationController extends ChangeNotifier {
     await flushOutbox();
   }
 
+  /// Queues photos, in the order they were chosen.
+  ///
+  /// Deliberately the *same* road a voice message takes rather than the one
+  /// [sendAttachment] takes, and the difference is the part the user sees. The
+  /// outbox seals first, persists the ciphertext, uploads once and remembers
+  /// the upload: a send that fails can be retried without uploading again and
+  /// — the thing that actually matters — **without a second bubble**, because
+  /// the queue is keyed on the client id the server also treats as the
+  /// idempotency key. `sendAttachment` has none of that; a failed photo there
+  /// sat on "sending" forever with nothing to do about it.
+  ///
+  /// The caption goes on the first picture only. A set of six photos with the
+  /// same sentence repeated under each is not what anybody means by "add a
+  /// caption", and the alternative — a separate text message — arrives out of
+  /// order often enough to be worse.
+  ///
+  /// [account] is the account these photos were chosen in. A picker is open for
+  /// as long as somebody takes to choose, which is ample time to switch
+  /// accounts behind it; the check means the photos are dropped rather than
+  /// filed into whoever is logged in when the sheet closes.
+  Future<void> sendPhotos(
+    String conversationId,
+    List<PreparedPhoto> photos, {
+    String caption = '',
+    String? account,
+  }) async {
+    if (photos.isEmpty) return;
+    if (account != null && account != accountId) return;
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+
+    final timer = conversation.disappearAfter;
+
+    for (var i = 0; i < photos.length; i++) {
+      final photo = photos[i];
+      final clientId = _newClientId();
+      final sealed = await AttachmentCipher.seal(photo.bytes, declaredType: _photoType);
+      // Re-checked after every await, not once at the top: sealing several
+      // photos takes real time on a phone, and the switch can land in the
+      // middle of it.
+      if (account != null && account != accountId) return;
+
+      _services.store.append(
+        conversationId,
+        Message(
+          id: clientId,
+          clientId: clientId,
+          body: i == 0 ? caption : '',
+          sentAt: DateTime.now(),
+          isMine: true,
+          kind: MessageKind.photo,
+          state: DeliveryState.sending,
+          // No expiry until it has been somewhere. Same reason as voice: a
+          // photo queued with no signal must not run its clock down while it
+          // waits, disappear from the sender's own chat, and then send.
+        ),
+      );
+
+      _outbox.add(
+        PendingSend(
+          clientId: clientId,
+          conversationId: conversationId,
+          isGroup: conversation.isGroup,
+          username: conversation.user?.username,
+          groupKey: conversation.group?.groupKey,
+          mediaType: _photoType,
+          sealedBytes: sealed.bytes,
+          mediaKey: base64Encode(sealed.key),
+          plainLength: sealed.plainLength,
+          durationMs: 0,
+          waveform: const [],
+          fileName: photo.fileName,
+          caption: i == 0 ? caption : '',
+          expiresInSeconds: timer?.inSeconds,
+        ),
+      );
+    }
+
+    _persist();
+    notifyListeners();
+    await flushOutbox();
+  }
+
+  /// What [PhotoImage] produces, always. Named here because the outbox entry
+  /// and the sealed payload have to agree with the bubble about what it is.
+  static const String _photoType = 'image/jpeg';
+
   /// Retries one message the user asked to retry.
   Future<void> retry(String clientId) async {
     final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
@@ -1581,6 +1740,8 @@ class ConversationController extends ChangeNotifier {
       mediaKey: pending.mediaKey,
       mediaType: pending.mediaType,
       byteSize: pending.plainLength,
+      fileName: pending.fileName,
+      body: pending.caption,
       voiceDurationMs: pending.durationMs,
       waveform: pending.waveform,
       groupKey: pending.isGroup ? pending.groupKey : null,
@@ -1622,6 +1783,7 @@ class ConversationController extends ChangeNotifier {
           mediaToken: mediaToken,
           mediaType: pending.mediaType,
           byteSize: pending.plainLength,
+          fileName: pending.fileName,
         ),
       ),
     );

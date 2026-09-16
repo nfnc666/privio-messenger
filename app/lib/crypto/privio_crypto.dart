@@ -460,16 +460,22 @@ class PrivioCrypto {
 
     final numbers = [
       for (final index in indices)
-        SafetyNumber(
-          deviceIndex: index,
-          digits: SafetyNumberDigits.between(
-            localAccountId: localAccountId,
-            localIdentity: identity.getPublicKey(),
-            remoteAccountId: remoteAccountId,
-            remoteIdentity: pinned[index]!,
+        // One computation per device, and both forms come out of it: the digits
+        // that are read aloud and the fingerprint a QR code carries. They
+        // describe the same pair of keys by construction.
+        if (SafetyNumberDigits.compute(
+              localAccountId: localAccountId,
+              localIdentity: identity.getPublicKey(),
+              remoteAccountId: remoteAccountId,
+              remoteIdentity: pinned[index]!,
+            )
+            case final print)
+          SafetyNumber(
+            deviceIndex: index,
+            digits: print.displayableFingerprint.getDisplayText(),
+            identityKey: base64Encode(pinned[index]!.serialize()),
+            fingerprint: print.scannableFingerprint,
           ),
-          identityKey: base64Encode(pinned[index]!.serialize()),
-        ),
     ];
 
     final checked = await _store.readVerification(remoteAccountId);
@@ -495,6 +501,28 @@ class PrivioCrypto {
   /// the only thing that answers the notice.
   Future<void> clearKeyChangeAlert(String accountId) =>
       _store.clearKeyChangeAlert(accountId);
+
+  /// How many contacts are verified **and still match what was verified**.
+  ///
+  /// The second half is the whole value of the number. A count of "contacts I
+  /// once ticked" would keep counting somebody whose key changed yesterday,
+  /// which is precisely the case the tick is supposed to stop covering. The
+  /// comparison is against the keys pinned now, so a changed key or a new
+  /// device drops the contact out of the count without anything having to
+  /// remember to clear a flag.
+  Future<int> verifiedContactCount() async {
+    final recorded = await _store.allVerifications();
+    var count = 0;
+    for (final entry in recorded.entries) {
+      final pinned = await _store.pinnedIdentities(entry.key);
+      final now = {
+        for (final device in pinned.entries)
+          '${device.key}': base64Encode(device.value.serialize()),
+      };
+      if (mapEquals(entry.value, now)) count++;
+    }
+    return count;
+  }
 
   /// Records that the user compared these numbers and they matched.
   Future<void> markVerified(String remoteAccountId, SafetyNumbers numbers) =>

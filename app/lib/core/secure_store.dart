@@ -74,6 +74,29 @@ abstract interface class SecureStore {
   Future<bool> readScreenShield(String accountId);
   Future<void> writeScreenShield(String accountId, bool on);
 
+  /// The device ids this account was last seen to have, on this phone.
+  ///
+  /// Kept so that a device appearing in the list can be *noticed*, not just
+  /// listed: a linked device somebody else added is one of the few things a
+  /// messenger can actually detect about an account takeover, and it can only
+  /// be detected by comparing against what was there last time. Ids only —
+  /// never a name, never a platform, never a last-seen time. The names are on
+  /// the Devices screen, which reads them from the server each time.
+  Future<Set<String>> readKnownDevices(String accountId);
+  Future<void> writeKnownDevices(String accountId, Set<String> ids);
+
+  /// Whether this account refuses to carry on a conversation whose safety
+  /// number changed until somebody has looked at the new one.
+  ///
+  /// Off by default, and deliberately so: on, a contact who simply reinstalled
+  /// locks the chat until the two of them can compare a number, and that has to
+  /// be a choice somebody made rather than a wall they walked into. Sending is
+  /// refused on a changed key either way — that part is not optional and never
+  /// was. What this adds is that the chat says so and stops pretending to be
+  /// usable.
+  Future<bool> readBlockOnKeyChange(String accountId);
+  Future<void> writeBlockOnKeyChange(String accountId, bool block);
+
   /// Which colour the home-screen icon is wearing.
   ///
   /// **Not keyed by account**, unlike everything else here. A launcher icon
@@ -344,6 +367,11 @@ class KeystoreSecureStore implements SecureStore {
 
   static String _screenShieldKey(String accountId) => 'privio.screenShield.$accountId';
 
+  static String _knownDevicesKey(String accountId) => 'privio.knownDevices.$accountId';
+
+  static String _blockOnKeyChangeKey(String accountId) =>
+      'privio.blockOnKeyChange.$accountId';
+
   @override
   Future<bool> readVerifiedCallsOnly(String accountId) async =>
       await _read(_verifiedCallsKey(accountId)) == 'true';
@@ -359,6 +387,25 @@ class KeystoreSecureStore implements SecureStore {
   @override
   Future<void> writeScreenShield(String accountId, bool on) =>
       _write(_screenShieldKey(accountId), on ? 'true' : 'false');
+
+  @override
+  Future<Set<String>> readKnownDevices(String accountId) async {
+    final stored = await _read(_knownDevicesKey(accountId));
+    if (stored == null || stored.isEmpty) return const {};
+    return stored.split(',').where((id) => id.isNotEmpty).toSet();
+  }
+
+  @override
+  Future<void> writeKnownDevices(String accountId, Set<String> ids) =>
+      _write(_knownDevicesKey(accountId), ids.join(','));
+
+  @override
+  Future<bool> readBlockOnKeyChange(String accountId) async =>
+      await _read(_blockOnKeyChangeKey(accountId)) == 'true';
+
+  @override
+  Future<void> writeBlockOnKeyChange(String accountId, bool block) =>
+      _write(_blockOnKeyChangeKey(accountId), block ? 'true' : 'false');
 
   @override
   Future<String?> readLanguage(String accountId) => _read(_languageKey(accountId));
@@ -601,6 +648,25 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<void> writeScreenShield(String accountId, bool on) async =>
       _entries['screenShield.$accountId'] = on ? 'true' : 'false';
+
+  @override
+  Future<Set<String>> readKnownDevices(String accountId) async {
+    final stored = _entries['knownDevices.$accountId'];
+    if (stored == null || stored.isEmpty) return const {};
+    return stored.split(',').where((id) => id.isNotEmpty).toSet();
+  }
+
+  @override
+  Future<void> writeKnownDevices(String accountId, Set<String> ids) async =>
+      _entries['knownDevices.$accountId'] = ids.join(',');
+
+  @override
+  Future<bool> readBlockOnKeyChange(String accountId) async =>
+      _entries['blockOnKeyChange.$accountId'] == 'true';
+
+  @override
+  Future<void> writeBlockOnKeyChange(String accountId, bool block) async =>
+      _entries['blockOnKeyChange.$accountId'] = block ? 'true' : 'false';
 
   @override
   Future<String?> readDisguise() async => _entries['disguise'];

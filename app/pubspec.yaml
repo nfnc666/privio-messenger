@@ -44,6 +44,19 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   # Renders the invite deep link as a QR code, on-device.
   qr_flutter: ^4.1.0
+  # The matrix behind `qr_flutter`, named here because a test draws a QR code
+  # itself to check that the reader below can read one back. Already present as
+  # a transitive dependency; a direct use of a transitive one is a build that
+  # breaks the day the middle package drops it.
+  qr: ^3.0.2
+  # Reads a QR code out of a photograph, in pure Dart.
+  #
+  # Chosen over every live-scanning package for one reason: they go through
+  # Google's ML Kit on Android, which would put Play Services into a build whose
+  # whole claim is that it has none. See `docs/privio-libre.md`. The trade is
+  # that the camera takes one picture rather than scanning continuously, and
+  # the decode is testable end to end because it is ordinary Dart.
+  zxing2: ^0.2.4
   libsignal_protocol_dart: ^0.8.2
   cryptography: ^2.9.0
   # 12, not 11. Eleven applies its own Kotlin Gradle Plugin, which stopped
@@ -67,6 +80,19 @@ dependencies:
   # package drops it. The Dart team's own implementation — Privio writes no
   # cryptographic primitives.
   crypto: ^3.0.6
+  # Taking a photo and choosing one, through the platform's own pickers.
+  #
+  # Chosen over a self-built camera for one reason that outweighs the control a
+  # `camera` package would give: on iOS this uses `PHPickerViewController` and
+  # on Android 13+ the system Photo Picker, and **neither needs a photo-library
+  # permission at all** — the picker runs outside the app and hands back only
+  # what was chosen. Asking for the whole library to send one picture is the
+  # thing this app should not do.
+  #
+  # The camera half opens the system camera, which brings front/back switching
+  # and the flash control with it, writes to the app's own cache rather than the
+  # public gallery, and is the same UI the person already knows.
+  image_picker: ^1.1.2
   record: ^7.1.1
   just_audio: ^0.10.6
   path_provider: ^2.1.6

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 import 'failure.dart';
+import '../models/security_event.dart';
 import 'phone_number.dart';
 
 /// What this account's phone link looks like right now.
@@ -180,6 +181,14 @@ class PhoneController extends ChangeNotifier {
   }
 
   /// Confirms the code, which links the number.
+  /// Where a security event goes, or null when nothing is listening.
+  ///
+  /// Linking or removing a number is a change to how findable this account is,
+  /// so it belongs in the local security log — the same callback shape the
+  /// other producers use, so this class never holds a reference to the screen
+  /// that displays them. Set by [AppState].
+  void Function(SecurityEventKind kind, {String? subject})? onSecurityEvent;
+
   Future<bool> confirmCode(String code) async {
     final done = await _write(() async {
       _link = PhoneLink.fromJson({
@@ -194,6 +203,9 @@ class PhoneController extends ChangeNotifier {
       _stage = PhoneStage.idle;
       _pendingHint = null;
       _stubCode = null;
+      // Only once the server has confirmed it. An event filed on the attempt
+      // would say a number was linked when the code was wrong.
+      onSecurityEvent?.call(SecurityEventKind.phoneLinked);
       return true;
     });
     return done ?? false;
@@ -251,6 +263,7 @@ class PhoneController extends ChangeNotifier {
       );
       _stage = PhoneStage.idle;
       _pendingHint = null;
+      onSecurityEvent?.call(SecurityEventKind.phoneRemoved);
       return true;
     });
     return done ?? false;

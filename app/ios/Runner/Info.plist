@@ -56,7 +56,9 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Privio uses the camera for video calls. The picture goes directly to the person you are calling, end-to-end encrypted; it is never recorded, and Privio's servers cannot see it.</string>
+	<string>Privio uses the camera for video calls and for photos you take inside a chat. A call goes directly to the person you are calling and is never recorded. A photo is shown to you first and is only sent if you send it — it is encrypted on this device, and Privio's servers cannot see either.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Privio receives only the pictures you pick in the system photo picker. It does not read your photo library, and it does not look at anything you did not choose.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Privio uses the microphone for voice messages and for calls. Both are encrypted on this device before they leave it; Privio's servers cannot listen to them.</string>
 	<key>CFBundleName</key>

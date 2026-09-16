@@ -25,6 +25,8 @@ class PendingSend {
     required this.plainLength,
     required this.durationMs,
     required this.waveform,
+    this.fileName,
+    this.caption = '',
     this.username,
     this.groupKey,
     this.mediaId,
@@ -59,6 +61,15 @@ class PendingSend {
   final int durationMs;
   final List<double> waveform;
 
+  /// The name the recipient sees. For a photo this is a name the app invented
+  /// — never the one off the camera roll, which can carry a date, a counter or
+  /// a person's name. Null for a voice message, which has no name to show.
+  final String? fileName;
+
+  /// The text sent with the picture. It rides inside the sealed payload like
+  /// any other message body, so the server never sees it either.
+  final String caption;
+
   /// Set once the upload has succeeded, so a retry after a failed *send* does
   /// not upload the same recording a second time.
   final String? mediaId;
@@ -88,6 +99,8 @@ class PendingSend {
         plainLength: plainLength,
         durationMs: durationMs,
         waveform: waveform,
+        fileName: fileName,
+        caption: caption,
         mediaId: mediaId ?? this.mediaId,
         mediaToken: mediaToken ?? this.mediaToken,
         expiresInSeconds: expiresInSeconds,
@@ -106,6 +119,8 @@ class PendingSend {
         'plainLength': plainLength,
         'durationMs': durationMs,
         'waveform': waveform,
+        if (fileName != null) 'fileName': fileName,
+        if (caption.isNotEmpty) 'caption': caption,
         if (mediaId != null) 'mediaId': mediaId,
         if (mediaToken != null) 'mediaToken': mediaToken,
         if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
@@ -126,6 +141,8 @@ class PendingSend {
         waveform: (json['waveform'] as List<dynamic>? ?? const [])
             .map((value) => (value as num).toDouble())
             .toList(),
+        fileName: json['fileName'] as String?,
+        caption: json['caption'] as String? ?? '',
         mediaId: json['mediaId'] as String?,
         mediaToken: json['mediaToken'] as String?,
         expiresInSeconds: json['expiresInSeconds'] as int?,

@@ -758,7 +758,6 @@ class AppTextEs extends AppText {
   @override
   String get editChannelAppearance => 'Apariencia';
 
-
   @override
   String get editChannelDirectMessages => 'Mensajes directos';
 
@@ -829,8 +828,6 @@ class AppTextEs extends AppText {
   @override
   String get livestreamCouldNotStart => 'No se ha podido iniciar el directo.';
 
-
-
   @override
   String get visibilityPublicTitle => 'Este canal es público';
 
@@ -889,7 +886,7 @@ class AppTextEs extends AppText {
   String get composerHint => 'Escribe un mensaje…';
 
   @override
-  String get composerAttach => 'Adjuntar un archivo';
+  String get composerAttach => 'Adjuntar';
 
   @override
   String get composerTimerOff => 'Los mensajes temporales están desactivados';
@@ -4223,4 +4220,282 @@ class AppTextEs extends AppText {
 
   @override
   String get botcreatorHint => 'Escribe un comando o /help';
+
+  @override
+  String get composerCamera => 'Cámara';
+
+  @override
+  String get attachPhotos => 'Elegir fotos';
+
+  @override
+  String get attachFile => 'Enviar un archivo';
+
+  @override
+  String get photoTitle => 'Foto';
+
+  @override
+  String get photoPreviewOne => 'Enviar foto';
+
+  @override
+  String photoPreviewMany(int count) {
+    return 'Enviar $count fotos';
+  }
+
+  @override
+  String get photoRetake => 'Repetir';
+
+  @override
+  String get photoCaptionHint => 'Añadir un texto';
+
+  @override
+  String get photoNoCamera =>
+      'En este dispositivo no hay ninguna cámara que Privio pueda abrir.';
+
+  @override
+  String get photoCameraRefused => 'Privio no puede usar la cámara';
+
+  @override
+  String get photoLibraryRefused => 'Privio no puede abrir tus fotos';
+
+  @override
+  String get photoAllowInSettings =>
+      'El sistema lo pregunta una sola vez. Puedes permitirlo en la página de Privio en los ajustes del sistema.';
+
+  @override
+  String get photoOpenSettings => 'Abrir ajustes';
+
+  @override
+  String get photoSettingsFailed =>
+      'No se pudieron abrir los ajustes. Ábrelos tú y permíteselo a Privio.';
+
+  @override
+  String photoFailed(String detail) {
+    return 'No se pudo abrir la cámara: $detail';
+  }
+
+  @override
+  String get photoNoneReadable =>
+      'Privio no pudo leer ninguna de esas imágenes.';
+
+  @override
+  String photoSomeLeftOut(int count) {
+    return '$count de las imágenes no se pudieron leer y se omitieron.';
+  }
+
+  @override
+  String get photoStateSending => 'Enviando';
+
+  @override
+  String get photoStateQueued => 'Esperando conexión';
+
+  @override
+  String get photoStateSent => 'Enviado';
+
+  @override
+  String get photoStateFailed =>
+      'No enviado. Mantén pulsado el mensaje para intentarlo de nuevo.';
+
+  @override
+  String get privacySecurityActivity => 'Actividad de seguridad';
+
+  @override
+  String get securityActivityTitle => 'Actividad de seguridad';
+
+  @override
+  String get securityActivityEmpty =>
+      'Todavía no se ha registrado nada en este dispositivo.';
+
+  @override
+  String get securityActivityNote =>
+      'Esta lista se guarda solo en este teléfono, cifrada con la misma clave que tus mensajes. Los servidores de Privio no guardan ningún registro de actividad, lo que también significa que lo que vio otro de tus dispositivos aparece allí y no aquí.';
+
+  @override
+  String get securityActivityNothingSensitive =>
+      'Aquí no se registra el contenido de los mensajes, ni direcciones, ni ubicación.';
+
+  @override
+  String get securityEventADevice => 'un dispositivo';
+
+  @override
+  String get securityEventAContact => 'un contacto';
+
+  @override
+  String securityEventDeviceAdded(String name) {
+    return 'Nuevo dispositivo vinculado: $name';
+  }
+
+  @override
+  String securityEventDeviceRemoved(String name) {
+    return 'Dispositivo desconectado: $name';
+  }
+
+  @override
+  String get securityEventPasswordChanged => 'Contraseña cambiada';
+
+  @override
+  String get securityEventTwoFactorOn => 'Verificación en dos pasos activada';
+
+  @override
+  String get securityEventTwoFactorOff =>
+      'Verificación en dos pasos desactivada';
+
+  @override
+  String get securityEventBackupRestored =>
+      'Copia de seguridad restaurada en este dispositivo';
+
+  @override
+  String get securityEventPhoneLinked => 'Número de teléfono vinculado';
+
+  @override
+  String get securityEventPhoneRemoved => 'Número de teléfono eliminado';
+
+  @override
+  String get securityEventProxyOn => 'Conectando a través del proxy SOCKS5';
+
+  @override
+  String get securityEventProxyOff => 'Proxy desactivado: conexión directa';
+
+  @override
+  String securityEventKeyChanged(String name) {
+    return 'El código de seguridad de $name ha cambiado';
+  }
+
+  @override
+  String securityEventContactVerified(String name) {
+    return '$name verificado';
+  }
+
+  @override
+  String securityEventVerificationCleared(String name) {
+    return 'Verificación de $name retirada';
+  }
+
+  @override
+  String get securityEventScreenLock => 'Bloqueo de pantalla cambiado';
+
+  @override
+  String get securityEventDuressCode => 'Código de emergencia cambiado';
+
+  @override
+  String get safetyScanTheirs => 'Fotografiar su código';
+
+  @override
+  String get safetyScanNothingFound =>
+      'No se encontró ningún código en esa foto. Sostén el teléfono de frente e inténtalo de nuevo.';
+
+  @override
+  String get safetyScanNoCamera =>
+      'Privio no puede abrir la cámara. Comparad los dígitos en su lugar.';
+
+  @override
+  String get safetyScanFailed =>
+      'No se pudo abrir la cámara. Comparad los dígitos en su lugar.';
+
+  @override
+  String get privacyIdentity => 'Identidad de contactos';
+
+  @override
+  String get privacyBlockOnKeyChange =>
+      'Detener los chats tras un cambio de clave';
+
+  @override
+  String get privacyBlockOnKeyChangeNote =>
+      'Si el código de seguridad de un contacto cambia, detener el chat hasta que hayas comparado el nuevo. El envío se rechaza igualmente con una clave cambiada.';
+
+  @override
+  String chatHeldByKeyChange(String name) {
+    return 'El código de seguridad de $name ha cambiado. Este chat está detenido hasta que compares el nuevo.';
+  }
+
+  @override
+  String get chatHeldCompareNow => 'Compararlo ahora';
+
+  @override
+  String get privacyDashboardRow => 'Panel de privacidad';
+
+  @override
+  String get privacyDashboardTitle => 'Panel de privacidad';
+
+  @override
+  String get privacyDashboardContent => 'Qué está cifrado';
+
+  @override
+  String get privacyDashboardMessages => 'Mensajes';
+
+  @override
+  String get privacyDashboardCalls => 'Llamadas';
+
+  @override
+  String get privacyDashboardEndToEnd => 'De extremo a extremo';
+
+  @override
+  String get privacyDashboardBotsExcepted =>
+      'Las conversaciones con bots son la excepción: no están cifradas de extremo a extremo';
+
+  @override
+  String get privacyDashboardVerifiedCallsOnly =>
+      'Solo de contactos que has verificado';
+
+  @override
+  String get privacyDashboardAnyCaller => 'De cualquiera que pueda escribirte';
+
+  @override
+  String get privacyDashboardAccount => 'Esta cuenta';
+
+  @override
+  String get privacyDashboardDevices => 'Dispositivos conectados';
+
+  @override
+  String get privacyDashboardBackup => 'Copia de seguridad';
+
+  @override
+  String get privacyDashboardBackupSealed => 'Sellada';
+
+  @override
+  String get privacyDashboardNoBackup => 'Ninguna en el servidor';
+
+  @override
+  String get privacyDashboardLocalOnly =>
+      'Creada en este dispositivo, la guardas tú';
+
+  @override
+  String get privacyDashboardFinding => 'Que te encuentren';
+
+  @override
+  String get privacyDashboardPhone => 'Número de teléfono';
+
+  @override
+  String get privacyDashboardLinked => 'Vinculado';
+
+  @override
+  String get privacyDashboardNotLinked => 'No vinculado';
+
+  @override
+  String get privacyDashboardDiscovery => 'Que me encuentren por mi número';
+
+  @override
+  String get privacyDashboardContactSync => 'Sincronización de contactos';
+
+  @override
+  String get privacyDashboardIdentityAndRouting => 'Identidad y conexión';
+
+  @override
+  String get privacyDashboardVerifiedContacts => 'Contactos verificados';
+
+  @override
+  String get privacyDashboardVerifiedNote =>
+      'Contados frente a las claves en uso ahora mismo, así que una clave cambiada deja de contar';
+
+  @override
+  String get privacyDashboardProxyDirect => 'Directa';
+
+  @override
+  String get privacyDashboardProxySocks => 'SOCKS5';
+
+  @override
+  String get privacyDashboardMetadataNote =>
+      'El contenido está cifrado; que un mensaje fuera de ti a alguien, y cuándo, no lo está. El servidor de Privio lo ve porque tiene que entregarlo.';
+
+  @override
+  String get privacyOverview => 'Resumen';
 }

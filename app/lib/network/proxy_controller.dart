@@ -61,6 +61,13 @@ class ProxyController extends ChangeNotifier {
     }
   }
 
+  /// Where a security event goes, or null when nothing is listening.
+  ///
+  /// The proxy is device-wide rather than per account, and this callback is
+  /// what lets the account that is signed in record that its traffic started or
+  /// stopped going through somebody else's server. Set by [AppState].
+  void Function({required bool enabled})? onRoutingChanged;
+
   Future<void> save(ProxyConfig? config) async {
     if (_busy) throw StateError('Network settings are being saved');
     if (!supported) throw UnsupportedError('Browser proxy settings');
@@ -77,6 +84,7 @@ class ProxyController extends ChangeNotifier {
       next = null;
       previous?.close();
       notifyListeners();
+      onRoutingChanged?.call(enabled: config != null);
     } finally {
       next?.close();
       _busy = false;

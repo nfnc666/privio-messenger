@@ -2,10 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../crypto/safety_number.dart';
+import '../media/photo_source.dart';
+import '../media/qr_scan.dart';
+import '../models/security_event.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
@@ -17,11 +21,21 @@ import '../widgets/privio_back_button.dart';
 /// their keys, over a channel the server has no part in, and a server that
 /// substituted a key of its own cannot make the numbers agree.
 ///
-/// There is no QR here. Scanning needs a camera package Privio does not carry,
-/// and a QR nobody can scan is decoration on a security screen. Reading the
-/// digits aloud is the method; the compare box below is for the case where the
-/// other person sends theirs in writing, because comparing sixty digits by eye
-/// is where a person makes the one mistake this screen exists to prevent.
+/// Three ways to do the same comparison, because people are in different rooms:
+/// read the sixty digits aloud, paste the digits somebody sent in writing, or —
+/// when you are standing next to each other — photograph their code. All three
+/// compare the same fingerprint, computed from the same identity keys, and all
+/// three happen on the device with nothing asked of the server.
+///
+/// The code is Signal's `ScannableFingerprint` rather than a format Privio
+/// invented, and the comparison is two-sided: a code replayed from a third
+/// person's conversation fails, and so does holding the phone up to a mirror.
+/// Both cases are tests in `qr_scan_test.dart`.
+///
+/// There is no live scanner. Every live-scanning package that works on Android
+/// pulls in Google's ML Kit, which would put Play Services into a build whose
+/// whole claim is that it has none — so the camera takes one photograph and the
+/// decode happens in Dart. See `media/qr_scan.dart`.
 class SafetyNumberScreen extends StatefulWidget {
   const SafetyNumberScreen({
     required this.accountId,
@@ -91,7 +105,72 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     } else {
       await state.services.crypto.clearVerified(widget.accountId);
     }
+    // Both directions are worth a line. Withdrawing a verification is the
+    // rarer one and the more interesting: it is what somebody does after
+    // deciding the check they made no longer stands.
+    unawaited(
+      state.securityEvents.record(
+        verified
+            ? SecurityEventKind.contactVerified
+            : SecurityEventKind.contactVerificationCleared,
+        subject: widget.title,
+      ),
+    );
     await _load();
+  }
+
+  /// What the last photograph came to, or null when none has been taken.
+  String? _scanResult;
+  bool _scanMatched = false;
+  bool _scanning = false;
+
+  /// Photographs their code and compares it here.
+  ///
+  /// Nothing about the scan leaves the device and nothing is marked verified by
+  /// it: a match is evidence the user then acts on with the button below, which
+  /// keeps the record of "I checked this" something a person did rather than
+  /// something a camera did.
+  Future<void> _scan() async {
+    final state = PrivioScope.of(context);
+    final numbers = _numbers;
+    if (numbers == null || numbers.isEmpty) return;
+
+    setState(() {
+      _scanning = true;
+      _scanResult = null;
+    });
+    final pick = await state.services.photos.capture();
+    if (!mounted) return;
+
+    final text = AppText.of(context);
+    String? outcome;
+    var matched = false;
+
+    switch (pick) {
+      case PhotoCancelled():
+        break;
+      case PhotoRefused():
+        outcome = text.safetyScanNoCamera;
+      case PhotoUnavailable():
+        outcome = text.safetyScanNoCamera;
+      case PhotoFailed():
+        outcome = text.safetyScanFailed;
+      case PhotoPicked(:final photos):
+        final read = await QrScan.read(photos.first.bytes);
+        if (!mounted) return;
+        if (read == null) {
+          outcome = text.safetyScanNothingFound;
+        } else {
+          matched = numbers.numbers.any((number) => number.matchesScan(read));
+          outcome = matched ? text.safetyMatches : text.safetyNoMatch;
+        }
+    }
+
+    setState(() {
+      _scanning = false;
+      _scanResult = outcome;
+      _scanMatched = matched;
+    });
   }
 
   Future<void> _acceptChange() async {
@@ -155,6 +234,27 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                     result: _comparison,
                     matched: _comparisonMatched,
                   ),
+                  const SizedBox(height: PrivioSpacing.lg),
+                  OutlinedButton.icon(
+                    key: const Key('safety-scan'),
+                    onPressed: _scanning ? null : () => unawaited(_scan()),
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: Text(text.safetyScanTheirs),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                  if (_scanResult case final result?) ...[
+                    const SizedBox(height: PrivioSpacing.sm),
+                    Text(
+                      result,
+                      key: const Key('safety-scan-result'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: _scanMatched ? context.accents.accent : PrivioColors.warning,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: PrivioSpacing.xl),
                   FilledButton(
                     key: const Key('safety-verify'),
@@ -243,6 +343,27 @@ class _NumberCard extends StatelessWidget {
               style: theme.textTheme.labelSmall?.copyWith(color: PrivioColors.textTertiary),
             ),
             const SizedBox(height: PrivioSpacing.sm),
+          ],
+          // The same fingerprint as a picture, for the case where the two
+          // people are in the same room. Centred and on white: a QR drawn in
+          // the app's dark surface colour is one many readers refuse, and this
+          // one has to be readable by the camera opposite it.
+          if (number.scannable case final code?) ...[
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(PrivioSpacing.md),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(PrivioRadius.card),
+                ),
+                child: QrImageView(
+                  data: code,
+                  size: 180,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: PrivioSpacing.lg),
           ],
           // Selectable text carries no label of its own, which leaves a
           // screen reader with nothing to say on the one screen where the
