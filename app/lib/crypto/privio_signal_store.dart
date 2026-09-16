@@ -269,6 +269,25 @@ class PrivioSignalStore extends SignalProtocolStore {
   Future<void> clearVerification(String accountId) =>
       _storage.delete('$_verifiedPrefix$accountId');
 
+  /// Every account that has a verification recorded, with what was recorded.
+  ///
+  /// Used to count them for the privacy overview. Whether each one still
+  /// *holds* is a separate question, answered by comparing against
+  /// [pinnedIdentities] — which is a map comparison of base64 keys and costs
+  /// nothing, unlike recomputing sixty digits per contact.
+  Future<Map<String, Map<String, String>>> allVerifications() async {
+    final entries = await _storage.readPrefixed(_verifiedPrefix);
+    final found = <String, Map<String, String>>{};
+    for (final entry in entries.entries) {
+      final decoded = jsonDecode(entry.value);
+      if (decoded is! Map<String, dynamic>) continue;
+      found[entry.key.substring(_verifiedPrefix.length)] = {
+        for (final e in decoded.entries) e.key: e.value as String,
+      };
+    }
+    return found;
+  }
+
   /// Accounts with an unread "their key changed" notice.
   ///
   /// Persisted rather than held in memory: a notice the user has not seen yet

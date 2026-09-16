@@ -12,7 +12,9 @@ import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'blocked_users_screen.dart';
+import 'privacy_dashboard_screen.dart';
 import 'screen_lock_screen.dart';
+import 'security_activity_screen.dart';
 import 'two_factor_screen.dart';
 import 'duress_code_screen.dart';
 
@@ -129,6 +131,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     final conversations = state.conversations;
     final security = state.security;
     final calls = state.services.calls;
+    final events = state.securityEvents;
     final text = AppText.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -136,10 +139,25 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
         title: Text(text.settingsPrivacy),
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([conversations, security, calls, state.screenShield]),
+        listenable:
+            Listenable.merge([conversations, security, calls, state.screenShield, events]),
         builder: (context, _) => ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
+          // First, because it is the answer to the question people arrive with.
+          // Everything below it is a setting; this is the state.
+          SettingsSection(
+            caption: text.privacyOverview,
+            children: [
+              SettingsRow(
+                icon: Icons.shield_outlined,
+                label: text.privacyDashboardRow,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const PrivacyDashboardScreen()),
+                ),
+              ),
+            ],
+          ),
           SettingsSection(
             caption: text.privacyWhoCanSee,
             children: [
@@ -230,10 +248,36 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ),
               _ScreenShieldRow(controller: state.screenShield),
               SettingsRow(
+                label: text.privacySecurityActivity,
+                // The count is of the two kinds worth noticing, not of every
+                // line: a row reading "47" next to "Security activity" says
+                // nothing, and a row reading "1" when a contact's key changed
+                // says the only thing this screen has to say.
+                value: events.warnings > 0 ? events.warnings.toString() : null,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const SecurityActivityScreen()),
+                ),
+              ),
+              SettingsRow(
                 label: text.privacyBlockedUsers,
                 value: security.blocked?.length.toString(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
+                ),
+              ),
+            ],
+          ),
+          SettingsSection(
+            caption: text.privacyIdentity,
+            children: [
+              SettingsRow(
+                label: text.privacyBlockOnKeyChange,
+                subtitle: text.privacyBlockOnKeyChangeNote,
+                trailing: Switch(
+                  key: const ValueKey('block-on-key-change'),
+                  value: conversations.blockOnKeyChange,
+                  onChanged: (value) =>
+                      unawaited(conversations.setBlockOnKeyChange(value)),
                 ),
               ),
             ],

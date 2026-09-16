@@ -4137,4 +4137,210 @@ class AppTextDe extends AppText {
   @override
   String get photoStateFailed =>
       'Nicht gesendet. Halte die Nachricht gedrückt, um es erneut zu versuchen.';
+
+  @override
+  String get privacySecurityActivity => 'Sicherheitsaktivität';
+
+  @override
+  String get securityActivityTitle => 'Sicherheitsaktivität';
+
+  @override
+  String get securityActivityEmpty =>
+      'Auf diesem Gerät wurde noch nichts aufgezeichnet.';
+
+  @override
+  String get securityActivityNote =>
+      'Diese Liste liegt nur auf diesem Telefon, verschlüsselt mit demselben Schlüssel wie deine Nachrichten. Die Server von PRIVIO führen kein Aktivitätsprotokoll — das heisst auch: Was ein anderes deiner Geräte gesehen hat, steht dort und nicht hier.';
+
+  @override
+  String get securityActivityNothingSensitive =>
+      'Hier werden keine Nachrichteninhalte, keine Adressen und kein Standort aufgezeichnet.';
+
+  @override
+  String get securityEventADevice => 'ein Gerät';
+
+  @override
+  String get securityEventAContact => 'ein Kontakt';
+
+  @override
+  String securityEventDeviceAdded(String name) {
+    return 'Neues Gerät verknüpft: $name';
+  }
+
+  @override
+  String securityEventDeviceRemoved(String name) {
+    return 'Gerät abgemeldet: $name';
+  }
+
+  @override
+  String get securityEventPasswordChanged => 'Passwort geändert';
+
+  @override
+  String get securityEventTwoFactorOn =>
+      'Zwei-Faktor-Authentifizierung eingeschaltet';
+
+  @override
+  String get securityEventTwoFactorOff =>
+      'Zwei-Faktor-Authentifizierung ausgeschaltet';
+
+  @override
+  String get securityEventBackupRestored =>
+      'Backup auf diesem Gerät wiederhergestellt';
+
+  @override
+  String get securityEventPhoneLinked => 'Telefonnummer verknüpft';
+
+  @override
+  String get securityEventPhoneRemoved => 'Telefonnummer entfernt';
+
+  @override
+  String get securityEventProxyOn => 'Verbindung über den SOCKS5-Proxy';
+
+  @override
+  String get securityEventProxyOff =>
+      'Proxy ausgeschaltet — direkte Verbindung';
+
+  @override
+  String securityEventKeyChanged(String name) {
+    return 'Der Sicherheitscode von $name hat sich geändert';
+  }
+
+  @override
+  String securityEventContactVerified(String name) {
+    return '$name bestätigt';
+  }
+
+  @override
+  String securityEventVerificationCleared(String name) {
+    return 'Bestätigung von $name zurückgezogen';
+  }
+
+  @override
+  String get securityEventScreenLock => 'Bildschirmsperre geändert';
+
+  @override
+  String get securityEventDuressCode => 'Notfallcode geändert';
+
+  @override
+  String get safetyScanTheirs => 'Ihren Code fotografieren';
+
+  @override
+  String get safetyScanNothingFound =>
+      'In diesem Bild wurde kein Code gefunden. Halte das Telefon frontal davor und versuch es erneut.';
+
+  @override
+  String get safetyScanNoCamera =>
+      'PRIVIO kann die Kamera nicht öffnen. Vergleicht stattdessen die Ziffern.';
+
+  @override
+  String get safetyScanFailed =>
+      'Die Kamera liess sich nicht öffnen. Vergleicht stattdessen die Ziffern.';
+
+  @override
+  String get privacyIdentity => 'Identität von Kontakten';
+
+  @override
+  String get privacyBlockOnKeyChange =>
+      'Chats nach einem Schlüsselwechsel anhalten';
+
+  @override
+  String get privacyBlockOnKeyChangeNote =>
+      'Wenn sich der Sicherheitscode eines Kontakts ändert, den Chat anhalten, bis du den neuen verglichen hast. Das Senden wird bei einem geänderten Schlüssel ohnehin verweigert.';
+
+  @override
+  String chatHeldByKeyChange(String name) {
+    return 'Der Sicherheitscode von $name hat sich geändert. Dieser Chat ist angehalten, bis du den neuen verglichen hast.';
+  }
+
+  @override
+  String get chatHeldCompareNow => 'Jetzt vergleichen';
+
+  @override
+  String get privacyDashboardRow => 'Datenschutz-Übersicht';
+
+  @override
+  String get privacyDashboardTitle => 'Datenschutz-Übersicht';
+
+  @override
+  String get privacyDashboardContent => 'Was verschlüsselt ist';
+
+  @override
+  String get privacyDashboardMessages => 'Nachrichten';
+
+  @override
+  String get privacyDashboardCalls => 'Anrufe';
+
+  @override
+  String get privacyDashboardEndToEnd => 'Ende-zu-Ende';
+
+  @override
+  String get privacyDashboardBotsExcepted =>
+      'Bot-Unterhaltungen sind die Ausnahme — sie sind nicht Ende-zu-Ende-verschlüsselt';
+
+  @override
+  String get privacyDashboardVerifiedCallsOnly =>
+      'Nur von Kontakten, die du bestätigt hast';
+
+  @override
+  String get privacyDashboardAnyCaller => 'Von allen, die dir schreiben können';
+
+  @override
+  String get privacyDashboardAccount => 'Dieses Konto';
+
+  @override
+  String get privacyDashboardDevices => 'Angemeldete Geräte';
+
+  @override
+  String get privacyDashboardBackup => 'Backup';
+
+  @override
+  String get privacyDashboardBackupSealed => 'Versiegelt';
+
+  @override
+  String get privacyDashboardNoBackup => 'Keines auf dem Server';
+
+  @override
+  String get privacyDashboardLocalOnly =>
+      'Auf diesem Gerät erstellt, von dir aufbewahrt';
+
+  @override
+  String get privacyDashboardFinding => 'Gefunden werden';
+
+  @override
+  String get privacyDashboardPhone => 'Telefonnummer';
+
+  @override
+  String get privacyDashboardLinked => 'Verknüpft';
+
+  @override
+  String get privacyDashboardNotLinked => 'Nicht verknüpft';
+
+  @override
+  String get privacyDashboardDiscovery => 'Über meine Nummer auffindbar';
+
+  @override
+  String get privacyDashboardContactSync => 'Kontaktabgleich';
+
+  @override
+  String get privacyDashboardIdentityAndRouting => 'Identität und Verbindung';
+
+  @override
+  String get privacyDashboardVerifiedContacts => 'Bestätigte Kontakte';
+
+  @override
+  String get privacyDashboardVerifiedNote =>
+      'Gezählt gegen die aktuell verwendeten Schlüssel — ein geänderter Schlüssel fällt heraus';
+
+  @override
+  String get privacyDashboardProxyDirect => 'Direkt';
+
+  @override
+  String get privacyDashboardProxySocks => 'SOCKS5';
+
+  @override
+  String get privacyDashboardMetadataNote =>
+      'Der Inhalt ist verschlüsselt; dass eine Nachricht von dir an jemanden ging und wann, ist es nicht. Der Server von PRIVIO sieht das, weil er sie zustellen muss.';
+
+  @override
+  String get privacyOverview => 'Übersicht';
 }

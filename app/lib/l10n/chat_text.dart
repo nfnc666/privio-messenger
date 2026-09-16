@@ -40,3 +40,15 @@ String _format(DateFormat Function() build, DateTime at) {
     return DateFormat.Hm().format(at);
   }
 }
+
+/// A date and a time together, the way the reader's language writes both.
+///
+/// Used by the security activity list, where "yesterday" is not enough: the
+/// question somebody brings to that screen is *when exactly* a device was
+/// linked, and an answer that says "14:32" with no date cannot be checked
+/// against anything.
+String formatEventTime(AppText text, DateTime at) {
+  final day = _format(() => DateFormat.yMMMd(text.localeName), at);
+  final time = _format(() => DateFormat.Hm(text.localeName), at);
+  return '$day · $time';
+}

@@ -978,6 +978,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       builder: (context, _) {
         final messages = state.conversations.messagesWith(widget.accountId);
         _messageCount = messages.length;
+        // A one-to-one chat whose safety number changed, on an account that
+        // asked to be stopped rather than warned. Groups are not held: a group
+        // key change is a different event with different causes, and locking
+        // a group of twelve because one member reinstalled is not a security
+        // control anybody would leave switched on.
+        final held = !widget.isGroup &&
+            state.conversations.isHeldByKeyChange(widget.accountId);
         // Once, on the way in: a search sent us to a particular line.
         if (widget.jumpTo != null && !_jumped) {
           _jumped = true;
@@ -1126,6 +1133,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              // The chat is held because the safety number changed and the
+              // account asked to be stopped. Above the composer rather than at
+              // the top of the transcript: it is about the message somebody is
+              // about to write, not about the ones already there.
+              if (held)
+                _HeldBanner(
+                  name: widget.title,
+                  onOpen: () => unawaited(_openSafetyNumber()),
+                ),
               if (_replyingTo != null)
                 _ReplyBar(
                   message: _replyingTo!,
@@ -1150,10 +1166,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 listenable: _voiceRebuild,
                 builder: (context, _) => _Composer(
                   controller: _composer,
-                  onSend: _send,
-                  onAttach: _attach,
-                  onCamera: _capture,
-                  onPickSticker: _pickSticker,
+                  onSend: held ? () {} : _send,
+                  onAttach: held ? null : _attach,
+                  onCamera: held ? null : _capture,
+                  onPickSticker: held ? null : _pickSticker,
                   onHoldStart: _startRecording,
                   onHoldUpdate: (dx) {
                     _voiceKey.currentState?.onDragUpdate(dx);
@@ -1379,6 +1395,57 @@ class _Composer extends StatelessWidget {
 /// deletes itself is the one way this feature can hurt somebody — they keep
 /// writing, and what they wrote is gone. The state has to be visible without
 /// being asked for.
+
+/// The chat is held because the contact's safety number changed.
+///
+/// Not a red error bar: nothing has gone wrong and nothing has failed. What has
+/// happened is that the person on the other end cannot be shown to be the
+/// person who was there yesterday, and this account asked to be stopped at that
+/// point rather than warned past it. The way out is the number, so the banner
+/// is the way to it.
+class _HeldBanner extends StatelessWidget {
+  const _HeldBanner({required this.name, required this.onOpen});
+
+  final String name;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    return Container(
+      key: const Key('chat-held-by-key-change'),
+      width: double.infinity,
+      color: PrivioColors.warning.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: PrivioSpacing.gutter,
+        vertical: PrivioSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            text.chatHeldByKeyChange(name),
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: PrivioColors.warning),
+          ),
+          const SizedBox(height: PrivioSpacing.sm),
+          TextButton(
+            onPressed: onOpen,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(text.chatHeldCompareNow),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TimerButton extends StatelessWidget {
   const _TimerButton({required this.timer, required this.onPressed});
 

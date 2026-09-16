@@ -7020,6 +7020,360 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Not sent. Hold the message to try again.'**
   String get photoStateFailed;
+
+  /// No description provided for @privacySecurityActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security activity'**
+  String get privacySecurityActivity;
+
+  /// No description provided for @securityActivityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Security activity'**
+  String get securityActivityTitle;
+
+  /// No description provided for @securityActivityEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing recorded on this device yet.'**
+  String get securityActivityEmpty;
+
+  /// No description provided for @securityActivityNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This list is kept only on this phone, encrypted with the same key as your messages. Privio\'s servers hold no activity log, which also means an event seen by another of your devices appears there and not here.'**
+  String get securityActivityNote;
+
+  /// No description provided for @securityActivityNothingSensitive.
+  ///
+  /// In en, this message translates to:
+  /// **'No message content, no addresses and no location is recorded here.'**
+  String get securityActivityNothingSensitive;
+
+  /// No description provided for @securityEventADevice.
+  ///
+  /// In en, this message translates to:
+  /// **'a device'**
+  String get securityEventADevice;
+
+  /// No description provided for @securityEventAContact.
+  ///
+  /// In en, this message translates to:
+  /// **'a contact'**
+  String get securityEventAContact;
+
+  /// No description provided for @securityEventDeviceAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'New device linked: {name}'**
+  String securityEventDeviceAdded(String name);
+
+  /// No description provided for @securityEventDeviceRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Device signed out: {name}'**
+  String securityEventDeviceRemoved(String name);
+
+  /// No description provided for @securityEventPasswordChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Password changed'**
+  String get securityEventPasswordChanged;
+
+  /// No description provided for @securityEventTwoFactorOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Two-factor authentication switched on'**
+  String get securityEventTwoFactorOn;
+
+  /// No description provided for @securityEventTwoFactorOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Two-factor authentication switched off'**
+  String get securityEventTwoFactorOff;
+
+  /// No description provided for @securityEventBackupRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup restored onto this device'**
+  String get securityEventBackupRestored;
+
+  /// No description provided for @securityEventPhoneLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number linked'**
+  String get securityEventPhoneLinked;
+
+  /// No description provided for @securityEventPhoneRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number removed'**
+  String get securityEventPhoneRemoved;
+
+  /// No description provided for @securityEventProxyOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting through the SOCKS5 proxy'**
+  String get securityEventProxyOn;
+
+  /// No description provided for @securityEventProxyOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy switched off — connecting directly'**
+  String get securityEventProxyOff;
+
+  /// No description provided for @securityEventKeyChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}’s security code changed'**
+  String securityEventKeyChanged(String name);
+
+  /// No description provided for @securityEventContactVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} verified'**
+  String securityEventContactVerified(String name);
+
+  /// No description provided for @securityEventVerificationCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Verification of {name} withdrawn'**
+  String securityEventVerificationCleared(String name);
+
+  /// No description provided for @securityEventScreenLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen lock changed'**
+  String get securityEventScreenLock;
+
+  /// No description provided for @securityEventDuressCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Duress code changed'**
+  String get securityEventDuressCode;
+
+  /// No description provided for @safetyScanTheirs.
+  ///
+  /// In en, this message translates to:
+  /// **'Photograph their code'**
+  String get safetyScanTheirs;
+
+  /// No description provided for @safetyScanNothingFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No code found in that picture. Hold the phone square-on and try again.'**
+  String get safetyScanNothingFound;
+
+  /// No description provided for @safetyScanNoCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio cannot open the camera. Compare the digits instead.'**
+  String get safetyScanNoCamera;
+
+  /// No description provided for @safetyScanFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The camera could not be opened. Compare the digits instead.'**
+  String get safetyScanFailed;
+
+  /// No description provided for @privacyIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact identity'**
+  String get privacyIdentity;
+
+  /// No description provided for @privacyBlockOnKeyChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold chats after a key change'**
+  String get privacyBlockOnKeyChange;
+
+  /// No description provided for @privacyBlockOnKeyChangeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'If a contact’s security code changes, stop the chat until you have compared the new one. Sending is refused on a changed key either way.'**
+  String get privacyBlockOnKeyChangeNote;
+
+  /// No description provided for @chatHeldByKeyChange.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}’s security code has changed. This chat is held until you compare the new one.'**
+  String chatHeldByKeyChange(String name);
+
+  /// No description provided for @chatHeldCompareNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare it now'**
+  String get chatHeldCompareNow;
+
+  /// No description provided for @privacyDashboardRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Dashboard'**
+  String get privacyDashboardRow;
+
+  /// No description provided for @privacyDashboardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Dashboard'**
+  String get privacyDashboardTitle;
+
+  /// No description provided for @privacyDashboardContent.
+  ///
+  /// In en, this message translates to:
+  /// **'What is encrypted'**
+  String get privacyDashboardContent;
+
+  /// No description provided for @privacyDashboardMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get privacyDashboardMessages;
+
+  /// No description provided for @privacyDashboardCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get privacyDashboardCalls;
+
+  /// No description provided for @privacyDashboardEndToEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End-to-end'**
+  String get privacyDashboardEndToEnd;
+
+  /// No description provided for @privacyDashboardBotsExcepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot conversations are the exception — they are not end-to-end encrypted'**
+  String get privacyDashboardBotsExcepted;
+
+  /// No description provided for @privacyDashboardVerifiedCallsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Only from contacts you have verified'**
+  String get privacyDashboardVerifiedCallsOnly;
+
+  /// No description provided for @privacyDashboardAnyCaller.
+  ///
+  /// In en, this message translates to:
+  /// **'From anyone who can write to you'**
+  String get privacyDashboardAnyCaller;
+
+  /// No description provided for @privacyDashboardAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'This account'**
+  String get privacyDashboardAccount;
+
+  /// No description provided for @privacyDashboardDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices signed in'**
+  String get privacyDashboardDevices;
+
+  /// No description provided for @privacyDashboardBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup'**
+  String get privacyDashboardBackup;
+
+  /// No description provided for @privacyDashboardBackupSealed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sealed'**
+  String get privacyDashboardBackupSealed;
+
+  /// No description provided for @privacyDashboardNoBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'None on the server'**
+  String get privacyDashboardNoBackup;
+
+  /// No description provided for @privacyDashboardLocalOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Made on this device, kept by you'**
+  String get privacyDashboardLocalOnly;
+
+  /// No description provided for @privacyDashboardFinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Being found'**
+  String get privacyDashboardFinding;
+
+  /// No description provided for @privacyDashboardPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number'**
+  String get privacyDashboardPhone;
+
+  /// No description provided for @privacyDashboardLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked'**
+  String get privacyDashboardLinked;
+
+  /// No description provided for @privacyDashboardNotLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not linked'**
+  String get privacyDashboardNotLinked;
+
+  /// No description provided for @privacyDashboardDiscovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Found by my number'**
+  String get privacyDashboardDiscovery;
+
+  /// No description provided for @privacyDashboardContactSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact sync'**
+  String get privacyDashboardContactSync;
+
+  /// No description provided for @privacyDashboardIdentityAndRouting.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity and routing'**
+  String get privacyDashboardIdentityAndRouting;
+
+  /// No description provided for @privacyDashboardVerifiedContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified contacts'**
+  String get privacyDashboardVerifiedContacts;
+
+  /// No description provided for @privacyDashboardVerifiedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Counted against the keys in use right now, so a changed key drops out'**
+  String get privacyDashboardVerifiedNote;
+
+  /// No description provided for @privacyDashboardProxyDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get privacyDashboardProxyDirect;
+
+  /// No description provided for @privacyDashboardProxySocks.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5'**
+  String get privacyDashboardProxySocks;
+
+  /// No description provided for @privacyDashboardMetadataNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Content is encrypted; the fact that a message went from you to somebody, and when, is not. Privio’s server sees that much because it has to deliver it.'**
+  String get privacyDashboardMetadataNote;
+
+  /// No description provided for @privacyOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Overview'**
+  String get privacyOverview;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

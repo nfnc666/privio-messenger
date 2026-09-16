@@ -18,6 +18,7 @@ import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
 import '../models/models.dart';
+import '../models/security_event.dart';
 import 'api_client.dart';
 import 'failure.dart';
 import 'privio_services.dart';
@@ -138,10 +139,27 @@ class ConversationController extends ChangeNotifier {
   Future<void> _raiseKeyChanges() async {
     for (final change in _services.crypto.takeIdentityReplacements()) {
       if (change.accountId == accountId) continue; // one of my own devices
-      _keyChangeAlerts.add(change.accountId);
+      // Only the first device of theirs to change raises a line in the
+      // security log. A contact who reinstalls brings several new device keys
+      // at once, and five identical warnings about one event teach the reader
+      // to scroll past them.
+      final first = _keyChangeAlerts.add(change.accountId);
       await _services.crypto.raiseKeyChangeAlert(change.accountId);
+      if (first) {
+        onSecurityEvent?.call(
+          SecurityEventKind.contactKeyChanged,
+          subject: _services.store.conversationWith(change.accountId)?.user?.displayName,
+        );
+      }
     }
   }
+
+  /// Where a security event goes, or null when nothing is listening.
+  ///
+  /// A callback rather than a reference to the controller that displays the
+  /// list, so the conversation layer never depends on a settings screen. Set by
+  /// [AppState] at sign-in.
+  void Function(SecurityEventKind kind, {String? subject})? onSecurityEvent;
 
   /// Records a refused send so the chat can say why rather than showing a
   /// message stuck at "failed" with no explanation.
@@ -167,6 +185,59 @@ class ConversationController extends ChangeNotifier {
 
   bool get readReceiptsEnabled => _readReceipts;
   bool get typingIndicatorsEnabled => _typingIndicators;
+
+  bool _blockOnKeyChange = false;
+
+  /// Whether a chat locks itself when the contact's safety number changes.
+  ///
+  /// **A local setting and only a local one.** It is read from and written to
+  /// this device's keystore; the server is never told, because a server that
+  /// knew which of its users refuse unexplained key changes would know exactly
+  /// which of them not to try it on.
+  bool get blockOnKeyChange => _blockOnKeyChange;
+
+  /// Reads the setting for [account]. Off until it has answered, which is the
+  /// safe default for a *lock*: a chat must not be unusable because a keystore
+  /// read was slow.
+  Future<void> loadKeyChangeBlocking(String account) async {
+    final block = await _services.secureStore.readBlockOnKeyChange(account);
+    if (accountId != account) return;
+    _blockOnKeyChange = block;
+    notifyListeners();
+  }
+
+  Future<void> setBlockOnKeyChange(bool block) async {
+    final account = accountId;
+    _blockOnKeyChange = block;
+    notifyListeners();
+    if (account != null) {
+      await _services.secureStore.writeBlockOnKeyChange(account, block);
+    }
+  }
+
+  /// Whether this conversation is held until the new number has been looked at.
+  ///
+  /// Two sources, and both are already facts this class keeps: a key change
+  /// seen on an *incoming* message ([hasKeyChangeAlert]) and one that refused
+  /// an *outgoing* one ([hasIdentityChange]). Either means the person on the
+  /// other end is not provably the person who was there yesterday.
+  ///
+  /// What the lock does and does not do is worth being exact about, because the
+  /// difference is the difference between a security control and a comfort
+  /// blanket:
+  ///
+  /// * **Sending is refused on a changed key whether this is on or off.** That
+  ///   is the crypto layer's pinning and it has never been optional — see
+  ///   [IdentityChangedException]. This setting does not add that.
+  /// * What it adds is that the chat stops *looking* usable: the composer is
+  ///   disabled and says why, rather than accepting a message that will fail.
+  /// * **Messages already received are not deleted or hidden.** Privio does not
+  ///   throw away something it has already decrypted; the chat is marked
+  ///   instead. Deleting them would destroy evidence of exactly the event the
+  ///   user is being warned about.
+  bool isHeldByKeyChange(String conversationId) =>
+      _blockOnKeyChange &&
+      (hasKeyChangeAlert(conversationId) || hasIdentityChange(conversationId));
 
   /// True while the other side of [conversationId] is typing.
   bool isTyping(String conversationId) =>

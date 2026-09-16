@@ -9,6 +9,7 @@ import '../crypto/privio_crypto.dart';
 import '../crypto/safety_number.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
+import '../data/security_log.dart';
 import '../media/voice_player.dart';
 import '../media/photo_source.dart';
 import '../media/voice_recorder.dart';
@@ -38,7 +39,9 @@ class PrivioServices {
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
+    SecurityLog? securityLog,
   })  : photos = photos ?? const NoPhotoSource(),
+        securityLog = securityLog ?? const NoSecurityLog(),
         archive = archive ?? const NoArchive() {
     // Assembled here rather than in the initialiser list because it is built
     // out of three of the fields above. A caller may still pass its own, which
@@ -100,6 +103,10 @@ class PrivioServices {
       backup: BackupService(api: api, store: secure, messages: store),
       store: store,
       secureStore: secure,
+      securityLog: EncryptedSecurityLog(
+        storage: const KeystoreSecurityLogStorage(),
+        keyStore: secure,
+      ),
       archive: EncryptedMessageArchive(
         storage: const KeystoreArchiveStorage(),
         keyStore: secure,
@@ -136,6 +143,12 @@ class PrivioServices {
   /// build machine. Defaults to the one that answers "no camera here", so a
   /// test that does not care never touches a plugin.
   final PhotoSource photos;
+
+  /// The local, sealed security activity log. Defaults to the one that keeps
+  /// nothing, so a test that does not care about it never writes a keystore
+  /// entry — and a build with no storage degrades to an empty list rather than
+  /// to a crash on a security screen.
+  final SecurityLog securityLog;
 
   /// Backups: sealed here, opaque everywhere else.
   final BackupService backup;

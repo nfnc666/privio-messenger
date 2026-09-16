@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../models/security_event.dart';
 import 'api_client.dart';
 import 'failure.dart';
+import 'secure_store.dart';
 
 /// A device signed in to this account.
 @immutable
@@ -63,9 +67,25 @@ class BlockedUser {
 /// in the widget tree — "Two-Factor Authentication: On" over an account that
 /// had none. A screen about security is the last place to guess.
 class SecurityController extends ChangeNotifier {
-  SecurityController(this._api);
+  SecurityController(this._api, {SecureStore? store}) : _store = store;
 
   final PrivioApiClient _api;
+
+  /// Where the last-known device list is remembered between launches. Null in
+  /// a test that does not care; the device diff below simply does nothing then.
+  final SecureStore? _store;
+
+  /// Whose settings these are. Set by [AppState] on sign-in, and needed for
+  /// the per-account entries this controller reads.
+  String? accountId;
+
+  /// Where a security event goes. A callback rather than a reference to
+  /// [SecurityEventController], so the two do not have to know about each
+  /// other and either can be exercised alone in a test.
+  void Function(SecurityEventKind kind, {String? subject})? onSecurityEvent;
+
+  void _record(SecurityEventKind kind, {String? subject}) =>
+      onSecurityEvent?.call(kind, subject: subject);
 
   bool? _twoFactorEnabled;
   bool _duressCodeSet = false;
@@ -210,6 +230,10 @@ class SecurityController extends ChangeNotifier {
         duressCode: duressCode,
       );
       _duressCodeSet = body['duressCodeSet'] as bool? ?? duressCode != null;
+      // One event either way, and without saying which: the log is on the
+      // phone, and a line reading "duress code removed" tells whoever is
+      // standing over the owner that the code they should fear is gone.
+      _record(SecurityEventKind.duressCodeChanged);
       return true;
     } on ApiException catch (failure) {
       _failure = _explain(failure);
@@ -255,6 +279,7 @@ class SecurityController extends ChangeNotifier {
     try {
       await _api.enableTotp(code.trim());
       _twoFactorEnabled = true;
+      _record(SecurityEventKind.twoFactorEnabled);
       _forgetSetup();
       return true;
     } on ApiException catch (failure) {
@@ -276,6 +301,10 @@ class SecurityController extends ChangeNotifier {
     try {
       await _api.disableTotp(currentPassword);
       _twoFactorEnabled = false;
+      // One of the two events the activity screen marks. Switching the second
+      // factor off is the single change an attacker who has the password would
+      // most want to make, and it must not read like any other line.
+      _record(SecurityEventKind.twoFactorDisabled);
       _forgetSetup();
       return true;
     } on ApiException catch (failure) {
@@ -313,6 +342,7 @@ class SecurityController extends ChangeNotifier {
           LinkedDevice.fromJson(entry as Map<String, dynamic>),
       ];
       _failure = null;
+      await _noticeDeviceChanges();
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
     } on Object {
@@ -336,7 +366,12 @@ class SecurityController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    final gone = _devices?.where((device) => device.id == deviceId).firstOrNull;
     _devices = [...?_devices?.where((device) => device.id != deviceId)];
+    _record(SecurityEventKind.deviceRemoved, subject: gone?.name);
+    // The device is no longer one of the known ones, so a later load must not
+    // report it as having reappeared.
+    unawaited(_rememberDevices());
     notifyListeners();
     return true;
   }
@@ -378,6 +413,56 @@ class SecurityController extends ChangeNotifier {
 
   /// The server's code as a case. Codes this app does not know fall back to the
   /// server's own wording, which arrives in English.
+  /// Compares what the server just said against what this phone last saw, and
+  /// files an event for anything new.
+  ///
+  /// **This is the only way a device can find out that somebody else linked
+  /// one.** The server tells every client the same list; noticing that the list
+  /// grew is what turns it from information into a warning, and it can only be
+  /// noticed by remembering. Ids only are remembered — see
+  /// [SecureStore.readKnownDevices].
+  ///
+  /// The first load after this shipped, and the first on a fresh install, emits
+  /// nothing: with nothing stored to compare against, every device present
+  /// would read as newly added, and a security screen that cries wolf on its
+  /// first run is a security screen nobody reads twice. A test holds this.
+  Future<void> _noticeDeviceChanges() async {
+    final store = _store;
+    final account = accountId;
+    final devices = _devices;
+    if (store == null || account == null || devices == null) return;
+
+    final current = {for (final device in devices) device.id};
+    final known = await store.readKnownDevices(account);
+    if (known.isEmpty) {
+      await store.writeKnownDevices(account, current);
+      return;
+    }
+
+    for (final device in devices) {
+      if (!known.contains(device.id)) {
+        _record(SecurityEventKind.deviceAdded, subject: device.name);
+      }
+    }
+    // Removals are recorded here too, for the ones this phone did not perform:
+    // a device signed out from another phone, or revoked by an administrator.
+    // There is no name left to give it — the server no longer lists it — and
+    // inventing one would be worse than the neutral stand-in.
+    final removedElsewhere = known.length - known.intersection(current).length;
+    for (var i = 0; i < removedElsewhere; i++) {
+      _record(SecurityEventKind.deviceRemoved);
+    }
+    await store.writeKnownDevices(account, current);
+  }
+
+  Future<void> _rememberDevices() async {
+    final store = _store;
+    final account = accountId;
+    final devices = _devices;
+    if (store == null || account == null || devices == null) return;
+    await store.writeKnownDevices(account, {for (final device in devices) device.id});
+  }
+
   static Failure _explain(ApiException failure) => switch (failure.code) {
         'invalid_totp' => const Failure(FailureKind.invalidTotp),
         'totp_already_enabled' => const Failure(FailureKind.totpAlreadyEnabled),
