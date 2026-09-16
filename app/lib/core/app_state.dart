@@ -22,10 +22,11 @@ import 'deep_links.dart';
 import '../services/wake_up.dart';
 import 'privio_services.dart';
 import '../models/security_event.dart';
-import 'phone_controller.dart';
 import 'security_controller.dart';
 import 'security_event_controller.dart';
 import 'screen_shield_controller.dart';
+import 'bot_controller.dart';
+import 'phone_controller.dart';
 import 'sticker_controller.dart';
 import 'status_controller.dart';
 import 'locale_controller.dart';
@@ -112,6 +113,7 @@ class AppState extends ChangeNotifier {
   StickerController? _stickers;
   SecurityEventController? _securityEvents;
   PhoneController? _phone;
+  BotController? _bots;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -303,19 +305,18 @@ class AppState extends ChangeNotifier {
   /// with until that screen had been opened.
   StickerController get stickers => _stickers ??= StickerController(services.api);
 
+  /// The optional phone number, its two consents, and contact matching.
+  PhoneController get phone => _phone ??= PhoneController(services.api);
+
+  /// The bots this account owns, and the conversation with @botcreator.
+  BotController get bots => _bots ??= BotController(services.api);
+
   /// What has happened to this account's security, kept on this device only.
   ///
   /// Reads and writes `services.securityLog`, which seals with the archive key
   /// — so the list lives exactly as long as the message history on this phone
   /// and dies in the same instant. There is no server side to it, on purpose:
   /// see `screens/security_activity_screen.dart`.
-  /// The optional phone number, and the two consents attached to it.
-  ///
-  /// Its own controller rather than part of [SecurityController], because a
-  /// number is not a security setting: it is a way for people to find you, and
-  /// the whole point of the feature is that the account works without one.
-  PhoneController get phone => _phone ??= PhoneController(services.api);
-
   SecurityEventController get securityEvents =>
       _securityEvents ??= SecurityEventController(services.securityLog);
 
@@ -553,15 +554,15 @@ class AppState extends ChangeNotifier {
       // The packs, for the same reason and with the same guard: they belong to
       // the account, and an answer that arrives after a switch is dropped.
       if (stickers.accountId != account) detached(stickers.load(account));
+      // The phone link, under the same rule: per account, and an answer that
+      // arrives after a switch is dropped rather than applied.
+      if (phone.accountId != account) detached(phone.load(account));
+      phone.onSecurityEvent = _recordSecurityEvent;
       // The local security log, and the wire that feeds it. Both before any
       // screen can ask for them, so an event that happens in the first seconds
       // after sign-in is filed under the account it belongs to rather than
       // dropped for want of an owner.
       if (securityEvents.accountId != account) detached(securityEvents.load(account));
-      // The number, its two switches, and whether this deployment can do any
-      // of it. Read at sign-in so the privacy overview has real values rather
-      // than blanks the first time somebody opens it.
-      if (phone.accountId != account) detached(phone.load(account));
       security
         ..accountId = account
         ..onSecurityEvent = _recordSecurityEvent;
@@ -570,7 +571,8 @@ class AppState extends ChangeNotifier {
       // than when a chat opens: a security setting that waits for a screen is
       // one somebody will believe is on when it is not.
       detached(conversations.loadKeyChangeBlocking(account));
-      ProxyController.instance.onRoutingChanged = ({required bool enabled}) => _recordSecurityEvent(
+      ProxyController.instance.onRoutingChanged = ({required bool enabled}) =>
+          _recordSecurityEvent(
             enabled ? SecurityEventKind.proxyEnabled : SecurityEventKind.proxyDisabled,
           );
     }
@@ -857,6 +859,8 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -980,6 +984,8 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -1058,6 +1064,8 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
+    _bots?.dispose();
+    _bots = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;

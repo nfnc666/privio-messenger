@@ -18,7 +18,7 @@ class FakeTransport implements ProxyTransport {
     return http.Response('{}', 200);
   });
   @override
-  WebSocketChannel connect(Uri uri) => throw UnimplementedError();
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols}) => throw UnimplementedError();
   @override
   void close() { closed = true; client.close(); }
 }

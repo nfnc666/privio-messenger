@@ -898,6 +898,44 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> redeemLicense(String licenseKey) =>
       _send('POST', '/v1/licenses/redeem', body: {'licenseKey': licenseKey});
 
+  // --- Bots ------------------------------------------------------------------
+
+  Future<Map<String, dynamic>> bots() => _send('GET', '/v1/bots');
+
+  Future<Map<String, dynamic>> createBot({
+    required String name,
+    required String username,
+  }) =>
+      _send('POST', '/v1/bots', body: {'name': name, 'username': username});
+
+  Future<Map<String, dynamic>> updateBot(
+    String id, {
+    String? name,
+    String? description,
+    List<Map<String, String>>? commands,
+    bool? disabled,
+  }) =>
+      _send('PATCH', '/v1/bots/$id', body: {
+        if (name != null) 'name': name,
+        if (description != null) 'description': description,
+        if (commands != null) 'commands': commands,
+        if (disabled != null) 'disabled': disabled,
+      });
+
+  Future<void> deleteBot(String id) async => _send('DELETE', '/v1/bots/$id');
+
+  /// Issues a token. **The plaintext is in this response and nowhere else** —
+  /// not stored, not readable again, and a new one replaces the old.
+  Future<Map<String, dynamic>> issueBotToken(String id) =>
+      _send('POST', '/v1/bots/$id/token');
+
+  Future<Map<String, dynamic>> revokeBotTokens(String id) =>
+      _send('DELETE', '/v1/bots/$id/token');
+
+  /// One turn of the conversation with @botcreator.
+  Future<Map<String, dynamic>> askBotCreator(String text) =>
+      _send('POST', '/v1/botcreator/say', body: {'text': text});
+
   // --- Phone number and contact discovery -----------------------------------
 
   /// This account's own number: whether one is attached, its hint, and the two

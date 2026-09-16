@@ -66,12 +66,14 @@ class _NativeTransport implements ProxyTransport {
   bool _closed = false;
 
   @override
-  WebSocketChannel connect(Uri uri) {
+  WebSocketChannel connect(Uri uri, {Iterable<String>? protocols}) {
     if (_closed) throw const SocketException('Closed');
     if ((config?.enabled ?? false) && uri.scheme != 'wss') {
       throw const SocketException('Proxy requires WSS');
     }
-    final socket = IOWebSocketChannel.connect(uri, customClient: _http,
+    final socket = IOWebSocketChannel.connect(uri,
+      protocols: protocols,
+      customClient: _http,
       connectTimeout: const Duration(seconds: 15));
     _sockets.add(socket);
     socket.sink.done.then<void>((_) => _sockets.remove(socket),

@@ -250,17 +250,6 @@ const schema = z.object({
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
 
-  /**
-   * A machine-translation endpoint for channel posts.
-   *
-   * Off unless configured, and it stays off per channel until somebody turns it
-   * on: translating means sending text to a third party, and a channel's posts
-   * are end-to-end encrypted. The server cannot read them and must never be the
-   * one to send them anywhere — so translation happens **on the device**, which
-   * is the only place the plaintext exists, and this URL is what the device is
-   * told to use. See docs/channels.md for what that costs and what it leaks.
-   */
-  TRANSLATION_URL: z.string().url().optional(),
 }).superRefine((env, ctx) => {
   const livekit = [env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET];
   if (livekit.some(Boolean) && !livekit.every(Boolean)) {

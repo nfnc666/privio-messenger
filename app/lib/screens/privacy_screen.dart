@@ -8,6 +8,7 @@ import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import 'phone_contacts_screen.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -173,6 +174,12 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 label: text.privacyProfileStatus,
                 value: _profileStatusLabel(text, security.profileStatus),
                 onTap: () => _chooseProfileStatus(security),
+              ),
+              SettingsRow(
+                label: text.privacyPhoneSection,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const PhoneContactsScreen()),
+                ),
               ),
             ],
           ),

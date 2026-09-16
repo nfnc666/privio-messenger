@@ -761,9 +761,6 @@ class AppTextIt extends AppText {
   String get editChannelAppearance => 'Aspetto';
 
   @override
-  String get editChannelAutoTranslate => 'Traduzione automatica';
-
-  @override
   String get editChannelDirectMessages => 'Messaggi diretti';
 
   @override
@@ -834,14 +831,6 @@ class AppTextIt extends AppText {
   @override
   String get livestreamCouldNotStart =>
       'Non è stato possibile avviare la diretta.';
-
-  @override
-  String get translationNotSetUpTitle =>
-      'La traduzione automatica non è configurata';
-
-  @override
-  String get translationNotSetUpBody =>
-      'Tradurre un post significa inviare ciò che dice a un servizio di traduzione. Il server di PRIVIO non può farlo — conserva testo cifrato e nessuna chiave — quindi dovrebbe avvenire sul tuo dispositivo, e il testo ne uscirebbe in chiaro.\n\nÈ una decisione che deve abilitare chi gestisce questo server e che ogni lettore deve accettare, quindi resta disattivata finché non sono avvenute entrambe le cose. Nessun post è stato inviato da nessuna parte.';
 
   @override
   String get visibilityPublicTitle => 'Questo canale è pubblico';
@@ -4070,6 +4059,183 @@ class AppTextIt extends AppText {
 
   @override
   String get channelVerifiedTooltip => 'Canale ufficiale PRIVIO';
+
+  @override
+  String get phoneFieldLabel => 'Numero di telefono (facoltativo)';
+
+  @override
+  String get phoneFieldHint => 'Numero di telefono (facoltativo)';
+
+  @override
+  String get phoneFieldExplain =>
+      'Collega il tuo numero di telefono così i contatti possono trovarti. Puoi usare PRIVIO anche senza numero di telefono.';
+
+  @override
+  String get phoneCountryCode => 'Prefisso del paese';
+
+  @override
+  String get phoneVerifyTitle => 'Conferma il numero';
+
+  @override
+  String phoneVerifySent(String hint) {
+    return 'Abbiamo inviato un codice al $hint.';
+  }
+
+  @override
+  String get phoneVerifyCode => 'Codice a sei cifre';
+
+  @override
+  String get phoneVerifyConfirm => 'Conferma';
+
+  @override
+  String get phoneVerifyResend => 'Invia un nuovo codice';
+
+  @override
+  String get phoneVerifySkip => 'Continua senza numero';
+
+  @override
+  String phoneVerifyStub(String code) {
+    return 'Server di sviluppo: non è stato inviato alcun SMS. Il codice è $code.';
+  }
+
+  @override
+  String get privacyPhoneSection => 'Numero di telefono e contatti';
+
+  @override
+  String get phoneAdd => 'Aggiungi un numero di telefono';
+
+  @override
+  String get phoneChange => 'Cambia numero';
+
+  @override
+  String get phoneRemove => 'Rimuovi il numero';
+
+  @override
+  String get phoneRemoveExplain =>
+      'Vengono eliminati sia il numero sia il collegamento che il server conserva per trovarti. Le tue chat restano intatte.';
+
+  @override
+  String get phoneDiscoverable => 'Farmi trovare tramite il mio numero';
+
+  @override
+  String get phoneDiscoverableExplain =>
+      'Disattivato finché non lo attivi. Quando è attivo, chi ha il tuo numero in rubrica vede il tuo account PRIVIO.';
+
+  @override
+  String get phoneContactSync => 'Sincronizza i contatti del dispositivo';
+
+  @override
+  String get phoneContactSyncExplain =>
+      'Disattivato finché non lo attivi. PRIVIO legge i numeri di telefono dei tuoi contatti, trasforma ciascuno in un valore illeggibile su questo dispositivo e chiede al server quali appartengono a un account PRIVIO. I nomi, le note e la rubrica stessa non vengono mai inviati né conservati sul server.';
+
+  @override
+  String get phoneSyncNow => 'Confronta i contatti adesso';
+
+  @override
+  String phoneSyncFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count persone trovate.',
+      one: '1 persona trovata.',
+      zero:
+          'Nessuno dei tuoi contatti è su PRIVIO, oppure nessuno ha attivato la ricerca.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get phoneImportedRemove => 'Rimuovi i contatti importati';
+
+  @override
+  String get phoneImportedRemoveExplain =>
+      'Rimuove solo le persone aggiunte dal confronto. Le tue chat con loro restano.';
+
+  @override
+  String get phoneNotLinkedYet => 'Nessun numero collegato';
+
+  @override
+  String get settingsBots => 'Bot';
+
+  @override
+  String get botsTitle => 'I miei bot';
+
+  @override
+  String get botsEmptyTitle => 'Ancora nessun bot';
+
+  @override
+  String get botsEmptyBody =>
+      'Un bot è un account che gestisci tramite un’API HTTP. Creane uno e @botcreator ti guiderà.';
+
+  @override
+  String get botsCreate => 'Crea un bot';
+
+  @override
+  String get botsNameLabel => 'Nome';
+
+  @override
+  String get botsUsernameLabel => 'Nome utente';
+
+  @override
+  String get botsDescriptionLabel => 'Descrizione';
+
+  @override
+  String get botsCommandsLabel => 'Comandi';
+
+  @override
+  String get botsCommandsHint => 'Uno per riga: comando — che cosa fa';
+
+  @override
+  String get botsDisable => 'Spegni questo bot';
+
+  @override
+  String get botsDisabled => 'Spento';
+
+  @override
+  String get botsDelete => 'Elimina il bot';
+
+  @override
+  String botsDeleteConfirm(String username) {
+    return 'Eliminare @$username?';
+  }
+
+  @override
+  String get botsToken => 'Token API';
+
+  @override
+  String get botsTokenNew => 'Crea un nuovo token';
+
+  @override
+  String get botsTokenRevoke => 'Revoca i token';
+
+  @override
+  String get botsTokenOnce =>
+      'Questo token viene mostrato solo questa volta. È conservato come digest e non può essere riletto. Un nuovo token sostituisce quello precedente.';
+
+  @override
+  String get botsTokenCopy => 'Copia il token';
+
+  @override
+  String get botsTokenCopied => 'Token copiato';
+
+  @override
+  String get botsTokenDone => 'L’ho salvato';
+
+  @override
+  String get botsBadge => 'BOT';
+
+  @override
+  String get botsNotEncrypted =>
+      'Una conversazione con un bot non è cifrata end-to-end. Chi gestisce il bot può leggere quello che gli mandi, e anche questo server. Le tue altre chat, i gruppi e i canali restano invariati.';
+
+  @override
+  String get botsUnderstood => 'Ho capito';
+
+  @override
+  String get botcreatorTitle => 'Bot Creator';
+
+  @override
+  String get botcreatorHint => 'Scrivi un comando oppure /help';
 
   @override
   String get composerCamera => 'Fotocamera';
