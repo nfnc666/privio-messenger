@@ -39,6 +39,20 @@ const schema = z.object({
   ENVELOPE_TTL_DAYS: z.coerce.number().int().positive().default(30),
   MAX_ENVELOPE_BYTES: z.coerce.number().int().positive().default(64 * 1024),
   MAX_MEDIA_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  /**
+   * How many bytes of media one account may be holding at once.
+   *
+   * Not a business limit — a limit on what one signed-in account can cost
+   * whoever runs the server. Without it, `MAX_MEDIA_BYTES` caps a single
+   * upload and nothing caps the total: at the ordinary request limit a single
+   * device could push tens of gigabytes a minute, and every byte sits for
+   * `MEDIA_TTL_DAYS` whether or not a message ever pointed at it.
+   *
+   * Counted over objects that have not expired, so it frees itself as
+   * attachments age out. Two gigabytes is generous for a messenger whose
+   * attachments are transient by design; a deployment that wants more sets it.
+   */
+  MEDIA_QUOTA_BYTES: z.coerce.number().int().positive().default(2 * 1024 * 1024 * 1024),
   MAX_BACKUP_BYTES: z.coerce.number().int().positive().default(512 * 1024 * 1024),
   /**
    * Comma-separated origins allowed to call the API from a browser. The mobile

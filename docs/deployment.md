@@ -173,6 +173,8 @@ each exists, is in `server/src/config.ts`.
 | `SESSION_TTL_DAYS` | **365** | a session older than this stops working |
 | `WS_REVALIDATE_MS` | **60000** | worst-case delay between "session revoked" and "socket closed" |
 | `MAX_ENVELOPE_BYTES` | **65536** | per-message ciphertext limit |
+| `MEDIA_QUOTA_BYTES` | **2 GiB** | how much media *one account* may hold at once |
+| `PUBLIC_WEB_URL` | **unset — guessed from the request** | this deployment's own address. **Set it.** See below |
 | `MAX_MEDIA_BYTES` | **100 MB** | per-attachment limit |
 | `MAX_BACKUP_BYTES` | **512 MB** | per-backup limit |
 | `CORS_ORIGINS` | **empty** | browser origins allowed; the mobile apps do not need it |
@@ -223,6 +225,31 @@ It **warns, and runs**, when:
 Half-configured push credentials are refused outright, at start-up: a set of
 APNs values with one missing does not deliver, and looking configured is worse
 than being unconfigured.
+
+### `PUBLIC_WEB_URL` is worth setting even though nothing refuses to start
+
+Every absolute URL on the public invite pages — the share link, the QR code,
+`og:image` — is built from this. When it is unset the server falls back to the
+`Host` header the request arrived with, which is whatever the client typed. The
+header is validated to a bare hostname so it cannot carry a path or a scheme
+into the page, but it cannot be checked against *this* deployment: only you know
+that address.
+
+What the fallback costs, so the trade is visible: a request carrying a forged
+`Host` gets back a page whose share link points elsewhere. On its own that harms
+only whoever sent it. To stop it reaching anybody else, **a page built from a
+guessed origin is never served `cache-control: public`** — so a proxy in front
+cannot be made to hand a poisoned page to other people. Setting `PUBLIC_WEB_URL`
+removes the guess and restores the 60-second public caching for public channel
+pages.
+
+### `MEDIA_QUOTA_BYTES`
+
+`MAX_MEDIA_BYTES` caps a single upload; this caps what one account holds at
+once. Without it, one signed-in account could push tens of gigabytes a minute at
+the ordinary request limit, and every byte would sit for `MEDIA_TTL_DAYS`
+whether or not a message ever pointed at it. The count is over objects that have
+not expired, so it frees itself as attachments age out.
 
 ---
 

@@ -231,6 +231,28 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
             throw ApiError.badRequest(checked.refusal, stickerRefusalMessage(checked.refusal));
           }
         }
+        // **Before the bytes touch storage.** Checking after would mean writing
+        // the blob and then refusing it, which is the cost this limit exists to
+        // avoid paying.
+        //
+        // Counted over what has not expired, so the quota frees itself as
+        // attachments age out rather than needing anybody to delete anything.
+        // Avatars and stickers count too: they are smaller, but an account that
+        // uploaded ten thousand of them would cost exactly as much.
+        const { rows: held } = await pool.query<{ used: string }>(
+          `SELECT COALESCE(sum(byte_size), 0)::text AS used
+             FROM media_objects
+            WHERE owner_account_id = $1 AND expires_at > now()`,
+          [accountId],
+        );
+        const used = Number(held[0]?.used ?? 0);
+        if (used + body.length > config.MEDIA_QUOTA_BYTES) {
+          throw ApiError.payloadTooLarge(
+            'media_quota_exceeded',
+            'This account is holding as much media as it may. Older attachments free space as they expire.',
+          );
+        }
+
         const storageKey = await storage.put(body);
         const defaultTtl = config.MEDIA_TTL_DAYS * 86_400_000;
         // Only ever shorter. An uploader asking for longer is asking for the

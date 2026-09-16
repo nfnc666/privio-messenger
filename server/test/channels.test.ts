@@ -2022,11 +2022,23 @@ describe('channels', () => {
     // Nothing in the request reveals a key: the server only routes the ask.
     assert.ok(!JSON.stringify(requests[0]).includes('key'));
 
-    // Once the sealed key is on its way, the request is cleared.
-    const cleared = await h.app.inject({
+    // The **holder cannot clear it**, and that is the point of the rule #124
+    // added: every member can see pending requests, so a member who could
+    // delete one without sending anything could starve a new device of the
+    // channel key for good.
+    const byTheHolder = await h.app.inject({
       method: 'DELETE',
       url: `/v1/channels/${channel.id}/key-requests/${reader.deviceId}`,
       headers: bearer(owner),
+    });
+    assert.equal(byTheHolder.statusCode, 403, 'a member other than the joiner cleared it');
+
+    // Clearing is an acknowledgement by the device that was waiting: it has the
+    // key now, so it stops asking.
+    const cleared = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/channels/${channel.id}/key-requests/${reader.deviceId}`,
+      headers: bearer(reader),
     });
     assert.equal(cleared.statusCode, 200);
 

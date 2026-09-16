@@ -13,7 +13,7 @@ interface Socket {
   send(data: string): void;
   close(): void;
 }
-const WebSocket = WebSocketImpl as unknown as new (url: string) => Socket;
+const WebSocket = WebSocketImpl as unknown as new (url: string, protocols?: string[]) => Socket;
 
 import { config } from '../src/config.js';
 import { pool } from '../src/db/pool.js';
@@ -45,7 +45,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Opens a socket and collects every frame it is sent. */
 async function connect(url: string, token: string): Promise<{ socket: Socket; frames: string[] }> {
   const frames: string[] = [];
-  const socket = new WebSocket(`${url}?token=${encodeURIComponent(token)}`);
+  // The token rides in the WebSocket subprotocol, never in the URL — see #123.
+  const socket = new WebSocket(url, [`privio-auth.${token}`]);
   socket.on('message', (raw: never) => frames.push(String(raw)));
   await new Promise<void>((resolve, reject) => {
     socket.on('open', () => resolve());

@@ -3,6 +3,7 @@ package app.privio.privio.push
 import android.Manifest
 import android.app.Activity
 import android.os.Build
+import app.privio.privio.AppSettings
 import app.privio.privio.NotificationPermissions
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
