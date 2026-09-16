@@ -13,7 +13,7 @@ interface Socket {
   send(data: string): void;
   close(): void;
 }
-const WebSocket = WebSocketImpl as unknown as new (url: string) => Socket;
+const WebSocket = WebSocketImpl as unknown as new (url: string, protocols?: string[]) => Socket;
 import { pool } from '../src/db/pool.js';
 import {
   bearer,
@@ -64,8 +64,7 @@ describe('revoking a session that is already connected', () => {
     // moved it there because a URL is retained by reverse proxies and access
     // logs, and the server stopped accepting `?token=` at the same moment.
     // These tests kept sending it the old way, which is what left them red.
-    // The token rides in the WebSocket subprotocol, never in the URL — see #123.
-  const socket = new WebSocket(url, [`privio-auth.${token}`]);
+    const socket = new WebSocket(url, [`privio-auth.${token}`]);
     await once(socket as unknown as NodeJS.EventEmitter, 'open');
     return socket;
   }

@@ -13,7 +13,7 @@ interface Socket {
   send(data: string): void;
   close(): void;
 }
-const WebSocket = WebSocketImpl as unknown as new (url: string) => Socket;
+const WebSocket = WebSocketImpl as unknown as new (url: string, protocols?: string[]) => Socket;
 
 import { config } from '../src/config.js';
 import { pool } from '../src/db/pool.js';
