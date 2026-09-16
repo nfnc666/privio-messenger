@@ -27,10 +27,11 @@ object AppSettings {
         return try {
             context.startActivity(intent)
             true
-        } catch (_: ActivityNotFoundException) {
+        } catch (error: ActivityNotFoundException) {
             // A device with no settings app for this — rare, but it is a
             // "false" rather than a crash in the middle of a refusal the user
-            // is already unhappy about.
+            // is already unhappy about. The exception itself carries nothing
+            // worth logging and nothing the caller can act on beyond the false.
             false
         }
     }

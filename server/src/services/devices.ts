@@ -140,6 +140,19 @@ export async function storeOneTimePreKeys(
      ON CONFLICT (device_id, key_id) DO NOTHING`,
     values,
   );
+
+  // Then trim to the cap, oldest key ids first. Done after the insert rather
+  // than by refusing the request: a client topping up a nearly-full pool should
+  // succeed, and what it loses is the keys it is least likely to still hold.
+  await client.query(
+    `DELETE FROM one_time_prekeys
+      WHERE device_id = $1
+        AND key_id NOT IN (
+          SELECT key_id FROM one_time_prekeys
+           WHERE device_id = $1 ORDER BY key_id DESC LIMIT $2
+        )`,
+    [deviceId, MAX_ONE_TIME_PREKEYS],
+  );
 }
 
 export interface PreKeyBundle {
@@ -168,9 +181,20 @@ export interface PreKeyBundle {
  * bundle for itself would seal a copy the send would then reject as a device
  * mismatch.
  */
+/**
+ * The most one-time prekeys one device may keep on the server.
+ *
+ * A pool is meant to be a few hundred; a client tops it up as it is drained.
+ * Nothing stopped a device from topping up forever with fresh key ids, and
+ * `keyId` goes to 0xffffff — so one account could have written sixteen million
+ * rows. The cap is well above what any real client asks for.
+ */
+export const MAX_ONE_TIME_PREKEYS = 500;
+
 export async function fetchPreKeyBundles(
   accountId: string,
   exceptDeviceId?: string,
+  consumeOneTime = true,
 ): Promise<PreKeyBundle[]> {
   const { rows: devices } = await pool.query(
     `SELECT d.id, d.device_index, d.registration_id, d.identity_key,
@@ -184,16 +208,33 @@ export async function fetchPreKeyBundles(
 
   const bundles: PreKeyBundle[] = [];
   for (const device of devices) {
-    // DELETE ... RETURNING makes consumption atomic against concurrent fetches.
-    const { rows: otp } = await pool.query(
-      `DELETE FROM one_time_prekeys
-       WHERE (device_id, key_id) IN (
-         SELECT device_id, key_id FROM one_time_prekeys
-         WHERE device_id = $1 ORDER BY key_id LIMIT 1 FOR UPDATE SKIP LOCKED
-       )
-       RETURNING key_id, public_key`,
-      [device.id],
-    );
+    let taken: { key_id: number; public_key: Buffer } | null = null;
+    // A caller who has been blocked gets a bundle with no one-time prekey.
+    //
+    // **Not a refusal**, deliberately: refusing would tell them they are
+    // blocked, and Privio's blocking is silent everywhere else — a blocked
+    // sender's messages are dropped without a word. An absent one-time prekey
+    // is an ordinary state that happens to anybody whose pool has run dry, so
+    // it says nothing.
+    //
+    // What it stops is the drain. Every fetch of this endpoint *consumes* one
+    // of the target's prekeys, so somebody the target has already blocked could
+    // empty the pool and keep it empty, pushing every new session onto the
+    // signed prekey alone. That is the weaker handshake, and it was reachable
+    // by the one person the target had explicitly shut out.
+    if (consumeOneTime) {
+      // DELETE ... RETURNING makes consumption atomic against concurrent fetches.
+      const { rows: otp } = await pool.query(
+        `DELETE FROM one_time_prekeys
+        WHERE (device_id, key_id) IN (
+          SELECT device_id, key_id FROM one_time_prekeys
+          WHERE device_id = $1 ORDER BY key_id LIMIT 1 FOR UPDATE SKIP LOCKED
+        )
+         RETURNING key_id, public_key`,
+        [device.id],
+      );
+      taken = otp[0] ?? null;
+    }
     bundles.push({
       deviceId: device.id,
       deviceIndex: device.device_index,
@@ -204,8 +245,8 @@ export async function fetchPreKeyBundles(
         publicKey: (device.spk_pub as Buffer).toString('base64'),
         signature: (device.spk_sig as Buffer).toString('base64'),
       },
-      oneTimePreKey: otp[0]
-        ? { keyId: otp[0].key_id, publicKey: (otp[0].public_key as Buffer).toString('base64') }
+      oneTimePreKey: taken
+        ? { keyId: taken.key_id, publicKey: (taken.public_key as Buffer).toString('base64') }
         : null,
     });
   }

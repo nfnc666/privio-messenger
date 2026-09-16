@@ -144,8 +144,34 @@ export function originOf(request: FastifyRequest): string {
   if (config.PUBLIC_WEB_URL) return config.PUBLIC_WEB_URL.replace(/\/+$/, '');
   const forwarded = request.headers['x-forwarded-proto'];
   const proto = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
-  const host = request.headers.host ?? 'localhost';
+  const host = safeHost(request.headers.host);
   return `${proto || request.protocol || 'https'}://${host}`;
+}
+
+/**
+ * A hostname and optional port, or nothing.
+ *
+ * The `Host` header is whatever the client typed, and this value ends up in the
+ * page as `og:image`, as the share URL and inside the QR code. Taking it on
+ * trust meant a request carrying `Host: evil.example` got back a page whose
+ * share link and preview image pointed at `evil.example` — and a public
+ * channel's page is served `cache-control: public`, so a proxy that keys on the
+ * path alone could then hand that poisoned page to everybody else.
+ *
+ * Nothing here can validate that a host is *this deployment's* — only
+ * `PUBLIC_WEB_URL` can, which is why the deployment docs say to set it. What
+ * this does is reject anything that is not a bare host, so a header cannot
+ * carry a path, a scheme, a credential or a second URL into the page.
+ */
+export function safeHost(header: string | string[] | undefined): string {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (typeof value !== 'string') return 'localhost';
+  const trimmed = value.trim();
+  // Letters, digits, dots and hyphens, with an optional numeric port. No
+  // slashes, no '@', no spaces, no control characters, nothing to break out of
+  // the attribute it is written into.
+  if (!/^[A-Za-z0-9.-]{1,253}(:\d{1,5})?$/.test(trimmed)) return 'localhost';
+  return trimmed;
 }
 
 /** An inline SVG QR code, or null if it could not be made. */
@@ -177,6 +203,14 @@ async function qrFor(url: string): Promise<string | null> {
  * The CSP says the same thing structurally: this page may load nothing from
  * anywhere, so there is no request for a token to ride on.
  */
+/**
+ * Whether this deployment knows its own address, or is guessing from the
+ * request. See [originOf].
+ */
+function originIsConfigured(): boolean {
+  return Boolean(config.PUBLIC_WEB_URL);
+}
+
 function pageHeaders(reply: FastifyReply, indexable: boolean): void {
   reply.header('content-type', 'text/html; charset=utf-8');
   reply.header('referrer-policy', 'no-referrer');
@@ -188,7 +222,17 @@ function pageHeaders(reply: FastifyReply, indexable: boolean): void {
   );
   if (!indexable) reply.header('x-robots-tag', 'noindex, nofollow');
   // A public channel page may be cached briefly; a private one never.
-  reply.header('cache-control', indexable ? 'public, max-age=60' : 'private, no-store');
+  //
+  // And **only when this deployment knows its own address**. Without
+  // `PUBLIC_WEB_URL` every absolute URL on the page — the share link, the QR
+  // code, `og:image` — is built from the request's own `Host` header, so a
+  // request carrying a forged one produces a page pointing somewhere else. On
+  // its own that harms only the sender; marking such a page `public` is what
+  // would let a proxy keying on the path hand it to everybody else. So a
+  // guessed origin is never cached, and the fix for the caching is to set
+  // `PUBLIC_WEB_URL` — which `docs/deployment.md` now says.
+  const cacheable = indexable && originIsConfigured();
+  reply.header('cache-control', cacheable ? 'public, max-age=60' : 'private, no-store');
 }
 
 interface ChannelRow {

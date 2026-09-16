@@ -60,7 +60,12 @@ describe('revoking a session that is already connected', () => {
 
   /** Opens a socket and waits until it is actually connected. */
   async function connect(token: string): Promise<Socket> {
-    const socket = new WebSocket(`${url}?token=${encodeURIComponent(token)}`);
+    // The token rides in the WebSocket subprotocol, never in the URL: #123
+    // moved it there because a URL is retained by reverse proxies and access
+    // logs, and the server stopped accepting `?token=` at the same moment.
+    // These tests kept sending it the old way, which is what left them red.
+    // The token rides in the WebSocket subprotocol, never in the URL — see #123.
+  const socket = new WebSocket(url, [`privio-auth.${token}`]);
     await once(socket as unknown as NodeJS.EventEmitter, 'open');
     return socket;
   }
@@ -272,7 +277,7 @@ describe('revoking a session that is already connected', () => {
       headers: bearer(user),
     });
 
-    const socket = new WebSocket(`${url}?token=${encodeURIComponent(user.token)}`);
+    const socket = new WebSocket(url, [`privio-auth.${user.token}`]);
     const code = await new Promise<number>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('socket stayed open')), 4000);
       socket.on('close', (c: never) => {

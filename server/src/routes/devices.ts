@@ -10,6 +10,7 @@ import {
   storeSignedPreKey,
 } from '../services/devices.js';
 import { findByUsername } from '../services/accounts.js';
+import { rateLimitFactor } from '../config.js';
 import { ApiError } from '../util/errors.js';
 import { parsePushEndpoint } from '../util/outbound.js';
 import { announceDeviceRevocation } from '../services/revocation.js';
@@ -171,21 +172,49 @@ const deviceRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
    * Prekey bundles for every active device of a user, so the caller can open a
    * Signal session per device. Consuming a one-time prekey is a side effect.
    */
-  app.get('/v1/keys/:username', requireAuth, async (request) => {
+  app.get(
+    '/v1/keys/:username',
+    {
+      ...requireAuth,
+      // **Every fetch here consumes one of the target's one-time prekeys.**
+      // That is how X3DH works, and it is also why this endpoint needs a limit
+      // of its own: without one, any signed-in account could drain anybody
+      // else's pool as fast as the global limiter allows and keep it empty,
+      // pushing every new session with that person onto the signed prekey
+      // alone — the weaker handshake, for everyone, indefinitely.
+      //
+      // 60 an hour is far above real use. A client fetches a bundle when it
+      // first writes to a contact and when a device of theirs appears; nobody
+      // legitimately opens sixty new conversations an hour.
+      config: { rateLimit: { max: 60 * rateLimitFactor, timeWindow: '1 hour' } },
+    },
+    async (request) => {
     const { accountId, deviceId } = auth(request);
     const params = parse(z.object({ username: usernameSchema }), request.params);
     const target = await findByUsername(params.username);
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
+
+    // Whether the target has blocked whoever is asking. A blocked caller gets
+    // a bundle — refusing would tell them they are blocked, and every other
+    // part of blocking here is silent — but it does not *consume* a one-time
+    // prekey, so the one person the target has shut out cannot drain them.
+    const { rows: blocked } = await pool.query(
+      'SELECT 1 FROM blocks WHERE account_id = $1 AND blocked_account_id = $2',
+      [target.id, accountId],
+    );
+
     // Asking for your own account means "my other devices" — the copy of a
     // message that keeps a second device's view of a conversation from drifting
     // away from the first. A device never needs a session with itself.
     const bundles = await fetchPreKeyBundles(
       target.id,
       target.id === accountId ? deviceId : undefined,
+      blocked.length === 0,
     );
     if (bundles.length === 0) throw ApiError.notFound('no_devices', 'User has no active devices');
     return { accountId: target.id, username: target.username, devices: bundles };
-  });
+    },
+  );
 };
 
 export default deviceRoutes;
