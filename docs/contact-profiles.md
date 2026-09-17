@@ -45,12 +45,20 @@ Executed locally:
 - `node --test tools/contact-profile.test.mjs`: source/localization checks only;
   these are not Flutter behavior tests.
 - `git diff --check`.
+- `npm run test:tools`: all 27 checks passed.
+
+GitHub CI on the first implementation commit (`e2a9b6a`): server typecheck,
+PostgreSQL-backed tests, container build/health tests and Flutter analyze passed.
+Flutter tests were still running when the additional navigation regression test
+was added. This does not count as device testing or as approval of later commits.
 
 Added but not executed here:
 
 - `app/test/contact_profile_test.dart`: ID lookup, response mismatch, hidden
   fields, deleted/error responses, account-switch races, contact operations,
-  conversation reuse and sender taps with iOS/Android themes.
+  conversation reuse and sender taps with iOS/Android themes. A further widget
+  test checks actual ChatScreen identity, an unsent draft and scroll position
+  after opening and closing the profile (including a failed profile lookup).
 - `server/test/contact_profile.test.ts`: authenticated allowlist, target-side
   contact privacy, owner status, viewer isolation, blocks, removal, deletion.
   The local tsx runner was blocked from opening its IPC socket (EPERM).

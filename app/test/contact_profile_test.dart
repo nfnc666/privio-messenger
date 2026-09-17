@@ -13,6 +13,12 @@ import 'package:privio/models/models.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/widgets/avatar.dart';
 import 'package:privio/widgets/message_bubble.dart';
+import 'package:privio/screens/chat_screen.dart';
+import 'package:privio/screens/contact_profile_screen.dart';
+import 'package:privio/widgets/privio_back_button.dart';
+
+import 'composer_bar_test.dart' show chatWithBob;
+import 'widget_test.dart' show wrap;
 
 Map<String, dynamic> profile({String id = 'peer'}) => {
   'id': id, 'username': 'same-name', 'displayName': 'Same Name',
@@ -114,4 +120,36 @@ void main() {
       expect(taps, 2);
     });
   }
+
+  testWidgets('opening and closing the profile preserves the actual chat State, draft and position', (tester) async {
+    final state = await chatWithBob();
+    addTearDown(state.dispose);
+    for (var i = 0; i < 40; i++) {
+      state.services.store.append('account-bob', Message(
+        id: 'm$i', body: 'Message $i', sentAt: DateTime(2026), isMine: false,
+      ),);
+    }
+    await tester.pumpWidget(wrap(const ChatScreen(accountId: 'account-bob', title: 'bob'), state));
+    await tester.pump(const Duration(seconds: 1));
+    final chatState = tester.state(find.byType(ChatScreen));
+    await tester.enterText(find.byType(TextField).first, 'Unsent draft');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.drag(find.byType(MessageBubble).hitTestable().first, const Offset(0, 250));
+    await tester.pump(const Duration(seconds: 1));
+    final bubble = tester.widget<MessageBubble>(find.byType(MessageBubble).hitTestable().first);
+    final marker = find.text(bubble.message.body);
+    final before = tester.getTopLeft(marker);
+    await tester.tap(find.text('bob').first);
+    // The quiet API deliberately has no profile: failure must preserve the chat too.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(ContactProfileScreen), findsOneWidget);
+    await tester.tap(find.byType(PrivioBackButton).last);
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.state(find.byType(ChatScreen)), same(chatState));
+    expect(tester.widget<TextField>(find.byType(TextField).first).controller!.text, 'Unsent draft');
+    expect(tester.getTopLeft(marker).dy, closeTo(before.dy, 1));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
