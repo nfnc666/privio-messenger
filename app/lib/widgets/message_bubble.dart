@@ -13,6 +13,7 @@ import 'custom_emoji_text.dart';
 import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
+import 'avatar.dart';
 
 /// One message in a conversation.
 ///
@@ -24,6 +25,7 @@ class MessageBubble extends StatelessWidget {
     super.key,
     this.onLongPress,
     this.onStickerTap,
+    this.onSenderTap,
     this.highlighted = false,
   });
 
@@ -38,6 +40,9 @@ class MessageBubble extends StatelessWidget {
 
   /// Offers the pack a sticker came from. Null where there is nowhere to go.
   final VoidCallback? onStickerTap;
+
+  /// The parent supplies the authenticated sender ID; never resolve by name.
+  final VoidCallback? onSenderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -101,12 +106,28 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (message.isReply) _QuotedMessage(message: message, mine: mine),
-            if (message.senderName != null)
+            if (message.senderName != null || onSenderTap != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  message.senderName!,
-                  style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                child: InkWell(
+                  onTap: onSenderTap,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onSenderTap != null) ...[
+                        PrivioAvatar(
+                          label: message.senderName ?? AppText.of(context).contactProfileYou,
+                          size: 24,
+                          seed: (message.senderAccountId ?? '').hashCode.abs(),
+                        ),
+                        const SizedBox(width: PrivioSpacing.xs),
+                      ],
+                      Flexible(child: Text(
+                        message.senderName ?? AppText.of(context).contactProfileYou,
+                        style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                      ),),
+                    ],
+                  ),
                 ),
               ),
             if (message.kind == MessageKind.deleted)

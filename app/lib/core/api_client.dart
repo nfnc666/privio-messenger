@@ -79,6 +79,9 @@ class PrivioApiClient {
   /// and the answer.
   int _session = 0;
 
+  /// An opaque generation, never a credential. Screens discard session-owned state when it changes.
+  int get sessionGeneration => _session;
+
   bool get isAuthenticated => _token != null;
   void invalidateTransportRequests() { _session += 1; }
 
@@ -251,6 +254,12 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> addContact(String username) =>
       _send('POST', '/v1/contacts', body: {'username': username});
+
+  Future<Map<String, dynamic>> addContactById(String accountId) =>
+      _send('POST', '/v1/contacts', body: {'accountId': accountId});
+
+  Future<void> removeContact(String accountId) async =>
+      _send('DELETE', '/v1/contacts/$accountId');
 
   Future<Map<String, dynamic>> lookup(String username) =>
       _send('GET', '/v1/users/$username');

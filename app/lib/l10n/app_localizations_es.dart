@@ -6,6 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for Spanish Castilian (`es`).
 class AppTextEs extends AppText {
+  @override
+  String get contactProfileTitle => 'Perfil del contacto';
+
+  @override
+  String get contactProfileMessage => 'Escribir un mensaje';
+
+  @override
+  String get contactProfileRemove => 'Eliminar contacto';
+
+  @override
+  String get contactProfileMissing => 'Esta cuenta ya no existe o no está disponible.';
+
+  @override
+  String get contactProfileError => 'No se pudo cargar o actualizar el perfil. Inténtalo de nuevo.';
+
+  @override
+  String get contactProfileSessionEnded => 'Esta sesión ha terminado. Abre el perfil de nuevo desde tu cuenta.';
+
+  @override
+  String get contactProfileBlockNote => 'Dejarás de recibir mensajes de esta persona. El historial permanece en este dispositivo.';
+
+  @override
+  String get contactProfileYou => 'Tú';
+
   AppTextEs([String locale = 'es']) : super(locale);
 
   @override

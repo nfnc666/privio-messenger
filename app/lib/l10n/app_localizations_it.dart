@@ -6,6 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for Italian (`it`).
 class AppTextIt extends AppText {
+  @override
+  String get contactProfileTitle => 'Profilo del contatto';
+
+  @override
+  String get contactProfileMessage => 'Scrivi un messaggio';
+
+  @override
+  String get contactProfileRemove => 'Rimuovi contatto';
+
+  @override
+  String get contactProfileMissing => 'Questo account non esiste più o non è disponibile.';
+
+  @override
+  String get contactProfileError => 'Impossibile caricare o aggiornare il profilo. Riprova.';
+
+  @override
+  String get contactProfileSessionEnded => 'Questa sessione è terminata. Riapri il profilo dal tuo account.';
+
+  @override
+  String get contactProfileBlockNote => 'Non riceverai più messaggi da questa persona. La cronologia resta su questo dispositivo.';
+
+  @override
+  String get contactProfileYou => 'Tu';
+
   AppTextIt([String locale = 'it']) : super(locale);
 
   @override

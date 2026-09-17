@@ -1,4 +1,12 @@
 {
+  "contactProfileTitle": "Profil du contact",
+  "contactProfileMessage": "Écrire un message",
+  "contactProfileRemove": "Supprimer le contact",
+  "contactProfileMissing": "Ce compte n’existe plus ou est indisponible.",
+  "contactProfileError": "Impossible de charger ou de modifier ce profil. Réessayez.",
+  "contactProfileSessionEnded": "Cette session est terminée. Rouvrez le profil depuis votre compte.",
+  "contactProfileBlockNote": "Vous ne recevrez plus de messages de cette personne. L’historique reste sur cet appareil.",
+  "contactProfileYou": "Vous",
   "@@locale": "fr",
   "proxyTitle": "Proxy SOCKS5",
   "proxyEnable": "Utiliser le proxy",

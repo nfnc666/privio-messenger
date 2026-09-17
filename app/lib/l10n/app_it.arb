@@ -1,4 +1,12 @@
 {
+  "contactProfileTitle": "Profilo del contatto",
+  "contactProfileMessage": "Scrivi un messaggio",
+  "contactProfileRemove": "Rimuovi contatto",
+  "contactProfileMissing": "Questo account non esiste più o non è disponibile.",
+  "contactProfileError": "Impossibile caricare o aggiornare il profilo. Riprova.",
+  "contactProfileSessionEnded": "Questa sessione è terminata. Riapri il profilo dal tuo account.",
+  "contactProfileBlockNote": "Non riceverai più messaggi da questa persona. La cronologia resta su questo dispositivo.",
+  "contactProfileYou": "Tu",
   "@@locale": "it",
   "proxyTitle": "Proxy SOCKS5",
   "proxyEnable": "Usa proxy",
