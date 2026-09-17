@@ -20,6 +20,7 @@ import '../media/photo_source.dart';
 import '../media/voice.dart';
 import '../services/system_settings.dart';
 import 'group_info_screen.dart';
+import 'contact_profile_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
 import 'sticker_pack_screen.dart';
@@ -89,6 +90,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// it too. Read once on open rather than on every rebuild: it changes only
   /// when a key does, and asking the keystore per frame would be absurd.
   VerificationState? _verification;
+
+  Future<void> _openContactProfile(String accountId) => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ContactProfileScreen(
+            accountId: accountId,
+            returnToChat: !widget.isGroup && accountId == widget.accountId,
+          ),
+        ),
+      );
 
   @override
   void initState() {
@@ -1014,7 +1024,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           appBar: AppBar(
             leading: const PrivioBackButton(),
             titleSpacing: 0,
-            title: Row(
+            title: InkWell(
+              onTap: widget.isGroup ? _openGroupInfo : () => _openContactProfile(widget.accountId),
+              child: Row(
               children: [
                 PrivioAvatar(
                   label: widget.title,
@@ -1053,6 +1065,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ],
+            ),
             ),
             actions: [
               if (widget.isGroup)
@@ -1141,6 +1154,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       final message = messages[index - 1];
                       return MessageBubble(
                         message: message,
+                        onSenderTap: !widget.isGroup || message.isNotice ||
+                                (!message.isMine && message.senderAccountId == null)
+                            ? null
+                            : () {
+                                final id = message.isMine ? state.accountId : message.senderAccountId;
+                                if (id != null) unawaited(_openContactProfile(id));
+                              },
                         highlighted: message.clientId != null &&
                             message.clientId == _highlighted,
                         onLongPress: () => _openMessageActions(state, message),

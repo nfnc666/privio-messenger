@@ -6,6 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for English (`en`).
 class AppTextEn extends AppText {
+  @override
+  String get contactProfileTitle => 'Contact profile';
+
+  @override
+  String get contactProfileMessage => 'Write a message';
+
+  @override
+  String get contactProfileRemove => 'Remove contact';
+
+  @override
+  String get contactProfileMissing => 'This account no longer exists or is unavailable.';
+
+  @override
+  String get contactProfileError => 'Could not load or update this profile. Please try again.';
+
+  @override
+  String get contactProfileSessionEnded => 'This session has ended. Open the profile again from your account.';
+
+  @override
+  String get contactProfileBlockNote => 'You will no longer receive messages from this person. Your chat history stays on this device.';
+
+  @override
+  String get contactProfileYou => 'You';
+
   AppTextEn([String locale = 'en']) : super(locale);
 
   @override

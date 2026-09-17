@@ -65,6 +65,14 @@ import 'app_localizations_it.dart';
 /// be consistent with the languages listed in the AppText.supportedLocales
 /// property.
 abstract class AppText {
+  String get contactProfileTitle;
+  String get contactProfileMessage;
+  String get contactProfileRemove;
+  String get contactProfileMissing;
+  String get contactProfileError;
+  String get contactProfileSessionEnded;
+  String get contactProfileBlockNote;
+  String get contactProfileYou;
   AppText(String locale)
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 

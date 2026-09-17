@@ -6,6 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for French (`fr`).
 class AppTextFr extends AppText {
+  @override
+  String get contactProfileTitle => 'Profil du contact';
+
+  @override
+  String get contactProfileMessage => 'Écrire un message';
+
+  @override
+  String get contactProfileRemove => 'Supprimer le contact';
+
+  @override
+  String get contactProfileMissing => 'Ce compte n’existe plus ou est indisponible.';
+
+  @override
+  String get contactProfileError => 'Impossible de charger ou de modifier ce profil. Réessayez.';
+
+  @override
+  String get contactProfileSessionEnded => 'Cette session est terminée. Rouvrez le profil depuis votre compte.';
+
+  @override
+  String get contactProfileBlockNote => 'Vous ne recevrez plus de messages de cette personne. L’historique reste sur cet appareil.';
+
+  @override
+  String get contactProfileYou => 'Vous';
+
   AppTextFr([String locale = 'fr']) : super(locale);
 
   @override

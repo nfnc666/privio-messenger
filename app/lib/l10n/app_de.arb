@@ -1,4 +1,12 @@
 {
+  "contactProfileTitle": "Kontaktprofil",
+  "contactProfileMessage": "Nachricht schreiben",
+  "contactProfileRemove": "Kontakt entfernen",
+  "contactProfileMissing": "Dieses Konto existiert nicht mehr oder ist nicht verfügbar.",
+  "contactProfileError": "Das Profil konnte nicht geladen oder geändert werden. Bitte erneut versuchen.",
+  "contactProfileSessionEnded": "Diese Sitzung ist beendet. Öffne das Profil erneut aus deinem Konto.",
+  "contactProfileBlockNote": "Du erhältst keine Nachrichten mehr von dieser Person. Dein Chatverlauf bleibt auf diesem Gerät.",
+  "contactProfileYou": "Du",
   "@@locale": "de",
   "proxyTitle": "SOCKS5-Proxy",
   "proxyEnable": "Proxy verwenden",

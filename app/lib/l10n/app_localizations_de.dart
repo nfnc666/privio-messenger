@@ -6,6 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for German (`de`).
 class AppTextDe extends AppText {
+  @override
+  String get contactProfileTitle => 'Kontaktprofil';
+
+  @override
+  String get contactProfileMessage => 'Nachricht schreiben';
+
+  @override
+  String get contactProfileRemove => 'Kontakt entfernen';
+
+  @override
+  String get contactProfileMissing => 'Dieses Konto existiert nicht mehr oder ist nicht verfügbar.';
+
+  @override
+  String get contactProfileError => 'Das Profil konnte nicht geladen oder geändert werden. Bitte erneut versuchen.';
+
+  @override
+  String get contactProfileSessionEnded => 'Diese Sitzung ist beendet. Öffne das Profil erneut aus deinem Konto.';
+
+  @override
+  String get contactProfileBlockNote => 'Du erhältst keine Nachrichten mehr von dieser Person. Dein Chatverlauf bleibt auf diesem Gerät.';
+
+  @override
+  String get contactProfileYou => 'Du';
+
   AppTextDe([String locale = 'de']) : super(locale);
 
   @override
