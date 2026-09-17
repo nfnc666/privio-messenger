@@ -1,4 +1,10 @@
 {
+  "accountPhoneNote": "Optional information. Your phone number is not verified and is not used for automatic contact discovery.",
+  "accountPhoneUnverified": "Unverified — not proof of identity",
+  "accountPhoneVerifiedSeparate": "A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.",
+  "accountPhoneSaveError": "Could not load or save the phone number. Please try again.",
+  "accountPhoneSaved": "Saved",
+  "accountPhoneSessionEnded": "Your account session has changed. Open this setting again from your account.",
   "contactProfileTitle": "Contact profile",
   "contactProfileMessage": "Write a message",
   "contactProfileRemove": "Remove contact",

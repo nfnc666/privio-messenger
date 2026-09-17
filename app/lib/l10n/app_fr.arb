@@ -1,4 +1,10 @@
 {
+  "accountPhoneNote": "Information facultative. Votre numéro de téléphone n’est pas vérifié et n’est pas utilisé pour la recherche automatique de contacts.",
+  "accountPhoneUnverified": "Non vérifié — ne constitue pas une preuve d’identité",
+  "accountPhoneVerifiedSeparate": "Un numéro vérifié séparément reste inchangé. Gérez-le dans Réglages → Confidentialité → Numéro de téléphone et contacts.",
+  "accountPhoneSaveError": "Impossible de charger ou d’enregistrer le numéro. Réessayez.",
+  "accountPhoneSaved": "Enregistré",
+  "accountPhoneSessionEnded": "La session de votre compte a changé. Rouvrez ce réglage depuis votre compte.",
   "contactProfileTitle": "Profil du contact",
   "contactProfileMessage": "Écrire un message",
   "contactProfileRemove": "Supprimer le contact",

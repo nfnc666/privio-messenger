@@ -7,6 +7,24 @@ import 'app_localizations.dart';
 /// The translations for Spanish Castilian (`es`).
 class AppTextEs extends AppText {
   @override
+  String get accountPhoneNote => 'Dato voluntario. Tu número de teléfono no se verifica ni se utiliza para encontrar contactos automáticamente.';
+
+  @override
+  String get accountPhoneUnverified => 'Sin verificar: no acredita la identidad';
+
+  @override
+  String get accountPhoneVerifiedSeparate => 'Un número verificado por separado no cambia. Puedes gestionarlo en Ajustes → Privacidad → Número de teléfono y contactos.';
+
+  @override
+  String get accountPhoneSaveError => 'No se pudo cargar o guardar el número. Inténtalo de nuevo.';
+
+  @override
+  String get accountPhoneSaved => 'Guardado';
+
+  @override
+  String get accountPhoneSessionEnded => 'La sesión de tu cuenta ha cambiado. Abre este ajuste de nuevo desde tu cuenta.';
+
+  @override
   String get contactProfileTitle => 'Perfil del contacto';
 
   @override

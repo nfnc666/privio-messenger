@@ -1,4 +1,10 @@
 {
+  "accountPhoneNote": "Freiwillige Angabe. Deine Telefonnummer wird nicht verifiziert und nicht zur automatischen Kontaktfindung verwendet.",
+  "accountPhoneUnverified": "Unbestätigt – kein Identitätsnachweis",
+  "accountPhoneVerifiedSeparate": "Eine separat bestätigte Nummer bleibt unverändert. Verwalte sie unter Einstellungen → Datenschutz → Telefonnummer & Kontakte.",
+  "accountPhoneSaveError": "Die Telefonnummer konnte nicht geladen oder gespeichert werden. Bitte erneut versuchen.",
+  "accountPhoneSaved": "Gespeichert",
+  "accountPhoneSessionEnded": "Deine Kontositzung hat sich geändert. Öffne diese Einstellung erneut über dein Konto.",
   "contactProfileTitle": "Kontaktprofil",
   "contactProfileMessage": "Nachricht schreiben",
   "contactProfileRemove": "Kontakt entfernen",

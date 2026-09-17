@@ -7,6 +7,24 @@ import 'app_localizations.dart';
 /// The translations for English (`en`).
 class AppTextEn extends AppText {
   @override
+  String get accountPhoneNote => 'Optional information. Your phone number is not verified and is not used for automatic contact discovery.';
+
+  @override
+  String get accountPhoneUnverified => 'Unverified — not proof of identity';
+
+  @override
+  String get accountPhoneVerifiedSeparate => 'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.';
+
+  @override
+  String get accountPhoneSaveError => 'Could not load or save the phone number. Please try again.';
+
+  @override
+  String get accountPhoneSaved => 'Saved';
+
+  @override
+  String get accountPhoneSessionEnded => 'Your account session has changed. Open this setting again from your account.';
+
+  @override
   String get contactProfileTitle => 'Contact profile';
 
   @override

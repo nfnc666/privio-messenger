@@ -7,6 +7,24 @@ import 'app_localizations.dart';
 /// The translations for German (`de`).
 class AppTextDe extends AppText {
   @override
+  String get accountPhoneNote => 'Freiwillige Angabe. Deine Telefonnummer wird nicht verifiziert und nicht zur automatischen Kontaktfindung verwendet.';
+
+  @override
+  String get accountPhoneUnverified => 'Unbestätigt – kein Identitätsnachweis';
+
+  @override
+  String get accountPhoneVerifiedSeparate => 'Eine separat bestätigte Nummer bleibt unverändert. Verwalte sie unter Einstellungen → Datenschutz → Telefonnummer & Kontakte.';
+
+  @override
+  String get accountPhoneSaveError => 'Die Telefonnummer konnte nicht geladen oder gespeichert werden. Bitte erneut versuchen.';
+
+  @override
+  String get accountPhoneSaved => 'Gespeichert';
+
+  @override
+  String get accountPhoneSessionEnded => 'Deine Kontositzung hat sich geändert. Öffne diese Einstellung erneut über dein Konto.';
+
+  @override
   String get contactProfileTitle => 'Kontaktprofil';
 
   @override
