@@ -1,4 +1,10 @@
 {
+  "accountPhoneNote": "Dato voluntario. Tu número de teléfono no se verifica ni se utiliza para encontrar contactos automáticamente.",
+  "accountPhoneUnverified": "Sin verificar: no acredita la identidad",
+  "accountPhoneVerifiedSeparate": "Un número verificado por separado no cambia. Puedes gestionarlo en Ajustes → Privacidad → Número de teléfono y contactos.",
+  "accountPhoneSaveError": "No se pudo cargar o guardar el número. Inténtalo de nuevo.",
+  "accountPhoneSaved": "Guardado",
+  "accountPhoneSessionEnded": "La sesión de tu cuenta ha cambiado. Abre este ajuste de nuevo desde tu cuenta.",
   "contactProfileTitle": "Perfil del contacto",
   "contactProfileMessage": "Escribir un mensaje",
   "contactProfileRemove": "Eliminar contacto",

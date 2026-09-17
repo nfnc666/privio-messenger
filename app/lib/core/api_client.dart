@@ -59,7 +59,9 @@ void detached(Future<void> work) => unawaited(
 /// Everything this class sends is already sealed by the crypto layer: message
 /// bodies, group names, attachments and backups are opaque bytes by the time
 /// they get here. Keep it that way — no plaintext content may be passed to any
-/// method that is not explicitly a public profile field.
+/// message/media method. Explicit account-settings endpoints may carry private
+/// account data over TLS, including the optional unverified phone annotation;
+/// these are not end-to-end encrypted message content.
 class PrivioApiClient {
   PrivioApiClient({required this.baseUrl, http.Client? client})
       : _client = client ?? ProxyController.instance.newClient();
@@ -249,6 +251,14 @@ class PrivioApiClient {
       _send('DELETE', '/v1/accounts/me/totp', body: {'currentPassword': currentPassword});
 
   // --- Contacts -------------------------------------------------------------
+
+  /// Private unverified annotation; intentionally not the /v1/phone discovery API.
+  Future<Map<String, dynamic>> accountPhoneNote() => _send('GET', '/v1/accounts/me/phone-note');
+
+  Future<Map<String, dynamic>> saveAccountPhoneNote(String? number) =>
+      _send('PUT', '/v1/accounts/me/phone-note', body: {'phoneNumber': number});
+
+  Future<Map<String, dynamic>> removeAccountPhoneNote() => _send('DELETE', '/v1/accounts/me/phone-note');
 
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
 

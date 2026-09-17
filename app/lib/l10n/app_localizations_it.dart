@@ -7,6 +7,24 @@ import 'app_localizations.dart';
 /// The translations for Italian (`it`).
 class AppTextIt extends AppText {
   @override
+  String get accountPhoneNote => 'Informazione facoltativa. Il tuo numero di telefono non viene verificato né utilizzato per trovare automaticamente i contatti.';
+
+  @override
+  String get accountPhoneUnverified => 'Non verificato — non è una prova d’identità';
+
+  @override
+  String get accountPhoneVerifiedSeparate => 'Un numero verificato separatamente resta invariato. Gestiscilo in Impostazioni → Privacy → Numero di telefono e contatti.';
+
+  @override
+  String get accountPhoneSaveError => 'Impossibile caricare o salvare il numero. Riprova.';
+
+  @override
+  String get accountPhoneSaved => 'Salvato';
+
+  @override
+  String get accountPhoneSessionEnded => 'La sessione del tuo account è cambiata. Riapri questa impostazione dal tuo account.';
+
+  @override
   String get contactProfileTitle => 'Profilo del contatto';
 
   @override

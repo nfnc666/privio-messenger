@@ -65,6 +65,12 @@ import 'app_localizations_it.dart';
 /// be consistent with the languages listed in the AppText.supportedLocales
 /// property.
 abstract class AppText {
+  String get accountPhoneNote;
+  String get accountPhoneUnverified;
+  String get accountPhoneVerifiedSeparate;
+  String get accountPhoneSaveError;
+  String get accountPhoneSaved;
+  String get accountPhoneSessionEnded;
   String get contactProfileTitle;
   String get contactProfileMessage;
   String get contactProfileRemove;

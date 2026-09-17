@@ -7,6 +7,24 @@ import 'app_localizations.dart';
 /// The translations for French (`fr`).
 class AppTextFr extends AppText {
   @override
+  String get accountPhoneNote => 'Information facultative. Votre numéro de téléphone n’est pas vérifié et n’est pas utilisé pour la recherche automatique de contacts.';
+
+  @override
+  String get accountPhoneUnverified => 'Non vérifié — ne constitue pas une preuve d’identité';
+
+  @override
+  String get accountPhoneVerifiedSeparate => 'Un numéro vérifié séparément reste inchangé. Gérez-le dans Réglages → Confidentialité → Numéro de téléphone et contacts.';
+
+  @override
+  String get accountPhoneSaveError => 'Impossible de charger ou d’enregistrer le numéro. Réessayez.';
+
+  @override
+  String get accountPhoneSaved => 'Enregistré';
+
+  @override
+  String get accountPhoneSessionEnded => 'La session de votre compte a changé. Rouvrez ce réglage depuis votre compte.';
+
+  @override
   String get contactProfileTitle => 'Profil du contact';
 
   @override

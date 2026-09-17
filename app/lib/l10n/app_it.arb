@@ -1,4 +1,10 @@
 {
+  "accountPhoneNote": "Informazione facoltativa. Il tuo numero di telefono non viene verificato né utilizzato per trovare automaticamente i contatti.",
+  "accountPhoneUnverified": "Non verificato — non è una prova d’identità",
+  "accountPhoneVerifiedSeparate": "Un numero verificato separatamente resta invariato. Gestiscilo in Impostazioni → Privacy → Numero di telefono e contatti.",
+  "accountPhoneSaveError": "Impossibile caricare o salvare il numero. Riprova.",
+  "accountPhoneSaved": "Salvato",
+  "accountPhoneSessionEnded": "La sessione del tuo account è cambiata. Riapri questa impostazione dal tuo account.",
   "contactProfileTitle": "Profilo del contatto",
   "contactProfileMessage": "Scrivi un messaggio",
   "contactProfileRemove": "Rimuovi contatto",
