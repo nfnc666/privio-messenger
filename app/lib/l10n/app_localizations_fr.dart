@@ -4639,4 +4639,105 @@ class AppTextFr extends AppText {
   @override
   String get contactMatchUnsupported =>
       'Cette version ne peut pas lire le carnet d’adresses. Vous pouvez toujours ajouter quelqu’un par identifiant Privio, lien d’invitation ou code QR.';
+
+  @override
+  String get savedTitle => 'Enregistré';
+
+  @override
+  String get savedAccountRow => 'Enregistré';
+
+  @override
+  String get savedChatSubtitle => 'Vous seul le voyez';
+
+  @override
+  String get savedEmptyTitle => 'Rien d’enregistré pour l’instant';
+
+  @override
+  String get savedEmptyBody =>
+      'Des notes, des images, des fichiers et des messages vocaux rien que pour vous. Personne d’autre ne les voit, pas même le serveur de Privio, qui ne détient que ce que vos propres appareils ont scellé.';
+
+  @override
+  String get savedComposerHint => 'Écrire une note…';
+
+  @override
+  String get savedSaveAction => 'Enregistrer dans Enregistré';
+
+  @override
+  String get savedSaved => 'Enregistré';
+
+  @override
+  String get savedWaitingToSync =>
+      'Enregistré ici — en attente de vos autres appareils';
+
+  @override
+  String get savedDisappearingRefused =>
+      'Ce message disparaît, il ne peut donc pas être enregistré. En garder une copie annulerait ce qui a été promis à son expéditeur.';
+
+  @override
+  String get savedNothingToSave =>
+      'Il n’y a rien à enregistrer dans ce message.';
+
+  @override
+  String get savedCouldNotSave => 'Impossible d’enregistrer';
+
+  @override
+  String get savedPin => 'Épingler';
+
+  @override
+  String get savedUnpin => 'Détacher';
+
+  @override
+  String get savedPinnedSection => 'Épinglé';
+
+  @override
+  String get savedDeleteOne => 'Supprimer cette entrée';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Supprimer $count entrées',
+      one: 'Supprimer 1 entrée',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'Elle est retirée de cet appareil et de vos autres appareils. C’est irréversible.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sélectionnés',
+      one: '1 sélectionné',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint =>
+      'Rechercher dans les notes, légendes et noms de fichiers';
+
+  @override
+  String get savedSearchNothing => 'Rien ne correspond';
+
+  @override
+  String get savedMediaRow => 'Médias et fichiers';
+
+  @override
+  String get savedMediaEmpty => 'Aucune image ni aucun fichier enregistré';
+
+  @override
+  String get savedInfoTitle => 'À propos d’Enregistré';
+
+  @override
+  String get savedKeptForever => 'Conservé jusqu’à ce que vous le supprimiez';
+
+  @override
+  String get savedNoTimerNote =>
+      'Le minuteur des messages éphémères de vos conversations ne s’applique pas ici. Enregistré conserve ce que vous y mettez jusqu’à ce que vous le retiriez.';
 }

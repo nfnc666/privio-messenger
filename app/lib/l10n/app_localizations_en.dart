@@ -4596,4 +4596,103 @@ class AppTextEn extends AppText {
   @override
   String get contactMatchUnsupported =>
       'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.';
+
+  @override
+  String get savedTitle => 'Saved';
+
+  @override
+  String get savedAccountRow => 'Saved';
+
+  @override
+  String get savedChatSubtitle => 'Only you can see this';
+
+  @override
+  String get savedEmptyTitle => 'Nothing saved yet';
+
+  @override
+  String get savedEmptyBody =>
+      'Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio\'s server, which holds only what your own devices have sealed.';
+
+  @override
+  String get savedComposerHint => 'Write a note …';
+
+  @override
+  String get savedSaveAction => 'Save to Saved';
+
+  @override
+  String get savedSaved => 'Saved';
+
+  @override
+  String get savedWaitingToSync =>
+      'Saved here — waiting to reach your other devices';
+
+  @override
+  String get savedDisappearingRefused =>
+      'This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.';
+
+  @override
+  String get savedNothingToSave => 'There is nothing in this message to save.';
+
+  @override
+  String get savedCouldNotSave => 'Could not save this';
+
+  @override
+  String get savedPin => 'Pin';
+
+  @override
+  String get savedUnpin => 'Unpin';
+
+  @override
+  String get savedPinnedSection => 'Pinned';
+
+  @override
+  String get savedDeleteOne => 'Delete this entry';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count entries',
+      one: 'Delete 1 entry',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'It is removed from this device and from your other devices. This cannot be undone.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint => 'Search notes, captions and file names';
+
+  @override
+  String get savedSearchNothing => 'Nothing matches that';
+
+  @override
+  String get savedMediaRow => 'Media and files';
+
+  @override
+  String get savedMediaEmpty => 'No pictures or files saved yet';
+
+  @override
+  String get savedInfoTitle => 'About Saved';
+
+  @override
+  String get savedKeptForever => 'Kept until you delete it';
+
+  @override
+  String get savedNoTimerNote =>
+      'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.';
 }

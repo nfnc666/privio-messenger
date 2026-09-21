@@ -148,6 +148,20 @@ class MessagingService {
   Future<int> sendToUser(String username, String plaintext) =>
       sendPayload(username, MessagePayload.text(plaintext));
 
+  /// Keeps an attachment past the ordinary retention, for a saved entry.
+  ///
+  /// The blob itself does not change: it is the same ciphertext the server
+  /// already had no key for. What changes is only whether the sweep may take
+  /// it — see migration 034.
+  Future<void> retainMedia(String mediaId) => _api.retainMedia(mediaId);
+
+  /// The other half, for when a saved entry is deleted.
+  ///
+  /// Deliberately not a delete: the same blob may still be the attachment of
+  /// an ordinary message in a real conversation, and removing a saved copy
+  /// must not reach into that chat.
+  Future<void> releaseMedia(String mediaId) => _api.releaseMedia(mediaId);
+
   Future<int> sendPayload(String username, MessagePayload payload) async {
     final encoded = (await _withProfileKey(payload)).encode();
     // The payload's own client id doubles as the send's idempotency key: a
@@ -164,11 +178,25 @@ class MessagingService {
     // thirty seconds — off a device that happened to be asleep for half a
     // minute, which then keeps writing into a chat it thinks is permanent.
     final bound = payload.isTimerChange ? null : payload.expiresInSeconds;
+    // Writing to oneself — the Saved area. Everything about it is an ordinary
+    // send except one thing: on an account with a single device there is
+    // nobody to seal for, and the server answers `no_devices`.
+    //
+    // That is not a failure. A note to yourself on your only device has
+    // arrived; it is on the device. Treating the 404 as an error would leave
+    // every saved entry marked failed with a retry button that could never
+    // succeed, which is why this is handled here rather than at each call
+    // site: it makes text, photos, voice, files and stickers all work in
+    // Saved through exactly the machinery they already use.
+    final toSelf = _selfUsername != null && username == _selfUsername;
     try {
       result = await _sealAndSend(
         username, encoded, idempotencyKey: key, expiresInSeconds: bound,
       );
     } on ApiException catch (error) {
+      if (error.code == 'no_devices' && toSelf) {
+        return 0;
+      }
       if (error.code != 'device_mismatch') rethrow;
       result = await _sealAndSend(
         username, encoded, idempotencyKey: key, expiresInSeconds: bound,
@@ -184,7 +212,11 @@ class MessagingService {
     // written. Two are exceptions — a deletion has to reach this account's own
     // devices or the message stays on half of them, and a timer change has to
     // or this account's phone and laptop disagree about when things vanish.
-    if (!payload.isControl || payload.isDeletion || payload.isTimerChange) {
+    //
+    // Never for a message addressed to this account itself: the send above
+    // already went to every other device of this account, and a sync copy
+    // would be the same payload reaching the same devices a second time.
+    if (!toSelf && (!payload.isControl || payload.isDeletion || payload.isTimerChange)) {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,

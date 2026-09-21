@@ -4629,4 +4629,104 @@ class AppTextEs extends AppText {
   @override
   String get contactMatchUnsupported =>
       'Esta versión no puede leer la agenda. Puedes seguir añadiendo gente por ID de Privio, enlace de invitación o código QR.';
+
+  @override
+  String get savedTitle => 'Guardado';
+
+  @override
+  String get savedAccountRow => 'Guardado';
+
+  @override
+  String get savedChatSubtitle => 'Solo tú lo ves';
+
+  @override
+  String get savedEmptyTitle => 'Todavía no hay nada guardado';
+
+  @override
+  String get savedEmptyBody =>
+      'Notas, imágenes, archivos y mensajes de voz solo para ti. Nadie más lo ve, tampoco el servidor de Privio, que solo guarda lo que tus propios dispositivos han sellado.';
+
+  @override
+  String get savedComposerHint => 'Escribe una nota…';
+
+  @override
+  String get savedSaveAction => 'Guardar en Guardado';
+
+  @override
+  String get savedSaved => 'Guardado';
+
+  @override
+  String get savedWaitingToSync =>
+      'Guardado aquí: esperando a tus otros dispositivos';
+
+  @override
+  String get savedDisappearingRefused =>
+      'Este mensaje desaparece, así que no se puede guardar. Una copia anularía lo que se le prometió a quien lo envió.';
+
+  @override
+  String get savedNothingToSave => 'En este mensaje no hay nada que guardar.';
+
+  @override
+  String get savedCouldNotSave => 'No se pudo guardar';
+
+  @override
+  String get savedPin => 'Fijar';
+
+  @override
+  String get savedUnpin => 'No fijar';
+
+  @override
+  String get savedPinnedSection => 'Fijado';
+
+  @override
+  String get savedDeleteOne => 'Eliminar esta entrada';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Eliminar $count entradas',
+      one: 'Eliminar 1 entrada',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'Se quita de este dispositivo y de tus otros dispositivos. No se puede deshacer.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seleccionados',
+      one: '1 seleccionado',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint =>
+      'Buscar notas, pies de foto y nombres de archivo';
+
+  @override
+  String get savedSearchNothing => 'No hay nada que coincida';
+
+  @override
+  String get savedMediaRow => 'Multimedia y archivos';
+
+  @override
+  String get savedMediaEmpty => 'Aún no hay imágenes ni archivos guardados';
+
+  @override
+  String get savedInfoTitle => 'Sobre Guardado';
+
+  @override
+  String get savedKeptForever => 'Se conserva hasta que lo elimines';
+
+  @override
+  String get savedNoTimerNote =>
+      'El temporizador de mensajes que desaparecen de tus chats no se aplica aquí. Guardado conserva lo que pongas hasta que lo quites.';
 }

@@ -9,6 +9,7 @@ import '../calls/call.dart';
 import '../calls/call_signal.dart';
 import '../core/app_state.dart';
 import '../core/conversation_controller.dart';
+import '../core/failure.dart';
 import '../core/sticker_controller.dart';
 import '../crypto/safety_number.dart';
 import '../l10n/app_localizations.dart';
@@ -23,6 +24,7 @@ import 'contact_profile_screen.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
 import 'safety_number_screen.dart';
+import 'saved_info_screen.dart';
 import 'sticker_pack_screen.dart';
 import 'stickers_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
@@ -34,6 +36,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/scrub_notice.dart';
+import '../widgets/search_field.dart';
 import '../widgets/sticker_picker.dart';
 
 /// One conversation. Everything shown here was decrypted on this device, and
@@ -86,6 +89,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String? _highlighted;
   bool _jumped = false;
 
+  /// What is typed into the Saved search box, or null when it is not open.
+  ///
+  /// Null and empty are different: the box being closed is not the same as a
+  /// box with nothing in it, and only one of them filters the list.
+  String? _savedQuery;
+
+  /// Entries picked out for deletion, by client id. Empty means not in
+  /// selection mode at all, which is why there is no second flag.
+  final Set<String> _selected = {};
+
   /// What the safety-number screen would say, kept here so the header can say
   /// it too. Read once on open rather than on every rebuild: it changes only
   /// when a key does, and asking the keystore per frame would be absurd.
@@ -112,6 +125,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _verification = numbers.isEmpty ? null : numbers.state);
   }
+
+  /// Whether this screen is the account's own Saved area.
+  ///
+  /// Saved is a conversation whose other side is you, so this screen is the
+  /// Saved screen — with the handful of things that make no sense against
+  /// yourself removed: there is nobody to call, block, verify or set a
+  /// disappearing timer against. See `ConversationController.savedId`.
+  bool _isSaved(AppState state) => state.conversations.isSaved(widget.accountId);
+
+  Future<void> _openSavedInfo() => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const SavedInfoScreen()),
+      );
 
   Future<void> _openGroupInfo() => Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -219,6 +244,94 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// One sheet for both, because they are the two things anyone wants to do to
   /// a message that is already there — and a long press that opened a menu of
   /// twelve would be a long press people stop using.
+  /// Puts a message into this account's own Saved area.
+  ///
+  /// **The confirmation follows the entry, not the tap.** `saveToSaved` files
+  /// the entry before it returns, and only then does this say "Saved" — a
+  /// message that says so before the write would be claiming something that
+  /// may not have happened. An entry that is on this device but has not
+  /// reached the other ones says *that* instead, which is a different and
+  /// true sentence.
+  /// The Saved list: what the search left, pinned entries first.
+  ///
+  /// Pinned at the top and in their own order, because "pin" means "keep this
+  /// where I can find it" and a pin that left the entry where it was would
+  /// mean nothing. Everything else stays in the order it was written, which is
+  /// what makes the area read like a notebook rather than a pile.
+  List<Message> _savedEntries(AppState state, List<Message> all) {
+    final query = _savedQuery?.trim().toLowerCase() ?? '';
+    final visible = query.isEmpty
+        ? all
+        : [
+            for (final entry in all)
+              if (entry.body.toLowerCase().contains(query) ||
+                  (entry.attachment?.fileName?.toLowerCase().contains(query) ?? false))
+                entry,
+          ];
+    final pinned = [for (final entry in visible) if (entry.pinned) entry];
+    if (pinned.isEmpty) return visible;
+    return [
+      for (final entry in visible)
+        if (!entry.pinned) entry,
+      ...pinned,
+    ];
+  }
+
+  /// Deletes what is selected, after one confirmation for all of it.
+  Future<void> _deleteSelected(AppState state) async {
+    final text = AppText.of(context);
+    final all = state.conversations.messagesWith(widget.accountId);
+    final targets = [
+      for (final entry in all)
+        if (_selected.contains(entry.clientId ?? entry.id)) entry,
+    ];
+    if (targets.isEmpty) return;
+
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text(text.savedDeleteMany(targets.length)),
+        content: Text(text.savedDeleteBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(text.commonCancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: PrivioColors.danger),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(text.commonDelete),
+          ),
+        ],
+      ),
+    );
+    if (!(yes ?? false) || !mounted) return;
+
+    for (final entry in targets) {
+      await state.conversations.deleteForMe(widget.accountId, entry);
+    }
+    if (!mounted) return;
+    setState(_selected.clear);
+  }
+
+  Future<void> _saveToSaved(AppState state, Message message) async {
+    final text = AppText.of(context);
+    final refused = await state.conversations.saveToSaved(message);
+    if (!mounted) return;
+    if (refused != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(Failure(refused).words(text))),
+      );
+      return;
+    }
+    final saved = state.conversations.messagesWith(state.conversations.savedId ?? '');
+    final pending = saved.isNotEmpty && saved.last.state == DeliveryState.queued;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(pending ? text.savedWaitingToSync : text.savedSaved)),
+    );
+  }
+
   Future<void> _openMessageActions(AppState state, Message message) async {
     final clientId = message.clientId;
     final queued = clientId != null && state.conversations.isQueued(clientId);
@@ -309,6 +422,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: Text(text.chatCopyText),
                 onTap: () => Navigator.of(sheetContext).pop('copy'),
               ),
+            // Saved's own action, where the entry already is. Pinning belongs
+            // to the notebook and nowhere else: a chat has no top to hold a
+            // message at.
+            if (_isSaved(state) && !message.isNotice)
+              ListTile(
+                leading: Icon(
+                  message.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                ),
+                title: Text(message.pinned ? text.savedUnpin : text.savedPin),
+                onTap: () => Navigator.of(sheetContext).pop('pin'),
+              ),
+            // And the way in, from an ordinary chat. Offered for anything with
+            // something in it — a message under a disappearing timer included,
+            // because a row that silently vanished would leave somebody
+            // wondering where it went. It is refused when pressed, with the
+            // reason, which is the honest version of the same thing.
+            if (!_isSaved(state) &&
+                !queued &&
+                !message.isNotice &&
+                message.kind != MessageKind.deleted)
+              ListTile(
+                leading: const Icon(Icons.bookmark_add_outlined),
+                title: Text(text.savedSaveAction),
+                onTap: () => Navigator.of(sheetContext).pop('save'),
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline_rounded),
               iconColor: PrivioColors.danger,
@@ -346,6 +484,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         return;
       }
       await _confirmDelete(state, message);
+      return;
+    }
+    if (action == 'pin') {
+      await state.conversations.togglePinned(widget.accountId, message);
+      return;
+    }
+    if (action == 'save') {
+      await _saveToSaved(state, message);
       return;
     }
     if (action == 'react:more') {
@@ -1018,7 +1164,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return ListenableBuilder(
       listenable: state.conversations,
       builder: (context, _) {
-        final messages = state.conversations.messagesWith(widget.accountId);
+        final all = state.conversations.messagesWith(widget.accountId);
+        // Saved sorts differently from a chat: what was pinned is held at the
+        // top, and what was searched for is all that is drawn. A chat is a
+        // conversation in order and neither applies to it.
+        final messages = _isSaved(state) ? _savedEntries(state, all) : all;
         _messageCount = messages.length;
         // A one-to-one chat whose safety number changed, on an account that
         // asked to be stopped rather than warned. Groups are not held: a group
@@ -1042,9 +1192,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             // is the other person's profile, which had no way in at all.
             title: InkWell(
               onTap: () => unawaited(
-                widget.isGroup
-                    ? _openGroupInfo()
-                    : _openProfile(widget.accountId, name: widget.title),
+                _isSaved(state)
+                    ? _openSavedInfo()
+                    : widget.isGroup
+                        ? _openGroupInfo()
+                        : _openProfile(widget.accountId, name: widget.title),
               ),
               child: Row(
                 children: [
@@ -1062,17 +1214,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          widget.title,
+                          _isSaved(state) ? text.savedTitle : widget.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium,
                         ),
                         Text(
-                          state.conversations.isTyping(widget.accountId)
-                              ? text.chatTyping
-                              : widget.isGroup
-                                  ? _groupSubtitle(state)
-                                  : _encryptionSubtitle(state),
+                          _isSaved(state)
+                              ? text.savedChatSubtitle
+                              : state.conversations.isTyping(widget.accountId)
+                                  ? text.chatTyping
+                                  : widget.isGroup
+                                      ? _groupSubtitle(state)
+                                      : _encryptionSubtitle(state),
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: state.conversations.hasIdentityChange(widget.accountId) ||
                                     state.conversations.hasKeyChangeAlert(widget.accountId) ||
@@ -1088,6 +1242,49 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ),
             ),
             actions: [
+              // Choosing what to delete. The whole bar becomes about the
+              // selection while one is running — a delete button beside a
+              // search box beside a camera is a bar nobody can read.
+              if (_isSaved(state) && _selected.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: PrivioSpacing.sm),
+                  child: Center(
+                    child: Text(
+                      text.savedSelected(_selected.length),
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => unawaited(_deleteSelected(state)),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  color: PrivioColors.danger,
+                  tooltip: text.commonDelete,
+                ),
+                IconButton(
+                  onPressed: () => setState(_selected.clear),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: text.commonCancel,
+                ),
+              ],
+              // Saved's own actions, and none of the others: there is nobody
+              // here to call, verify, block or share a link with.
+              if (_isSaved(state) && _selected.isEmpty) ...[
+                IconButton(
+                  onPressed: () => setState(
+                    () => _savedQuery = _savedQuery == null ? '' : null,
+                  ),
+                  icon: Icon(
+                    _savedQuery == null ? Icons.search_rounded : Icons.search_off_rounded,
+                  ),
+                  tooltip: text.savedSearchHint,
+                ),
+                IconButton(
+                  onPressed: () => unawaited(_openSavedInfo()),
+                  icon: const Icon(Icons.perm_media_outlined),
+                  tooltip: text.savedMediaRow,
+                ),
+              ],
               if (widget.isGroup)
                 IconButton(
                   onPressed: () => _shareGroupLink(state),
@@ -1096,7 +1293,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ),
               // Groups have no call yet: a group call is a different piece of
               // machinery, not the same one with more people in it.
-              if (!widget.isGroup) ...[
+              if (!widget.isGroup && !_isSaved(state)) ...[
                 IconButton(
                   onPressed: () => unawaited(_call(state, CallMedia.video)),
                   icon: const Icon(Icons.videocam_outlined),
@@ -1127,6 +1324,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   'block' => _confirmBlock(state),
                   'safety' => _openSafetyNumber(),
                   'group' => _openGroupInfo(),
+                  'saved-info' => _openSavedInfo(),
                   _ => null,
                 },
                 itemBuilder: (context) => [
@@ -1135,16 +1333,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       value: 'group',
                       child: Text(text.chatGroupInfo),
                     ),
-                  PopupMenuItem(
-                    value: 'timer',
-                    child: Text(text.disappearingTitle),
-                  ),
-                  if (!widget.isGroup)
+                  // Not in Saved. The timer is a promise made to somebody
+                  // else about their copy; here there is no somebody else,
+                  // and applying a chat's timer to a notebook would delete
+                  // the notes. See `savedNoTimerNote`.
+                  if (!_isSaved(state))
+                    PopupMenuItem(
+                      value: 'timer',
+                      child: Text(text.disappearingTitle),
+                    ),
+                  if (_isSaved(state))
+                    PopupMenuItem(
+                      value: 'saved-info',
+                      child: Text(text.savedInfoTitle),
+                    ),
+                  if (!widget.isGroup && !_isSaved(state))
                     PopupMenuItem(
                       value: 'safety',
                       child: Text(text.chatSafetyNumber),
                     ),
-                  if (!widget.isGroup)
+                  if (!widget.isGroup && !_isSaved(state))
                     PopupMenuItem(
                       value: 'block',
                       child: Text(text.chatBlock),
@@ -1155,6 +1363,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
           body: Column(
             children: [
+              if (_isSaved(state) && _savedQuery != null)
+                PrivioSearchField(
+                  hintText: text.savedSearchHint,
+                  onChanged: (value) => setState(() => _savedQuery = value),
+                ),
+              if (_isSaved(state) && messages.isEmpty)
+                Expanded(
+                  child: _SavedEmpty(
+                    searching: (_savedQuery?.trim().isNotEmpty) ?? false,
+                  ),
+                )
+              else
               Expanded(
                 // The highlight is a pointer, not a state: the first touch in
                 // the transcript means it has been seen.
@@ -1176,7 +1396,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         message: message,
                         highlighted: message.clientId != null &&
                             message.clientId == _highlighted,
-                        onLongPress: () => _openMessageActions(state, message),
+                        onLongPress: _isSaved(state)
+                            ? () => setState(
+                                  () => _selected.add(message.clientId ?? message.id),
+                                )
+                            : () => _openMessageActions(state, message),
+                        onTap: _selected.isEmpty
+                            ? null
+                            : () => setState(() {
+                                  final id = message.clientId ?? message.id;
+                                  if (!_selected.remove(id)) _selected.add(id);
+                                }),
+                        selected: _selected.contains(message.clientId ?? message.id),
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),
@@ -1229,6 +1460,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ListenableBuilder(
                 listenable: _voiceRebuild,
                 builder: (context, _) => _Composer(
+                  saved: _isSaved(state),
                   controller: _composer,
                   onSend: held ? () {} : _send,
                   onAttach: held ? null : _attach,
@@ -1327,6 +1559,7 @@ class _Composer extends StatelessWidget {
     required this.voice,
     required this.disappearAfter,
     required this.onChooseTimer,
+    this.saved = false,
   });
 
   final TextEditingController controller;
@@ -1363,6 +1596,10 @@ class _Composer extends StatelessWidget {
   /// How long a message sent from here lives, or null when the timer is off.
   final Duration? disappearAfter;
   final VoidCallback onChooseTimer;
+
+  /// Whether this is the Saved area. A notebook asks for a note, not for a
+  /// message — the same field, and one word that says which thing it is.
+  final bool saved;
 
   @override
   Widget build(BuildContext context) {
@@ -1410,6 +1647,7 @@ class _Composer extends StatelessWidget {
                   onCamera: onCamera,
                   disappearAfter: disappearAfter,
                   onChooseTimer: onChooseTimer,
+                  saved: saved,
                 ),
               ),
               // Mounted but not shown, so the recorder's state survives the
@@ -1497,6 +1735,7 @@ class _Field extends StatelessWidget {
     required this.onCamera,
     required this.disappearAfter,
     required this.onChooseTimer,
+    this.saved = false,
   });
 
   final TextEditingController controller;
@@ -1506,6 +1745,10 @@ class _Field extends StatelessWidget {
   final VoidCallback? onCamera;
   final Duration? disappearAfter;
   final VoidCallback onChooseTimer;
+
+  /// Whether this is the Saved area. A notebook asks for a note, not for a
+  /// message — the same field, and one word that says which thing it is.
+  final bool saved;
 
   @override
   Widget build(BuildContext context) {
@@ -1540,7 +1783,7 @@ class _Field extends StatelessWidget {
                 // nothing: two rounded rectangles inside each other is what the
                 // old bar looked like once the icons were moved in.
                 decoration: InputDecoration(
-                  hintText: text.composerHint,
+                  hintText: saved ? text.savedComposerHint : text.composerHint,
                   isDense: true,
                   filled: false,
                   border: InputBorder.none,
@@ -1845,6 +2088,53 @@ class _ReplyBar extends StatelessWidget {
             tooltip: AppText.of(context).chatCancelReply,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Saved with nothing in it, or nothing that matches.
+///
+/// Two sentences rather than one, because the two are different situations: an
+/// empty notebook wants to say what it is for, and a search that found nothing
+/// wants to say only that. Showing the invitation to write a first note under a
+/// failed search would read as though the notes had gone.
+class _SavedEmpty extends StatelessWidget {
+  const _SavedEmpty({required this.searching});
+
+  final bool searching;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              searching ? Icons.search_off_rounded : Icons.bookmark_border_rounded,
+              size: 40,
+              color: PrivioColors.textTertiary,
+            ),
+            const SizedBox(height: PrivioSpacing.lg),
+            Text(
+              searching ? text.savedSearchNothing : text.savedEmptyTitle,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium,
+            ),
+            if (!searching) ...[
+              const SizedBox(height: PrivioSpacing.sm),
+              Text(
+                text.savedEmptyBody,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

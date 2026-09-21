@@ -4642,4 +4642,104 @@ class AppTextDe extends AppText {
   @override
   String get contactMatchUnsupported =>
       'Diese Fassung kann das Adressbuch nicht lesen. Über PRIVIO-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen.';
+
+  @override
+  String get savedTitle => 'Gespeichert';
+
+  @override
+  String get savedAccountRow => 'Gespeichert';
+
+  @override
+  String get savedChatSubtitle => 'Nur du siehst das';
+
+  @override
+  String get savedEmptyTitle => 'Noch nichts gespeichert';
+
+  @override
+  String get savedEmptyBody =>
+      'Notizen, Bilder, Dateien und Sprachnachrichten für dich allein. Niemand sonst sieht das — auch der PRIVIO-Server nicht, der nur hält, was deine eigenen Geräte versiegelt haben.';
+
+  @override
+  String get savedComposerHint => 'Notiz schreiben …';
+
+  @override
+  String get savedSaveAction => 'In Gespeichert speichern';
+
+  @override
+  String get savedSaved => 'Gespeichert';
+
+  @override
+  String get savedWaitingToSync =>
+      'Hier gespeichert — wartet auf deine anderen Geräte';
+
+  @override
+  String get savedDisappearingRefused =>
+      'Diese Nachricht verschwindet wieder, deshalb lässt sie sich nicht speichern. Eine Kopie würde das aufheben, was der Absenderseite zugesagt wurde.';
+
+  @override
+  String get savedNothingToSave =>
+      'In dieser Nachricht ist nichts zum Speichern.';
+
+  @override
+  String get savedCouldNotSave => 'Konnte nicht gespeichert werden';
+
+  @override
+  String get savedPin => 'Anheften';
+
+  @override
+  String get savedUnpin => 'Lösen';
+
+  @override
+  String get savedPinnedSection => 'Angeheftet';
+
+  @override
+  String get savedDeleteOne => 'Eintrag löschen';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Einträge löschen',
+      one: '1 Eintrag löschen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'Er wird von diesem Gerät und von deinen anderen Geräten entfernt. Das lässt sich nicht rückgängig machen.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ausgewählt',
+      one: '1 ausgewählt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint => 'Notizen, Bildtexte und Dateinamen durchsuchen';
+
+  @override
+  String get savedSearchNothing => 'Dazu passt nichts';
+
+  @override
+  String get savedMediaRow => 'Medien und Dateien';
+
+  @override
+  String get savedMediaEmpty => 'Noch keine Bilder oder Dateien gespeichert';
+
+  @override
+  String get savedInfoTitle => 'Über Gespeichert';
+
+  @override
+  String get savedKeptForever => 'Bleibt, bis du es löschst';
+
+  @override
+  String get savedNoTimerNote =>
+      'Der Timer für selbstlöschende Nachrichten aus deinen Chats gilt hier nicht. Gespeichert behält, was du hineinlegst, bis du es entfernst.';
 }

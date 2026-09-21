@@ -14,6 +14,8 @@ extension FailureText on Failure {
         FailureKind.proxyCallsBlocked => text.proxyCallsBlocked,
         FailureKind.unreachable => text.failureUnreachable,
         FailureKind.statusNotSaved => text.accountStatusCouldNotSave,
+        FailureKind.savedDisappearingRefused => text.savedDisappearingRefused,
+        FailureKind.savedNothingToSave => text.savedNothingToSave,
         FailureKind.unreachableCheckConnection => text.failureUnreachableCheckConnection,
         FailureKind.unreachableTryAgain => text.failureUnreachableTryAgain,
         FailureKind.couldNotSave => text.failureCouldNotSave,

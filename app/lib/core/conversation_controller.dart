@@ -244,9 +244,24 @@ class ConversationController extends ChangeNotifier {
       _typingIndicators &&
       (_services.store.conversationWith(conversationId)?.isTypingAt(DateTime.now()) ?? false);
 
-  List<ChatSummary> get chats => [
-        for (final conversation in _services.store.conversations()) _summarise(conversation),
-      ];
+  List<ChatSummary> get chats {
+    final rows = [
+      for (final conversation in _services.store.conversations()) _summarise(conversation),
+    ];
+    // The store leaves an empty direct conversation out of the list on purpose
+    // — an empty chat with somebody is just a contact, and belongs under
+    // Contacts. Saved is the one direct conversation that is not a contact: it
+    // is a place, and a place has to be reachable before anything is in it or
+    // there is no way to put the first thing there.
+    //
+    // Added here rather than by loosening the store's rule, because the store
+    // does not know which id is this account's own and should not have to.
+    final me = accountId;
+    if (me == null || rows.any((row) => row.id == me)) return rows;
+    final saved = _services.store.conversationWith(me);
+    if (saved != null) rows.add(_summarise(saved));
+    return rows;
+  }
 
   List<Message> messagesWith(String accountId) =>
       _services.store.conversationWith(accountId)?.messages ?? const [];
@@ -256,6 +271,10 @@ class ConversationController extends ChangeNotifier {
     return ChatSummary(
       id: conversation.id,
       title: conversation.title,
+      // Saved is a conversation with yourself, so without this the chat list
+      // would show a row bearing your own username — which reads as somebody
+      // else. The word is the screen's; this only says which row it is.
+      isSaved: isSaved(conversation.id),
       isGroup: conversation.isGroup,
       avatarBytes: _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
@@ -457,6 +476,160 @@ class ConversationController extends ChangeNotifier {
     _saveDebounce?.cancel();
     _attachmentCache.clear();
     super.dispose();
+  }
+
+  // --- Saved -----------------------------------------------------------------
+
+  /// The conversation id of this account's Saved area.
+  ///
+  /// **It is the account's own id**, and that one decision is most of this
+  /// feature. Saved is not a second kind of message with its own store, its own
+  /// sync and its own archive — it is a conversation whose other side is you,
+  /// so every piece of machinery that already works on a conversation works on
+  /// it unchanged: the outbox and its idempotency keys, the sealed archive,
+  /// search, attachments, voice, deletion.
+  ///
+  /// It also gives multi-device sync for nothing. The server already treats a
+  /// key request for your own account as "my other devices" (see
+  /// `routes/devices.ts`), so writing to yourself seals a copy for each of
+  /// them; on an account with a single device there is nobody to seal for and
+  /// `MessagingService.sendPayload` reports that as delivered to nobody, which
+  /// is the truth — the note is on the device it was written on.
+  String? get savedId => accountId;
+
+  bool isSaved(String conversationId) =>
+      accountId != null && conversationId == accountId;
+
+  /// Makes sure the Saved conversation exists, so both ways in open the same
+  /// one rather than each making its own.
+  ///
+  /// Idempotent by construction: `upsertUser` is keyed on the account id, and
+  /// there is exactly one of those.
+  void ensureSaved({required String username, String? displayName}) {
+    final me = accountId;
+    if (me == null) return;
+    _services.store.upsertUser(
+      KnownUser(accountId: me, username: username, displayName: displayName),
+    );
+  }
+
+  /// Puts a message from a chat into Saved.
+  ///
+  /// Returns why not, or null once the entry is filed. The caller shows
+  /// "Saved" only on null — the confirmation has to follow the entry, not the
+  /// tap, or it says something that may not be true.
+  ///
+  /// **A message under a disappearing timer is refused.** Copying it here would
+  /// defeat the one guarantee the sender was given: that it goes away. The
+  /// refusal is a case the screen turns into a sentence, not a silent no-op.
+  Future<FailureKind?> saveToSaved(Message source) async {
+    final me = accountId;
+    if (me == null) return FailureKind.couldNotSave;
+    if (source.expiresAt != null) return FailureKind.savedDisappearingRefused;
+    if (source.kind == MessageKind.deleted || source.isNotice) {
+      return FailureKind.savedNothingToSave;
+    }
+
+    final attachment = source.attachment;
+    final clientId = _newClientId();
+    // Filed locally first and marked `sending`: the entry exists on this device
+    // from this moment, and what follows is only the copy for the other ones.
+    _services.store.append(
+      me,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: source.body,
+        sentAt: DateTime.now(),
+        isMine: true,
+        kind: source.kind,
+        state: DeliveryState.sending,
+        voiceDuration: source.voiceDuration,
+        waveform: source.waveform,
+        attachment: attachment,
+        sticker: source.sticker,
+        customEmoji: source.customEmoji,
+      ),
+    );
+    notifyListeners();
+
+    try {
+      // The attachment's ciphertext has to outlive the ordinary retention, or
+      // a saved photo becomes a broken placeholder on the second device. Done
+      // before the payload goes out, so a blob that could not be kept is a
+      // save that reports failure rather than one that quietly rots.
+      if (attachment != null) {
+        await _services.messaging.retainMedia(attachment.mediaId);
+      }
+      await _services.messaging.sendPayload(
+        _selfUsernameOrThrow(),
+        attachment == null
+            ? MessagePayload.text(source.body, clientId: clientId)
+            : MessagePayload.media(
+                mediaId: attachment.mediaId,
+                mediaKey: attachment.mediaKey,
+                mediaType: attachment.mediaType,
+                byteSize: attachment.byteSize,
+                fileName: attachment.fileName,
+                mediaToken: attachment.mediaToken,
+                body: source.body,
+                clientId: clientId,
+              ),
+      );
+      _markSent(me, clientId, null);
+      _persist();
+      return null;
+    } on Object {
+      // The entry is on this device and the copy is not out yet. Marked so the
+      // screen can say "waiting to sync" rather than "saved", and picked up by
+      // the ordinary retry.
+      _services.store.updateState(me, clientId, DeliveryState.queued);
+      _persist();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Pins an entry to the top of Saved, or lets it go.
+  Future<void> togglePinned(String conversationId, Message target) async {
+    final id = target.clientId ?? target.id;
+    final message = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => (m.clientId ?? m.id) == id)
+        .firstOrNull;
+    if (message == null) return;
+    _services.store.replace(
+      conversationId,
+      message.id,
+      message.copyWith(pinned: !message.pinned),
+    );
+    _persist();
+    notifyListeners();
+  }
+
+  /// Everything in Saved that carries a file, newest first.
+  List<Message> savedMedia() {
+    final me = accountId;
+    if (me == null) return const [];
+    return [
+      for (final message in _services.store.conversationWith(me)?.messages ?? const <Message>[])
+        if (message.attachment != null) message,
+    ].reversed.toList(growable: false);
+  }
+
+  /// This account's own username, as the Saved conversation records it.
+  ///
+  /// Read from the conversation rather than held in a field, so there is one
+  /// answer rather than two that can drift — and it throws rather than
+  /// guessing, because writing a saved entry to the wrong username would send
+  /// it to somebody else.
+  String _selfUsernameOrThrow() {
+    final me = accountId;
+    if (me == null) throw StateError('Saved has no account');
+    final user = _services.store.conversationWith(me)?.user;
+    if (user == null) throw StateError('Saved has no conversation yet');
+    return user.username;
   }
 
   Future<void> refreshContacts() async {
@@ -1852,7 +2025,18 @@ class ConversationController extends ChangeNotifier {
   /// every device that *receives* a change — see [_senderMayChangeTimer] —
   /// which is what makes this an actual restriction rather than a disabled
   /// button. A patched client can still send the payload; nobody will apply it.
+  /// Whether a disappearing timer may be set on this conversation at all.
+  ///
+  /// Saved keeps what is put in it, and the guard is here — at the one door
+  /// every timer change goes through — rather than only in the menu that no
+  /// longer offers it. A rule that lives in a widget is a rule the next call
+  /// site does not have.
   bool mayChangeDisappearAfter(String conversationId) {
+    if (isSaved(conversationId)) return false;
+    return _mayChangeDisappearAfter(conversationId);
+  }
+
+  bool _mayChangeDisappearAfter(String conversationId) {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null) return false;
     final group = conversation.group;
@@ -2284,6 +2468,14 @@ class ConversationController extends ChangeNotifier {
       await _resolveSender(incoming.senderAccountId);
     }
     final payload = incoming.payload;
+    // From this account itself: a Saved entry written on another of this
+    // account's devices. It belongs in Saved — which is the conversation whose
+    // id *is* this account — and it is this account's own writing, so it is
+    // drawn as such rather than as something somebody else said.
+    if (incoming.senderAccountId == accountId) {
+      _fileSavedFromOtherDevice(incoming);
+      return;
+    }
     if (payload.profileKey != null) {
       // Learning someone's profile key is what makes their picture openable.
       _services.store.upsertUser(
@@ -2302,6 +2494,52 @@ class ConversationController extends ChangeNotifier {
     _services.store.append(
       incoming.senderAccountId,
       _incomingMessage(incoming.senderAccountId, incoming),
+    );
+  }
+
+  /// Files a Saved entry that another of this account's devices wrote.
+  ///
+  /// Deduplicated on the client id, like the sync path beside it: the device
+  /// that wrote the entry already has it, and a copy that arrives twice — a
+  /// redelivery, a queue drained after a reconnect — must not become a second
+  /// note. That is what makes an offline entry safe to write and sync later.
+  void _fileSavedFromOtherDevice(IncomingMessage incoming) {
+    final me = accountId;
+    if (me == null) return;
+    final payload = incoming.payload;
+    if (payload.isControl) return;
+
+    final clientId = payload.clientId;
+    if (clientId != null && _hasMessageWithClientId(me, clientId)) return;
+
+    final sentAt = incoming.receivedAt.toLocal();
+    _services.store.append(
+      me,
+      Message(
+        id: 'saved-${incoming.envelopeId}',
+        clientId: clientId,
+        body: payload.body,
+        sentAt: sentAt,
+        // Everything in Saved is this account's own.
+        isMine: true,
+        state: DeliveryState.sent,
+        kind: _kindOf(payload),
+        voiceDuration: payload.voiceDuration,
+        waveform: payload.waveform,
+        // Deliberately no `expiresAt`: Saved keeps what is put in it.
+        attachment: payload.isMedia
+            ? Attachment(
+                mediaId: payload.mediaId!,
+                mediaKey: payload.mediaKey!,
+                mediaToken: payload.mediaToken,
+                mediaType: payload.mediaType!,
+                byteSize: payload.byteSize!,
+                fileName: payload.fileName,
+              )
+            : null,
+        sticker: _stickerIn(payload),
+        customEmoji: payload.customEmoji,
+      ),
     );
   }
 
@@ -2464,6 +2702,12 @@ class ConversationController extends ChangeNotifier {
   /// [by] names who changed it, for the notice. Null means this account's own
   /// other device, which reads the same as changing it here.
   void _adoptTimer(String conversationId, MessagePayload payload, {String? by}) {
+    // Saved keeps what is put in it. A timer arriving with an entry — from an
+    // older build, from a copy of a message that carried one, from anywhere —
+    // must not start deleting somebody's notes, and the chats' own timer is
+    // never applied here either. If a timer for Saved is ever offered it will
+    // be set on this screen and confirmed there, not inherited.
+    if (isSaved(conversationId)) return;
     final seconds = payload.expiresInSeconds;
     final current = _services.store.conversationWith(conversationId)?.disappearAfter;
     final incoming = seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);

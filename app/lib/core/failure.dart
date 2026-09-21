@@ -161,6 +161,15 @@ enum FailureKind {
   appIconUnsupported,
   appIconHiddenByDisguise,
 
+  // Saved.
+  //
+  /// A message under a disappearing timer. Refused on purpose: copying it into
+  /// Saved would defeat the one guarantee its sender was given.
+  savedDisappearingRefused,
+
+  /// A deleted message or a system notice — there is nothing in it to keep.
+  savedNothingToSave,
+
   /// A state the app did not expect. Honest rather than blamed on the network.
   unexpected,
 

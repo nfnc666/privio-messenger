@@ -240,9 +240,14 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
         // Avatars and stickers count too: they are smaller, but an account that
         // uploaded ten thousand of them would cost exactly as much.
         const { rows: held } = await pool.query<{ used: string }>(
+          // Retained objects count too. They occupy exactly as much storage as
+          // anything else, and leaving them out would make a Saved area a way
+          // to hold an unbounded amount of it: the quota would free itself as
+          // the ordinary expiry passed while the bytes stayed.
           `SELECT COALESCE(sum(byte_size), 0)::text AS used
              FROM media_objects
-            WHERE owner_account_id = $1 AND expires_at > now()`,
+            WHERE owner_account_id = $1
+              AND (expires_at > now() OR retained_at IS NOT NULL)`,
           [accountId],
         );
         const used = Number(held[0]?.used ?? 0);
@@ -298,8 +303,14 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
       const { accountId } = auth(request);
       const params = parse(z.object({ id: uuidSchema }), request.params);
       const { rows } = await pool.query<MediaRow>(
+        // `retained_at` widens this rather than replacing the expiry test: a
+        // saved item is deliberately still readable after the ordinary
+        // attachment window, and everything else still is not. Without this
+        // the sweep would leave the row alone and the download would 404 —
+        // the object kept and unreachable, which is the worst of both.
         `SELECT id, storage_key, byte_size, kind, owner_account_id, download_token_hash
-           FROM media_objects WHERE id = $1 AND expires_at > now()`,
+           FROM media_objects
+          WHERE id = $1 AND (expires_at > now() OR retained_at IS NOT NULL)`,
         [params.id],
       );
       const object = rows[0];
@@ -312,6 +323,56 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
       reply.header('content-length', String(object.byte_size));
       reply.header('cache-control', 'private, no-store');
       return reply.send(storage.open(object.storage_key));
+    });
+
+    /**
+     * Keep this object past the ordinary attachment retention.
+     *
+     * For the owner's own Saved area, and **only ever by its owner** — the
+     * `owner_account_id` test is in the statement rather than in a check
+     * before it, so there is no path that retains somebody else's blob. The
+     * answer for "not yours" is the same 404 as for "no such object", because
+     * telling the two apart would say whether an id exists.
+     *
+     * Idempotent: retaining twice is retaining once. A client that saves,
+     * loses its answer and retries must not end up with two of anything, and
+     * there is nothing here to have two of.
+     *
+     * The server learns nothing by this. The blob is ciphertext it has no key
+     * for, and "retained" says only that its owner asked for it to be kept.
+     */
+    app.post('/v1/media/:id/retain', requireAuth, async (request) => {
+      const { accountId } = auth(request);
+      const params = parse(z.object({ id: uuidSchema }), request.params);
+      const { rows } = await pool.query<{ retained_at: Date }>(
+        `UPDATE media_objects
+            SET retained_at = COALESCE(retained_at, now())
+          WHERE id = $1 AND owner_account_id = $2
+          RETURNING retained_at`,
+        [params.id, accountId],
+      );
+      if (!rows[0]) throw ApiError.notFound('media_not_found', 'No such attachment');
+      return { retained: true, retainedAt: rows[0].retained_at.toISOString() };
+    });
+
+    /**
+     * Let it go back to the ordinary retention.
+     *
+     * What a deleted saved entry does. Deliberately not a delete: the same
+     * blob may still be the attachment of an ordinary message somebody sent,
+     * and removing a saved copy must not reach into that conversation. It goes
+     * when its ordinary expiry comes, like any other attachment — and if that
+     * has already passed, the next sweep takes it.
+     */
+    app.delete('/v1/media/:id/retain', requireAuth, async (request) => {
+      const { accountId } = auth(request);
+      const params = parse(z.object({ id: uuidSchema }), request.params);
+      const { rowCount } = await pool.query(
+        'UPDATE media_objects SET retained_at = NULL WHERE id = $1 AND owner_account_id = $2',
+        [params.id, accountId],
+      );
+      if (!rowCount) throw ApiError.notFound('media_not_found', 'No such attachment');
+      return { retained: false };
     });
 
     app.delete('/v1/media/:id', requireAuth, async (request) => {

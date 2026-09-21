@@ -2222,5 +2222,45 @@
     }
   },
   "contactMatchNote": "Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.",
-  "contactMatchUnsupported": "This build cannot read the address book. You can still add people by Privio ID, invite link or QR code."
+  "contactMatchUnsupported": "This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.",
+  "savedTitle": "Saved",
+  "savedAccountRow": "Saved",
+  "savedChatSubtitle": "Only you can see this",
+  "savedEmptyTitle": "Nothing saved yet",
+  "savedEmptyBody": "Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio's server, which holds only what your own devices have sealed.",
+  "savedComposerHint": "Write a note …",
+  "savedSaveAction": "Save to Saved",
+  "savedSaved": "Saved",
+  "savedWaitingToSync": "Saved here — waiting to reach your other devices",
+  "savedDisappearingRefused": "This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.",
+  "savedNothingToSave": "There is nothing in this message to save.",
+  "savedCouldNotSave": "Could not save this",
+  "savedPin": "Pin",
+  "savedUnpin": "Unpin",
+  "savedPinnedSection": "Pinned",
+  "savedDeleteOne": "Delete this entry",
+  "savedDeleteMany": "{count, plural, =1{Delete 1 entry} other{Delete {count} entries}}",
+  "@savedDeleteMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "savedDeleteBody": "It is removed from this device and from your other devices. This cannot be undone.",
+  "savedSelected": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@savedSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "savedSearchHint": "Search notes, captions and file names",
+  "savedSearchNothing": "Nothing matches that",
+  "savedMediaRow": "Media and files",
+  "savedMediaEmpty": "No pictures or files saved yet",
+  "savedInfoTitle": "About Saved",
+  "savedKeptForever": "Kept until you delete it",
+  "savedNoTimerNote": "The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it."
 }

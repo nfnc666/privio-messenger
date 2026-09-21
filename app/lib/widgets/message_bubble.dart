@@ -23,9 +23,11 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     super.key,
     this.onLongPress,
+    this.onTap,
     this.onStickerTap,
     this.onSenderTap,
     this.highlighted = false,
+    this.selected = false,
   });
 
   final Message message;
@@ -36,6 +38,14 @@ class MessageBubble extends StatelessWidget {
 
   /// Opens the reply-and-react sheet. Null in places where neither applies.
   final VoidCallback? onLongPress;
+
+  /// Picks the entry out, or puts it back. Set only while Saved is choosing
+  /// what to delete — a tap on a bubble does nothing anywhere else, and giving
+  /// it a meaning would make every chat feel like a list to be ticked.
+  final VoidCallback? onTap;
+
+  /// Whether this entry is one of the chosen ones.
+  final bool selected;
 
   /// Offers the pack a sticker came from. Null where there is nowhere to go.
   final VoidCallback? onStickerTap;
@@ -79,6 +89,7 @@ class MessageBubble extends StatelessWidget {
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: onLongPress,
+        onTap: onTap,
         child: Column(
           crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -96,8 +107,14 @@ class MessageBubble extends StatelessWidget {
           vertical: PrivioSpacing.sm + 1,
         ),
         decoration: BoxDecoration(
-          color: mine ? context.accents.bubbleOutgoing : PrivioColors.surfaceRaised,
-          border: highlighted ? Border.all(color: context.accents.accent) : null,
+          color: selected
+              ? context.accents.surface
+              : mine
+                  ? context.accents.bubbleOutgoing
+                  : PrivioColors.surfaceRaised,
+          border: highlighted || selected
+              ? Border.all(color: context.accents.accent)
+              : null,
           borderRadius: BorderRadius.only(
             topLeft: PrivioRadius.bubble,
             topRight: PrivioRadius.bubble,

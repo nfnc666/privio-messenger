@@ -168,6 +168,20 @@ See [`phone-contacts.md`](phone-contacts.md).
 | S5 | A real address book (300+ entries) matches in a reasonable time and the app stays responsive | The read is one platform call; the budget is 200 numbers per request | | | | not run | |
 | S6 | **iOS limited access** (pick a few contacts): those are matched, and the app does not complain about the limited grant | iOS 18+ only | | | | not run | |
 
+## 6d. Saved
+
+Covered by `app/test/saved_test.dart` and the retention tests in
+`storage.test.ts`. None of it has been on a phone. See [`saved.md`](saved.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| V1 | Account → Saved and the chat-list row open the **same** area, and a fresh account finds it from both before anything is in it | — | | | | not run | |
+| V2 | A note written on one device appears on the other within seconds | Needs two devices on one account; a single-device account has nobody to sync to, which is correct and not a failure | | | | not run | |
+| V3 | Write a note with the network off, turn it back on: it syncs and appears **once** on the second device | The duplicate is what the client id prevents; seeing it twice is the failure | | | | not run | |
+| V4 | Save a photo, then open it on the second device **after the ordinary attachment window** has passed | Needs a server with a short `MEDIA_TTL_DAYS` to test in reasonable time | | | | not run | |
+| V5 | Long-press a message that is under a disappearing timer: saving is refused with the reason, and nothing appears in Saved | Needs a chat with a timer set | | | | not run | |
+| V6 | A Saved area with a few hundred entries scrolls and searches without stalling | The search is a loop over decrypted messages, as everywhere else in the app | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.

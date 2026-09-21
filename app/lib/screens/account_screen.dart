@@ -14,6 +14,7 @@ import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/status_sheet.dart';
 import 'backup_screen.dart';
+import 'chat_screen.dart';
 import 'invite_screen.dart';
 import 'settings_screen.dart';
 
@@ -206,6 +207,14 @@ class _AccountScreenState extends State<AccountScreen> {
               // decoration. A figure nobody measured is worse than no figure,
               // and this one sat on a screen about trust.
               SettingsRow(
+                icon: Icons.bookmark_border_rounded,
+                label: text.savedAccountRow,
+                // The same conversation the chat list opens, by the same id —
+                // so the two ways in cannot become two areas. See
+                // `ConversationController.savedId`.
+                onTap: () => unawaited(_openSaved(context)),
+              ),
+              SettingsRow(
                 icon: Icons.backup_outlined,
                 label: text.settingsBackup,
                 onTap: () => Navigator.of(context).push(
@@ -241,6 +250,25 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
           const SizedBox(height: PrivioSpacing.xxxl),
         ],
+      ),
+    );
+  }
+
+  /// Opens this account's Saved area.
+  ///
+  /// Makes sure it exists first: an account that has never written a note has
+  /// no conversation yet, and a row that opened an empty screen with no way to
+  /// write in it would be a row that does not work on a fresh install.
+  Future<void> _openSaved(BuildContext context) async {
+    final state = PrivioScope.of(context);
+    final username = state.username;
+    final saved = state.conversations.savedId;
+    if (username == null || saved == null) return;
+    state.conversations.ensureSaved(username: username);
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(accountId: saved, title: AppText.of(context).savedTitle),
       ),
     );
   }

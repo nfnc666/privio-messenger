@@ -7878,6 +7878,162 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.'**
   String get contactMatchUnsupported;
+
+  /// No description provided for @savedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedTitle;
+
+  /// No description provided for @savedAccountRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedAccountRow;
+
+  /// No description provided for @savedChatSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this'**
+  String get savedChatSubtitle;
+
+  /// No description provided for @savedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet'**
+  String get savedEmptyTitle;
+
+  /// No description provided for @savedEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio\'s server, which holds only what your own devices have sealed.'**
+  String get savedEmptyBody;
+
+  /// No description provided for @savedComposerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a note …'**
+  String get savedComposerHint;
+
+  /// No description provided for @savedSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to Saved'**
+  String get savedSaveAction;
+
+  /// No description provided for @savedSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedSaved;
+
+  /// No description provided for @savedWaitingToSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved here — waiting to reach your other devices'**
+  String get savedWaitingToSync;
+
+  /// No description provided for @savedDisappearingRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.'**
+  String get savedDisappearingRefused;
+
+  /// No description provided for @savedNothingToSave.
+  ///
+  /// In en, this message translates to:
+  /// **'There is nothing in this message to save.'**
+  String get savedNothingToSave;
+
+  /// No description provided for @savedCouldNotSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save this'**
+  String get savedCouldNotSave;
+
+  /// No description provided for @savedPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin'**
+  String get savedPin;
+
+  /// No description provided for @savedUnpin.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpin'**
+  String get savedUnpin;
+
+  /// No description provided for @savedPinnedSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned'**
+  String get savedPinnedSection;
+
+  /// No description provided for @savedDeleteOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this entry'**
+  String get savedDeleteOne;
+
+  /// No description provided for @savedDeleteMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 entry} other{Delete {count} entries}}'**
+  String savedDeleteMany(int count);
+
+  /// No description provided for @savedDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'It is removed from this device and from your other devices. This cannot be undone.'**
+  String get savedDeleteBody;
+
+  /// No description provided for @savedSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String savedSelected(int count);
+
+  /// No description provided for @savedSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search notes, captions and file names'**
+  String get savedSearchHint;
+
+  /// No description provided for @savedSearchNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches that'**
+  String get savedSearchNothing;
+
+  /// No description provided for @savedMediaRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Media and files'**
+  String get savedMediaRow;
+
+  /// No description provided for @savedMediaEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No pictures or files saved yet'**
+  String get savedMediaEmpty;
+
+  /// No description provided for @savedInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About Saved'**
+  String get savedInfoTitle;
+
+  /// No description provided for @savedKeptForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Kept until you delete it'**
+  String get savedKeptForever;
+
+  /// No description provided for @savedNoTimerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.'**
+  String get savedNoTimerNote;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

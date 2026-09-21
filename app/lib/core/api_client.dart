@@ -1078,6 +1078,18 @@ class PrivioApiClient {
   /// The token is handed back once and never stored server-side, so it has to
   /// travel inside the sealed payload with the media key. Losing it means the
   /// bytes cannot be fetched again, which is the point.
+  /// Asks the server to keep an attachment past the ordinary retention.
+  ///
+  /// For the Saved area, where the server's copy is what a *second* device
+  /// fetches — possibly months later, by which time an ordinary attachment
+  /// would have been swept. Owner-only on the server, and idempotent.
+  Future<void> retainMedia(String mediaId) async =>
+      _send('POST', '/v1/media/$mediaId/retain');
+
+  /// Lets it go back to the ordinary retention, when a saved entry is deleted.
+  Future<void> releaseMedia(String mediaId) async =>
+      _send('DELETE', '/v1/media/$mediaId/retain');
+
   Future<({String id, String? token})> uploadMedia(
     List<int> sealedBytes, {
     bool avatar = false,
