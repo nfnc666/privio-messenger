@@ -1352,5 +1352,11 @@
   "profileAlreadyReported": "La tua segnalazione precedente su questo account è ancora agli atti",
   "profileCouldNotReport": "Impossibile inviare la segnalazione",
   "profileOpenProfile": "Apri profilo",
-  "profileVerifyAction": "Verifica"
+  "profileVerifyAction": "Verifica",
+  "contactMatchNow": "Confronta i contatti ora",
+  "contactMatchRunning": "Confronto in corso…",
+  "contactMatchNobody": "Nessuno della tua rubrica è ancora su Privio, oppure non ha attivato la reperibilità tramite numero.",
+  "contactMatchFound": "{count, plural, =1{1 contatto su Privio} other{{count} contatti su Privio}}",
+  "contactMatchNote": "La tua rubrica è rimasta su questo dispositivo. Ogni numero è stato trasformato qui in un hash con chiave e sono stati confrontati solo gli hash; non è stato caricato né conservato nulla.",
+  "contactMatchUnsupported": "Questa versione non può leggere la rubrica. Puoi comunque aggiungere qualcuno tramite ID Privio, link d’invito o codice QR."
 }

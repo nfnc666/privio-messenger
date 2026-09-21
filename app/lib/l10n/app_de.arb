@@ -1352,5 +1352,11 @@
   "profileAlreadyReported": "Deine frühere Meldung zu diesem Konto liegt weiterhin vor",
   "profileCouldNotReport": "Meldung konnte nicht eingereicht werden",
   "profileOpenProfile": "Profil öffnen",
-  "profileVerifyAction": "Prüfen"
+  "profileVerifyAction": "Prüfen",
+  "contactMatchNow": "Kontakte jetzt abgleichen",
+  "contactMatchRunning": "Wird abgeglichen …",
+  "contactMatchNobody": "Aus deinem Adressbuch ist noch niemand bei PRIVIO, oder die Betreffenden haben „Über Rufnummer auffindbar“ nicht eingeschaltet.",
+  "contactMatchFound": "{count, plural, =1{1 Kontakt bei PRIVIO} other{{count} Kontakte bei PRIVIO}}",
+  "contactMatchNote": "Dein Adressbuch ist auf diesem Gerät geblieben. Jede Nummer wurde hier in einen Hash mit Schlüssel verwandelt, verglichen wurden nur die Hashes; hochgeladen wurde nichts und gespeichert auch nicht.",
+  "contactMatchUnsupported": "Diese Fassung kann das Adressbuch nicht lesen. Über PRIVIO-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen."
 }

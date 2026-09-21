@@ -4610,4 +4610,33 @@ class AppTextFr extends AppText {
 
   @override
   String get profileVerifyAction => 'Vérifier';
+
+  @override
+  String get contactMatchNow => 'Comparer mes contacts maintenant';
+
+  @override
+  String get contactMatchRunning => 'Comparaison…';
+
+  @override
+  String get contactMatchNobody =>
+      'Personne de votre carnet d’adresses n’est encore sur Privio, ou ces personnes n’ont pas activé d’être trouvées par leur numéro.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contacts sur Privio',
+      one: '1 contact sur Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Votre carnet d’adresses est resté sur cet appareil. Chaque numéro a été transformé ici en une empreinte à clé et seules les empreintes ont été comparées ; rien n’a été envoyé ni conservé.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'Cette version ne peut pas lire le carnet d’adresses. Vous pouvez toujours ajouter quelqu’un par identifiant Privio, lien d’invitation ou code QR.';
 }

@@ -4619,4 +4619,33 @@ class AppTextIt extends AppText {
 
   @override
   String get profileVerifyAction => 'Verifica';
+
+  @override
+  String get contactMatchNow => 'Confronta i contatti ora';
+
+  @override
+  String get contactMatchRunning => 'Confronto in corso…';
+
+  @override
+  String get contactMatchNobody =>
+      'Nessuno della tua rubrica è ancora su Privio, oppure non ha attivato la reperibilità tramite numero.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contatti su Privio',
+      one: '1 contatto su Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'La tua rubrica è rimasta su questo dispositivo. Ogni numero è stato trasformato qui in un hash con chiave e sono stati confrontati solo gli hash; non è stato caricato né conservato nulla.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'Questa versione non può leggere la rubrica. Puoi comunque aggiungere qualcuno tramite ID Privio, link d’invito o codice QR.';
 }

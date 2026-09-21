@@ -2209,5 +2209,18 @@
   "profileAlreadyReported": "Your earlier report about this account is still on file",
   "profileCouldNotReport": "Could not file the report",
   "profileOpenProfile": "Open profile",
-  "profileVerifyAction": "Verify"
+  "profileVerifyAction": "Verify",
+  "contactMatchNow": "Match my contacts now",
+  "contactMatchRunning": "Matching…",
+  "contactMatchNobody": "Nobody in your address book is on Privio yet, or they have not switched on being found by their number.",
+  "contactMatchFound": "{count, plural, =1{1 contact on Privio} other{{count} contacts on Privio}}",
+  "@contactMatchFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contactMatchNote": "Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.",
+  "contactMatchUnsupported": "This build cannot read the address book. You can still add people by Privio ID, invite link or QR code."
 }

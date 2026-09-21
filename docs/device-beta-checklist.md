@@ -153,6 +153,21 @@ phone. See [`contact-profile.md`](contact-profile.md).
 | P7 | A contact who has hidden their status and last-seen shows neither — and no row anywhere saying something is hidden | Needs a second account with `lastSeen: nobody` and `profileStatus: nobody` | | | | not run | |
 | P8 | Tap the large picture: it opens full-screen and pinch-zooms. With no picture, the tap does nothing | Only a contact whose profile key has arrived has a picture at all | | | | not run | |
 
+## 6c. Matching the address book
+
+Covered by `app/test/contact_match_test.dart` against a fake address book; the
+system permission dialog and a real address book have never been near this.
+See [`phone-contacts.md`](phone-contacts.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S1 | With "Sync device contacts" **off**, no match row is offered and **no contacts prompt ever appears** | — | | | | not run | |
+| S2 | Turning the switch on shows the row and still shows **no** system prompt — the prompt comes on the first press of the row | iOS shows its prompt once per install; getting this wrong is not recoverable without a reinstall | | | | not run | |
+| S3 | Allow the prompt: contacts who are on Privio and discoverable appear, and **Add** puts one in the contacts list | Needs a second account with a verified number and "found by my number" on | | | | not run | |
+| S4 | Refuse the prompt: the sentence says so and names the other ways in, and nothing is sent | Check the server log shows no `/v1/contacts/discover` for that press | | | | not run | |
+| S5 | A real address book (300+ entries) matches in a reasonable time and the app stays responsive | The read is one platform call; the budget is 200 numbers per request | | | | not run | |
+| S6 | **iOS limited access** (pick a few contacts): those are matched, and the app does not complain about the limited grant | iOS 18+ only | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.

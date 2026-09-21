@@ -4600,4 +4600,33 @@ class AppTextEs extends AppText {
 
   @override
   String get profileVerifyAction => 'Verificar';
+
+  @override
+  String get contactMatchNow => 'Cotejar mis contactos ahora';
+
+  @override
+  String get contactMatchRunning => 'Cotejando…';
+
+  @override
+  String get contactMatchNobody =>
+      'Todavía no hay nadie de tu agenda en Privio, o no han activado que se les encuentre por su número.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contactos en Privio',
+      one: '1 contacto en Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Tu agenda se quedó en este dispositivo. Cada número se convirtió aquí en un hash con clave y solo se compararon los hashes; no se subió nada y no se guardó nada.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'Esta versión no puede leer la agenda. Puedes seguir añadiendo gente por ID de Privio, enlace de invitación o código QR.';
 }

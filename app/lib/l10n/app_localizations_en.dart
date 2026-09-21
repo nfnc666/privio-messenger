@@ -4567,4 +4567,33 @@ class AppTextEn extends AppText {
 
   @override
   String get profileVerifyAction => 'Verify';
+
+  @override
+  String get contactMatchNow => 'Match my contacts now';
+
+  @override
+  String get contactMatchRunning => 'Matching…';
+
+  @override
+  String get contactMatchNobody =>
+      'Nobody in your address book is on Privio yet, or they have not switched on being found by their number.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contacts on Privio',
+      one: '1 contact on Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.';
 }

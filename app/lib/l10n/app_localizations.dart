@@ -7842,6 +7842,42 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Verify'**
   String get profileVerifyAction;
+
+  /// No description provided for @contactMatchNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Match my contacts now'**
+  String get contactMatchNow;
+
+  /// No description provided for @contactMatchRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching…'**
+  String get contactMatchRunning;
+
+  /// No description provided for @contactMatchNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody in your address book is on Privio yet, or they have not switched on being found by their number.'**
+  String get contactMatchNobody;
+
+  /// No description provided for @contactMatchFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 contact on Privio} other{{count} contacts on Privio}}'**
+  String contactMatchFound(int count);
+
+  /// No description provided for @contactMatchNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.'**
+  String get contactMatchNote;
+
+  /// No description provided for @contactMatchUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.'**
+  String get contactMatchUnsupported;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

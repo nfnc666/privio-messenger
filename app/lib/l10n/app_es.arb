@@ -1352,5 +1352,11 @@
   "profileAlreadyReported": "Tu denuncia anterior sobre esta cuenta sigue registrada",
   "profileCouldNotReport": "No se pudo enviar la denuncia",
   "profileOpenProfile": "Abrir perfil",
-  "profileVerifyAction": "Verificar"
+  "profileVerifyAction": "Verificar",
+  "contactMatchNow": "Cotejar mis contactos ahora",
+  "contactMatchRunning": "Cotejando…",
+  "contactMatchNobody": "Todavía no hay nadie de tu agenda en Privio, o no han activado que se les encuentre por su número.",
+  "contactMatchFound": "{count, plural, =1{1 contacto en Privio} other{{count} contactos en Privio}}",
+  "contactMatchNote": "Tu agenda se quedó en este dispositivo. Cada número se convirtió aquí en un hash con clave y solo se compararon los hashes; no se subió nada y no se guardó nada.",
+  "contactMatchUnsupported": "Esta versión no puede leer la agenda. Puedes seguir añadiendo gente por ID de Privio, enlace de invitación o código QR."
 }

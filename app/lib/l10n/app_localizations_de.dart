@@ -4613,4 +4613,33 @@ class AppTextDe extends AppText {
 
   @override
   String get profileVerifyAction => 'Prüfen';
+
+  @override
+  String get contactMatchNow => 'Kontakte jetzt abgleichen';
+
+  @override
+  String get contactMatchRunning => 'Wird abgeglichen …';
+
+  @override
+  String get contactMatchNobody =>
+      'Aus deinem Adressbuch ist noch niemand bei PRIVIO, oder die Betreffenden haben „Über Rufnummer auffindbar“ nicht eingeschaltet.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Kontakte bei PRIVIO',
+      one: '1 Kontakt bei PRIVIO',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Dein Adressbuch ist auf diesem Gerät geblieben. Jede Nummer wurde hier in einen Hash mit Schlüssel verwandelt, verglichen wurden nur die Hashes; hochgeladen wurde nichts und gespeichert auch nicht.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'Diese Fassung kann das Adressbuch nicht lesen. Über PRIVIO-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen.';
 }

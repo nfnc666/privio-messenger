@@ -1352,5 +1352,11 @@
   "profileAlreadyReported": "Votre signalement précédent concernant ce compte est toujours enregistré",
   "profileCouldNotReport": "Impossible d’envoyer le signalement",
   "profileOpenProfile": "Ouvrir le profil",
-  "profileVerifyAction": "Vérifier"
+  "profileVerifyAction": "Vérifier",
+  "contactMatchNow": "Comparer mes contacts maintenant",
+  "contactMatchRunning": "Comparaison…",
+  "contactMatchNobody": "Personne de votre carnet d’adresses n’est encore sur Privio, ou ces personnes n’ont pas activé d’être trouvées par leur numéro.",
+  "contactMatchFound": "{count, plural, =1{1 contact sur Privio} other{{count} contacts sur Privio}}",
+  "contactMatchNote": "Votre carnet d’adresses est resté sur cet appareil. Chaque numéro a été transformé ici en une empreinte à clé et seules les empreintes ont été comparées ; rien n’a été envoyé ni conservé.",
+  "contactMatchUnsupported": "Cette version ne peut pas lire le carnet d’adresses. Vous pouvez toujours ajouter quelqu’un par identifiant Privio, lien d’invitation ou code QR."
 }
