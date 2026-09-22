@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../core/failure.dart';
 import '../core/app_state.dart';
+import '../core/display_name.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import 'backup_screen.dart';
 import '../widgets/phone_field.dart';
 import '../widgets/phone_verify_sheet.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/privio_logo.dart';
@@ -34,6 +36,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _username = TextEditingController();
+  final _displayName = TextEditingController();
   final _password = TextEditingController();
   final _totp = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -42,9 +45,20 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscure = true;
   bool _needsTotp = false;
 
+  /// What the server said about the typed username: true free, false taken,
+  /// null not asked or not answered.
+  ///
+  /// Asked before the password is chosen, because a username cannot be
+  /// changed afterwards — finding out it was taken *after* filling in the
+  /// rest of the form is finding out too late to matter.
+  bool? _usernameFree;
+  String? _checked;
+  bool _checking = false;
+
   @override
   void dispose() {
     _username.dispose();
+    _displayName.dispose();
     _password.dispose();
     _phone.dispose();
     _totp.dispose();
@@ -85,6 +99,36 @@ class _AuthScreenState extends State<AuthScreen> {
     await showPhoneVerifySheet(context, controller);
   }
 
+  /// Asks the server about the typed username, once, when the field is left.
+  ///
+  /// Not per keystroke: every letter would be a request against a budget
+  /// shared with password attempts, and half a username is not a question
+  /// worth asking. Answered only for a name that is well formed, because the
+  /// format rule is already on screen for one that is not.
+  Future<void> _checkUsername() async {
+    final username = _username.text.trim().toLowerCase();
+    if (!_isSignUp || username == _checked) return;
+    if (!RegExp(r'^[a-z0-9_.]{3,32}$').hasMatch(username)) {
+      setState(() {
+        _checked = null;
+        _usernameFree = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _checking = true;
+      _usernameFree = null;
+    });
+    final free = await PrivioScope.of(context).usernameAvailable(username);
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _checked = username;
+      _usernameFree = free;
+    });
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final state = PrivioScope.of(context);
@@ -93,6 +137,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ? await state.register(
             username: _username.text.trim().toLowerCase(),
             password: _password.text,
+            displayName: cleanDisplayName(_displayName.text),
           )
         : await state.signIn(
             username: _username.text.trim().toLowerCase(),
@@ -157,23 +202,100 @@ class _AuthScreenState extends State<AuthScreen> {
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: PrivioSpacing.xxl),
-                TextFormField(
-                  controller: _username,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    hintText: text.contactsUsernameHint,
-                    prefixText: '@ ',
-                  ),
-                  validator: (value) {
-                    final username = (value ?? '').trim().toLowerCase();
-                    if (!RegExp(r'^[a-z0-9_.]{3,32}$').hasMatch(username)) {
-                      return text.authUsernameRule;
-                    }
-                    return null;
+                Focus(
+                  // The check runs when the field is left, which is also when
+                  // somebody has finished typing the name they want.
+                  onFocusChange: (has) {
+                    if (!has) unawaited(_checkUsername());
                   },
+                  child: TextFormField(
+                    controller: _username,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      hintText: text.contactsUsernameHint,
+                      prefixText: '@ ',
+                      suffixIcon: !_isSignUp || (!_checking && _usernameFree == null)
+                          ? null
+                          : _checking
+                              ? const Padding(
+                                  padding: EdgeInsets.all(PrivioSpacing.md),
+                                  child: SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : Icon(
+                                  _usernameFree!
+                                      ? Icons.check_circle_outline_rounded
+                                      : Icons.error_outline_rounded,
+                                  size: 18,
+                                  color: _usernameFree!
+                                      ? context.accents.accent
+                                      : PrivioColors.danger,
+                                ),
+                    ),
+                    validator: (value) {
+                      final username = (value ?? '').trim().toLowerCase();
+                      if (!RegExp(r'^[a-z0-9_.]{3,32}$').hasMatch(username)) {
+                        return text.authUsernameRule;
+                      }
+                      // Only a name the server has already said no to. A name
+                      // it has not answered about is not refused here — the
+                      // registration itself is the authority, and an offline
+                      // check must not stop somebody signing up.
+                      if (_isSignUp && username == _checked && _usernameFree == false) {
+                        return text.authUsernameTakenHint(username);
+                      }
+                      return null;
+                    },
+                  ),
                 ),
+                if (_isSignUp) ...[
+                  const SizedBox(height: PrivioSpacing.sm),
+                  // Said before the password is chosen and before the button
+                  // is pressed, because this is the one decision on this
+                  // screen that cannot be revisited.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.lock_outline_rounded, size: 14, color: context.accents.accent),
+                      const SizedBox(width: PrivioSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          _checking
+                              ? text.authUsernameChecking
+                              : _usernameFree == true && _checked != null
+                                  ? text.authUsernameFree(_checked!)
+                                  : text.authUsernamePermanent,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: _usernameFree == true
+                                ? context.accents.accent
+                                : PrivioColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: PrivioSpacing.md),
+                  // The other name: free text, changeable, and not required.
+                  TextFormField(
+                    controller: _displayName,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(hintText: text.authDisplayNameHint),
+                    validator: (value) =>
+                        displayNameProblem(value ?? '') == DisplayNameProblem.tooLong
+                            ? text.failureDisplayNameTooLong
+                            : null,
+                  ),
+                  const SizedBox(height: PrivioSpacing.sm),
+                  Text(
+                    text.authDisplayNamePurpose,
+                    style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
+                  ),
+                ],
                 const SizedBox(height: PrivioSpacing.md),
                 TextFormField(
                   controller: _password,

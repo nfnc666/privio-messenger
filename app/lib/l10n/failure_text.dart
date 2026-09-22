@@ -19,6 +19,8 @@ extension FailureText on Failure {
         FailureKind.unreachableCheckConnection => text.failureUnreachableCheckConnection,
         FailureKind.unreachableTryAgain => text.failureUnreachableTryAgain,
         FailureKind.couldNotSave => text.failureCouldNotSave,
+        FailureKind.displayNameNotSaved => text.failureDisplayNameNotSaved,
+        FailureKind.displayNameTooLong => text.failureDisplayNameTooLong,
         FailureKind.changeNotSaved => text.failureChangeNotSaved,
         FailureKind.rateLimited => text.failureRateLimited,
         FailureKind.tooManyAttempts => text.failureTooManyAttempts,

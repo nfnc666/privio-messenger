@@ -4717,4 +4717,73 @@ class AppTextFr extends AppText {
   @override
   String get savedNoTimerNote =>
       'Le minuteur des messages éphémères de vos conversations ne s’applique pas ici. Enregistré conserve ce que vous y mettez jusqu’à ce que vous le retiriez.';
+
+  @override
+  String get failureDisplayNameNotSaved =>
+      'Ton nom affiché n’a pas été enregistré. Ce que tu as saisi est toujours là.';
+
+  @override
+  String get failureDisplayNameTooLong => 'Ce nom dépasse 50 caractères.';
+
+  @override
+  String get authDisplayNameHint => 'nom affiché (facultatif)';
+
+  @override
+  String get authDisplayNamePurpose =>
+      'C’est le nom que les autres voient. Tu peux le changer quand tu veux.';
+
+  @override
+  String get authUsernamePermanent =>
+      'Ton nom d’utilisateur ne pourra plus être changé. C’est ainsi qu’on te trouve.';
+
+  @override
+  String get authUsernameChecking => 'Vérification…';
+
+  @override
+  String authUsernameFree(String name) {
+    return '@$name est libre';
+  }
+
+  @override
+  String authUsernameTakenHint(String name) {
+    return '@$name est déjà pris';
+  }
+
+  @override
+  String get profileEditTitle => 'Modifier le profil';
+
+  @override
+  String get profileEditDisplayName => 'Nom affiché';
+
+  @override
+  String get profileEditDisplayNameHint => 'le nom que les autres voient';
+
+  @override
+  String profileEditEmptyNote(String name) {
+    return 'Laisse vide pour apparaître comme @$name.';
+  }
+
+  @override
+  String get profileEditUsernameNote =>
+      'Ton nom d’utilisateur a été choisi à l’inscription et reste tel quel.';
+
+  @override
+  String get profileEditSaved => 'Nom affiché enregistré';
+
+  @override
+  String get profileEditCopyUsername => 'Copier le nom d’utilisateur';
+
+  @override
+  String get profileEditUsernameCopied => 'Nom d’utilisateur copié';
+
+  @override
+  String profileEditRemaining(int count) {
+    return 'Encore $count caractères';
+  }
+
+  @override
+  String get accountEditProfile => 'Modifier le profil';
+
+  @override
+  String get accountNoDisplayName => 'Pas de nom affiché';
 }

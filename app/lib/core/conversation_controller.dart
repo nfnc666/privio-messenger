@@ -654,6 +654,9 @@ class ConversationController extends ChangeNotifier {
             displayName: contact['displayName'] as String?,
             avatarMediaId: contact['avatarMediaId'] as String?,
           ),
+          // The contact list is the whole answer about these people, so a
+          // name missing from it is a name they removed.
+          authoritative: true,
         );
       }
       detached(_loadAvatars());
@@ -2780,6 +2783,7 @@ class ConversationController extends ChangeNotifier {
           displayName: profile['displayName'] as String?,
           avatarMediaId: profile['avatarMediaId'] as String?,
         ),
+        authoritative: true,
       );
     } on ApiException {
       _services.store.upsertUser(

@@ -20,6 +20,15 @@ enum FailureKind {
   /// than borrowing the generic one, because it has something specific and
   /// reassuring to add: the draft is still in the field.
   statusNotSaved,
+
+  /// A display name the server did not take. Its own case for the same reason
+  /// as the status beside it: what somebody typed is still in the field, and
+  /// the sentence says so.
+  displayNameNotSaved,
+
+  /// Longer than fifty characters as a reader counts them. Refused before it
+  /// is sent, because the app measures the same way the server does.
+  displayNameTooLong,
   rateLimited,
   tooManyAttempts,
 

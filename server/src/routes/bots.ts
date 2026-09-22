@@ -4,6 +4,7 @@ import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as bots from '../services/bots.js';
 import * as assistant from '../services/botcreator.js';
+import { cleanDisplayName, isTooLong } from '../services/display_name.js';
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 import { rateLimitFactor } from '../config.js';
@@ -88,7 +89,7 @@ const botRoutes: FastifyPluginAsync = async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const body = parse(
       z.object({
-        name: z.string().trim().min(1).max(64).optional(),
+        name: z.string().max(512).transform(cleanDisplayName).refine((name) => name === null || !isTooLong(name)).optional(),
         description: z.string().trim().max(512).nullable().optional(),
         commands: commandsSchema.optional(),
         disabled: z.boolean().optional(),

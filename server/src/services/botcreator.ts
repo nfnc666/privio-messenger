@@ -1,4 +1,5 @@
 import { pool, withTransaction } from '../db/pool.js';
+import { DISPLAY_NAME_LIMIT, cleanDisplayName, isTooLong } from './display_name.js';
 import * as bots from './bots.js';
 
 /**
@@ -284,10 +285,14 @@ export async function respond(ownerId: string, text: string): Promise<AssistantR
     }
 
     case 'setname': {
-      if (trimmed.length === 0 || trimmed.length > 64) return { text: 'One to sixty-four characters, please.' };
-      await pool.query('UPDATE accounts SET display_name = $2 WHERE id = $1', [step.botId, trimmed]);
+      // The same cleaning a person's own name gets, and for the same reason:
+      // a bot's name is drawn in other people's chat lists.
+      const name = cleanDisplayName(trimmed);
+      if (name === null) return { text: 'A name, please — that was nothing but spaces.' };
+      if (isTooLong(name)) return { text: `At most ${DISPLAY_NAME_LIMIT} characters, please.` };
+      await pool.query('UPDATE accounts SET display_name = $2 WHERE id = $1', [step.botId, name]);
       await writeStep(ownerId, { at: 'idle' });
-      return { text: `Renamed to ${trimmed}.` };
+      return { text: `Renamed to ${name}.` };
     }
 
     case 'setdescription': {

@@ -4717,4 +4717,74 @@ class AppTextDe extends AppText {
   @override
   String get savedNoTimerNote =>
       'Der Timer für selbstlöschende Nachrichten aus deinen Chats gilt hier nicht. Gespeichert behält, was du hineinlegst, bis du es entfernst.';
+
+  @override
+  String get failureDisplayNameNotSaved =>
+      'Dein Anzeigename wurde nicht gespeichert. Deine Eingabe steht noch im Feld.';
+
+  @override
+  String get failureDisplayNameTooLong =>
+      'Dieser Name ist länger als 50 Zeichen.';
+
+  @override
+  String get authDisplayNameHint => 'Anzeigename (optional)';
+
+  @override
+  String get authDisplayNamePurpose =>
+      'Diesen Namen sehen andere. Du kannst ihn jederzeit ändern.';
+
+  @override
+  String get authUsernamePermanent =>
+      'Dein Benutzername kann später nicht geändert werden. Über ihn finden dich andere.';
+
+  @override
+  String get authUsernameChecking => 'Wird geprüft …';
+
+  @override
+  String authUsernameFree(String name) {
+    return '@$name ist frei';
+  }
+
+  @override
+  String authUsernameTakenHint(String name) {
+    return '@$name ist vergeben';
+  }
+
+  @override
+  String get profileEditTitle => 'Profil bearbeiten';
+
+  @override
+  String get profileEditDisplayName => 'Anzeigename';
+
+  @override
+  String get profileEditDisplayNameHint => 'der Name, den andere sehen';
+
+  @override
+  String profileEditEmptyNote(String name) {
+    return 'Leer lassen, um als @$name angezeigt zu werden.';
+  }
+
+  @override
+  String get profileEditUsernameNote =>
+      'Dein Benutzername wurde bei der Registrierung gewählt und bleibt bestehen.';
+
+  @override
+  String get profileEditSaved => 'Anzeigename gespeichert';
+
+  @override
+  String get profileEditCopyUsername => 'Benutzernamen kopieren';
+
+  @override
+  String get profileEditUsernameCopied => 'Benutzername kopiert';
+
+  @override
+  String profileEditRemaining(int count) {
+    return 'Noch $count Zeichen';
+  }
+
+  @override
+  String get accountEditProfile => 'Profil bearbeiten';
+
+  @override
+  String get accountNoDisplayName => 'Kein Anzeigename';
 }

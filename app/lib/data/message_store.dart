@@ -26,16 +26,25 @@ class KnownUser {
 
   bool get hasAvatar => avatarMediaId != null && profileKey != null;
 
+  /// Folds newer facts into this one.
+  ///
+  /// [clearDisplayName] is the one way a *missing* value means something: an
+  /// answer from `/v1/contacts` or a profile lookup is the whole truth about a
+  /// person, so a display name absent from it is a display name they removed,
+  /// and keeping the old one would leave somebody's discarded name on other
+  /// people's screens forever. A fact that arrived inside a message is a
+  /// fragment and never sets this.
   KnownUser merge({
     String? username,
     String? displayName,
     String? avatarMediaId,
     String? profileKey,
+    bool clearDisplayName = false,
   }) =>
       KnownUser(
         accountId: accountId,
         username: username ?? this.username,
-        displayName: displayName ?? this.displayName,
+        displayName: clearDisplayName ? displayName : (displayName ?? this.displayName),
         // A pointer or key that was never sent must not erase one we already
         // have: partial updates arrive constantly, from different sources.
         avatarMediaId: avatarMediaId ?? this.avatarMediaId,
@@ -200,7 +209,12 @@ class Conversation {
 abstract interface class MessageStore {
   List<Conversation> conversations();
   Conversation? conversationWith(String id);
-  Conversation upsertUser(KnownUser user);
+  /// Files what is known about somebody.
+  ///
+  /// [authoritative] marks an answer that describes the whole person — a
+  /// contact list or a profile lookup — as opposed to a fragment picked up
+  /// from a message. Only an authoritative answer may remove a display name.
+  Conversation upsertUser(KnownUser user, {bool authoritative = false});
   Conversation upsertGroup(GroupInfo group);
   void append(String id, Message message);
   void markRead(String id);
@@ -316,7 +330,7 @@ class InMemoryMessageStore implements MessageStore {
   Conversation? conversationWith(String id) => _conversations[id];
 
   @override
-  Conversation upsertUser(KnownUser user) {
+  Conversation upsertUser(KnownUser user, {bool authoritative = false}) {
     final existing = _conversations[user.accountId];
     if (existing?.user == null) {
       return _conversations[user.accountId] = Conversation.direct(user);
@@ -330,6 +344,7 @@ class InMemoryMessageStore implements MessageStore {
       displayName: user.displayName,
       avatarMediaId: user.avatarMediaId,
       profileKey: user.profileKey,
+      clearDisplayName: authoritative && user.displayName == null,
     );
     final replacement = Conversation.direct(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
