@@ -58,7 +58,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.notes['Bearer alice'], isNull);
     expect(find.text('Unverified — not proof of identity'), findsNothing);
-    expect(server.requests.every((r) => r.url.path == '/v1/accounts/me/phone-note'), isTrue);
+    // Every phone request, and nothing else: `/v1/server` is the launch probe
+    // that asks whether this build needs a key, which happens before any screen
+    // and is not a phone route. What this guards is that the editor never
+    // reaches for the SMS verification or discovery endpoints — those are under
+    // `/v1/phone`, and one appearing here turns this red.
+    expect(
+      server.requests
+          .where((r) => r.url.path != '/v1/server')
+          .every((r) => r.url.path == '/v1/accounts/me/phone-note'),
+      isTrue,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

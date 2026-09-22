@@ -579,7 +579,17 @@ class AppState extends ChangeNotifier {
     // Read the sealed history back first, then start draining the queue and top
     // up prekeys — but never block the UI on any of it.
     final controller = conversations..accountId = _accountId;
-    detached(controller.restore().then((_) => controller.start(token: _sessionToken)));
+    detached(
+      controller.restore().then((_) {
+        // Saved exists from sign-in rather than from the first visit, so both
+        // ways in open the same conversation and the chat list can show it
+        // without somebody having had to go looking first. Idempotent: it is
+        // keyed on the account id, and there is one of those.
+        final name = _username;
+        if (name != null) controller.ensureSaved(username: name);
+        controller.start(token: _sessionToken);
+      }),
+    );
     // The store builds register themselves; the free ones do not, because
     // choosing a distributor is a disclosure and therefore the user's to make.
     // Either way this must not block the chat list from appearing.

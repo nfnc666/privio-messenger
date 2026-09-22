@@ -265,9 +265,12 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> addContact(String username) =>
       _send('POST', '/v1/contacts', body: {'username': username});
 
+  /// Adds somebody by account id, which is the only identifier that cannot be
+  /// taken over by a rename.
   Future<Map<String, dynamic>> addContactById(String accountId) =>
       _send('POST', '/v1/contacts', body: {'accountId': accountId});
 
+  /// Removes somebody from this account's address book.
   Future<void> removeContact(String accountId) async =>
       _send('DELETE', '/v1/contacts/$accountId');
 
@@ -288,6 +291,14 @@ class PrivioApiClient {
 
   Future<void> unblock(String accountId) async =>
       _send('DELETE', '/v1/blocks/$accountId');
+
+  /// Reports an account, with one of the reasons the server accepts.
+  ///
+  /// Separate from [block] on purpose and at both ends: reporting somebody and
+  /// refusing to hear from them are two decisions, and neither is allowed to
+  /// silently perform the other.
+  Future<Map<String, dynamic>> reportUser(String accountId, String reason) =>
+      _send('POST', '/v1/users/$accountId/report', body: {'reason': reason});
 
   // --- Keys and messages ----------------------------------------------------
 
@@ -1082,6 +1093,18 @@ class PrivioApiClient {
   /// The token is handed back once and never stored server-side, so it has to
   /// travel inside the sealed payload with the media key. Losing it means the
   /// bytes cannot be fetched again, which is the point.
+  /// Asks the server to keep an attachment past the ordinary retention.
+  ///
+  /// For the Saved area, where the server's copy is what a *second* device
+  /// fetches — possibly months later, by which time an ordinary attachment
+  /// would have been swept. Owner-only on the server, and idempotent.
+  Future<void> retainMedia(String mediaId) async =>
+      _send('POST', '/v1/media/$mediaId/retain');
+
+  /// Lets it go back to the ordinary retention, when a saved entry is deleted.
+  Future<void> releaseMedia(String mediaId) async =>
+      _send('DELETE', '/v1/media/$mediaId/retain');
+
   Future<({String id, String? token})> uploadMedia(
     List<int> sealedBytes, {
     bool avatar = false,

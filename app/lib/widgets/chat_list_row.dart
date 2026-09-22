@@ -43,12 +43,30 @@ class ChatListRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            PrivioAvatar(
-              label: chat.title,
-              seed: chat.avatarSeed,
-              isGroup: chat.isGroup,
-              imageBytes: chat.avatarBytes,
-            ),
+            // Saved wears a bookmark rather than an avatar. Drawing your own
+            // initials here would make the row look like a chat with somebody
+            // who happens to share your name.
+            if (chat.isSaved)
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: context.accents.surface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.bookmark_rounded,
+                  size: 22,
+                  color: context.accents.accent,
+                ),
+              )
+            else
+              PrivioAvatar(
+                label: chat.title,
+                seed: chat.avatarSeed,
+                isGroup: chat.isGroup,
+                imageBytes: chat.avatarBytes,
+              ),
             const SizedBox(width: PrivioSpacing.md),
             Expanded(
               child: Column(
@@ -63,7 +81,7 @@ class ChatListRow extends StatelessWidget {
                       ],
                       Expanded(
                         child: Text(
-                          chat.title,
+                          chat.isSaved ? text.savedTitle : chat.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium,

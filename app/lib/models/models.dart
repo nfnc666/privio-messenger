@@ -41,6 +41,28 @@ extension on String {
   String characters1() => isEmpty ? '' : substring(0, 1).toUpperCase();
 }
 
+/// Why something is being reported.
+///
+/// One enum for a channel and for a person, because the server takes the same
+/// five words for both and the person choosing one is answering the same
+/// question. The wire values are what the server checks and never change; the
+/// words shown are translations, in `l10n/channel_text.dart`.
+///
+/// A fixed set, never free text: a text box is where somebody pastes the
+/// content they are reporting, which would put the very thing the encryption
+/// protects into a column the server can read.
+enum ReportReason {
+  spam('spam'),
+  abuse('abuse'),
+  illegal('illegal'),
+  impersonation('impersonation'),
+  other('other');
+
+  const ReportReason(this.wire);
+
+  final String wire;
+}
+
 enum MessageKind {
   text,
   voice,
@@ -276,6 +298,7 @@ class Message {
     this.sticker,
     this.customEmoji,
     this.reactionStickers = const {},
+    this.pinned = false,
   });
 
   final String id;
@@ -374,6 +397,15 @@ class Message {
   /// written in, and that is the best that can be done for them.
   final SystemNotice? notice;
 
+  /// Kept at the top of the Saved area.
+  ///
+  /// On the message rather than on the conversation, because what is pinned
+  /// here is one entry out of many — unlike `Conversation.pinned`, which is a
+  /// whole chat held at the top of the list. The two are different things with
+  /// the same word, and giving them one field would make "pin" mean whichever
+  /// the caller happened to be holding.
+  final bool pinned;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -387,6 +419,7 @@ class Message {
     Map<String, String>? reactions,
     Map<String, DeliveryState>? receipts,
     Map<String, StickerRef>? reactionStickers,
+    bool? pinned,
   }) =>
       Message(
         id: id,
@@ -411,6 +444,7 @@ class Message {
         notice: notice,
         sticker: sticker,
         customEmoji: customEmoji,
+        pinned: pinned ?? this.pinned,
       );
 }
 
@@ -467,10 +501,18 @@ class ChatSummary {
     this.typing = false,
     this.avatarSeed = 0,
     this.avatarBytes,
+    this.isSaved = false,
   });
 
   final String id;
   final String title;
+
+  /// Whether this row is the account's own Saved area.
+  ///
+  /// A flag rather than a title, because the word for it is translated and a
+  /// model does not know which language the row will be drawn in.
+  final bool isSaved;
+
   final ChatPreview preview;
 
   /// When, as a case. The row formats it for the locale it is drawn in — the

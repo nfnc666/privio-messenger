@@ -84,6 +84,70 @@ a match. Both conditions are in the SQL rather than in a filter afterwards, so
 there is no path that returns somebody who did not ask to be found. Removing the
 `discoverable` gate turns three tests red.
 
+## Reading the address book
+
+Until this milestone the "Sync device contacts" switch wrote a flag and nothing
+read an address book: the consent existed and the thing it consented to did
+not. This is that half.
+
+### The order, which is the design
+
+1. **The consent is already on.** The match is not offered at all while the
+   switch is off — not offered and refused, not offered and greyed, simply not
+   there. The app never asks the operating system about contacts on its own
+   initiative.
+2. **Somebody presses the button.** Turning the switch on reads nothing. That
+   matters on iOS in particular, where the system prompt appears once per
+   install: spending it on a toggle would burn the one chance on something
+   nobody had asked for yet.
+3. **Then, and only then, the operating system is asked** — by
+   `contacts/address_book.dart`, which is the only thing in the app that
+   touches an address book, through `ContactsReader` on either platform.
+4. **The numbers are blinded here.** `PhoneController.discover` hashes each one
+   and sends hashes. What that is worth is the section above, and it is
+   deliberately modest.
+5. **Nothing is kept.** The numbers are not written anywhere, the matches live
+   in the screen's own state, and turning the consent back off drops them on
+   the spot.
+
+### Only numbers are ever read
+
+Android projects `Phone.NUMBER` and nothing else; iOS fetches
+`CNContactPhoneNumbersKey` and nothing else. No name, no photo, no email, no
+organisation, no note — so there is no name to leak, because none was ever
+asked for. That is visible in one line of each reader rather than in what
+happens to the objects afterwards, which is the point of doing it that way.
+
+Both sides de-duplicate before returning. An address book routinely holds one
+number three times (a contact merged from two accounts, the same mobile under
+"work" and "mobile"), and each duplicate would otherwise spend another slot of
+a daily budget that is deliberately small.
+
+### Three answers, three sentences
+
+`AddressBookRead` is a sealed set because the screen has to say three different
+things:
+
+| | |
+| --- | --- |
+| Numbers | Blind them and ask the server |
+| Denied | The sentence behind `failureContactsPermissionDenied` — **and a reminder that a PRIVIO ID, an invite link and a QR code all still work**. Not a dead end. |
+| Unsupported | A build with no native half, or a platform with no address book. Said differently on purpose: sending somebody to a settings app for a permission that is not the problem helps nobody. |
+
+A platform error that is *not* `permission_denied` reads as unsupported rather
+than as a refusal, for the same reason.
+
+On iOS 18 and later a **limited** grant — the person picked specific contacts —
+is read exactly like a full one. The system decides what the store returns, and
+an app that refused to work with a limited grant would be arguing with a
+privacy choice.
+
+### What a deployment without a pepper does
+
+The row is shown and disabled, with the sentence saying this server cannot
+match. It does **not** open the address book to then fail: reading contacts for
+a request that was never going to work is the one cost that would be pure loss.
+
 ## Verifying
 
 A six-digit code, stored as an Argon2id digest like every other credential here.
@@ -136,7 +200,8 @@ and a soft delete would keep exactly that.
 ## What is tested
 
 `server/test/phone.test.ts` (27) and `app/test/phone_controller_test.dart` (19),
-`phone_test.dart` (9), `phone_screen_test.dart` (7): registering with no number,
+`phone_test.dart` (9), `phone_screen_test.dart` (7),
+`contact_match_test.dart` (10): registering with no number,
 a verification that works and one that does not, the attempt and resend limits,
 an expired code, a changed number, a removed number, a recycled number that does
 not merge accounts, an account switch, and — the one that matters most — that a
@@ -145,3 +210,16 @@ verified but not discoverable number is never a match.
 The client and the server must blind identically or nothing ever matches, and
 the failure would look like "discovery finds nobody" rather than a hashing bug.
 Both suites assert the same literal for the same number.
+
+`contact_match_test.dart` covers the address-book half, and its central test is
+not "does a match work" but **"is a plaintext number anywhere in what was
+sent"** — asserted against the raw request body, for the number as typed, for
+its normalised form, and for the bare national part. Replacing
+`PhoneNumbers.blind(...)` with the number itself turns it red. So does reading
+the address book when the consent switch is flipped: a fake address book counts
+how many times it was asked, which is the only way to prove it was left alone.
+
+**None of this has been run on a phone.** A widget test can drive a fake
+address book; it cannot show the system permission dialog, and it cannot say
+what a real address book with 800 entries costs. See rows S1–S6 in
+[`device-beta-checklist.md`](device-beta-checklist.md).

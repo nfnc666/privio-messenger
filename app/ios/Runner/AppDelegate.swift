@@ -22,6 +22,10 @@ import UIKit
     // Capture detection. Nothing is observed until an account turns the setting
     // on — see `ScreenShield.setWatching`.
     ScreenShield.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
+    // The address book. Attaching the channel reads nothing and asks for
+    // nothing: iOS is only asked once Dart calls `read`, which happens when
+    // somebody presses the button that matches contacts.
+    ContactsReader.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - APNs

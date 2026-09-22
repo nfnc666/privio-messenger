@@ -12,6 +12,7 @@ import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
 import '../models/channel.dart';
+import '../models/models.dart';
 import 'messaging_service.dart';
 
 /// A file somebody picked that cannot become a channel picture.
@@ -1198,7 +1199,7 @@ class ChannelService {
         currentPassword: currentPassword,
       );
 
-  Future<void> report(String channelId, ChannelReportReason reason) =>
+  Future<void> report(String channelId, ReportReason reason) =>
       _api.reportChannel(channelId, reason.wire);
 
   Future<ChannelStats> stats(String channelId) async =>

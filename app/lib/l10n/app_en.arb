@@ -31,7 +31,9 @@
   "proxyFailed": "Could not complete this action. Check the proxy, credentials and connection, and end any active call. No automatic direct fallback.",
   "proxyCallsBlocked": "Calls are unavailable while the proxy is active.",
   "languageName": "Language",
-  "@languageName": {"description": "The settings row that opens the language picker."},
+  "@languageName": {
+    "description": "The settings row that opens the language picker."
+  },
   "languagePickerTitle": "Language",
   "languagePickerNote": "The interface changes straight away. Messages, channel names and anything else people wrote stay in the language they were written in.",
   "commonCancel": "Cancel",
@@ -79,34 +81,119 @@
   "disappearing7Days": "7 days",
   "disappearingAdminOnly": "Only an admin can change this",
   "noticeTimerSetBy": "{who} set disappearing messages to {duration}",
-  "@noticeTimerSetBy": {"description": "A system line in a chat. `who` is a name or the translation of 'You'.", "placeholders": {"who": {"type": "String"}, "duration": {"type": "String"}}},
+  "@noticeTimerSetBy": {
+    "description": "A system line in a chat. `who` is a name or the translation of 'You'.",
+    "placeholders": {
+      "who": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "noticeTimerOffBy": "{who} turned disappearing messages off",
-  "@noticeTimerOffBy": {"placeholders": {"who": {"type": "String"}}},
+  "@noticeTimerOffBy": {
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "noticeYou": "You",
   "noticeThey": "They",
   "noticeSomeone": "Someone",
   "noticeMessageDeletedBy": "{who} deleted a message",
-  "@noticeMessageDeletedBy": {"placeholders": {"who": {"type": "String"}}},
+  "@noticeMessageDeletedBy": {
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "noticeSafetyNumberChanged": "Your safety number with {who} changed",
-  "@noticeSafetyNumberChanged": {"placeholders": {"who": {"type": "String"}}},
+  "@noticeSafetyNumberChanged": {
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "noticeUnreadable": "{count, plural, =1{A message} other{{count} messages}} could not be read. It was sealed to a key this device no longer has.",
-  "@noticeUnreadable": {"placeholders": {"count": {"type": "int"}}},
+  "@noticeUnreadable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "noticeUnreadableFrom": "{count, plural, =1{A message} other{{count} messages}} from {who} could not be read. It was sealed to a key this device no longer has.",
-  "@noticeUnreadableFrom": {"placeholders": {"count": {"type": "int"}, "who": {"type": "String"}}},
+  "@noticeUnreadableFrom": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "durationSeconds": "{count, plural, =1{1 second} other{{count} seconds}}",
-  "@durationSeconds": {"placeholders": {"count": {"type": "int"}}},
+  "@durationSeconds": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "durationMinutes": "{count, plural, =1{1 minute} other{{count} minutes}}",
-  "@durationMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@durationMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "durationHours": "{count, plural, =1{1 hour} other{{count} hours}}",
-  "@durationHours": {"placeholders": {"count": {"type": "int"}}},
+  "@durationHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "durationDays": "{count, plural, =1{1 day} other{{count} days}}",
-  "@durationDays": {"placeholders": {"count": {"type": "int"}}},
+  "@durationDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "durationWeeks": "{count, plural, =1{1 week} other{{count} weeks}}",
-  "@durationWeeks": {"placeholders": {"count": {"type": "int"}}},
+  "@durationWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "channelSubscribers": "{count, plural, =1{1 subscriber} other{{count} subscribers}}",
-  "@channelSubscribers": {"placeholders": {"count": {"type": "int"}}},
+  "@channelSubscribers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "channelMembers": "{count, plural, =1{1 member} other{{count} members}}",
-  "@channelMembers": {"placeholders": {"count": {"type": "int"}}},
+  "@channelMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "channelPublic": "Public",
   "channelPrivate": "Private",
   "channelAdministrators": "Administrators",
@@ -148,7 +235,13 @@
   "adminsRoleOwner": "Owner",
   "adminsRoleAdmin": "Admin",
   "adminsPromotedBy": "promoted by {who}",
-  "@adminsPromotedBy": {"placeholders": {"who": {"type": "String"}}},
+  "@adminsPromotedBy": {
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "adminsHelpOwner": "Administrators help you run your channel.",
   "adminsHelpMember": "Administrators help run this channel. Only somebody who may appoint admins can change this list.",
   "adminsNobodyYet": "Nobody yet.",
@@ -197,12 +290,30 @@
   "subscribersEverybodyHere": "Everybody in your contacts is already here.",
   "subscribersAddedOne": "Added.",
   "subscribersAddedMany": "Added {count} people.",
-  "@subscribersAddedMany": {"placeholders": {"count": {"type": "int"}}},
+  "@subscribersAddedMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "subscribersNobodyAdded": "Nobody could be added",
   "subscribersAddedCount": "Added {count}",
-  "@subscribersAddedCount": {"placeholders": {"count": {"type": "int"}}},
+  "@subscribersAddedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "subscribersNeedInvite": "{count, plural, =1{1 person has} other{{count} people have}} set their account so only their own contacts can add them to things. Send them the link instead and let them decide.",
-  "@subscribersNeedInvite": {"placeholders": {"count": {"type": "int"}}},
+  "@subscribersNeedInvite": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "subscribersCopyTheLink": "Copy the link",
   "subscribersOwnerCannotBeRemoved": "The owner cannot be removed.",
   "subscribersSilenced": "Silenced",
@@ -215,13 +326,37 @@
   "subscribersCouldNotDoThat": "Could not do that.",
   "presenceOnline": "online",
   "presenceMinutesAgo": "last seen {count, plural, =1{1 minute} other{{count} minutes}} ago",
-  "@presenceMinutesAgo": {"placeholders": {"count": {"type": "int"}}},
+  "@presenceMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "presenceHoursAgo": "last seen {count, plural, =1{1 hour} other{{count} hours}} ago",
-  "@presenceHoursAgo": {"placeholders": {"count": {"type": "int"}}},
+  "@presenceHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "presenceDaysAgo": "last seen {count, plural, =1{1 day} other{{count} days}} ago",
-  "@presenceDaysAgo": {"placeholders": {"count": {"type": "int"}}},
+  "@presenceDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "presenceOnDate": "last seen {date}",
-  "@presenceOnDate": {"placeholders": {"date": {"type": "String"}}},
+  "@presenceOnDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "editChannelName": "Channel name",
   "editChannelDescriptionHint": "Description",
   "editChannelChangePicture": "Change picture",
@@ -232,7 +367,13 @@
   "editChannelDiscussion": "Discussion",
   "editChannelReactions": "Reactions",
   "editChannelReactionsValue": "{count} emoji",
-  "@editChannelReactionsValue": {"placeholders": {"count": {"type": "int"}}},
+  "@editChannelReactionsValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "editChannelWelcome": "Welcome message",
   "editChannelAppearance": "Appearance",
   "editChannelDirectMessages": "Direct messages",
@@ -259,7 +400,13 @@
   "visibilityPublicTitle": "This channel is public",
   "visibilityPrivateTitle": "This channel is private",
   "visibilityPublicBody": "Anyone can find it by name and read its posts. Its handle is @{handle}.\n\nPrivio cannot turn a public channel private after the fact: its name and description have been readable, and unsaying that is not something an app can do.",
-  "@visibilityPublicBody": {"placeholders": {"handle": {"type": "String"}}},
+  "@visibilityPublicBody": {
+    "placeholders": {
+      "handle": {
+        "type": "String"
+      }
+    }
+  },
   "visibilityPrivateBody": "It is not listed, not searchable, and reachable only through its invite link. Its name is encrypted with the channel key.\n\nMaking it public would publish that name, which is a decision Privio does not make on your behalf — create a public channel instead.",
   "discussionBody": "With this on, every post gets a thread underneath it. Comments are sealed with the same channel key as the post, so a device that cannot read the post cannot read the thread.\n\nTurning it off later hides the threads rather than deleting them.",
   "discussionTurnOn": "Turn on",
@@ -277,7 +424,13 @@
   "composerAttach": "Attach",
   "composerTimerOff": "Disappearing messages are off",
   "composerTimerOn": "Messages disappear after {badge}",
-  "@composerTimerOn": {"placeholders": {"badge": {"type": "String"}}},
+  "@composerTimerOn": {
+    "placeholders": {
+      "badge": {
+        "type": "String"
+      }
+    }
+  },
   "searchPostsHint": "Search posts you can read",
   "searchThisChannel": "Search this channel",
   "searchClose": "Close search",
@@ -301,7 +454,13 @@
   "notificationsPhoneNote": "Sound, vibration, the light and whether anything shows on the lock screen belong to your phone's own settings for Privio, not to this screen.",
   "notificationsDelivery": "Delivery",
   "notificationsDistributorFound": "A distributor app on this phone holds one connection for every app that uses it, and forwards a contentless ping. {app} needs no Google service for it, and you can run the distributor yourself.",
-  "@notificationsDistributorFound": {"placeholders": {"app": {"type": "String"}}},
+  "@notificationsDistributorFound": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
   "notificationsNoDistributor": "No distributor found. Install one — ntfy, for example — to be woken while Privio is closed. Without one, messages arrive while the app is open.",
   "privacyWhoCanSee": "Who can see",
   "privacyLastSeen": "Last Seen",
@@ -331,7 +490,16 @@
   "storageHistory": "Conversation history",
   "storageInIt": "In it",
   "storageChatsAndMessages": "{chats, plural, =1{1 chat} other{{chats} chats}}, {messages, plural, =1{1 message} other{{messages} messages}}",
-  "@storageChatsAndMessages": {"placeholders": {"chats": {"type": "int"}, "messages": {"type": "int"}}},
+  "@storageChatsAndMessages": {
+    "placeholders": {
+      "chats": {
+        "type": "int"
+      },
+      "messages": {
+        "type": "int"
+      }
+    }
+  },
   "storageKeys": "Keys and sessions",
   "storageKeystoreNote": "Both sit in the platform keystore — the Keychain on iOS, Keystore-backed storage on Android — and the history is sealed with AES-256-GCM before it gets there. Neither is readable by another app, and neither is readable by anyone holding the phone without unlocking it.",
   "storageNotKept": "Not kept",
@@ -355,23 +523,68 @@
   "devicesSignedIn": "Signed in",
   "devicesActiveNow": "Active now",
   "devicesActiveMinutes": "Active {count} min ago",
-  "@devicesActiveMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@devicesActiveMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "devicesActiveHours": "Active {count} h ago",
-  "@devicesActiveHours": {"placeholders": {"count": {"type": "int"}}},
+  "@devicesActiveHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "devicesActiveYesterday": "Active yesterday",
   "devicesActiveDays": "Active {count} days ago",
-  "@devicesActiveDays": {"placeholders": {"count": {"type": "int"}}},
+  "@devicesActiveDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "devicesSignOutNote": "Signing a device out revokes its session and deletes anything still queued for it. It can only rejoin by signing in again — as a new device, with new keys.",
   "devicesRevokeTitle": "Sign out {name}?",
-  "@devicesRevokeTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@devicesRevokeTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "devicesRevokeBody": "Its session is revoked and anything still queued for it is deleted. What it has already decrypted stays on that device — nothing here can reach it. It can only come back by signing in again.",
   "devicesSignItOut": "Sign it out",
   "devicesSignedOut": "{name} is signed out.",
-  "@devicesSignedOut": {"placeholders": {"name": {"type": "String"}}},
+  "@devicesSignedOut": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "devicesLicenseCovers": "Your license covers {limit} devices.",
-  "@devicesLicenseCovers": {"placeholders": {"limit": {"type": "int"}}},
+  "@devicesLicenseCovers": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "devicesLicenseCoversUsed": "Your license covers {limit} devices. {used} in use.",
-  "@devicesLicenseCoversUsed": {"placeholders": {"limit": {"type": "int"}, "used": {"type": "int"}}},
+  "@devicesLicenseCoversUsed": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      },
+      "used": {
+        "type": "int"
+      }
+    }
+  },
   "aboutTagline": "Built with privacy in mind.\nNo tracking. No ads. Just you.",
   "aboutWebsite": "Website",
   "aboutSupport": "Support",
@@ -379,19 +592,37 @@
   "aboutOpenSource": "Open source",
   "aboutEdition": "Edition",
   "aboutFreeSoftware": "{name} · free software",
-  "@aboutFreeSoftware": {"placeholders": {"name": {"type": "String"}}},
+  "@aboutFreeSoftware": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "aboutLicense": "License",
   "aboutSourceCode": "Source code",
   "aboutCopyLink": "Copy link",
   "aboutSourceLink": "Source link",
   "aboutThirdParty": "Third-party licenses",
   "aboutCopied": "{what} copied.",
-  "@aboutCopied": {"placeholders": {"what": {"type": "String"}}},
+  "@aboutCopied": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
   "aboutFreeBuildNote": "This build contains no proprietary code and can be reproduced from the source above. Nothing here has to be taken on trust — build it yourself and compare.",
   "aboutStoreBuildNote": "This build came from an app store and links that store's services. The Libre build, at the source above, contains none of them.",
   "blockedUnblock": "Unblock",
   "blockedUnblockTitle": "Unblock {name}?",
-  "@blockedUnblockTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@blockedUnblockTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "blockedUnblockBody": "They will be able to send you messages again.",
   "blockedInvisibleNote": "Blocking is invisible: their messages are dropped and they are told nothing, so a block cannot be used to find out that they have been blocked.",
   "blockedNobody": "Nobody is blocked",
@@ -425,7 +656,13 @@
   "scrubRemovedBody": "This was stripped out before the file was encrypted and sent. The recipient never receives it.",
   "scrubNothingBody": "This file carried no identifying metadata to begin with.",
   "scrubNoCleanerBody": "Privio has no cleaner for {type} yet, so the file was sent as it is. It is still end-to-end encrypted, but any metadata inside it reaches the recipient.",
-  "@scrubNoCleanerBody": {"placeholders": {"type": {"type": "String"}}},
+  "@scrubNoCleanerBody": {
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "webStorageShort": "In a browser, this device’s history is only as private as this browser profile. Messages in transit are encrypted either way.",
   "webStorageLong": "You are using Privio in a browser. Messages are still end-to-end encrypted in transit — but a browser has no keystore, so the history kept on this device is only as private as this browser profile. Anyone who can read it — a shared computer, an extension, a copy of the profile — can read your chats. The phone apps do not have this problem.",
   "voiceCouldNotOpen": "Could not open this recording.",
@@ -446,20 +683,50 @@
   "linkOpenTitle": "Open this link?",
   "linkOpenBody": "This opens in your browser, outside Privio. The site sees your connection the way any site you visit does.",
   "timerBadgeDays": "{count}d",
-  "@timerBadgeDays": {"placeholders": {"count": {"type": "int"}}},
+  "@timerBadgeDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timerBadgeHours": "{count}h",
-  "@timerBadgeHours": {"placeholders": {"count": {"type": "int"}}},
+  "@timerBadgeHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timerBadgeMinutes": "{count}m",
-  "@timerBadgeMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@timerBadgeMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timerBadgeSeconds": "{count}s",
-  "@timerBadgeSeconds": {"placeholders": {"count": {"type": "int"}}},
+  "@timerBadgeSeconds": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatSafetyNumberChanged": "Safety number changed",
   "chatEncrypted": "End-to-end encrypted",
   "chatEncryptedVerified": "End-to-end encrypted · verified",
   "chatEncryptedNumberChanged": "End-to-end encrypted · number changed",
   "chatWaitingGroupKey": "Waiting for the group key",
   "chatMembersEncrypted": "{count, plural, =1{1 member} other{{count} members}} · encrypted",
-  "@chatMembersEncrypted": {"placeholders": {"count": {"type": "int"}}},
+  "@chatMembersEncrypted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatRetrySendTitle": "Try again",
   "chatRetryFailed": "It did not go out. Send it now.",
   "chatRetryQueued": "Waiting for a network. Try now anyway.",
@@ -470,15 +737,39 @@
   "chatDeleteForEveryoneNote": "Asks their app to forget it. It cannot take back what was already read, screenshotted, or restored from a backup.",
   "chatPickerNoResponse": "The file picker did not respond.",
   "chatPickerFailed": "Could not open the file picker: {reason}",
-  "@chatPickerFailed": {"placeholders": {"reason": {"type": "String"}}},
+  "@chatPickerFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "chatCouldNotReadFile": "Could not read {name}.",
-  "@chatCouldNotReadFile": {"placeholders": {"name": {"type": "String"}}},
+  "@chatCouldNotReadFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatBlockTitle": "Block {name}?",
-  "@chatBlockTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@chatBlockTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatBlockBody": "Their messages stop arriving. They are not told, and it looks to them as though nothing changed. You can lift it in Privacy & Security.",
   "chatBlock": "Block",
   "chatBlocked": "{name} is blocked.",
-  "@chatBlocked": {"placeholders": {"name": {"type": "String"}}},
+  "@chatBlocked": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatCouldNotBlock": "Could not block them.",
   "chatMicrophoneDenied": "Privio cannot record without microphone access. You can grant it in your device settings.",
   "chatNoGroupLink": "No link for this group yet — pull to refresh.",
@@ -495,20 +786,53 @@
   "chatHoldToRecord": "Hold the microphone to record a voice message.",
   "chatReplyingToYourself": "Replying to yourself",
   "chatReplyingTo": "Replying to {name}",
-  "@chatReplyingTo": {"placeholders": {"name": {"type": "String"}}},
+  "@chatReplyingTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatReplying": "Replying",
   "chatCancelReply": "Cancel reply",
   "contactsTitle": "Contacts",
   "contactsSearch": "Search contacts",
   "contactsLastSeen": "@{username} · last seen {when}",
-  "@contactsLastSeen": {"placeholders": {"username": {"type": "String"}, "when": {"type": "String"}}},
+  "@contactsLastSeen": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      },
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "contactsSeenJustNow": "just now",
   "contactsSeenMinutes": "{count} min ago",
-  "@contactsSeenMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@contactsSeenMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "contactsSeenAtTime": "at {time}",
-  "@contactsSeenAtTime": {"placeholders": {"time": {"type": "String"}}},
+  "@contactsSeenAtTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "contactsSeenDays": "{count}d ago",
-  "@contactsSeenDays": {"placeholders": {"count": {"type": "int"}}},
+  "@contactsSeenDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "contactsCouldNotAdd": "Could not add that user",
   "contactsAddTitle": "Add contact",
   "contactsAddNote": "Enter their exact Privio username. Nothing is uploaded from your address book, and nobody can find you by browsing.",
@@ -522,7 +846,13 @@
   "groupNameEncryptedNote": "The name is encrypted. Privio stores a group it cannot name.",
   "groupChooseMembers": "Choose members",
   "groupSelectedCount": "{count} selected",
-  "@groupSelectedCount": {"placeholders": {"count": {"type": "int"}}},
+  "@groupSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "groupAddContactsFirst": "Add some contacts first — a group needs people in it.",
   "groupInfoCouldNotRead": "Could not read who is in this group.",
   "groupAdminOnly": "Only an admin can change this",
@@ -531,7 +861,13 @@
   "groupRenamed": "Renamed. Everyone else opens the new name with the key they already have.",
   "groupCouldNotRename": "Could not rename the group.",
   "groupRemoveTitle": "Remove {name}?",
-  "@groupRemoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@groupRemoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "groupRemoveBody": "They stop receiving what is sent from now on. What they already received stays on their device — nothing here can reach it.",
   "groupCouldNotRemove": "Could not remove them.",
   "groupLeaveTitle": "Leave this group?",
@@ -552,9 +888,24 @@
   "splashPromise": "Encrypted. Private. Yours.",
   "splashInitialising": "Initializing secure environment",
   "accountPickerFailed": "Could not open the picker: {reason}",
-  "@accountPickerFailed": {"placeholders": {"reason": {"type": "String"}}},
+  "@accountPickerFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "accountCouldNotReadFile": "Could not read {name}: {reason}",
-  "@accountCouldNotReadFile": {"placeholders": {"name": {"type": "String"}, "reason": {"type": "String"}}},
+  "@accountCouldNotReadFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "accountCouldNotSetPicture": "Could not set the picture",
   "accountTapToAddPicture": "Tap to add a picture",
   "accountPictureEncrypted": "Encrypted — only your contacts can see it",
@@ -574,7 +925,14 @@
   "accountStatusToday": "Today",
   "accountStatus1Week": "1 week",
   "accountStatusUntil": "Until {time}",
-  "@accountStatusUntil": {"description": "The moment a status clears, on the account row.", "placeholders": {"time": {"type": "String"}}},
+  "@accountStatusUntil": {
+    "description": "The moment a status clears, on the account row.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "accountStatusCouldNotSave": "Your status was not saved. What you typed is still here — try again.",
   "accountStatusSaving": "Saving…",
   "accountStatusExplainer": "Anyone allowed to see your status reads this. It is not encrypted the way your messages are, and it is not your online status.",
@@ -601,14 +959,26 @@
   "inviteCopyInviteLink": "Copy invite link",
   "inviteNote": "Share this link with others to invite them to Privio. It reveals your username and nothing else.",
   "inviteScanToConnect": "Scan to connect with @{username}",
-  "@inviteScanToConnect": {"placeholders": {"username": {"type": "String"}}},
+  "@inviteScanToConnect": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "callsClearHistory": "Clear call history",
   "callsClearTitle": "Clear call history?",
   "callsClearBody": "This list is only on this device — clearing it removes it from here and from nowhere else, because it was never anywhere else.",
   "callsClear": "Clear",
   "callsNeverLeavesNote": "This list never leaves the device. The server routes a call's setup the way it routes a message — sealed, and unreadable to it — so it holds no record of who called whom.",
   "callsCallSomeone": "Call {name}",
-  "@callsCallSomeone": {"placeholders": {"name": {"type": "String"}}},
+  "@callsCallSomeone": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "callsDeclined": "Declined",
   "callsNotTaken": "Not taken",
   "callsBusy": "Busy",
@@ -662,13 +1032,28 @@
   "activationNoKeyYet": "I do not have a key yet",
   "activationWithoutKeyNote": "Without a key you can create an account, sign in and read what arrives, but not send. You can enter it later under Settings › Privio License.",
   "activationFreeSoftwareNote": "{name} is free software under {license}. The key does not unlock the app — you already have all of it, and can build it yourself. It pays for the hosted service that relays your messages.",
-  "@activationFreeSoftwareNote": {"placeholders": {"name": {"type": "String"}, "license": {"type": "String"}}},
+  "@activationFreeSoftwareNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "license": {
+        "type": "String"
+      }
+    }
+  },
   "backupCouldNotReach": "Could not reach Privio to check the backup.",
   "backupDone": "Backed up. Privio cannot read it.",
   "backupUploadFailed": "The backup could not be uploaded.",
   "backupBadKey": "That does not look like a recovery key.",
   "backupRestored": "{count, plural, =1{Restored 1 conversation.} other{Restored {count} conversations.}}",
-  "@backupRestored": {"placeholders": {"count": {"type": "int"}}},
+  "@backupRestored": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "backupKeyDidNotOpen": "That key did not open the backup, or there is none to open.",
   "backupLast": "Last backup",
   "backupOnServer": "On the server",
@@ -683,7 +1068,13 @@
   "backupSealedNote": "Backups are sealed on this device with your recovery key. Privio cannot open them and cannot reset the key — if you lose it, the backup is gone. Write it down somewhere safe.\n\nA backup holds your conversations, not your keys: restoring on a new device gives you your history, and that device sets up its own identity for what comes next.",
   "backupNever": "Never",
   "backupToday": "Today, {time}",
-  "@backupToday": {"placeholders": {"time": {"type": "String"}}},
+  "@backupToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "backupWriteItDown": "Write this down. It is the only thing that opens your backups, and nobody — including Privio — can produce it again for you.",
   "backupRestoreReplacesNote": "This replaces whatever is on this device with what is in the backup.",
   "backupRestore": "Restore",
@@ -708,7 +1099,13 @@
   "passcodeNeedsFourDigits": "Four digits.",
   "passcodeNeedsSixDigits": "Six digits.",
   "passcodePhraseTooShort": "At least {count} characters.",
-  "@passcodePhraseTooShort": {"placeholders": {"count": {"type": "int"}}},
+  "@passcodePhraseTooShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "passcodePhraseNeedsLetter": "A passphrase needs at least one letter. Digits and symbols are welcome alongside it.",
   "lockEntriesDiffer": "The two entries are not the same.",
   "lockOnToast": "App lock on. Privio asks for it when it comes back.",
@@ -726,10 +1123,22 @@
   "lockForgettingNote": "Forgetting it means signing in again, which is a new device to the server: what was already delivered here is gone unless it is in a backup. There is no reset, because a reset anyone could ask for would not be a lock.",
   "duressNoLockNote": "At the lock screen it does nothing yet, because there is no app lock on this device. Turn one on under Screen Lock, and a duress code shaped like that lock works there too — which is where a phone that is already signed in gets taken.",
   "duressShapeNote": "This device unlocks with {kind}. A duress code of the same shape can be typed at the lock screen, where it destroys instead of unlocking. Any other shape works at sign-in only.",
-  "@duressShapeNote": {"placeholders": {"kind": {"type": "String"}}},
+  "@duressShapeNote": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
   "duressMatchesLock": "This one matches the lock on this device, so it works at the lock screen as well as at sign-in.",
   "duressDoesNotMatchLock": "This one does not match the lock on this device ({kind}), so it works at sign-in only — the lock screen has nowhere to type it.",
-  "@duressDoesNotMatchLock": {"placeholders": {"kind": {"type": "String"}}},
+  "@duressDoesNotMatchLock": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
   "duressAtLeastFour": "Use at least four characters.",
   "duressCodesDiffer": "The two codes are not the same.",
   "duressSameAsUnlock": "That is the code that unlocks this device. A duress code has to be different: the lock screen checks it first, so the two being the same would destroy the account every time you unlocked — without saying so.",
@@ -754,11 +1163,23 @@
   "disguiseOpenTo": "Open to",
   "disguiseLockScreen": "The lock screen",
   "disguiseCalculatorNamed": "{name} calculator",
-  "@disguiseCalculatorNamed": {"placeholders": {"name": {"type": "String"}}},
+  "@disguiseCalculatorNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "disguisePickNote": "Pick the one your phone already ships. A calculator that does not look like the usual one is the thing somebody notices.",
   "disguiseSeeIt": "See it",
   "disguiseErrorSuffix": "{reason} The lock screen changed anyway; the home screen did not.",
-  "@disguiseErrorSuffix": {"placeholders": {"reason": {"type": "String"}}},
+  "@disguiseErrorSuffix": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "disguiseNoLock": "There is no screen lock on this device yet, so there is no code to type into a calculator.",
   "disguisePhraseLock": "Your screen lock is a passphrase. A calculator has ten keys and no letters, so there is no way to type it in. Switch the lock to 4 or 6 digits to use a disguise.",
   "disguiseOnHomeScreen": "On the home screen",
@@ -774,13 +1195,25 @@
   "licenseNotNeededBody": "This server does not require one. Licensing is for the hosted Privio service — a license for infrastructure you already run would mean nothing.",
   "licenseStoreTitle": "Handled by the store",
   "licenseStoreBody": "This build was paid for through the app store it came from, so there is no key to enter. If it is not active, restore your purchase in {store}.",
-  "@licenseStoreBody": {"placeholders": {"store": {"type": "String"}}},
+  "@licenseStoreBody": {
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
   "licenseOnePurchaseNote": "One purchase, one key, one account, for good. A redeemed key is bound to the account that redeemed it and cannot be moved or used again.",
   "licenseEnterTitle": "Enter your license key",
   "licenseEnterBody": "Buy a key at getprivio.com/license, then type it here. Until it is activated this account can sign in and read what has already arrived, but not send.",
   "licenseActivated": "Activated",
   "licenseRedeemedOn": "Redeemed on {date}.",
-  "@licenseRedeemedOn": {"placeholders": {"date": {"type": "String"}}},
+  "@licenseRedeemedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "licenseFromAppStore": "Bought through the App Store.",
   "licenseFromPlay": "Bought through Google Play.",
   "licenseFromKey": "Activated with a license key. Lifetime access, no renewals.",
@@ -788,18 +1221,42 @@
   "safetyMatches": "That matches one of the numbers below.",
   "safetyNoMatch": "That matches none of the numbers below.",
   "safetyNothingYet": "There is nothing to compare yet. A number exists once you and {name} have exchanged a message, because only then has this device pinned a key of theirs.",
-  "@safetyNothingYet": {"placeholders": {"name": {"type": "String"}}},
+  "@safetyNothingYet": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "safetyReadThese": "Read these digits to {name} — on a call, or in person. If they see the same ones, no one is sitting between you. If they do not, stop using this chat for anything you would not say in public.",
-  "@safetyReadThese": {"placeholders": {"name": {"type": "String"}}},
+  "@safetyReadThese": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "safetyMarkNotVerified": "Mark as not verified",
   "safetyMarkVerified": "Mark as verified",
   "safetyMarkNote": "Marking this verified records the exact keys on screen. If any of them changes, or a new device joins {name}, the mark goes back to changed on its own — it is a record of what you checked, not a promise about what happens next.",
-  "@safetyMarkNote": {"placeholders": {"name": {"type": "String"}}},
+  "@safetyMarkNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "safetyVerified": "Verified",
   "safetyChangedSince": "Changed since you checked",
   "safetyNotVerified": "Not verified",
   "safetyTheirDevice": "Their device {index}",
-  "@safetyTheirDevice": {"placeholders": {"index": {"type": "int"}}},
+  "@safetyTheirDevice": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "safetyCompareTitle": "Compare a number they sent you",
   "safetyCompare": "Compare",
   "safetyKeyNotYours": "The key on the server is not the one you had",
@@ -819,7 +1276,16 @@
   "channelsNothingFound": "Nothing found",
   "channelsDiscoverEmptyBody": "Search public channels by name, handle or description. Private channels never appear here.",
   "channelsHandleAndMembers": "@{handle}  ·  {members}",
-  "@channelsHandleAndMembers": {"placeholders": {"handle": {"type": "String"}, "members": {"type": "String"}}},
+  "@channelsHandleAndMembers": {
+    "placeholders": {
+      "handle": {
+        "type": "String"
+      },
+      "members": {
+        "type": "String"
+      }
+    }
+  },
   "channelsJoinTitle": "Join a channel",
   "channelsJoinNote": "Paste a channel link. It shows you the channel; joining is a button there. Joining does not hand you the key either — a member who has it sends it to your device, encrypted, right after.",
   "categoryNews": "News",
@@ -828,7 +1294,13 @@
   "categoryEducation": "Education",
   "categoryCulture": "Culture",
   "newChannelPictureUnreadable": "Privio could not read {name}. Try a different picture.",
-  "@newChannelPictureUnreadable": {"placeholders": {"name": {"type": "String"}}},
+  "@newChannelPictureUnreadable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "newChannelCouldNotCreate": "Could not create the channel",
   "newChannelWithoutPicture": "The channel was created without the picture.",
   "newChannelCreate": "Create",
@@ -855,7 +1327,16 @@
   "membersGrantManageMembers": "manage members",
   "membersGrantDeleteChannel": "delete channel",
   "membersRoleLine": "{role} · {granted}",
-  "@membersRoleLine": {"placeholders": {"role": {"type": "String"}, "granted": {"type": "String"}}},
+  "@membersRoleLine": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "granted": {
+        "type": "String"
+      }
+    }
+  },
   "membersSubscriber": "Subscriber",
   "membersTogglePost": "Post",
   "membersToggleEditChannel": "Edit the channel",
@@ -872,11 +1353,23 @@
   "adminsMakeSomebodyFirst": "Make somebody an admin first.",
   "subscribersCouldNotAddAnybody": "Could not add anybody.",
   "subscribersAddCount": "Add {count}",
-  "@subscribersAddCount": {"placeholders": {"count": {"type": "int"}}},
+  "@subscribersAddCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "threadCouldNotPost": "Could not post that comment.",
   "threadCouldNotRemove": "Could not remove that comment.",
   "threadStopTitle": "Stop {name} posting?",
-  "@threadStopTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@threadStopTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "threadStopBody": "They stay in the channel and can go on reading it. They cannot comment or react until you undo this.\n\nRemoving them from the channel is the other, heavier thing: that rotates the key and takes their reading with it.",
   "threadStopThem": "Stop them",
   "threadStopThemPosting": "Stop them posting",
@@ -891,7 +1384,13 @@
   "threadEmptyTitle": "No comments yet",
   "threadEmptyBody": "Comments are encrypted with the channel key, like the posts. The server stores them and cannot read them.",
   "threadStoppedToast": "{name} can still read the channel, but not post in it.",
-  "@threadStoppedToast": {"placeholders": {"name": {"type": "String"}}},
+  "@threadStoppedToast": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "threadThem": "They",
   "threadThemObject": "them",
   "feedCouldNotAskForKey": "Could not ask for the key.",
@@ -901,7 +1400,13 @@
   "feedPickFutureTime": "Pick a time that has not gone yet.",
   "feedCouldNotPublishPoll": "Could not publish that poll.",
   "feedScheduledFor": "Scheduled for {when}. It is under \"Scheduled\" until then.",
-  "@feedScheduledFor": {"placeholders": {"when": {"type": "String"}}},
+  "@feedScheduledFor": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "feedCouldNotPublish": "Could not publish",
   "feedCouldNotChangeLink": "Could not change the link.",
   "feedOldLinkDead": "The old link is dead. Anyone holding it will need the new one.",
@@ -916,7 +1421,13 @@
   "feedCouldNotReadNumbers": "Could not read the numbers.",
   "feedNobodyToHandTo": "There is nobody else in this channel to hand it to.",
   "feedOwnsNow": "{name} owns this channel now. You are an admin in it.",
-  "@feedOwnsNow": {"placeholders": {"name": {"type": "String"}}},
+  "@feedOwnsNow": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "feedCouldNotHandOn": "Could not hand the channel on.",
   "feedReported": "Reported. Thank you.",
   "feedCouldNotSendThat": "Could not send that.",
@@ -942,7 +1453,13 @@
   "feedNoSearchResultsBody": "The search runs on this device, over the posts it has already loaded and could open. The server cannot search them: it holds them sealed.",
   "feedEdited": "· edited",
   "feedCommentCount": "{count, plural, =0{Comment} =1{1 comment} other{{count} comments}}",
-  "@feedCommentCount": {"placeholders": {"count": {"type": "int"}}},
+  "@feedCommentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "feedUnpin": "Unpin",
   "feedPin": "Pin",
   "feedRemoveFile": "Remove the file",
@@ -961,27 +1478,81 @@
   "feedNothingWaiting": "Nothing waiting",
   "feedNothingWaitingBody": "Posts you schedule wait here until their time comes. Nobody else can see them, or that they exist.",
   "feedTodayAt": "today at {time}",
-  "@feedTodayAt": {"placeholders": {"time": {"type": "String"}}},
+  "@feedTodayAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "feedTomorrowAt": "tomorrow at {time}",
-  "@feedTomorrowAt": {"placeholders": {"time": {"type": "String"}}},
+  "@feedTomorrowAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "feedDateAt": "{date} at {time}",
-  "@feedDateAt": {"placeholders": {"date": {"type": "String"}, "time": {"type": "String"}}},
+  "@feedDateAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "feedReactionsNote": "What readers can put under a post. Reactions already on a post stay, even if you take the emoji off this list.",
   "feedChosenOfLimit": "{chosen} of {limit}",
-  "@feedChosenOfLimit": {"placeholders": {"chosen": {"type": "int"}, "limit": {"type": "int"}}},
+  "@feedChosenOfLimit": {
+    "placeholders": {
+      "chosen": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "feedPollNoKey": "A poll this device has no key for.",
   "feedPollPickUpTo": "Pick up to {count}",
-  "@feedPollPickUpTo": {"placeholders": {"count": {"type": "int"}}},
+  "@feedPollPickUpTo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "feedPollPickOne": "Pick one",
   "feedPollCloses": "closes {when}",
-  "@feedPollCloses": {"placeholders": {"when": {"type": "String"}}},
+  "@feedPollCloses": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "feedPollVoters": "{count, plural, =1{1 voter} other{{count} voters}}",
-  "@feedPollVoters": {"placeholders": {"count": {"type": "int"}}},
+  "@feedPollVoters": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "feedPollClearAnswer": "Clear my answer",
   "feedPollAnswer": "Answer",
   "feedPollQuestion": "Question",
   "feedPollAnswerN": "Answer {index}",
-  "@feedPollAnswerN": {"placeholders": {"index": {"type": "int"}}},
+  "@feedPollAnswerN": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "feedPollAddAnswer": "Add an answer",
   "feedPollSeveral": "Several answers",
   "feedPollNote": "The question and the answers are encrypted with the channel key, like a post. The server counts the votes without ever learning what any of them say.",
@@ -996,9 +1567,21 @@
   "feedPollClosed": "closed",
   "inviteNever": "Never",
   "inviteExpires": "expires {when}",
-  "@inviteExpires": {"placeholders": {"when": {"type": "String"}}},
+  "@inviteExpires": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "requestsAsked": "Asked {when}",
-  "@requestsAsked": {"placeholders": {"when": {"type": "String"}}},
+  "@requestsAsked": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "inviteAskMeFirst": "Ask me first",
   "inviteAskMeFirstNote": "People who follow the link wait for your approval instead of walking in. They hold no key until you let them in.",
   "inviteExpiresLabel": "Expires",
@@ -1006,7 +1589,13 @@
   "inviteHowMany": "How many can join on it",
   "inviteNoLimit": "No limit",
   "inviteJoinedSoFar": "{count, plural, =1{1 person has joined on this link so far.} other{{count} have joined on this link so far.}} Opening it and walking away does not count.",
-  "@inviteJoinedSoFar": {"placeholders": {"count": {"type": "int"}}},
+  "@inviteJoinedSoFar": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "inviteReplaceLink": "Replace the link",
   "inviteReplaceNote": "Replacing is how a link is revoked: the old one stops working at once, everywhere. There is no half-working link left behind.",
   "inviteReplaceTitle": "Replace the link?",
@@ -1017,7 +1606,16 @@
   "inviteNeedsApproval": "Joining needs your approval",
   "inviteOpenJoin": "Anyone with it joins straight away",
   "inviteUsedOf": "{used} of {max} used",
-  "@inviteUsedOf": {"placeholders": {"used": {"type": "int"}, "max": {"type": "int"}}},
+  "@inviteUsedOf": {
+    "placeholders": {
+      "used": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "inviteShareNote": "Share this anywhere — it carries no key. Whoever opens it joins the channel, and the key to read it is sent to their device afterwards, encrypted, by someone who already has it.",
   "requestsNobodyWaiting": "Nobody waiting",
   "requestsNobodyWaitingBody": "People who follow the invite link appear here while the link is set to ask you first.",
@@ -1025,14 +1623,26 @@
   "requestsLetIn": "Let in",
   "feedSettings": "Settings",
   "feedKeyRotating": "Someone left this channel, so it is changing its key (version {epoch}). Posts from before are still readable. New ones open once the new key reaches this device.",
-  "@feedKeyRotating": {"placeholders": {"epoch": {"type": "int"}}},
+  "@feedKeyRotating": {
+    "placeholders": {
+      "epoch": {
+        "type": "int"
+      }
+    }
+  },
   "feedWaitingForKey": "Waiting for the key. It is sent to this device, encrypted, by someone already in the channel — the server never holds it.",
   "feedJoinNote": "Joining gets you the posts. The key that opens them is sent to your device afterwards by a member, never by the server.",
   "feedJoinChannel": "Join channel",
   "feedNoPostsYet": "No posts yet",
   "feedPickNewOwnerNote": "Only somebody already in the channel. Handing it to a stranger would put them in charge of a key they do not hold.",
   "feedTransferTitle": "Give the channel to {name}?",
-  "@feedTransferTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@feedTransferTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "feedTransferBody": "They will own it. You stay on as an admin with everything you have now except the right to delete the channel — and they can remove you afterwards.\n\nYou cannot undo this yourself. That is why it asks for your password rather than trusting an unlocked phone.",
   "feedYourPrivioPassword": "Your Privio password",
   "feedHandItOn": "Hand it on",
@@ -1059,7 +1669,13 @@
   "failureCouldNotSendFile": "Could not send file",
   "failureCouldNotReadMessage": "Could not read a message",
   "failureMessagesUnreadable": "{count, plural, =1{A message could not be read} other{{count} messages could not be read}}",
-  "@failureMessagesUnreadable": {"placeholders": {"count": {"type": "int"}}},
+  "@failureMessagesUnreadable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "failureCouldNotOpenFile": "Could not open that file.",
   "failureNotAnImage": "That file is not an image Privio can use.",
   "failureCouldNotSetPicture": "Could not set the picture",
@@ -1084,7 +1700,14 @@
   "failureInvalidTwoFactorCode": "That two-factor code is not right.",
   "failureTooManyDevices": "This account already has the maximum number of devices.",
   "failureCheckUsernameAndPassword": "Check the username and password: {detail}",
-  "@failureCheckUsernameAndPassword": {"description": "The server said why the form was rejected; its wording is passed through.", "placeholders": {"detail": {"type": "String"}}},
+  "@failureCheckUsernameAndPassword": {
+    "description": "The server said why the form was rejected; its wording is passed through.",
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "failureInvalidTotp": "That code is not right. Check the clock on your phone and try again.",
   "failureTotpAlreadyEnabled": "Two-factor is already on for this account.",
   "failureTotpNotSetUp": "Start the setup again — the secret is gone.",
@@ -1093,7 +1716,14 @@
   "failureDeviceNotFound": "That device is already signed out.",
   "failureCouldNotLiftBlock": "Could not lift that block.",
   "failureLicenseKeyIncomplete": "That key is not complete. It looks like {format}.",
-  "@failureLicenseKeyIncomplete": {"description": "The shape a licence key has. Not translated: it is the literal pattern.", "placeholders": {"format": {"type": "String"}}},
+  "@failureLicenseKeyIncomplete": {
+    "description": "The shape a licence key has. Not translated: it is the literal pattern.",
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
   "failureNotALicenseKey": "That does not look like a Privio license key.",
   "failureLicenseNotFound": "No license matches that key. Check it and try again.",
   "failureLicenseAlreadyRedeemed": "That key has already been used by another account. A key can only be redeemed once.",
@@ -1122,10 +1752,23 @@
   "failureCallFarEndNotBound": "The call was ended: nothing in the setup proved who was at the other end. Privio does not connect a call it cannot tie to a key.",
   "failureCallCertificateChanged": "The call was ended: the other end changed midway through. A call has one other end, and this one had two.",
   "failureCallIdentityChanged": "The call was ended: the security number for {who} is not the one Privio had. Compare it with them on another channel before calling again.",
-  "@failureCallIdentityChanged": {"description": "The other person, by username. Never translated.", "placeholders": {"who": {"type": "String"}}},
+  "@failureCallIdentityChanged": {
+    "description": "The other person, by username. Never translated.",
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "failureCallWrongParty": "The call was ended: a message about it came from someone who is not on it.",
   "failureCallNotVerified": "The call was ended: you only take calls from people whose security number you have confirmed, and {who}'s is not confirmed on this device.",
-  "@failureCallNotVerified": {"placeholders": {"who": {"type": "String"}}},
+  "@failureCallNotVerified": {
+    "placeholders": {
+      "who": {
+        "type": "String"
+      }
+    }
+  },
   "callEncrypted": "End-to-end encrypted",
   "callEncryptedVerified": "End-to-end encrypted · verified",
   "securityVerifiedCallsOnly": "Only calls from verified contacts",
@@ -1148,7 +1791,14 @@
   "appearancePreviewSetting": "Read receipts",
   "appearancePreviewMessage": "This is what your own messages will look like.",
   "accentSelected": "{colour}, selected",
-  "@accentSelected": {"description": "Announced by a screen reader for the chosen swatch.", "placeholders": {"colour": {"type": "String"}}},
+  "@accentSelected": {
+    "description": "Announced by a screen reader for the chosen swatch.",
+    "placeholders": {
+      "colour": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceAppIcon": "App icon",
   "appearanceAppIconNote": "This is the icon on your home screen, and it belongs to this phone rather than to your account: signing in as somebody else does not change it. It stays as you set it when you pick a different accent colour.",
   "appearanceAppIconMatchAccent": "Use the current accent colour",
@@ -1159,17 +1809,47 @@
   "failureAppIconUnsupported": "The app icon could not be changed: this device does not offer it.",
   "failureAppIconHiddenByDisguise": "The home screen is showing the calculator while the disguise is on, so the icon colour has not been changed. Switch the disguise off first.",
   "appIconSelected": "{colour} icon, selected",
-  "@appIconSelected": {"placeholders": {"colour": {"type": "String"}}},
+  "@appIconSelected": {
+    "placeholders": {
+      "colour": {
+        "type": "String"
+      }
+    }
+  },
   "appIconChoose": "{colour} icon",
-  "@appIconChoose": {"placeholders": {"colour": {"type": "String"}}},
+  "@appIconChoose": {
+    "placeholders": {
+      "colour": {
+        "type": "String"
+      }
+    }
+  },
   "failureStickerNotAnImage": "That file is not a PNG or a WebP image.",
   "failureStickerAnimated": "Animated stickers are not supported yet. Use a still PNG or WebP.",
   "failureStickerTooLarge": "A sticker has to be smaller than {limit} KB.",
-  "@failureStickerTooLarge": {"placeholders": {"limit": {"type": "int"}}},
+  "@failureStickerTooLarge": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "failureStickerTooWide": "A sticker can be at most {limit}×{limit} pixels.",
-  "@failureStickerTooWide": {"placeholders": {"limit": {"type": "int"}}},
+  "@failureStickerTooWide": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "failureStickerTooSmall": "A sticker has to be at least {limit}×{limit} pixels.",
-  "@failureStickerTooSmall": {"placeholders": {"limit": {"type": "int"}}},
+  "@failureStickerTooSmall": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "failureStickerPackFull": "This pack is full. Remove something to make room.",
   "failureStickerTooManyPacks": "You have as many packs as Privio holds. Delete one to make another.",
   "failureStickerPackNotFound": "That pack is no longer there.",
@@ -1189,7 +1869,13 @@
   "stickersRename": "Rename",
   "stickersDelete": "Delete pack",
   "stickersDeleteConfirm": "Delete “{title}”?",
-  "@stickersDeleteConfirm": {"placeholders": {"title": {"type": "String"}}},
+  "@stickersDeleteConfirm": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "stickersDeleteExplain": "The link stops working and the pack leaves your picker. Stickers from it that you have already sent stay readable in those conversations.",
   "stickersRemovePack": "Remove from my packs",
   "stickersAddPack": "Add pack",
@@ -1207,7 +1893,13 @@
   "stickersItemEmojiWhy": "What it stands for: what a client without this pack shows in its place, and how you find it later.",
   "stickersEmptyPack": "Nothing in this pack yet.",
   "stickersItemCount": "{count, plural, =0{Empty} =1{1 picture} other{{count} pictures}}",
-  "@stickersItemCount": {"placeholders": {"count": {"type": "int"}}},
+  "@stickersItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "stickersRemoveItem": "Remove",
   "stickersReorderHint": "Hold and drag to reorder.",
   "stickersCropTitle": "Crop",
@@ -1235,7 +1927,13 @@
   "pickerRemoveFavourite": "Remove from favourites",
   "pickerOpenPack": "Open pack",
   "stickerFromPack": "Sticker from “{title}”",
-  "@stickerFromPack": {"placeholders": {"title": {"type": "String"}}},
+  "@stickerFromPack": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "stickerPackGone": "This pack is not available to you.",
   "chatSticker": "Sticker",
   "pickerOpenTooltip": "Stickers and emoji",
@@ -1259,13 +1957,25 @@
   "phoneCountryCode": "Country code",
   "phoneVerifyTitle": "Confirm your number",
   "phoneVerifySent": "We sent a code to {hint}.",
-  "@phoneVerifySent": {"placeholders": {"hint": {"type": "String"}}},
+  "@phoneVerifySent": {
+    "placeholders": {
+      "hint": {
+        "type": "String"
+      }
+    }
+  },
   "phoneVerifyCode": "Six-digit code",
   "phoneVerifyConfirm": "Confirm",
   "phoneVerifyResend": "Send a new code",
   "phoneVerifySkip": "Continue without a number",
   "phoneVerifyStub": "Development server: no text message was sent. The code is {code}.",
-  "@phoneVerifyStub": {"placeholders": {"code": {"type": "String"}}},
+  "@phoneVerifyStub": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "privacyPhoneSection": "Phone number & contacts",
   "phoneAdd": "Add a phone number",
   "phoneChange": "Change number",
@@ -1277,7 +1987,13 @@
   "phoneContactSyncExplain": "Off unless you switch it on. PRIVIO reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a PRIVIO account. Names, notes and the address book itself are never sent and never stored on the server.",
   "phoneSyncNow": "Match contacts now",
   "phoneSyncFound": "{count, plural, =0{Nobody from your contacts is on PRIVIO, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}",
-  "@phoneSyncFound": {"placeholders": {"count": {"type": "int"}}},
+  "@phoneSyncFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "phoneImportedRemove": "Remove imported contacts",
   "phoneImportedRemoveExplain": "Removes the people matching added, and nothing else. Your chats with them stay.",
   "phoneNotLinkedYet": "No number linked",
@@ -1295,7 +2011,13 @@
   "botsDisabled": "Switched off",
   "botsDelete": "Delete bot",
   "botsDeleteConfirm": "Delete @{username}?",
-  "@botsDeleteConfirm": {"placeholders": {"username": {"type": "String"}}},
+  "@botsDeleteConfirm": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "botsToken": "API token",
   "botsTokenNew": "Create a new token",
   "botsTokenRevoke": "Revoke tokens",
@@ -1314,7 +2036,13 @@
   "photoTitle": "Photo",
   "photoPreviewOne": "Send photo",
   "photoPreviewMany": "Send {count} photos",
-  "@photoPreviewMany": {"placeholders": {"count": {"type": "int"}}},
+  "@photoPreviewMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoRetake": "Retake",
   "photoCaptionHint": "Add a caption",
   "photoNoCamera": "There is no camera on this device that Privio can open.",
@@ -1324,10 +2052,22 @@
   "photoOpenSettings": "Open settings",
   "photoSettingsFailed": "Could not open the settings. Open them yourself and allow it for Privio.",
   "photoFailed": "The camera could not be opened: {detail}",
-  "@photoFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@photoFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "photoNoneReadable": "Privio could not read any of those pictures.",
   "photoSomeLeftOut": "{count} of the pictures could not be read and were left out.",
-  "@photoSomeLeftOut": {"placeholders": {"count": {"type": "int"}}},
+  "@photoSomeLeftOut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoStateSending": "Sending",
   "photoStateQueued": "Waiting for a network",
   "photoStateSent": "Sent",
@@ -1340,9 +2080,21 @@
   "securityEventADevice": "a device",
   "securityEventAContact": "a contact",
   "securityEventDeviceAdded": "New device linked: {name}",
-  "@securityEventDeviceAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventDeviceRemoved": "Device signed out: {name}",
-  "@securityEventDeviceRemoved": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventPasswordChanged": "Password changed",
   "securityEventTwoFactorOn": "Two-factor authentication switched on",
   "securityEventTwoFactorOff": "Two-factor authentication switched off",
@@ -1352,11 +2104,29 @@
   "securityEventProxyOn": "Connecting through the SOCKS5 proxy",
   "securityEventProxyOff": "Proxy switched off — connecting directly",
   "securityEventKeyChanged": "{name}’s security code changed",
-  "@securityEventKeyChanged": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventKeyChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventContactVerified": "{name} verified",
-  "@securityEventContactVerified": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventContactVerified": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventVerificationCleared": "Verification of {name} withdrawn",
-  "@securityEventVerificationCleared": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventVerificationCleared": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventScreenLock": "Screen lock changed",
   "securityEventDuressCode": "Duress code changed",
   "safetyScanTheirs": "Photograph their code",
@@ -1367,7 +2137,13 @@
   "privacyBlockOnKeyChange": "Hold chats after a key change",
   "privacyBlockOnKeyChangeNote": "If a contact’s security code changes, stop the chat until you have compared the new one. Sending is refused on a changed key either way.",
   "chatHeldByKeyChange": "{name}’s security code has changed. This chat is held until you compare the new one.",
-  "@chatHeldByKeyChange": {"placeholders": {"name": {"type": "String"}}},
+  "@chatHeldByKeyChange": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatHeldCompareNow": "Compare it now",
   "privacyDashboardRow": "Privacy Dashboard",
   "privacyDashboardTitle": "Privacy Dashboard",
@@ -1396,5 +2172,73 @@
   "privacyDashboardProxyDirect": "Direct",
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Content is encrypted; the fact that a message went from you to somebody, and when, is not. Privio’s server sees that much because it has to deliver it.",
-  "privacyOverview": "Overview"
+  "privacyOverview": "Overview",
+  "profileContactAdded": "Added to contacts",
+  "profileCouldNotAddContact": "Could not add this contact",
+  "profileReport": "Report this account",
+  "profileReportTitle": "Report {name}",
+  "@profileReportTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileReportBody": "A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.",
+  "profileReported": "Report filed",
+  "profileAlreadyReported": "Your earlier report about this account is still on file",
+  "profileCouldNotReport": "Could not file the report",
+  "contactMatchNow": "Match my contacts now",
+  "contactMatchRunning": "Matching…",
+  "contactMatchNobody": "Nobody in your address book is on Privio yet, or they have not switched on being found by their number.",
+  "contactMatchFound": "{count, plural, =1{1 contact on Privio} other{{count} contacts on Privio}}",
+  "@contactMatchFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contactMatchNote": "Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.",
+  "contactMatchUnsupported": "This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.",
+  "savedTitle": "Saved",
+  "savedAccountRow": "Saved",
+  "savedChatSubtitle": "Only you can see this",
+  "savedEmptyTitle": "Nothing saved yet",
+  "savedEmptyBody": "Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio's server, which holds only what your own devices have sealed.",
+  "savedComposerHint": "Write a note …",
+  "savedSaveAction": "Save to Saved",
+  "savedSaved": "Saved",
+  "savedWaitingToSync": "Saved here — waiting to reach your other devices",
+  "savedDisappearingRefused": "This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.",
+  "savedNothingToSave": "There is nothing in this message to save.",
+  "savedCouldNotSave": "Could not save this",
+  "savedPin": "Pin",
+  "savedUnpin": "Unpin",
+  "savedPinnedSection": "Pinned",
+  "savedDeleteOne": "Delete this entry",
+  "savedDeleteMany": "{count, plural, =1{Delete 1 entry} other{Delete {count} entries}}",
+  "@savedDeleteMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "savedDeleteBody": "It is removed from this device and from your other devices. This cannot be undone.",
+  "savedSelected": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@savedSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "savedSearchHint": "Search notes, captions and file names",
+  "savedSearchNothing": "Nothing matches that",
+  "savedMediaRow": "Media and files",
+  "savedMediaEmpty": "No pictures or files saved yet",
+  "savedInfoTitle": "About Saved",
+  "savedKeptForever": "Kept until you delete it",
+  "savedNoTimerNote": "The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it."
 }

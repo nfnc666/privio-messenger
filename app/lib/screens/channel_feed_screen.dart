@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
 import '../models/channel.dart';
+import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
@@ -553,7 +554,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   }
 
   Future<void> _report() async {
-    final reason = await showModalBottomSheet<ChannelReportReason>(
+    final reason = await showModalBottomSheet<ReportReason>(
       context: context,
       backgroundColor: PrivioColors.surface,
       isScrollControlled: true,
@@ -2653,7 +2654,7 @@ class _ReportSheet extends StatelessWidget {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: PrivioSpacing.md),
-              for (final reason in ChannelReportReason.values)
+              for (final reason in ReportReason.values)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(reportReasonLabel(AppText.of(context), reason)),

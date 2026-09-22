@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { rateLimitFactor } from '../config.js';
 import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import { findByUsername, publicProfile, type AccountRow } from '../services/accounts.js';
@@ -46,6 +47,38 @@ async function visibleProfile(viewerId: string, target: AccountRow) {
   };
 }
 
+/**
+ * The viewer's own relationship to the account they are looking at.
+ *
+ * Deliberately separate from [visibleProfile], which decides what the *target*
+ * lets this viewer see. Nothing here is the target's to withhold: whether you
+ * have somebody in your address book, and whether you have blocked them, are
+ * facts about you. That is also why blocking is safe to report — it is the
+ * blocker asking, never the blocked.
+ *
+ * The profile screen needs both to draw its buttons, and one query is what
+ * stops it opening with "Add contact" and correcting itself a moment later.
+ */
+async function viewerRelationship(viewerId: string, targetId: string) {
+  // Looking at yourself: neither fact means anything, and neither query needs
+  // running. The screen knows whose profile it is from the signed-in account id
+  // it already has, so there is nothing here for it to be told.
+  if (viewerId === targetId) return { isContact: false, isBlocked: false };
+  const { rows } = await pool.query<{ is_contact: boolean; is_blocked: boolean }>(
+    `SELECT EXISTS (
+              SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2
+            ) AS is_contact,
+            EXISTS (
+              SELECT 1 FROM blocks WHERE account_id = $1 AND blocked_account_id = $2
+            ) AS is_blocked`,
+    [viewerId, targetId],
+  );
+  return {
+    isContact: rows[0]?.is_contact ?? false,
+    isBlocked: rows[0]?.is_blocked ?? false,
+  };
+}
+
 const contactRoutes: FastifyPluginAsync = async (app) => {
   const requireAuth = { preHandler: (r: Parameters<typeof app.requireAuth>[0]) => app.requireAuth(r) };
 
@@ -61,6 +94,7 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     return {
       ...publicProfile(target),
       ...(await visibleProfile(accountId, target)),
+      ...(await viewerRelationship(accountId, target.id)),
     };
   });
 
@@ -80,15 +114,10 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     );
     const target = rows[0];
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
-    const relationship = await pool.query(
-      `SELECT EXISTS(SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2) AS "isContact",
-              EXISTS(SELECT 1 FROM blocks WHERE account_id = $1 AND blocked_account_id = $2) AS "isBlocked"`,
-      [accountId, target.id],
-    );
     return {
       ...publicProfile(target),
       ...(await visibleProfile(accountId, target)),
-      ...relationship.rows[0],
+      ...(await viewerRelationship(accountId, target.id)),
     };
   });
 
@@ -177,6 +206,65 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     if (!rowCount) throw ApiError.notFound('contact_not_found', 'Not in your contacts');
     return { removed: true };
   });
+
+  /**
+   * Report an account.
+   *
+   * What this can carry is limited by what the server knows, which is nothing
+   * about what anybody said: there is no message to attach, because the server
+   * never held one in the clear. A report is therefore a reason and a reporter,
+   * and `docs/moderation.md` states that rather than leaving a reviewer to
+   * assume evidence that does not exist.
+   *
+   * Reporting is deliberately **not** blocking. The two are offered together on
+   * the profile screen and a user may well want both, but a report that
+   * silently blocked would make an accusation into a change to your own
+   * account, and a block that silently reported would send your address book to
+   * a moderator. Each does one thing.
+   *
+   * Rate-limited well below anything a person does by hand: the primary key
+   * already stops the same complaint twice, and this stops one account walking
+   * a list of ids.
+   */
+  app.post(
+    '/v1/users/:id/report',
+    {
+      ...requireAuth,
+      config: { rateLimit: { max: 20 * rateLimitFactor, timeWindow: '1 hour' } },
+    },
+    async (request, reply) => {
+      const { accountId } = auth(request);
+      const params = parse(z.object({ id: uuidSchema }), request.params);
+      const body = parse(
+        z.object({ reason: z.enum(['spam', 'abuse', 'illegal', 'impersonation', 'other']) }),
+        request.body,
+      );
+      if (params.id === accountId) {
+        throw ApiError.badRequest('self_report', 'You cannot report yourself');
+      }
+
+      const { rowCount } = await pool.query(
+        `INSERT INTO account_reports (account_id, reporter_id, reason)
+         SELECT $1, $2, $3 FROM accounts WHERE id = $1 AND deleted_at IS NULL
+         ON CONFLICT (account_id, reporter_id) DO NOTHING`,
+        [params.id, accountId, body.reason],
+      );
+      if (!rowCount) {
+        // Either there is no such account, or this reporter already has a
+        // standing report. Told apart, because the second is not a failure and
+        // the screen should say the report is already on file rather than
+        // pretending to have filed a new one.
+        const { rowCount: exists } = await pool.query(
+          'SELECT 1 FROM accounts WHERE id = $1 AND deleted_at IS NULL',
+          [params.id],
+        );
+        if (!exists) throw ApiError.notFound('user_not_found', 'No such user');
+        return { reported: true, alreadyReported: true };
+      }
+      reply.code(201);
+      return { reported: true, alreadyReported: false };
+    },
+  );
 
   app.get('/v1/blocks', requireAuth, async (request) => {
     const { accountId } = auth(request);

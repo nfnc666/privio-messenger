@@ -24,6 +24,13 @@ class MainActivity : FlutterActivity() {
         // this activity because the flag belongs to its window, which is the
         // one window Flutter draws the whole app into.
         ScreenShield.attach(this, flutterEngine.dartExecutor.binaryMessenger)
+        // The address book. Nothing here reads anything until Dart calls it,
+        // and Dart only calls it when somebody presses the button that matches
+        // contacts — see `ContactsReader`.
+        ContactsReader.attach(
+            this,
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ContactsReader.CHANNEL),
+        )
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -148,6 +155,10 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == ContactsReader.REQUEST_CODE) {
+            ContactsReader.permissionResult(this, grantResults)
+            return
+        }
         if (requestCode != NotificationPermissions.REQUEST_CODE) return
         val waiting = NotificationPermissions.pending ?: return
         NotificationPermissions.pending = null

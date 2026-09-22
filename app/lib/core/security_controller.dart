@@ -47,8 +47,16 @@ class LinkedDevice {
 class BlockedUser {
   const BlockedUser({required this.accountId, required this.username, this.displayName});
 
+  /// Reads what `GET /v1/blocks` returns.
+  ///
+  /// The server calls the field `id`; this read `accountId` and nothing caught
+  /// it, because the test server invented a shape the real one does not send.
+  /// Against a real deployment the cast threw and the blocked-users screen came
+  /// up empty — a privacy screen that could not list what it was about. Both
+  /// names are accepted so a client is never again the thing that breaks on a
+  /// field being called what it has always been called.
   factory BlockedUser.fromJson(Map<String, dynamic> json) => BlockedUser(
-        accountId: json['accountId'] as String,
+        accountId: (json['id'] ?? json['accountId']) as String,
         username: json['username'] as String,
         displayName: json['displayName'] as String?,
       );

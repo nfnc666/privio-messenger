@@ -65,20 +65,6 @@ import 'app_localizations_it.dart';
 /// be consistent with the languages listed in the AppText.supportedLocales
 /// property.
 abstract class AppText {
-  String get accountPhoneNote;
-  String get accountPhoneUnverified;
-  String get accountPhoneVerifiedSeparate;
-  String get accountPhoneSaveError;
-  String get accountPhoneSaved;
-  String get accountPhoneSessionEnded;
-  String get contactProfileTitle;
-  String get contactProfileMessage;
-  String get contactProfileRemove;
-  String get contactProfileMissing;
-  String get contactProfileError;
-  String get contactProfileSessionEnded;
-  String get contactProfileBlockNote;
-  String get contactProfileYou;
   AppText(String locale)
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
@@ -116,6 +102,90 @@ abstract class AppText {
     Locale('fr'),
     Locale('it'),
   ];
+
+  /// No description provided for @accountPhoneNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional information. Your phone number is not verified and is not used for automatic contact discovery.'**
+  String get accountPhoneNote;
+
+  /// No description provided for @accountPhoneUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'Unverified — not proof of identity'**
+  String get accountPhoneUnverified;
+
+  /// No description provided for @accountPhoneVerifiedSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.'**
+  String get accountPhoneVerifiedSeparate;
+
+  /// No description provided for @accountPhoneSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load or save the phone number. Please try again.'**
+  String get accountPhoneSaveError;
+
+  /// No description provided for @accountPhoneSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get accountPhoneSaved;
+
+  /// No description provided for @accountPhoneSessionEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account session has changed. Open this setting again from your account.'**
+  String get accountPhoneSessionEnded;
+
+  /// No description provided for @contactProfileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact profile'**
+  String get contactProfileTitle;
+
+  /// No description provided for @contactProfileMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message'**
+  String get contactProfileMessage;
+
+  /// No description provided for @contactProfileRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove contact'**
+  String get contactProfileRemove;
+
+  /// No description provided for @contactProfileMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This account no longer exists or is unavailable.'**
+  String get contactProfileMissing;
+
+  /// No description provided for @contactProfileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load or update this profile. Please try again.'**
+  String get contactProfileError;
+
+  /// No description provided for @contactProfileSessionEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'This session has ended. Open the profile again from your account.'**
+  String get contactProfileSessionEnded;
+
+  /// No description provided for @contactProfileBlockNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You will no longer receive messages from this person. Your chat history stays on this device.'**
+  String get contactProfileBlockNote;
+
+  /// No description provided for @contactProfileYou.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get contactProfileYou;
 
   /// No description provided for @proxyTitle.
   ///
@@ -7676,6 +7746,246 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Overview'**
   String get privacyOverview;
+
+  /// No description provided for @profileContactAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to contacts'**
+  String get profileContactAdded;
+
+  /// No description provided for @profileCouldNotAddContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not add this contact'**
+  String get profileCouldNotAddContact;
+
+  /// No description provided for @profileReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report this account'**
+  String get profileReport;
+
+  /// No description provided for @profileReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report {name}'**
+  String profileReportTitle(String name);
+
+  /// No description provided for @profileReportBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.'**
+  String get profileReportBody;
+
+  /// No description provided for @profileReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Report filed'**
+  String get profileReported;
+
+  /// No description provided for @profileAlreadyReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your earlier report about this account is still on file'**
+  String get profileAlreadyReported;
+
+  /// No description provided for @profileCouldNotReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not file the report'**
+  String get profileCouldNotReport;
+
+  /// No description provided for @contactMatchNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Match my contacts now'**
+  String get contactMatchNow;
+
+  /// No description provided for @contactMatchRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching…'**
+  String get contactMatchRunning;
+
+  /// No description provided for @contactMatchNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody in your address book is on Privio yet, or they have not switched on being found by their number.'**
+  String get contactMatchNobody;
+
+  /// No description provided for @contactMatchFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 contact on Privio} other{{count} contacts on Privio}}'**
+  String contactMatchFound(int count);
+
+  /// No description provided for @contactMatchNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.'**
+  String get contactMatchNote;
+
+  /// No description provided for @contactMatchUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.'**
+  String get contactMatchUnsupported;
+
+  /// No description provided for @savedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedTitle;
+
+  /// No description provided for @savedAccountRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedAccountRow;
+
+  /// No description provided for @savedChatSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this'**
+  String get savedChatSubtitle;
+
+  /// No description provided for @savedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet'**
+  String get savedEmptyTitle;
+
+  /// No description provided for @savedEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio\'s server, which holds only what your own devices have sealed.'**
+  String get savedEmptyBody;
+
+  /// No description provided for @savedComposerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a note …'**
+  String get savedComposerHint;
+
+  /// No description provided for @savedSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to Saved'**
+  String get savedSaveAction;
+
+  /// No description provided for @savedSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedSaved;
+
+  /// No description provided for @savedWaitingToSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved here — waiting to reach your other devices'**
+  String get savedWaitingToSync;
+
+  /// No description provided for @savedDisappearingRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.'**
+  String get savedDisappearingRefused;
+
+  /// No description provided for @savedNothingToSave.
+  ///
+  /// In en, this message translates to:
+  /// **'There is nothing in this message to save.'**
+  String get savedNothingToSave;
+
+  /// No description provided for @savedCouldNotSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save this'**
+  String get savedCouldNotSave;
+
+  /// No description provided for @savedPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin'**
+  String get savedPin;
+
+  /// No description provided for @savedUnpin.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpin'**
+  String get savedUnpin;
+
+  /// No description provided for @savedPinnedSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned'**
+  String get savedPinnedSection;
+
+  /// No description provided for @savedDeleteOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this entry'**
+  String get savedDeleteOne;
+
+  /// No description provided for @savedDeleteMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 entry} other{Delete {count} entries}}'**
+  String savedDeleteMany(int count);
+
+  /// No description provided for @savedDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'It is removed from this device and from your other devices. This cannot be undone.'**
+  String get savedDeleteBody;
+
+  /// No description provided for @savedSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String savedSelected(int count);
+
+  /// No description provided for @savedSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search notes, captions and file names'**
+  String get savedSearchHint;
+
+  /// No description provided for @savedSearchNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches that'**
+  String get savedSearchNothing;
+
+  /// No description provided for @savedMediaRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Media and files'**
+  String get savedMediaRow;
+
+  /// No description provided for @savedMediaEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No pictures or files saved yet'**
+  String get savedMediaEmpty;
+
+  /// No description provided for @savedInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About Saved'**
+  String get savedInfoTitle;
+
+  /// No description provided for @savedKeptForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Kept until you delete it'**
+  String get savedKeptForever;
+
+  /// No description provided for @savedNoTimerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.'**
+  String get savedNoTimerNote;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

@@ -295,25 +295,6 @@ class ChannelStats {
   final int waiting;
 }
 
-/// Why somebody reported a channel.
-///
-/// A fixed set, never free text: a text box is where somebody pastes the
-/// content they are reporting, which would put the very thing the encryption
-/// protects into a column the server can read.
-enum ChannelReportReason {
-  spam('spam'),
-  abuse('abuse'),
-  illegal('illegal'),
-  impersonation('impersonation'),
-  other('other');
-
-  const ChannelReportReason(this.wire);
-
-  /// What the server is told. The word a person reads is a translation, and it
-  /// lives in `l10n/channel_text.dart`; this value never changes.
-  final String wire;
-}
-
 /// Somebody waiting at the door of a channel that asks first.
 @immutable
 class ChannelJoinRequest {

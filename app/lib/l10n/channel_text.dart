@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../models/channel.dart';
+import '../models/models.dart';
 import 'app_localizations.dart';
 
 /// The words for a channel permission, in the reader's language.
@@ -82,11 +83,11 @@ String formatDayMonthYear(AppText text, DateTime at) {
 /// The wording of a report reason, in the reader's language.
 ///
 /// The enum carries only the value the server is told; the sentence is here.
-String reportReasonLabel(AppText text, ChannelReportReason reason) =>
+String reportReasonLabel(AppText text, ReportReason reason) =>
     switch (reason) {
-      ChannelReportReason.spam => text.reportSpam,
-      ChannelReportReason.abuse => text.reportAbuse,
-      ChannelReportReason.illegal => text.reportIllegal,
-      ChannelReportReason.impersonation => text.reportImpersonation,
-      ChannelReportReason.other => text.reportOther,
+      ReportReason.spam => text.reportSpam,
+      ReportReason.abuse => text.reportAbuse,
+      ReportReason.illegal => text.reportIllegal,
+      ReportReason.impersonation => text.reportImpersonation,
+      ReportReason.other => text.reportOther,
     };

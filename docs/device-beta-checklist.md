@@ -137,6 +137,52 @@ the interesting failures live (encoding, clock skew, notification behaviour).
 | C5 | Kill the admin app in the middle of a rotation (immediately after the removal), reopen it: the rotation finishes — key promoted, private channel name readable by a member who joined afterwards | This was the bug fixed in this milestone; it is worth doing twice | | | | not run | |
 | C6 | Two admins remove someone at the same moment: one key version is spent, not two, and the channel stays publishable | Needs two handsets and some coordination | | | | not run | |
 
+## 6b. Opening a profile from a chat
+
+Covered by `app/test/contact_profile_test.dart`; none of it has been run on a
+phone. See [`contact-profiles.md`](contact-profiles.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | Tap the header of a one-to-one chat: the profile that opens is **that** person — name, `@handle` and picture match who you were talking to | — | | | | not run | |
+| P2 | Type half a message, open the profile, come back: the draft and the scroll position are exactly as they were | A soft keyboard dismissing and reappearing is the part a widget test cannot reproduce | | | | not run | |
+| P3 | In a group, tap a sender's name: that sender's profile opens, not the group's | — | | | | not run | |
+| P4 | Tap the group's own header: the group screen opens, as before | — | | | | not run | |
+| P5 | **Message** from a profile reached elsewhere lands in the existing chat with its history — not a second, empty one | — | | | | not run | |
+| P6 | Block from the profile, then open the blocked person again: the banner and **Unblock** are there, and unblocking restores the ordinary actions | Needs a second account | | | | not run | |
+| P7 | A contact who has hidden their status and last-seen shows neither — and no row anywhere saying something is hidden | Needs a second account with `lastSeen: nobody` and `profileStatus: nobody` | | | | not run | |
+| P8 | Tap the large picture: it opens full-screen and pinch-zooms. With no picture, the tap does nothing | Only a contact whose profile key has arrived has a picture at all | | | | not run | |
+| P9 | Report somebody, pick a reason, then report them again: the first says the report was filed, the second says the earlier one is still on file — and neither blocks them | Needs a second account; what a moderator sees is `admin-panel.md`, not the phone | | | | not run | |
+
+## 6c. Matching the address book
+
+Covered by `app/test/contact_match_test.dart` against a fake address book; the
+system permission dialog and a real address book have never been near this.
+See [`phone-contacts.md`](phone-contacts.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S1 | With "Sync device contacts" **off**, no match row is offered and **no contacts prompt ever appears** | — | | | | not run | |
+| S2 | Turning the switch on shows the row and still shows **no** system prompt — the prompt comes on the first press of the row | iOS shows its prompt once per install; getting this wrong is not recoverable without a reinstall | | | | not run | |
+| S3 | Allow the prompt: contacts who are on Privio and discoverable appear, and **Add** puts one in the contacts list | Needs a second account with a verified number and "found by my number" on | | | | not run | |
+| S4 | Refuse the prompt: the sentence says so and names the other ways in, and nothing is sent | Check the server log shows no `/v1/contacts/discover` for that press | | | | not run | |
+| S5 | A real address book (300+ entries) matches in a reasonable time and the app stays responsive | The read is one platform call; the budget is 200 numbers per request | | | | not run | |
+| S6 | **iOS limited access** (pick a few contacts): those are matched, and the app does not complain about the limited grant | iOS 18+ only | | | | not run | |
+
+## 6d. Saved
+
+Covered by `app/test/saved_test.dart` and the retention tests in
+`storage.test.ts`. None of it has been on a phone. See [`saved.md`](saved.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| V1 | Account → Saved and the chat-list row open the **same** area, and a fresh account finds it from both before anything is in it | — | | | | not run | |
+| V2 | A note written on one device appears on the other within seconds | Needs two devices on one account; a single-device account has nobody to sync to, which is correct and not a failure | | | | not run | |
+| V3 | Write a note with the network off, turn it back on: it syncs and appears **once** on the second device | The duplicate is what the client id prevents; seeing it twice is the failure | | | | not run | |
+| V4 | Save a photo, then open it on the second device **after the ordinary attachment window** has passed | Needs a server with a short `MEDIA_TTL_DAYS` to test in reasonable time | | | | not run | |
+| V5 | Long-press a message that is under a disappearing timer: saving is refused with the reason, and nothing appears in Saved | Needs a chat with a timer set | | | | not run | |
+| V6 | A Saved area with a few hundred entries scrolls and searches without stalling | The search is a loop over decrypted messages, as everywhere else in the app | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.

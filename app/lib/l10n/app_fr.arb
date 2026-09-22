@@ -1200,7 +1200,13 @@
   "photoTitle": "Photo",
   "photoPreviewOne": "Envoyer la photo",
   "photoPreviewMany": "Envoyer {count} photos",
-  "@photoPreviewMany": {"placeholders": {"count": {"type": "int"}}},
+  "@photoPreviewMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoRetake": "Reprendre",
   "photoCaptionHint": "Ajouter une légende",
   "photoNoCamera": "Cet appareil n'a pas d'appareil photo que Privio puisse ouvrir.",
@@ -1210,10 +1216,22 @@
   "photoOpenSettings": "Ouvrir les réglages",
   "photoSettingsFailed": "Les réglages n'ont pas pu être ouverts. Ouvrez-les vous-même et autorisez-le pour Privio.",
   "photoFailed": "L'appareil photo n'a pas pu être ouvert : {detail}",
-  "@photoFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@photoFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "photoNoneReadable": "Privio n'a pu lire aucune de ces images.",
   "photoSomeLeftOut": "{count} des images n'ont pas pu être lues et ont été laissées de côté.",
-  "@photoSomeLeftOut": {"placeholders": {"count": {"type": "int"}}},
+  "@photoSomeLeftOut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoStateSending": "Envoi en cours",
   "photoStateQueued": "En attente d'un réseau",
   "photoStateSent": "Envoyée",
@@ -1226,9 +1244,21 @@
   "securityEventADevice": "un appareil",
   "securityEventAContact": "un contact",
   "securityEventDeviceAdded": "Nouvel appareil lié : {name}",
-  "@securityEventDeviceAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventDeviceRemoved": "Appareil déconnecté : {name}",
-  "@securityEventDeviceRemoved": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventPasswordChanged": "Mot de passe modifié",
   "securityEventTwoFactorOn": "Authentification à deux facteurs activée",
   "securityEventTwoFactorOff": "Authentification à deux facteurs désactivée",
@@ -1238,11 +1268,29 @@
   "securityEventProxyOn": "Connexion via le proxy SOCKS5",
   "securityEventProxyOff": "Proxy désactivé — connexion directe",
   "securityEventKeyChanged": "Le code de sécurité de {name} a changé",
-  "@securityEventKeyChanged": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventKeyChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventContactVerified": "{name} vérifié",
-  "@securityEventContactVerified": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventContactVerified": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventVerificationCleared": "Vérification de {name} retirée",
-  "@securityEventVerificationCleared": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventVerificationCleared": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventScreenLock": "Verrouillage de l’écran modifié",
   "securityEventDuressCode": "Code de contrainte modifié",
   "safetyScanTheirs": "Photographier son code",
@@ -1253,7 +1301,13 @@
   "privacyBlockOnKeyChange": "Suspendre les conversations après un changement de clé",
   "privacyBlockOnKeyChangeNote": "Si le code de sécurité d’un contact change, suspendre la conversation jusqu’à ce que vous ayez comparé le nouveau. L’envoi est refusé de toute façon sur une clé modifiée.",
   "chatHeldByKeyChange": "Le code de sécurité de {name} a changé. Cette conversation est suspendue jusqu’à ce que vous compariez le nouveau.",
-  "@chatHeldByKeyChange": {"placeholders": {"name": {"type": "String"}}},
+  "@chatHeldByKeyChange": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatHeldCompareNow": "Le comparer maintenant",
   "privacyDashboardRow": "Tableau de confidentialité",
   "privacyDashboardTitle": "Tableau de confidentialité",
@@ -1282,5 +1336,45 @@
   "privacyDashboardProxyDirect": "Directe",
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Le contenu est chiffré ; le fait qu’un message soit parti de vous vers quelqu’un, et quand, ne l’est pas. Le serveur de Privio le voit parce qu’il doit le livrer.",
-  "privacyOverview": "Aperçu"
+  "privacyOverview": "Aperçu",
+  "profileContactAdded": "Ajouté aux contacts",
+  "profileCouldNotAddContact": "Impossible d’ajouter ce contact",
+  "profileReport": "Signaler ce compte",
+  "profileReportTitle": "Signaler {name}",
+  "profileReportBody": "La modération apprend le motif et rien d’autre. Le serveur de Privio n’a jamais vos messages en clair : rien de ce qui a été écrit ne peut être joint.",
+  "profileReported": "Signalement envoyé",
+  "profileAlreadyReported": "Votre signalement précédent concernant ce compte est toujours enregistré",
+  "profileCouldNotReport": "Impossible d’envoyer le signalement",
+  "contactMatchNow": "Comparer mes contacts maintenant",
+  "contactMatchRunning": "Comparaison…",
+  "contactMatchNobody": "Personne de votre carnet d’adresses n’est encore sur Privio, ou ces personnes n’ont pas activé d’être trouvées par leur numéro.",
+  "contactMatchFound": "{count, plural, =1{1 contact sur Privio} other{{count} contacts sur Privio}}",
+  "contactMatchNote": "Votre carnet d’adresses est resté sur cet appareil. Chaque numéro a été transformé ici en une empreinte à clé et seules les empreintes ont été comparées ; rien n’a été envoyé ni conservé.",
+  "contactMatchUnsupported": "Cette version ne peut pas lire le carnet d’adresses. Vous pouvez toujours ajouter quelqu’un par identifiant Privio, lien d’invitation ou code QR.",
+  "savedTitle": "Enregistré",
+  "savedAccountRow": "Enregistré",
+  "savedChatSubtitle": "Vous seul le voyez",
+  "savedEmptyTitle": "Rien d’enregistré pour l’instant",
+  "savedEmptyBody": "Des notes, des images, des fichiers et des messages vocaux rien que pour vous. Personne d’autre ne les voit, pas même le serveur de Privio, qui ne détient que ce que vos propres appareils ont scellé.",
+  "savedComposerHint": "Écrire une note…",
+  "savedSaveAction": "Enregistrer dans Enregistré",
+  "savedSaved": "Enregistré",
+  "savedWaitingToSync": "Enregistré ici — en attente de vos autres appareils",
+  "savedDisappearingRefused": "Ce message disparaît, il ne peut donc pas être enregistré. En garder une copie annulerait ce qui a été promis à son expéditeur.",
+  "savedNothingToSave": "Il n’y a rien à enregistrer dans ce message.",
+  "savedCouldNotSave": "Impossible d’enregistrer",
+  "savedPin": "Épingler",
+  "savedUnpin": "Détacher",
+  "savedPinnedSection": "Épinglé",
+  "savedDeleteOne": "Supprimer cette entrée",
+  "savedDeleteMany": "{count, plural, =1{Supprimer 1 entrée} other{Supprimer {count} entrées}}",
+  "savedDeleteBody": "Elle est retirée de cet appareil et de vos autres appareils. C’est irréversible.",
+  "savedSelected": "{count, plural, =1{1 sélectionné} other{{count} sélectionnés}}",
+  "savedSearchHint": "Rechercher dans les notes, légendes et noms de fichiers",
+  "savedSearchNothing": "Rien ne correspond",
+  "savedMediaRow": "Médias et fichiers",
+  "savedMediaEmpty": "Aucune image ni aucun fichier enregistré",
+  "savedInfoTitle": "À propos d’Enregistré",
+  "savedKeptForever": "Conservé jusqu’à ce que vous le supprimiez",
+  "savedNoTimerNote": "Le minuteur des messages éphémères de vos conversations ne s’applique pas ici. Enregistré conserve ce que vous y mettez jusqu’à ce que vous le retiriez."
 }

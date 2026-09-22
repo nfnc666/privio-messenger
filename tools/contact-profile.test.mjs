@@ -23,7 +23,12 @@ test('all contact-profile strings exist in each supported language and generated
 test('profile navigation pushes over the mounted chat and uses sender IDs', () => {
   const source = read('app/lib/screens/chat_screen.dart');
   assert.match(source, /_openContactProfile\(String accountId\) => Navigator\.of\(context\)\.push\(/);
-  assert.match(source, /onTap: widget\.isGroup \? _openGroupInfo/);
+  // The header opens the thing the conversation is about, and the three cases
+  // stay apart: a group's own screen, the account's Saved area, and otherwise
+  // the other person's profile. Written as one ordered expression so that a
+  // group header can never fall through to a contact profile.
+  assert.match(source, /_isSaved\(state\)\s*\?\s*_openSavedInfo\(\)/);
+  assert.match(source, /widget\.isGroup\s*\?\s*_openGroupInfo\(\)\s*:\s*_openContactProfile\(widget\.accountId\)/);
   assert.match(source, /message\.isMine \? state\.accountId : message\.senderAccountId/);
   assert.match(source, /returnToChat: !widget\.isGroup && accountId == widget\.accountId/);
 });

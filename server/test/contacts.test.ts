@@ -162,6 +162,144 @@ describe('contacts and privacy', () => {
     assert.equal(cleared.json().blocked.length, 0);
   });
 
+  it('tells the viewer their own relationship to the account, and nothing more', async () => {
+    // Its own pair, like the test above: the ones before it leave Alice's
+    // address book and Bob's settings in a state this would read by accident.
+    const viewer = await registerUser(h.app, 'profileviewer');
+    const target = await registerUser(h.app, 'profiletarget');
+
+    const stranger = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${target.accountId}`,
+      headers: bearer(viewer),
+    });
+    assert.equal(stranger.json().isContact, false);
+    assert.equal(stranger.json().isBlocked, false);
+
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/contacts',
+      headers: bearer(viewer),
+      payload: { username: 'profiletarget' },
+    });
+    await h.app.inject({
+      method: 'POST',
+      url: '/v1/blocks',
+      headers: bearer(viewer),
+      payload: { accountId: target.accountId },
+    });
+
+    const known = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${target.accountId}`,
+      headers: bearer(viewer),
+    });
+    assert.equal(known.json().isContact, true);
+    assert.equal(known.json().isBlocked, true);
+
+    // The other direction stays silent. The target has neither added nor
+    // blocked anybody, and — the part that matters — being blocked is never
+    // disclosed to the blocked.
+    const back = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${viewer.accountId}`,
+      headers: bearer(target),
+    });
+    assert.equal(back.json().isContact, false);
+    assert.equal(back.json().isBlocked, false);
+
+    // Your own profile answers the same two questions about you and yourself,
+    // and both are no: an account is not in its own address book and has not
+    // blocked itself. Which profile is your own is something the screen knows
+    // from the account it is signed in as, so there is no third field here to
+    // tell it — and a route that grew one would be a route that could get it
+    // wrong.
+    const mine = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${viewer.accountId}`,
+      headers: bearer(viewer),
+    });
+    assert.equal(mine.json().isContact, false);
+    assert.equal(mine.json().isBlocked, false);
+    assert.equal('isSelf' in mine.json(), false);
+  });
+
+  it('never puts a phone number in a profile', async () => {
+    // The number exists for contact discovery and is not a thing a profile
+    // shows. Asserted on the payload rather than trusted to `publicProfile`
+    // staying as it is: this is the shape a profile screen renders.
+    const profile = await h.app.inject({
+      method: 'GET',
+      url: `/v1/users/id/${bob.accountId}`,
+      headers: bearer(alice),
+    });
+    const keys = Object.keys(profile.json());
+    assert.ok(!keys.some((key) => /phone/i.test(key)), `phone leaked into ${keys.join(', ')}`);
+  });
+
+  it('files one standing report per person and says when there already was one', async () => {
+    const reporter = await registerUser(h.app, 'profilereporter');
+    const reported = await registerUser(h.app, 'profilereported');
+
+    const filed = await h.app.inject({
+      method: 'POST',
+      url: `/v1/users/${reported.accountId}/report`,
+      headers: bearer(reporter),
+      payload: { reason: 'spam' },
+    });
+    assert.equal(filed.statusCode, 201);
+    assert.equal(filed.json().alreadyReported, false);
+
+    // Again: not an error, and not a second report either.
+    const again = await h.app.inject({
+      method: 'POST',
+      url: `/v1/users/${reported.accountId}/report`,
+      headers: bearer(reporter),
+      payload: { reason: 'abuse' },
+    });
+    assert.equal(again.statusCode, 200);
+    assert.equal(again.json().alreadyReported, true);
+
+    // Reporting does not block: the two are offered side by side on the
+    // profile screen and neither may quietly do the other.
+    const blocks = await h.app.inject({
+      method: 'GET',
+      url: '/v1/blocks',
+      headers: bearer(reporter),
+    });
+    assert.equal(blocks.json().blocked.length, 0);
+  });
+
+  it('refuses a report of yourself, of nobody, and with a reason it does not know', async () => {
+    const lone = await registerUser(h.app, 'profilelone');
+
+    const self = await h.app.inject({
+      method: 'POST',
+      url: `/v1/users/${lone.accountId}/report`,
+      headers: bearer(lone),
+      payload: { reason: 'spam' },
+    });
+    assert.equal(self.statusCode, 400);
+
+    const nobody = await h.app.inject({
+      method: 'POST',
+      url: '/v1/users/00000000-0000-4000-8000-000000000000/report',
+      headers: bearer(lone),
+      payload: { reason: 'spam' },
+    });
+    assert.equal(nobody.statusCode, 404);
+
+    // Free text is exactly what must not reach that column: it is where
+    // somebody pastes the message they are reporting.
+    const freeText = await h.app.inject({
+      method: 'POST',
+      url: `/v1/users/${alice.accountId}/report`,
+      headers: bearer(lone),
+      payload: { reason: 'they said something about my sister' },
+    });
+    assert.equal(freeText.statusCode, 400);
+  });
+
   it('resolves an account id to a profile, so an incoming message has a name', async () => {
     const byId = await h.app.inject({
       method: 'GET',

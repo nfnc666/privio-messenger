@@ -9,6 +9,16 @@
          the push still wakes the process and the envelopes still arrive. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Matching the address book against Privio accounts. Asked for at the
+         moment somebody presses the button that does it, and only after the
+         "Sync device contacts" consent is already on — two deliberate steps,
+         because the app must never be the one that opened this first.
+
+         A refusal costs nothing else: a PRIVIO ID, an invite link and a QR
+         code all still add somebody, which is what the sentence behind
+         `failureContactsPermissionDenied` says. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

@@ -6,23 +6,30 @@ import 'app_localizations.dart';
 
 /// The translations for Spanish Castilian (`es`).
 class AppTextEs extends AppText {
-  @override
-  String get accountPhoneNote => 'Dato voluntario. Tu número de teléfono no se verifica ni se utiliza para encontrar contactos automáticamente.';
+  AppTextEs([String locale = 'es']) : super(locale);
 
   @override
-  String get accountPhoneUnverified => 'Sin verificar: no acredita la identidad';
+  String get accountPhoneNote =>
+      'Dato voluntario. Tu número de teléfono no se verifica ni se utiliza para encontrar contactos automáticamente.';
 
   @override
-  String get accountPhoneVerifiedSeparate => 'Un número verificado por separado no cambia. Puedes gestionarlo en Ajustes → Privacidad → Número de teléfono y contactos.';
+  String get accountPhoneUnverified =>
+      'Sin verificar: no acredita la identidad';
 
   @override
-  String get accountPhoneSaveError => 'No se pudo cargar o guardar el número. Inténtalo de nuevo.';
+  String get accountPhoneVerifiedSeparate =>
+      'Un número verificado por separado no cambia. Puedes gestionarlo en Ajustes → Privacidad → Número de teléfono y contactos.';
+
+  @override
+  String get accountPhoneSaveError =>
+      'No se pudo cargar o guardar el número. Inténtalo de nuevo.';
 
   @override
   String get accountPhoneSaved => 'Guardado';
 
   @override
-  String get accountPhoneSessionEnded => 'La sesión de tu cuenta ha cambiado. Abre este ajuste de nuevo desde tu cuenta.';
+  String get accountPhoneSessionEnded =>
+      'La sesión de tu cuenta ha cambiado. Abre este ajuste de nuevo desde tu cuenta.';
 
   @override
   String get contactProfileTitle => 'Perfil del contacto';
@@ -34,21 +41,23 @@ class AppTextEs extends AppText {
   String get contactProfileRemove => 'Eliminar contacto';
 
   @override
-  String get contactProfileMissing => 'Esta cuenta ya no existe o no está disponible.';
+  String get contactProfileMissing =>
+      'Esta cuenta ya no existe o no está disponible.';
 
   @override
-  String get contactProfileError => 'No se pudo cargar o actualizar el perfil. Inténtalo de nuevo.';
+  String get contactProfileError =>
+      'No se pudo cargar o actualizar el perfil. Inténtalo de nuevo.';
 
   @override
-  String get contactProfileSessionEnded => 'Esta sesión ha terminado. Abre el perfil de nuevo desde tu cuenta.';
+  String get contactProfileSessionEnded =>
+      'Esta sesión ha terminado. Abre el perfil de nuevo desde tu cuenta.';
 
   @override
-  String get contactProfileBlockNote => 'Dejarás de recibir mensajes de esta persona. El historial permanece en este dispositivo.';
+  String get contactProfileBlockNote =>
+      'Dejarás de recibir mensajes de esta persona. El historial permanece en este dispositivo.';
 
   @override
   String get contactProfileYou => 'Tú';
-
-  AppTextEs([String locale = 'es']) : super(locale);
 
   @override
   String get proxyTitle => 'Proxy SOCKS5';
@@ -4540,4 +4549,161 @@ class AppTextEs extends AppText {
 
   @override
   String get privacyOverview => 'Resumen';
+
+  @override
+  String get profileContactAdded => 'Añadido a contactos';
+
+  @override
+  String get profileCouldNotAddContact => 'No se pudo añadir este contacto';
+
+  @override
+  String get profileReport => 'Denunciar esta cuenta';
+
+  @override
+  String profileReportTitle(String name) {
+    return 'Denunciar a $name';
+  }
+
+  @override
+  String get profileReportBody =>
+      'La moderación conoce el motivo y nada más. El servidor de Privio nunca guarda vuestros mensajes, así que no se puede adjuntar nada de lo escrito.';
+
+  @override
+  String get profileReported => 'Denuncia enviada';
+
+  @override
+  String get profileAlreadyReported =>
+      'Tu denuncia anterior sobre esta cuenta sigue registrada';
+
+  @override
+  String get profileCouldNotReport => 'No se pudo enviar la denuncia';
+
+  @override
+  String get contactMatchNow => 'Cotejar mis contactos ahora';
+
+  @override
+  String get contactMatchRunning => 'Cotejando…';
+
+  @override
+  String get contactMatchNobody =>
+      'Todavía no hay nadie de tu agenda en Privio, o no han activado que se les encuentre por su número.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contactos en Privio',
+      one: '1 contacto en Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Tu agenda se quedó en este dispositivo. Cada número se convirtió aquí en un hash con clave y solo se compararon los hashes; no se subió nada y no se guardó nada.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'Esta versión no puede leer la agenda. Puedes seguir añadiendo gente por ID de Privio, enlace de invitación o código QR.';
+
+  @override
+  String get savedTitle => 'Guardado';
+
+  @override
+  String get savedAccountRow => 'Guardado';
+
+  @override
+  String get savedChatSubtitle => 'Solo tú lo ves';
+
+  @override
+  String get savedEmptyTitle => 'Todavía no hay nada guardado';
+
+  @override
+  String get savedEmptyBody =>
+      'Notas, imágenes, archivos y mensajes de voz solo para ti. Nadie más lo ve, tampoco el servidor de Privio, que solo guarda lo que tus propios dispositivos han sellado.';
+
+  @override
+  String get savedComposerHint => 'Escribe una nota…';
+
+  @override
+  String get savedSaveAction => 'Guardar en Guardado';
+
+  @override
+  String get savedSaved => 'Guardado';
+
+  @override
+  String get savedWaitingToSync =>
+      'Guardado aquí: esperando a tus otros dispositivos';
+
+  @override
+  String get savedDisappearingRefused =>
+      'Este mensaje desaparece, así que no se puede guardar. Una copia anularía lo que se le prometió a quien lo envió.';
+
+  @override
+  String get savedNothingToSave => 'En este mensaje no hay nada que guardar.';
+
+  @override
+  String get savedCouldNotSave => 'No se pudo guardar';
+
+  @override
+  String get savedPin => 'Fijar';
+
+  @override
+  String get savedUnpin => 'No fijar';
+
+  @override
+  String get savedPinnedSection => 'Fijado';
+
+  @override
+  String get savedDeleteOne => 'Eliminar esta entrada';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Eliminar $count entradas',
+      one: 'Eliminar 1 entrada',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'Se quita de este dispositivo y de tus otros dispositivos. No se puede deshacer.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seleccionados',
+      one: '1 seleccionado',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint =>
+      'Buscar notas, pies de foto y nombres de archivo';
+
+  @override
+  String get savedSearchNothing => 'No hay nada que coincida';
+
+  @override
+  String get savedMediaRow => 'Multimedia y archivos';
+
+  @override
+  String get savedMediaEmpty => 'Aún no hay imágenes ni archivos guardados';
+
+  @override
+  String get savedInfoTitle => 'Sobre Guardado';
+
+  @override
+  String get savedKeptForever => 'Se conserva hasta que lo elimines';
+
+  @override
+  String get savedNoTimerNote =>
+      'El temporizador de mensajes que desaparecen de tus chats no se aplica aquí. Guardado conserva lo que pongas hasta que lo quites.';
 }

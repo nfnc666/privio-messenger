@@ -1200,7 +1200,13 @@
   "photoTitle": "Foto",
   "photoPreviewOne": "Invia foto",
   "photoPreviewMany": "Invia {count} foto",
-  "@photoPreviewMany": {"placeholders": {"count": {"type": "int"}}},
+  "@photoPreviewMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoRetake": "Scatta di nuovo",
   "photoCaptionHint": "Aggiungi una didascalia",
   "photoNoCamera": "Su questo dispositivo non c'è una fotocamera che Privio possa aprire.",
@@ -1210,10 +1216,22 @@
   "photoOpenSettings": "Apri le impostazioni",
   "photoSettingsFailed": "Non è stato possibile aprire le impostazioni. Aprile tu e consentilo a Privio.",
   "photoFailed": "Non è stato possibile aprire la fotocamera: {detail}",
-  "@photoFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@photoFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "photoNoneReadable": "Privio non è riuscito a leggere nessuna di quelle immagini.",
   "photoSomeLeftOut": "{count} delle immagini non si sono potute leggere e sono state escluse.",
-  "@photoSomeLeftOut": {"placeholders": {"count": {"type": "int"}}},
+  "@photoSomeLeftOut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "photoStateSending": "Invio in corso",
   "photoStateQueued": "In attesa di una rete",
   "photoStateSent": "Inviata",
@@ -1226,9 +1244,21 @@
   "securityEventADevice": "un dispositivo",
   "securityEventAContact": "un contatto",
   "securityEventDeviceAdded": "Nuovo dispositivo collegato: {name}",
-  "@securityEventDeviceAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventDeviceRemoved": "Dispositivo disconnesso: {name}",
-  "@securityEventDeviceRemoved": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventDeviceRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventPasswordChanged": "Password cambiata",
   "securityEventTwoFactorOn": "Autenticazione a due fattori attivata",
   "securityEventTwoFactorOff": "Autenticazione a due fattori disattivata",
@@ -1238,11 +1268,29 @@
   "securityEventProxyOn": "Connessione tramite il proxy SOCKS5",
   "securityEventProxyOff": "Proxy disattivato — connessione diretta",
   "securityEventKeyChanged": "Il codice di sicurezza di {name} è cambiato",
-  "@securityEventKeyChanged": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventKeyChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventContactVerified": "{name} verificato",
-  "@securityEventContactVerified": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventContactVerified": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventVerificationCleared": "Verifica di {name} ritirata",
-  "@securityEventVerificationCleared": {"placeholders": {"name": {"type": "String"}}},
+  "@securityEventVerificationCleared": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "securityEventScreenLock": "Blocco schermo modificato",
   "securityEventDuressCode": "Codice di emergenza modificato",
   "safetyScanTheirs": "Fotografa il suo codice",
@@ -1253,7 +1301,13 @@
   "privacyBlockOnKeyChange": "Sospendi le chat dopo un cambio di chiave",
   "privacyBlockOnKeyChangeNote": "Se il codice di sicurezza di un contatto cambia, sospendi la chat finché non hai confrontato quello nuovo. L’invio viene comunque rifiutato con una chiave cambiata.",
   "chatHeldByKeyChange": "Il codice di sicurezza di {name} è cambiato. Questa chat è sospesa finché non confronti quello nuovo.",
-  "@chatHeldByKeyChange": {"placeholders": {"name": {"type": "String"}}},
+  "@chatHeldByKeyChange": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "chatHeldCompareNow": "Confrontalo ora",
   "privacyDashboardRow": "Pannello privacy",
   "privacyDashboardTitle": "Pannello privacy",
@@ -1282,5 +1336,45 @@
   "privacyDashboardProxyDirect": "Diretta",
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Il contenuto è cifrato; che un messaggio sia partito da te verso qualcuno, e quando, non lo è. Il server di Privio lo vede perché deve consegnarlo.",
-  "privacyOverview": "Panoramica"
+  "privacyOverview": "Panoramica",
+  "profileContactAdded": "Aggiunto ai contatti",
+  "profileCouldNotAddContact": "Impossibile aggiungere questo contatto",
+  "profileReport": "Segnala questo account",
+  "profileReportTitle": "Segnala {name}",
+  "profileReportBody": "Alla moderazione arriva il motivo e nient’altro. Il server di Privio non ha mai i vostri messaggi in chiaro, quindi non si può allegare nulla di scritto.",
+  "profileReported": "Segnalazione inviata",
+  "profileAlreadyReported": "La tua segnalazione precedente su questo account è ancora agli atti",
+  "profileCouldNotReport": "Impossibile inviare la segnalazione",
+  "contactMatchNow": "Confronta i contatti ora",
+  "contactMatchRunning": "Confronto in corso…",
+  "contactMatchNobody": "Nessuno della tua rubrica è ancora su Privio, oppure non ha attivato la reperibilità tramite numero.",
+  "contactMatchFound": "{count, plural, =1{1 contatto su Privio} other{{count} contatti su Privio}}",
+  "contactMatchNote": "La tua rubrica è rimasta su questo dispositivo. Ogni numero è stato trasformato qui in un hash con chiave e sono stati confrontati solo gli hash; non è stato caricato né conservato nulla.",
+  "contactMatchUnsupported": "Questa versione non può leggere la rubrica. Puoi comunque aggiungere qualcuno tramite ID Privio, link d’invito o codice QR.",
+  "savedTitle": "Salvati",
+  "savedAccountRow": "Salvati",
+  "savedChatSubtitle": "Lo vedi solo tu",
+  "savedEmptyTitle": "Non hai ancora salvato nulla",
+  "savedEmptyBody": "Note, immagini, file e messaggi vocali solo per te. Nessun altro li vede, nemmeno il server di Privio, che conserva soltanto ciò che i tuoi dispositivi hanno sigillato.",
+  "savedComposerHint": "Scrivi una nota…",
+  "savedSaveAction": "Salva nei Salvati",
+  "savedSaved": "Salvato",
+  "savedWaitingToSync": "Salvato qui: in attesa degli altri tuoi dispositivi",
+  "savedDisappearingRefused": "Questo messaggio scompare, quindi non può essere salvato. Conservarne una copia annullerebbe ciò che è stato promesso a chi lo ha inviato.",
+  "savedNothingToSave": "In questo messaggio non c’è nulla da salvare.",
+  "savedCouldNotSave": "Impossibile salvare",
+  "savedPin": "Fissa",
+  "savedUnpin": "Togli",
+  "savedPinnedSection": "Fissati",
+  "savedDeleteOne": "Elimina questa voce",
+  "savedDeleteMany": "{count, plural, =1{Elimina 1 voce} other{Elimina {count} voci}}",
+  "savedDeleteBody": "Viene rimossa da questo dispositivo e dagli altri tuoi dispositivi. Non è reversibile.",
+  "savedSelected": "{count, plural, =1{1 selezionata} other{{count} selezionate}}",
+  "savedSearchHint": "Cerca fra note, didascalie e nomi di file",
+  "savedSearchNothing": "Nessuna corrispondenza",
+  "savedMediaRow": "Media e file",
+  "savedMediaEmpty": "Nessuna immagine o file salvato",
+  "savedInfoTitle": "Informazioni su Salvati",
+  "savedKeptForever": "Resta finché non lo elimini",
+  "savedNoTimerNote": "Il timer dei messaggi che scompaiono delle tue chat non vale qui. Salvati conserva ciò che ci metti finché non lo rimuovi."
 }

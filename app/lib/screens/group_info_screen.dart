@@ -13,6 +13,7 @@ import '../widgets/avatar.dart';
 import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
+import 'contact_profile_screen.dart';
 
 /// Who is in a group, and the way out of it.
 ///
@@ -300,6 +301,18 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                                 onPressed: () => unawaited(_confirmRemove(state, member)),
                               )
                             : null,
+                        // The other way into a member's profile, for somebody
+                        // who came here to find out who is in the group rather
+                        // than arriving at a message they wanted to trace.
+                        onTap: () => unawaited(
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ContactProfileScreen(
+                                accountId: member.accountId,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),

@@ -11,6 +11,12 @@ export async function runRetentionSweep(storage: BlobStorage): Promise<{
   const { rows } = await pool.query<{ storage_key: string }>(
     `DELETE FROM media_objects
      WHERE expires_at <= now()
+       -- Something its owner put in their own Saved area. The server's copy is
+       -- what their *other* device fetches, possibly months later, so sweeping
+       -- it would turn a saved photo into a broken placeholder on the phone
+       -- that had not downloaded it yet. Released the moment the entry is
+       -- deleted: see the retain routes in routes/media.ts. Migration 034.
+       AND retained_at IS NULL
        -- An avatar is not a message attachment: it stays as long as it is
        -- someone's picture, and the sweep must not quietly blank profiles.
        AND NOT EXISTS (SELECT 1 FROM accounts a WHERE a.avatar_media_id = media_objects.id)

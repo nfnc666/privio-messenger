@@ -51,6 +51,92 @@ describe('media and backup', () => {
     assert.ok(!rows[0]!.download_token_hash!.toString('utf8').includes(token));
   });
 
+  it('a retained attachment survives the sweep, and is still downloadable', async () => {
+    // The whole point of retention: the server's copy is what a *second*
+    // device fetches, so a saved photo must not become a broken placeholder.
+    const upload = await octet(Buffer.from('a saved picture'), alice, '/v1/media', 'POST');
+    const { id } = upload.json();
+
+    const retained = await h.app.inject({
+      method: 'POST',
+      url: `/v1/media/${id}/retain`,
+      headers: bearer(alice),
+    });
+    assert.equal(retained.statusCode, 200);
+
+    // Push its ordinary expiry into the past, which is what the sweep looks at.
+    await pool.query("UPDATE media_objects SET expires_at = now() - interval '1 day' WHERE id = $1", [id]);
+    await runRetentionSweep(h.storage);
+
+    const { rowCount } = await pool.query('SELECT 1 FROM media_objects WHERE id = $1', [id]);
+    assert.equal(rowCount, 1, 'the sweep took a retained object');
+
+    // And the download still works. Keeping the row while the route hid it
+    // behind `expires_at > now()` would be the worst of both.
+    const download = await h.app.inject({
+      method: 'GET',
+      url: `/v1/media/${id}`,
+      headers: bearer(alice),
+    });
+    assert.equal(download.statusCode, 200);
+    assert.deepEqual(download.rawPayload, Buffer.from('a saved picture'));
+  });
+
+  it('releasing it lets the ordinary retention have it back', async () => {
+    const upload = await octet(Buffer.from('saved then unsaved'), alice, '/v1/media', 'POST');
+    const { id } = upload.json();
+    await h.app.inject({ method: 'POST', url: `/v1/media/${id}/retain`, headers: bearer(alice) });
+    await h.app.inject({ method: 'DELETE', url: `/v1/media/${id}/retain`, headers: bearer(alice) });
+
+    await pool.query("UPDATE media_objects SET expires_at = now() - interval '1 day' WHERE id = $1", [id]);
+    await runRetentionSweep(h.storage);
+
+    const { rowCount } = await pool.query('SELECT 1 FROM media_objects WHERE id = $1', [id]);
+    assert.equal(rowCount, 0, 'a released object is an ordinary attachment again');
+  });
+
+  it('only the owner may retain — a direct API call from anybody else is 404', async () => {
+    // Asserted against the route rather than against the client, because the
+    // client is not what an attacker would use.
+    const mallory = await registerUser(h.app, 'retainthief');
+    const upload = await octet(Buffer.from('mine'), alice, '/v1/media', 'POST');
+    const { id } = upload.json();
+
+    const theirs = await h.app.inject({
+      method: 'POST',
+      url: `/v1/media/${id}/retain`,
+      headers: bearer(mallory),
+    });
+    // The same answer as for an id that does not exist: telling the two apart
+    // would say whether it does.
+    assert.equal(theirs.statusCode, 404);
+
+    const release = await h.app.inject({
+      method: 'DELETE',
+      url: `/v1/media/${id}/retain`,
+      headers: bearer(mallory),
+    });
+    assert.equal(release.statusCode, 404);
+
+    const { rows } = await pool.query<{ retained_at: Date | null }>(
+      'SELECT retained_at FROM media_objects WHERE id = $1',
+      [id],
+    );
+    assert.equal(rows[0]!.retained_at, null, 'somebody else changed retention');
+  });
+
+  it('retaining twice is retaining once', async () => {
+    const upload = await octet(Buffer.from('idempotent'), alice, '/v1/media', 'POST');
+    const { id } = upload.json();
+    const first = await h.app.inject({ method: 'POST', url: `/v1/media/${id}/retain`, headers: bearer(alice) });
+    const second = await h.app.inject({ method: 'POST', url: `/v1/media/${id}/retain`, headers: bearer(alice) });
+
+    assert.equal(second.statusCode, 200);
+    // The moment it was first kept, not the moment of the retry: a client that
+    // loses its answer and tries again must not move the record.
+    assert.equal(first.json().retainedAt, second.json().retainedAt);
+  });
+
   it('another account cannot fetch an attachment without the token', async () => {
     const mallory = await registerUser(h.app, 'nosy');
     const upload = await octet(Buffer.from('not for you'), alice, '/v1/media', 'POST');

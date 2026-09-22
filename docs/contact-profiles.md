@@ -26,9 +26,30 @@ are account-scoped API operations. Removing or blocking here does not delete cha
 - No edit actions appear in this read-only screen, including for another user.
 - There is currently no separate account biography field in PRIVIO. The existing
   permitted status is displayed; no invented biography is added.
-- Existing reporting supports **channels only**. This change does not introduce
-  a nonfunctional user-report button or repurpose channel reports. User reporting
-  needs a separate server/moderation workflow and remains outside this patch.
+- Reporting an account is its own workflow, added on top of this screen rather
+  than borrowed from channels — see below.
+
+## Reporting an account
+
+The profile's last action files a report. It is deliberately **not** blocking:
+the two are offered together and somebody may well want both, but a report that
+silently blocked would turn an accusation into a change to your own account, and
+a block that silently reported would send your address book to a moderator.
+
+What a report can carry is limited by what the server knows, which is nothing
+about what anybody said. There is no message to attach, because the server never
+held one in the clear — so the sheet says that before the reasons rather than
+after the fact, and the reasons themselves are a fixed list of five words.
+A free-text box is where somebody pastes the message they are reporting, which
+is the one thing that must never reach a column the server can read.
+
+`POST /v1/users/:id/report` takes that reason, writes one row per
+(reported account, reporter) — the primary key is what makes a second complaint
+about the same person a no-op rather than a second entry — and answers whether
+this one was already on file, which is the difference between "filed" and "your
+earlier report is still on file". Migration `033_account_reports.sql` adds the
+table; `GET /v1/admin/reports/accounts` is where a moderator sees the counts,
+and `admin-panel.md` states what those counts are and are not.
 
 ## Deployment
 
@@ -45,6 +66,15 @@ Executed locally:
 - `node --test tools/contact-profile.test.mjs`: source/localization checks only;
   these are not Flutter behavior tests.
 - `git diff --check`.
+
+Executed when this branch merged `main` (a Flutter SDK and a PostgreSQL were
+available there):
+
+- `flutter analyze`, the whole `flutter test` suite, and the server suite
+  including `contact_profile.test.ts`.
+- The report route is covered by `server/test/contacts.test.ts`: the fixed
+  reason set, the second report as a no-op, and one account's report being
+  invisible to another.
 
 Added but not executed here:
 

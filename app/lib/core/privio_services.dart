@@ -6,6 +6,7 @@ import '../calls/ice_servers.dart';
 import '../calls/webrtc_call_peer.dart';
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
+import '../contacts/address_book.dart';
 import '../crypto/safety_number.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
@@ -35,12 +36,14 @@ class PrivioServices {
     required this.recorder,
     required this.player,
     PhotoSource? photos,
+    AddressBook? addressBook,
     required this.backup,
     required this.store,
     required this.secureStore,
     MessageArchive? archive,
     SecurityLog? securityLog,
   })  : photos = photos ?? const NoPhotoSource(),
+        addressBook = addressBook ?? const NoAddressBook(),
         securityLog = securityLog ?? const NoSecurityLog(),
         archive = archive ?? const NoArchive() {
     // Assembled here rather than in the initialiser list because it is built
@@ -100,6 +103,7 @@ class PrivioServices {
       recorder: PluginVoiceRecorder(),
       player: JustAudioVoicePlayer(),
       photos: ImagePickerPhotoSource(),
+      addressBook: const ChannelAddressBook(),
       backup: BackupService(api: api, store: secure, messages: store),
       store: store,
       secureStore: secure,
@@ -143,6 +147,16 @@ class PrivioServices {
   /// build machine. Defaults to the one that answers "no camera here", so a
   /// test that does not care never touches a plugin.
   final PhotoSource photos;
+
+  /// The device's address book, behind an interface, and **defaulting to the
+  /// one that reads nothing**.
+  ///
+  /// The default matters more here than it does for the camera: a test that
+  /// never mentions contacts must not be able to touch an address book by
+  /// accident, and neither must any screen that was not written to. The only
+  /// thing that ever calls this is the contact-matching button, after the
+  /// account's own consent is already on.
+  final AddressBook addressBook;
 
   /// The local, sealed security activity log. Defaults to the one that keeps
   /// nothing, so a test that does not care about it never writes a keystore

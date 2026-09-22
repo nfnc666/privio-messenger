@@ -6,23 +6,29 @@ import 'app_localizations.dart';
 
 /// The translations for English (`en`).
 class AppTextEn extends AppText {
+  AppTextEn([String locale = 'en']) : super(locale);
+
   @override
-  String get accountPhoneNote => 'Optional information. Your phone number is not verified and is not used for automatic contact discovery.';
+  String get accountPhoneNote =>
+      'Optional information. Your phone number is not verified and is not used for automatic contact discovery.';
 
   @override
   String get accountPhoneUnverified => 'Unverified — not proof of identity';
 
   @override
-  String get accountPhoneVerifiedSeparate => 'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.';
+  String get accountPhoneVerifiedSeparate =>
+      'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.';
 
   @override
-  String get accountPhoneSaveError => 'Could not load or save the phone number. Please try again.';
+  String get accountPhoneSaveError =>
+      'Could not load or save the phone number. Please try again.';
 
   @override
   String get accountPhoneSaved => 'Saved';
 
   @override
-  String get accountPhoneSessionEnded => 'Your account session has changed. Open this setting again from your account.';
+  String get accountPhoneSessionEnded =>
+      'Your account session has changed. Open this setting again from your account.';
 
   @override
   String get contactProfileTitle => 'Contact profile';
@@ -34,21 +40,23 @@ class AppTextEn extends AppText {
   String get contactProfileRemove => 'Remove contact';
 
   @override
-  String get contactProfileMissing => 'This account no longer exists or is unavailable.';
+  String get contactProfileMissing =>
+      'This account no longer exists or is unavailable.';
 
   @override
-  String get contactProfileError => 'Could not load or update this profile. Please try again.';
+  String get contactProfileError =>
+      'Could not load or update this profile. Please try again.';
 
   @override
-  String get contactProfileSessionEnded => 'This session has ended. Open the profile again from your account.';
+  String get contactProfileSessionEnded =>
+      'This session has ended. Open the profile again from your account.';
 
   @override
-  String get contactProfileBlockNote => 'You will no longer receive messages from this person. Your chat history stays on this device.';
+  String get contactProfileBlockNote =>
+      'You will no longer receive messages from this person. Your chat history stays on this device.';
 
   @override
   String get contactProfileYou => 'You';
-
-  AppTextEn([String locale = 'en']) : super(locale);
 
   @override
   String get proxyTitle => 'SOCKS5 proxy';
@@ -4507,4 +4515,160 @@ class AppTextEn extends AppText {
 
   @override
   String get privacyOverview => 'Overview';
+
+  @override
+  String get profileContactAdded => 'Added to contacts';
+
+  @override
+  String get profileCouldNotAddContact => 'Could not add this contact';
+
+  @override
+  String get profileReport => 'Report this account';
+
+  @override
+  String profileReportTitle(String name) {
+    return 'Report $name';
+  }
+
+  @override
+  String get profileReportBody =>
+      'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.';
+
+  @override
+  String get profileReported => 'Report filed';
+
+  @override
+  String get profileAlreadyReported =>
+      'Your earlier report about this account is still on file';
+
+  @override
+  String get profileCouldNotReport => 'Could not file the report';
+
+  @override
+  String get contactMatchNow => 'Match my contacts now';
+
+  @override
+  String get contactMatchRunning => 'Matching…';
+
+  @override
+  String get contactMatchNobody =>
+      'Nobody in your address book is on Privio yet, or they have not switched on being found by their number.';
+
+  @override
+  String contactMatchFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count contacts on Privio',
+      one: '1 contact on Privio',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get contactMatchNote =>
+      'Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.';
+
+  @override
+  String get contactMatchUnsupported =>
+      'This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.';
+
+  @override
+  String get savedTitle => 'Saved';
+
+  @override
+  String get savedAccountRow => 'Saved';
+
+  @override
+  String get savedChatSubtitle => 'Only you can see this';
+
+  @override
+  String get savedEmptyTitle => 'Nothing saved yet';
+
+  @override
+  String get savedEmptyBody =>
+      'Notes, pictures, files and voice messages you keep for yourself. Nobody else can see this — not even Privio\'s server, which holds only what your own devices have sealed.';
+
+  @override
+  String get savedComposerHint => 'Write a note …';
+
+  @override
+  String get savedSaveAction => 'Save to Saved';
+
+  @override
+  String get savedSaved => 'Saved';
+
+  @override
+  String get savedWaitingToSync =>
+      'Saved here — waiting to reach your other devices';
+
+  @override
+  String get savedDisappearingRefused =>
+      'This message disappears, so it cannot be saved. Keeping a copy would undo what the sender was promised.';
+
+  @override
+  String get savedNothingToSave => 'There is nothing in this message to save.';
+
+  @override
+  String get savedCouldNotSave => 'Could not save this';
+
+  @override
+  String get savedPin => 'Pin';
+
+  @override
+  String get savedUnpin => 'Unpin';
+
+  @override
+  String get savedPinnedSection => 'Pinned';
+
+  @override
+  String get savedDeleteOne => 'Delete this entry';
+
+  @override
+  String savedDeleteMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count entries',
+      one: 'Delete 1 entry',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedDeleteBody =>
+      'It is removed from this device and from your other devices. This cannot be undone.';
+
+  @override
+  String savedSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get savedSearchHint => 'Search notes, captions and file names';
+
+  @override
+  String get savedSearchNothing => 'Nothing matches that';
+
+  @override
+  String get savedMediaRow => 'Media and files';
+
+  @override
+  String get savedMediaEmpty => 'No pictures or files saved yet';
+
+  @override
+  String get savedInfoTitle => 'About Saved';
+
+  @override
+  String get savedKeptForever => 'Kept until you delete it';
+
+  @override
+  String get savedNoTimerNote =>
+      'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.';
 }

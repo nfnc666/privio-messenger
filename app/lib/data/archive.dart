@@ -394,6 +394,9 @@ abstract final class ArchiveCodec {
                   // The event behind a system notice, so a restored archive
                   // still renders it in whatever language the reader is in
                   // now — rather than in the one it was written in.
+                  // Without this a pinned note comes back unpinned after a
+                  // restart, which is the one thing pinning promises not to do.
+                  if (message.pinned) 'pinned': true,
                   if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
@@ -484,6 +487,7 @@ abstract final class ArchiveCodec {
             replyToId: message['replyToId'] as String?,
             replyPreview: message['replyPreview'] as String?,
             replySender: message['replySender'] as String?,
+            pinned: message['pinned'] as bool? ?? false,
             notice: SystemNotice.fromJson(message['notice'] as Map<String, dynamic>?),
             reactions: (message['reactions'] as Map<String, dynamic>? ?? const {})
                 .map((key, value) => MapEntry(key, value as String)),
