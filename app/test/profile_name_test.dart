@@ -69,8 +69,8 @@ void main() {
       expect(cleanDisplayName('  Jörg 🌲 Müller  '), 'Jörg 🌲 Müller');
       // A right-to-left override reorders the line it is drawn in, including
       // the @username beside it.
-      expect(cleanDisplayName('Ada‮ Lovelace'), 'Ada Lovelace');
-      expect(cleanDisplayName('pad​​ding'), 'padding');
+      expect(cleanDisplayName('Ada\u202E Lovelace'), 'Ada Lovelace');
+      expect(cleanDisplayName('pad\u200B\u200Bding'), 'padding');
       // But the joiners that hold an emoji together stay: removing those
       // would misspell the name rather than clean it.
       expect(cleanDisplayName('👩‍🚀'), '👩‍🚀');

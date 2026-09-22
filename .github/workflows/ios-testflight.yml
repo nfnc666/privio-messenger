@@ -450,20 +450,117 @@ jobs:
       # install, which is a decision and not a side effect.
       - name: Upload to TestFlight
         if: inputs.upload == 'yes'
+        # A ceiling under the job's own. `altool` retries a failing gateway by
+        # itself and does not stop: run 56 sat in this step for 72 minutes
+        # against an App Store Connect that was answering HTML "Bad Gateway",
+        # and what ended it was the job timeout — after the build had already
+        # succeeded and the .ipa was already in the artifacts. Failing here at
+        # 40 minutes costs the same information and half an hour less of a
+        # macOS runner.
+        timeout-minutes: 40
         env:
           ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           IPA="$(ls "$RUNNER_TEMP"/ipa/*.ipa | head -n 1)"
           echo "Uploading $(basename "$IPA") to App Store Connect."
+
+          # macOS has no `timeout(1)`, so this is one: run it, watch it, and
+          # end it if it is still going after `seconds`. 124 is what GNU
+          # `timeout` returns for the same case, and the loop below reads it.
+          run_bounded() {
+            local seconds="$1"; shift
+            "$@" & local pid=$!
+            local waited=0
+            while kill -0 "$pid" 2>/dev/null; do
+              if [ "$waited" -ge "$seconds" ]; then
+                echo "No answer after $((seconds / 60)) minutes; giving up on this attempt."
+                kill -TERM "$pid" 2>/dev/null || true
+                sleep 5
+                kill -KILL "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+                return 124
+              fi
+              sleep 5
+              waited=$((waited + 5))
+            done
+            wait "$pid"
+          }
+
+          # Whether the log is Apple's gateway failing rather than this build
+          # being wrong. An HTML body is the giveaway: the API answers JSON,
+          # and a proxy in front of it answers a page.
+          gateway_failure() {
+            grep -qiE 'bad gateway|service unavailable|<html|502|503|504' "$1"
+          }
+
+          # Whether Apple already has this exact binary. A gateway error can
+          # arrive *after* the upload was accepted, and the retry then fails
+          # for the opposite reason — which is not a failure to report.
+          already_there() {
+            grep -qiE 'ITMS-4238|redundant binary|already been used|already exists' "$1"
+          }
+
+          attempt_altool() {
+            local what="$1" log="$2"
+            run_bounded 900 xcrun altool "$what" --type ios --file "$IPA" \
+              --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" >"$log" 2>&1
+          }
+
           # Validation first: it catches a missing icon, a bad entitlement or a
           # build number Apple has already seen, before the upload rather than
-          # in an email twenty minutes later.
-          xcrun altool --validate-app --type ios --file "$IPA" \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          xcrun altool --upload-app --type ios --file "$IPA" \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          # in an email twenty minutes later. Same bounded attempt, because it
+          # talks to the same gateway.
+          validate_log="$RUNNER_TEMP/altool-validate.log"
+          if ! attempt_altool --validate-app "$validate_log"; then
+            cat "$validate_log"
+            if gateway_failure "$validate_log"; then
+              echo "::error::App Store Connect did not answer the validation request (gateway error on Apple's side). The .ipa is built and is in this run's artifacts — nothing here needs rebuilding. See docs/ios-testflight.md."
+            else
+              echo "::error::Apple refused this build at validation. The log above says why."
+            fi
+            exit 1
+          fi
+          cat "$validate_log"
+
+          # Three attempts with a widening pause, and only for a gateway that
+          # is not answering. Anything Apple says about *this build* is an
+          # answer, and repeating the question does not change it.
+          uploaded=no
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/altool-upload-$attempt.log"
+            echo "Upload attempt $attempt of 3."
+            if attempt_altool --upload-app "$log"; then
+              cat "$log"
+              uploaded=yes
+              break
+            fi
+            cat "$log"
+
+            if already_there "$log"; then
+              echo "::notice::App Store Connect already has this build — an earlier attempt got through before the connection broke."
+              uploaded=yes
+              break
+            fi
+
+            if ! gateway_failure "$log"; then
+              echo "::error::Apple refused the upload. The log above says why; a retry would be refused the same way."
+              exit 1
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              pause=$((attempt * 120))
+              echo "Apple's gateway is not answering. Waiting ${pause}s before the next attempt."
+              sleep "$pause"
+            fi
+          done
+
+          if [ "$uploaded" != yes ]; then
+            echo "::error::Three attempts, and App Store Connect never answered — this is an outage on Apple's side, not a problem with the build. The signed .ipa is in this run's artifacts and can be uploaded later without rebuilding: see docs/ios-testflight.md. Check https://developer.apple.com/system-status/ before starting another run."
+            exit 1
+          fi
+
           echo "::notice::Uploaded. App Store Connect still has to finish processing, and TestFlight will ask about export compliance before internal testers can install it."
 
       # Runs whatever happened above, including a cancelled run: a private key
