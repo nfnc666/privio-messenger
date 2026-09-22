@@ -7759,42 +7759,6 @@ abstract class AppText {
   /// **'Could not add this contact'**
   String get profileCouldNotAddContact;
 
-  /// No description provided for @profileReport.
-  ///
-  /// In en, this message translates to:
-  /// **'Report this account'**
-  String get profileReport;
-
-  /// No description provided for @profileReportTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Report {name}'**
-  String profileReportTitle(String name);
-
-  /// No description provided for @profileReportBody.
-  ///
-  /// In en, this message translates to:
-  /// **'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.'**
-  String get profileReportBody;
-
-  /// No description provided for @profileReported.
-  ///
-  /// In en, this message translates to:
-  /// **'Report filed'**
-  String get profileReported;
-
-  /// No description provided for @profileAlreadyReported.
-  ///
-  /// In en, this message translates to:
-  /// **'Your earlier report about this account is still on file'**
-  String get profileAlreadyReported;
-
-  /// No description provided for @profileCouldNotReport.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not file the report'**
-  String get profileCouldNotReport;
-
   /// No description provided for @contactMatchNow.
   ///
   /// In en, this message translates to:

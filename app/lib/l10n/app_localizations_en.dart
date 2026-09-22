@@ -4523,28 +4523,6 @@ class AppTextEn extends AppText {
   String get profileCouldNotAddContact => 'Could not add this contact';
 
   @override
-  String get profileReport => 'Report this account';
-
-  @override
-  String profileReportTitle(String name) {
-    return 'Report $name';
-  }
-
-  @override
-  String get profileReportBody =>
-      'A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.';
-
-  @override
-  String get profileReported => 'Report filed';
-
-  @override
-  String get profileAlreadyReported =>
-      'Your earlier report about this account is still on file';
-
-  @override
-  String get profileCouldNotReport => 'Could not file the report';
-
-  @override
   String get contactMatchNow => 'Match my contacts now';
 
   @override

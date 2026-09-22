@@ -137,28 +137,23 @@ channel back in the queue for a decision already made. Clearing a channel does
 not delete the reports — somebody did report it, and the next operator deserves
 to know it was judged fine before.
 
-## Reports about people
+## Reports about people — there are none
 
-`GET /v1/admin/reports/accounts`, grouped per account, with counts per reason —
-the same shape as the channel queue and for the same reason: ten reports are one
-thing to look at.
+**Only channels can be reported.** There is no endpoint that files a report
+about an account and no screen that offers one, so this panel has no queue for
+people and the `account_reports` table stays empty.
 
-It is **read-only, and thinner than the channel queue on purpose**. A channel
-has a public title and description an operator can read before deciding. An
-account has a username and nothing else the server may look at, and there is no
-message history to quote because the server never held one in the clear. What
-this answers is how many people reported somebody and on what grounds. That is a
-signal, not evidence, and it is worth showing only as long as nobody mistakes it
-for the second thing.
+It existed briefly. It was removed because a report about a person in an
+end-to-end encrypted messenger carries almost nothing: a channel has a public
+title and description an operator can read before deciding, while an account
+has a username and nothing else the server may look at — no message history to
+quote, because the server never held one in the clear. A queue that shows only
+how many people complained is a signal, not evidence, and a panel that displays
+it invites being read as the second thing.
 
-There is deliberately **no suspend to go with it**. Suspending a channel removes
-things the server controls — a listing, a handle, an invite code. What
-suspending a *person* would mean for conversations the server cannot read is a
-design decision, not a query, and shipping a button before making it would be
-the kind of moderation that looks like an action and is not one.
-
-See [`contact-profiles.md`](contact-profiles.md) for what a reporter is told
-before they pick a reason.
+The table itself is left in place: migration 033 has been applied, and dropping
+an applied table to tidy up is how a rollback loses rows. `schema.test.ts` still
+declares its one readable column, now with the note that nothing writes it.
 
 ## The audit log
 

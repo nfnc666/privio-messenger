@@ -237,69 +237,6 @@ describe('contacts and privacy', () => {
     assert.ok(!keys.some((key) => /phone/i.test(key)), `phone leaked into ${keys.join(', ')}`);
   });
 
-  it('files one standing report per person and says when there already was one', async () => {
-    const reporter = await registerUser(h.app, 'profilereporter');
-    const reported = await registerUser(h.app, 'profilereported');
-
-    const filed = await h.app.inject({
-      method: 'POST',
-      url: `/v1/users/${reported.accountId}/report`,
-      headers: bearer(reporter),
-      payload: { reason: 'spam' },
-    });
-    assert.equal(filed.statusCode, 201);
-    assert.equal(filed.json().alreadyReported, false);
-
-    // Again: not an error, and not a second report either.
-    const again = await h.app.inject({
-      method: 'POST',
-      url: `/v1/users/${reported.accountId}/report`,
-      headers: bearer(reporter),
-      payload: { reason: 'abuse' },
-    });
-    assert.equal(again.statusCode, 200);
-    assert.equal(again.json().alreadyReported, true);
-
-    // Reporting does not block: the two are offered side by side on the
-    // profile screen and neither may quietly do the other.
-    const blocks = await h.app.inject({
-      method: 'GET',
-      url: '/v1/blocks',
-      headers: bearer(reporter),
-    });
-    assert.equal(blocks.json().blocked.length, 0);
-  });
-
-  it('refuses a report of yourself, of nobody, and with a reason it does not know', async () => {
-    const lone = await registerUser(h.app, 'profilelone');
-
-    const self = await h.app.inject({
-      method: 'POST',
-      url: `/v1/users/${lone.accountId}/report`,
-      headers: bearer(lone),
-      payload: { reason: 'spam' },
-    });
-    assert.equal(self.statusCode, 400);
-
-    const nobody = await h.app.inject({
-      method: 'POST',
-      url: '/v1/users/00000000-0000-4000-8000-000000000000/report',
-      headers: bearer(lone),
-      payload: { reason: 'spam' },
-    });
-    assert.equal(nobody.statusCode, 404);
-
-    // Free text is exactly what must not reach that column: it is where
-    // somebody pastes the message they are reporting.
-    const freeText = await h.app.inject({
-      method: 'POST',
-      url: `/v1/users/${alice.accountId}/report`,
-      headers: bearer(lone),
-      payload: { reason: 'they said something about my sister' },
-    });
-    assert.equal(freeText.statusCode, 400);
-  });
-
   it('resolves an account id to a profile, so an incoming message has a name', async () => {
     const byId = await h.app.inject({
       method: 'GET',

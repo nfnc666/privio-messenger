@@ -4568,28 +4568,6 @@ class AppTextDe extends AppText {
       'Kontakt konnte nicht hinzugefügt werden';
 
   @override
-  String get profileReport => 'Konto melden';
-
-  @override
-  String profileReportTitle(String name) {
-    return '$name melden';
-  }
-
-  @override
-  String get profileReportBody =>
-      'Die Moderation erfährt den Grund und sonst nichts. Der PRIVIO-Server hat deine Nachrichten nie im Klartext, deshalb kann nichts davon beigelegt werden.';
-
-  @override
-  String get profileReported => 'Meldung eingereicht';
-
-  @override
-  String get profileAlreadyReported =>
-      'Deine frühere Meldung zu diesem Konto liegt weiterhin vor';
-
-  @override
-  String get profileCouldNotReport => 'Meldung konnte nicht eingereicht werden';
-
-  @override
   String get contactMatchNow => 'Kontakte jetzt abgleichen';
 
   @override

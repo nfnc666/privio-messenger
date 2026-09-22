@@ -2175,19 +2175,6 @@
   "privacyOverview": "Overview",
   "profileContactAdded": "Added to contacts",
   "profileCouldNotAddContact": "Could not add this contact",
-  "profileReport": "Report this account",
-  "profileReportTitle": "Report {name}",
-  "@profileReportTitle": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "profileReportBody": "A moderator is told the reason and nothing else. Privio’s server never holds your messages, so nothing either of you wrote can be attached.",
-  "profileReported": "Report filed",
-  "profileAlreadyReported": "Your earlier report about this account is still on file",
-  "profileCouldNotReport": "Could not file the report",
   "contactMatchNow": "Match my contacts now",
   "contactMatchRunning": "Matching…",
   "contactMatchNobody": "Nobody in your address book is on Privio yet, or they have not switched on being found by their number.",

@@ -4557,28 +4557,6 @@ class AppTextEs extends AppText {
   String get profileCouldNotAddContact => 'No se pudo añadir este contacto';
 
   @override
-  String get profileReport => 'Denunciar esta cuenta';
-
-  @override
-  String profileReportTitle(String name) {
-    return 'Denunciar a $name';
-  }
-
-  @override
-  String get profileReportBody =>
-      'La moderación conoce el motivo y nada más. El servidor de Privio nunca guarda vuestros mensajes, así que no se puede adjuntar nada de lo escrito.';
-
-  @override
-  String get profileReported => 'Denuncia enviada';
-
-  @override
-  String get profileAlreadyReported =>
-      'Tu denuncia anterior sobre esta cuenta sigue registrada';
-
-  @override
-  String get profileCouldNotReport => 'No se pudo enviar la denuncia';
-
-  @override
   String get contactMatchNow => 'Cotejar mis contactos ahora';
 
   @override

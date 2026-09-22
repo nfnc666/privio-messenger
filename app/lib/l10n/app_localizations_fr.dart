@@ -4567,28 +4567,6 @@ class AppTextFr extends AppText {
   String get profileCouldNotAddContact => 'Impossible d’ajouter ce contact';
 
   @override
-  String get profileReport => 'Signaler ce compte';
-
-  @override
-  String profileReportTitle(String name) {
-    return 'Signaler $name';
-  }
-
-  @override
-  String get profileReportBody =>
-      'La modération apprend le motif et rien d’autre. Le serveur de Privio n’a jamais vos messages en clair : rien de ce qui a été écrit ne peut être joint.';
-
-  @override
-  String get profileReported => 'Signalement envoyé';
-
-  @override
-  String get profileAlreadyReported =>
-      'Votre signalement précédent concernant ce compte est toujours enregistré';
-
-  @override
-  String get profileCouldNotReport => 'Impossible d’envoyer le signalement';
-
-  @override
   String get contactMatchNow => 'Comparer mes contacts maintenant';
 
   @override

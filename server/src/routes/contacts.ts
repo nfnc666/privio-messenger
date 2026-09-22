@@ -207,65 +207,6 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
     return { removed: true };
   });
 
-  /**
-   * Report an account.
-   *
-   * What this can carry is limited by what the server knows, which is nothing
-   * about what anybody said: there is no message to attach, because the server
-   * never held one in the clear. A report is therefore a reason and a reporter,
-   * and `docs/moderation.md` states that rather than leaving a reviewer to
-   * assume evidence that does not exist.
-   *
-   * Reporting is deliberately **not** blocking. The two are offered together on
-   * the profile screen and a user may well want both, but a report that
-   * silently blocked would make an accusation into a change to your own
-   * account, and a block that silently reported would send your address book to
-   * a moderator. Each does one thing.
-   *
-   * Rate-limited well below anything a person does by hand: the primary key
-   * already stops the same complaint twice, and this stops one account walking
-   * a list of ids.
-   */
-  app.post(
-    '/v1/users/:id/report',
-    {
-      ...requireAuth,
-      config: { rateLimit: { max: 20 * rateLimitFactor, timeWindow: '1 hour' } },
-    },
-    async (request, reply) => {
-      const { accountId } = auth(request);
-      const params = parse(z.object({ id: uuidSchema }), request.params);
-      const body = parse(
-        z.object({ reason: z.enum(['spam', 'abuse', 'illegal', 'impersonation', 'other']) }),
-        request.body,
-      );
-      if (params.id === accountId) {
-        throw ApiError.badRequest('self_report', 'You cannot report yourself');
-      }
-
-      const { rowCount } = await pool.query(
-        `INSERT INTO account_reports (account_id, reporter_id, reason)
-         SELECT $1, $2, $3 FROM accounts WHERE id = $1 AND deleted_at IS NULL
-         ON CONFLICT (account_id, reporter_id) DO NOTHING`,
-        [params.id, accountId, body.reason],
-      );
-      if (!rowCount) {
-        // Either there is no such account, or this reporter already has a
-        // standing report. Told apart, because the second is not a failure and
-        // the screen should say the report is already on file rather than
-        // pretending to have filed a new one.
-        const { rowCount: exists } = await pool.query(
-          'SELECT 1 FROM accounts WHERE id = $1 AND deleted_at IS NULL',
-          [params.id],
-        );
-        if (!exists) throw ApiError.notFound('user_not_found', 'No such user');
-        return { reported: true, alreadyReported: true };
-      }
-      reply.code(201);
-      return { reported: true, alreadyReported: false };
-    },
-  );
-
   app.get('/v1/blocks', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const { rows } = await pool.query(
