@@ -4724,4 +4724,73 @@ class AppTextIt extends AppText {
   @override
   String get savedNoTimerNote =>
       'Il timer dei messaggi che scompaiono delle tue chat non vale qui. Salvati conserva ciò che ci metti finché non lo rimuovi.';
+
+  @override
+  String get failureDisplayNameNotSaved =>
+      'Il tuo nome visualizzato non è stato salvato. Quello che hai scritto è ancora nel campo.';
+
+  @override
+  String get failureDisplayNameTooLong => 'Questo nome supera i 50 caratteri.';
+
+  @override
+  String get authDisplayNameHint => 'nome visualizzato (facoltativo)';
+
+  @override
+  String get authDisplayNamePurpose =>
+      'È il nome che vedono gli altri. Puoi cambiarlo quando vuoi.';
+
+  @override
+  String get authUsernamePermanent =>
+      'Il tuo nome utente non potrà essere cambiato in seguito. È così che gli altri ti trovano.';
+
+  @override
+  String get authUsernameChecking => 'Controllo in corso…';
+
+  @override
+  String authUsernameFree(String name) {
+    return '@$name è libero';
+  }
+
+  @override
+  String authUsernameTakenHint(String name) {
+    return '@$name è già preso';
+  }
+
+  @override
+  String get profileEditTitle => 'Modifica profilo';
+
+  @override
+  String get profileEditDisplayName => 'Nome visualizzato';
+
+  @override
+  String get profileEditDisplayNameHint => 'il nome che vedono gli altri';
+
+  @override
+  String profileEditEmptyNote(String name) {
+    return 'Lascia vuoto per essere mostrato come @$name.';
+  }
+
+  @override
+  String get profileEditUsernameNote =>
+      'Il tuo nome utente è stato scelto alla registrazione e resta invariato.';
+
+  @override
+  String get profileEditSaved => 'Nome visualizzato salvato';
+
+  @override
+  String get profileEditCopyUsername => 'Copia nome utente';
+
+  @override
+  String get profileEditUsernameCopied => 'Nome utente copiato';
+
+  @override
+  String profileEditRemaining(int count) {
+    return 'Restano $count caratteri';
+  }
+
+  @override
+  String get accountEditProfile => 'Modifica profilo';
+
+  @override
+  String get accountNoDisplayName => 'Nessun nome visualizzato';
 }

@@ -154,6 +154,19 @@ phone. See [`contact-profiles.md`](contact-profiles.md).
 | P8 | Tap the large picture: it opens full-screen and pinch-zooms. With no picture, the tap does nothing | Only a contact whose profile key has arrived has a picture at all | | | | not run | |
 | P9 | Report somebody, pick a reason, then report them again: the first says the report was filed, the second says the earlier one is still on file — and neither blocks them | Needs a second account; what a moderator sees is `admin-panel.md`, not the phone | | | | not run | |
 
+## 6b-2. Two names
+
+Covered by `app/test/profile_name_test.dart` and `server/test/names.test.ts`;
+none of it has been on a phone. See [`names.md`](names.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| N1 | Sign up: the username field says the name cannot be changed later, **before** the password is filled in, and a taken name is flagged when the field is left | Needs a name that is already registered | | | | not run | |
+| N2 | Sign up with a display name containing a space and an emoji typed from the system picker: it arrives intact in the other person's chat list | The system emoji picker is the part a widget test cannot reproduce | | | | not run | |
+| N3 | Account → Edit profile: change the display name, reopen the app, it is still changed; clear it, and the account is shown as @username again | | | | | not run | |
+| N4 | The username row copies to the clipboard and cannot be edited anywhere in the app | | | | | not run | |
+| N5 | Change the display name on one phone: the other device and a contact's device both show the new name, and the chat, its history and its safety number are unchanged | Needs two handsets and a second account | | | | not run | |
+
 ## 6c. Matching the address book
 
 Covered by `app/test/contact_match_test.dart` against a fake address book; the

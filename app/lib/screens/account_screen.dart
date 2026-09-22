@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/status_controller.dart';
@@ -14,6 +14,7 @@ import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/status_sheet.dart';
 import 'backup_screen.dart';
+import 'profile_edit_screen.dart';
 import 'account_phone_screen.dart';
 import 'chat_screen.dart';
 import 'invite_screen.dart';
@@ -72,6 +73,14 @@ class _AccountScreenState extends State<AccountScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _copyUsername(BuildContext context, String username) async {
+    await Clipboard.setData(ClipboardData(text: username));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppText.of(context).profileEditUsernameCopied)),
+    );
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -80,7 +89,10 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = AppText.of(context);
-    final username = PrivioScope.of(context).username ?? 'privio_user';
+    final username = PrivioScope.of(context).names.username ??
+        PrivioScope.of(context).username ??
+        'privio_user';
+    final names = PrivioScope.of(context).names;
     final accountId = PrivioScope.of(context).accountId;
     final ownAvatar = PrivioScope.of(context).conversations.ownAvatar;
 
@@ -110,7 +122,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   child: Stack(
                     children: [
                       PrivioAvatar(
-                        label: username,
+                        label: names.label.isEmpty ? username : names.label,
                         size: 88,
                         seed: 3,
                         imageBytes: ownAvatar,
@@ -144,7 +156,11 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.md),
-                Text(username, style: theme.textTheme.titleLarge),
+                // The display name is the name; the @username is the
+                // address. Drawing the username twice — as both — was what
+                // made them look like one thing.
+                Text(names.label.isEmpty ? username : names.label,
+                    style: theme.textTheme.titleLarge),
                 Text('@$username', style: theme.textTheme.bodySmall),
                 const SizedBox(height: PrivioSpacing.xs),
                 Text(
@@ -164,9 +180,30 @@ class _AccountScreenState extends State<AccountScreen> {
           SettingsSection(
             children: [
               SettingsRow(
+                icon: Icons.badge_outlined,
+                label: text.profileEditDisplayName,
+                // Nothing rather than a placeholder until the read comes
+                // back, and the honest words for "there is none" after it.
+                value: names.loaded
+                    ? (names.displayName ?? text.accountNoDisplayName)
+                    : null,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ProfileEditScreen()),
+                ),
+              ),
+              SettingsRow(
                 icon: Icons.alternate_email_rounded,
                 label: text.accountUsername,
                 value: username,
+                // Read-only, with the one thing there is to do with it. The
+                // row does not open anything: a username cannot be changed,
+                // and a tappable row would suggest it can.
+                trailing: IconButton(
+                  onPressed: () => unawaited(_copyUsername(context, username)),
+                  icon: const Icon(Icons.copy_rounded, size: 18),
+                  tooltip: text.profileEditCopyUsername,
+                  color: context.accents.accent,
+                ),
               ),
               // The row used to show `accountStatusDefault` — one hardcoded
               // English sentence, the same for every user, stored nowhere and

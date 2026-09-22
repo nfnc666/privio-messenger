@@ -28,6 +28,7 @@ import 'screen_shield_controller.dart';
 import 'bot_controller.dart';
 import 'phone_controller.dart';
 import 'sticker_controller.dart';
+import 'profile_name_controller.dart';
 import 'status_controller.dart';
 import 'locale_controller.dart';
 import 'secure_store.dart';
@@ -110,6 +111,7 @@ class AppState extends ChangeNotifier {
   LicenseController? _license;
   SecurityController? _security;
   StatusController? _profileStatus;
+  ProfileNameController? _names;
   StickerController? _stickers;
   SecurityEventController? _securityEvents;
   PhoneController? _phone;
@@ -297,6 +299,14 @@ class AppState extends ChangeNotifier {
   /// — this one on every sign-in, that one only when a settings screen opens.
   StatusController get profileStatus => _profileStatus ??= StatusController(services.api);
 
+  /// This account's own username and display name.
+  ///
+  /// Held here rather than made by the screen that edits them, because the
+  /// account screen, the edit screen and the sign-in path all need the same
+  /// answer — and because two screens each holding their own copy is how one
+  /// of them ends up showing a name the other has already changed.
+  ProfileNameController get names => _names ??= ProfileNameController(services.api);
+
   /// This account's sticker and custom-emoji packs.
   ///
   /// Held here rather than made by the picker, because the picker is not the
@@ -435,13 +445,33 @@ class AppState extends ChangeNotifier {
   // --- Authentication -------------------------------------------------------
 
   /// Registers a new account and this device's key material in one step.
-  Future<bool> register({required String username, required String password}) => _authenticate(
+  /// Creates the account. [displayName] is optional and separate from the
+  /// username on purpose: one of the two can be changed afterwards.
+  Future<bool> register({
+    required String username,
+    required String password,
+    String? displayName,
+  }) =>
+      _authenticate(
         () async => services.api.register(
           username: username,
           password: password,
+          displayName: displayName,
           device: await _deviceRegistration(),
         ),
       );
+
+  /// Whether a username is still free, for the field that asks before the
+  /// form is sent. Null means the question could not be answered — offline,
+  /// or rate-limited — which the field draws as nothing rather than as a no.
+  Future<bool?> usernameAvailable(String username) async {
+    try {
+      final answer = await services.api.usernameAvailable(username);
+      return answer['available'] as bool?;
+    } on Object {
+      return null;
+    }
+  }
 
   Future<bool> signIn({
     required String username,
@@ -551,6 +581,9 @@ class AppState extends ChangeNotifier {
       // screen while this one's read is in flight, and an answer that arrives
       // after another switch is dropped rather than applied.
       detached(profileStatus.load(account));
+      // The account's own two names, under the same rule: loaded per account,
+      // and an answer that arrives after a switch is dropped.
+      detached(names.load(account));
       // The packs, for the same reason and with the same guard: they belong to
       // the account, and an answer that arrives after a switch is dropped.
       if (stickers.accountId != account) detached(stickers.load(account));
@@ -854,6 +887,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _names?.dispose();
+    _names = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a
@@ -979,6 +1014,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _names?.dispose();
+    _names = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a
@@ -1059,6 +1096,8 @@ class AppState extends ChangeNotifier {
     _security = null;
     _profileStatus?.dispose();
     _profileStatus = null;
+    _names?.dispose();
+    _names = null;
     _stickers?.dispose();
     _stickers = null;
     // The security log goes with the history it is sealed beside. Keeping a

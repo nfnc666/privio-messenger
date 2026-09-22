@@ -20,6 +20,7 @@ import type { DeliveryBus } from '../services/bus.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
+import { DISPLAY_NAME_LIMIT, cleanDisplayName, isTooLong } from '../services/display_name.js';
 import { config, rateLimitFactor } from '../config.js';
 
 /**
@@ -55,10 +56,30 @@ const privacySchema = z.object({
   profileStatus: z.enum(['everyone', 'contacts', 'nobody']).optional(),
 });
 
+/**
+ * A display name on the wire: cleaned first, then measured.
+ *
+ * The `max(512)` is a stop before the work rather than the rule anybody sees —
+ * it keeps a megabyte of text out of the segmenter. The rule is
+ * [DISPLAY_NAME_LIMIT] visible characters, applied to what is left after the
+ * invisible ones are gone, so padding a name with zero-width spaces buys
+ * nobody a longer one.
+ *
+ * The result is `string | null`, and null is a real answer: a field cleared to
+ * nothing means this account is drawn as its `@username` again.
+ */
+const displayNameSchema = z
+  .string()
+  .max(512)
+  .transform(cleanDisplayName)
+  .refine((name) => name === null || !isTooLong(name), {
+    message: `must be at most ${DISPLAY_NAME_LIMIT} characters`,
+  });
+
 const registerSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
-  displayName: z.string().trim().min(1).max(64).optional(),
+  displayName: displayNameSchema.optional(),
   device: deviceRegistrationSchema,
 });
 
@@ -88,6 +109,45 @@ async function clearStatus(accountId: string) {
 }
 
 const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsync => async (app) => {
+  /**
+   * Whether a username can still be had, before somebody types a password.
+   *
+   * It exists because the alternative is worse: without it the only way to
+   * find out is to fill in the whole form, and a name that is taken is a name
+   * you are told about after choosing a password — for something you can never
+   * change afterwards.
+   *
+   * It does disclose that a given name exists. That is already disclosed by
+   * registration itself, which answers `username_taken`, so this adds no new
+   * fact about anybody — but it does make asking cheaper, so it is on the same
+   * per-address budget as a password attempt and there is still no way to
+   * *list* names: it answers about one name at a time, and there is no prefix
+   * search anywhere in this API.
+   *
+   * A badly formed name is answered rather than rejected, because "that is not
+   * a valid username" is exactly what the person needs to be told, and a 400
+   * with a validation blob is not that.
+   */
+  app.get('/v1/usernames/:username', guessable, async (request) => {
+    const params = parse(z.object({ username: z.string().min(1).max(64) }), request.params);
+    const username = params.username.trim().toLowerCase();
+
+    if (!/^[a-z0-9_.]{3,32}$/.test(username)) {
+      return { username, available: false, reason: 'format' as const };
+    }
+
+    const [existing, reserved] = await Promise.all([
+      accounts.findByUsername(username),
+      pool.query('SELECT 1 FROM reserved_usernames WHERE username = $1', [username]),
+    ]);
+
+    // A reserved name answers "taken" like any other, for the same reason
+    // registration does: the list is not confirmed to whoever is probing it,
+    // and the person signing up needs a different name either way.
+    const taken = existing !== null || reserved.rowCount === 1;
+    return { username, available: !taken, reason: taken ? ('taken' as const) : null };
+  });
+
   /** Create an account and its first device. No phone number, no email. */
   app.post('/v1/accounts', guessable, async (request, reply) => {
     const body = parse(registerSchema, request.body);
@@ -235,19 +295,42 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
 
   app.patch('/v1/accounts/me', { preHandler: (r) => app.requireAuth(r) }, async (request) => {
     const { accountId } = auth(request);
+
+    // A username arriving here is refused out loud rather than dropped.
+    //
+    // `parse` would strip the unknown key and answer 200, and a caller that
+    // asked to be renamed would be told it worked. There is no endpoint that
+    // renames an account and there is a database trigger behind that, so the
+    // honest answer to the attempt is that it is not allowed — see
+    // migration 035 and `docs/names.md`.
+    if (request.body !== null && typeof request.body === 'object' && 'username' in request.body) {
+      throw ApiError.forbidden('username_immutable', 'A username cannot be changed');
+    }
+
     const body = parse(
       z.object({
-        displayName: z.string().trim().min(1).max(64).nullable().optional(),
+        displayName: displayNameSchema.nullable().optional(),
         privacy: privacySchema.optional(),
       }),
       request.body,
     );
+
+    // Whether the key was sent at all, which is not the same question as what
+    // it was set to: absent means "leave the name alone", and null or empty
+    // means "clear it". `COALESCE` could not tell those apart, which is why
+    // nobody could delete their display name before.
+    const changesName = body.displayName !== undefined;
     const { rows } = await pool.query<accounts.AccountRow>(
       `UPDATE accounts
-       SET display_name = COALESCE($2, display_name),
-           privacy = privacy || COALESCE($3::jsonb, '{}'::jsonb)
+       SET display_name = CASE WHEN $3::boolean THEN $2 ELSE display_name END,
+           privacy = privacy || COALESCE($4::jsonb, '{}'::jsonb)
        WHERE id = $1 RETURNING *`,
-      [accountId, body.displayName ?? null, body.privacy ? JSON.stringify(body.privacy) : null],
+      [
+        accountId,
+        body.displayName ?? null,
+        changesName,
+        body.privacy ? JSON.stringify(body.privacy) : null,
+      ],
     );
     const account = rows[0]!;
     return { ...accounts.publicProfile(account), privacy: account.privacy };

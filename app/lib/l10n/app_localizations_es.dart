@@ -4706,4 +4706,74 @@ class AppTextEs extends AppText {
   @override
   String get savedNoTimerNote =>
       'El temporizador de mensajes que desaparecen de tus chats no se aplica aquí. Guardado conserva lo que pongas hasta que lo quites.';
+
+  @override
+  String get failureDisplayNameNotSaved =>
+      'No se guardó tu nombre visible. Lo que escribiste sigue en el campo.';
+
+  @override
+  String get failureDisplayNameTooLong =>
+      'Ese nombre tiene más de 50 caracteres.';
+
+  @override
+  String get authDisplayNameHint => 'nombre visible (opcional)';
+
+  @override
+  String get authDisplayNamePurpose =>
+      'Este es el nombre que ve la gente. Puedes cambiarlo cuando quieras.';
+
+  @override
+  String get authUsernamePermanent =>
+      'Tu nombre de usuario no se podrá cambiar después. Es como te encuentran.';
+
+  @override
+  String get authUsernameChecking => 'Comprobando…';
+
+  @override
+  String authUsernameFree(String name) {
+    return '@$name está libre';
+  }
+
+  @override
+  String authUsernameTakenHint(String name) {
+    return '@$name ya está en uso';
+  }
+
+  @override
+  String get profileEditTitle => 'Editar perfil';
+
+  @override
+  String get profileEditDisplayName => 'Nombre visible';
+
+  @override
+  String get profileEditDisplayNameHint => 'el nombre que ve la gente';
+
+  @override
+  String profileEditEmptyNote(String name) {
+    return 'Déjalo vacío para aparecer como @$name.';
+  }
+
+  @override
+  String get profileEditUsernameNote =>
+      'Tu nombre de usuario se eligió al registrarte y no cambia.';
+
+  @override
+  String get profileEditSaved => 'Nombre visible guardado';
+
+  @override
+  String get profileEditCopyUsername => 'Copiar nombre de usuario';
+
+  @override
+  String get profileEditUsernameCopied => 'Nombre de usuario copiado';
+
+  @override
+  String profileEditRemaining(int count) {
+    return 'Quedan $count caracteres';
+  }
+
+  @override
+  String get accountEditProfile => 'Editar perfil';
+
+  @override
+  String get accountNoDisplayName => 'Sin nombre visible';
 }

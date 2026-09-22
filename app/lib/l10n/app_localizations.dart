@@ -7986,6 +7986,120 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.'**
   String get savedNoTimerNote;
+
+  /// No description provided for @failureDisplayNameNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Your display name was not saved. What you typed is still in the field.'**
+  String get failureDisplayNameNotSaved;
+
+  /// No description provided for @failureDisplayNameTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'That name is longer than 50 characters.'**
+  String get failureDisplayNameTooLong;
+
+  /// No description provided for @authDisplayNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'display name (optional)'**
+  String get authDisplayNameHint;
+
+  /// No description provided for @authDisplayNamePurpose.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the name people see. You can change it whenever you like.'**
+  String get authDisplayNamePurpose;
+
+  /// No description provided for @authUsernamePermanent.
+  ///
+  /// In en, this message translates to:
+  /// **'Your username cannot be changed later. It is how people find you.'**
+  String get authUsernamePermanent;
+
+  /// No description provided for @authUsernameChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get authUsernameChecking;
+
+  /// No description provided for @authUsernameFree.
+  ///
+  /// In en, this message translates to:
+  /// **'@{name} is free'**
+  String authUsernameFree(String name);
+
+  /// No description provided for @authUsernameTakenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'@{name} is taken'**
+  String authUsernameTakenHint(String name);
+
+  /// No description provided for @profileEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get profileEditTitle;
+
+  /// No description provided for @profileEditDisplayName.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get profileEditDisplayName;
+
+  /// No description provided for @profileEditDisplayNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'the name people see'**
+  String get profileEditDisplayNameHint;
+
+  /// No description provided for @profileEditEmptyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave this empty to be shown as @{name}.'**
+  String profileEditEmptyNote(String name);
+
+  /// No description provided for @profileEditUsernameNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your username was chosen when you signed up and stays as it is.'**
+  String get profileEditUsernameNote;
+
+  /// No description provided for @profileEditSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name saved'**
+  String get profileEditSaved;
+
+  /// No description provided for @profileEditCopyUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy username'**
+  String get profileEditCopyUsername;
+
+  /// No description provided for @profileEditUsernameCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Username copied'**
+  String get profileEditUsernameCopied;
+
+  /// No description provided for @profileEditRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} characters left'**
+  String profileEditRemaining(int count);
+
+  /// No description provided for @accountEditProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get accountEditProfile;
+
+  /// No description provided for @accountNoDisplayName.
+  ///
+  /// In en, this message translates to:
+  /// **'No display name'**
+  String get accountNoDisplayName;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

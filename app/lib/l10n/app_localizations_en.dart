@@ -4671,4 +4671,74 @@ class AppTextEn extends AppText {
   @override
   String get savedNoTimerNote =>
       'The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.';
+
+  @override
+  String get failureDisplayNameNotSaved =>
+      'Your display name was not saved. What you typed is still in the field.';
+
+  @override
+  String get failureDisplayNameTooLong =>
+      'That name is longer than 50 characters.';
+
+  @override
+  String get authDisplayNameHint => 'display name (optional)';
+
+  @override
+  String get authDisplayNamePurpose =>
+      'This is the name people see. You can change it whenever you like.';
+
+  @override
+  String get authUsernamePermanent =>
+      'Your username cannot be changed later. It is how people find you.';
+
+  @override
+  String get authUsernameChecking => 'Checking…';
+
+  @override
+  String authUsernameFree(String name) {
+    return '@$name is free';
+  }
+
+  @override
+  String authUsernameTakenHint(String name) {
+    return '@$name is taken';
+  }
+
+  @override
+  String get profileEditTitle => 'Edit profile';
+
+  @override
+  String get profileEditDisplayName => 'Display name';
+
+  @override
+  String get profileEditDisplayNameHint => 'the name people see';
+
+  @override
+  String profileEditEmptyNote(String name) {
+    return 'Leave this empty to be shown as @$name.';
+  }
+
+  @override
+  String get profileEditUsernameNote =>
+      'Your username was chosen when you signed up and stays as it is.';
+
+  @override
+  String get profileEditSaved => 'Display name saved';
+
+  @override
+  String get profileEditCopyUsername => 'Copy username';
+
+  @override
+  String get profileEditUsernameCopied => 'Username copied';
+
+  @override
+  String profileEditRemaining(int count) {
+    return '$count characters left';
+  }
+
+  @override
+  String get accountEditProfile => 'Edit profile';
+
+  @override
+  String get accountNoDisplayName => 'No display name';
 }

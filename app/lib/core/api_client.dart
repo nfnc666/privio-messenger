@@ -180,6 +180,19 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> updatePrivacy(Map<String, dynamic> privacy) =>
       _send('PATCH', '/v1/accounts/me', body: {'privacy': privacy});
 
+  /// Whether a username can still be had. Unauthenticated, because the one
+  /// moment it is needed is before there is an account to authenticate as.
+  Future<Map<String, dynamic>> usernameAvailable(String username) =>
+      _send('GET', '/v1/usernames/$username');
+
+  /// Sets or clears this account's display name.
+  ///
+  /// `null` is a value here rather than an omission — it is how somebody
+  /// removes their name and goes back to being drawn as their `@username` —
+  /// so the key is always sent.
+  Future<Map<String, dynamic>> setDisplayName(String? displayName) =>
+      _send('PATCH', '/v1/accounts/me', body: {'displayName': displayName});
+
   /// Points the account at an already-uploaded, already-sealed picture.
   Future<void> setAvatar(String mediaId) async =>
       _send('PUT', '/v1/accounts/me/avatar', body: {'mediaId': mediaId});

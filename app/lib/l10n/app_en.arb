@@ -2240,5 +2240,52 @@
   "savedMediaEmpty": "No pictures or files saved yet",
   "savedInfoTitle": "About Saved",
   "savedKeptForever": "Kept until you delete it",
-  "savedNoTimerNote": "The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it."
+  "savedNoTimerNote": "The disappearing-messages timer of your chats is not applied here. Saved keeps what you put in it until you remove it.",
+  "failureDisplayNameNotSaved": "Your display name was not saved. What you typed is still in the field.",
+  "failureDisplayNameTooLong": "That name is longer than 50 characters.",
+  "authDisplayNameHint": "display name (optional)",
+  "authDisplayNamePurpose": "This is the name people see. You can change it whenever you like.",
+  "authUsernamePermanent": "Your username cannot be changed later. It is how people find you.",
+  "authUsernameChecking": "Checking…",
+  "authUsernameFree": "@{name} is free",
+  "@authUsernameFree": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "authUsernameTakenHint": "@{name} is taken",
+  "@authUsernameTakenHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditTitle": "Edit profile",
+  "profileEditDisplayName": "Display name",
+  "profileEditDisplayNameHint": "the name people see",
+  "profileEditEmptyNote": "Leave this empty to be shown as @{name}.",
+  "@profileEditEmptyNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditUsernameNote": "Your username was chosen when you signed up and stays as it is.",
+  "profileEditSaved": "Display name saved",
+  "profileEditCopyUsername": "Copy username",
+  "profileEditUsernameCopied": "Username copied",
+  "profileEditRemaining": "{count} characters left",
+  "@profileEditRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountEditProfile": "Edit profile",
+  "accountNoDisplayName": "No display name"
 }
