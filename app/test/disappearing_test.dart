@@ -230,10 +230,23 @@ void main() {
         const Duration(seconds: 30),
         const Duration(minutes: 1),
         const Duration(minutes: 5),
+        const Duration(minutes: 15),
         const Duration(hours: 1),
+        const Duration(hours: 6),
+        const Duration(hours: 12),
         const Duration(hours: 24),
-        const Duration(days: 7),
       ]);
+
+      // Nothing longer than a day is offered, and the constant the app clamps
+      // to is the same number the server refuses beyond.
+      for (final option in DisappearingTimerSheet.options) {
+        expect(
+          (option?.inSeconds ?? 0) <= maxDisappearSeconds,
+          isTrue,
+          reason: '$option is longer than the ceiling',
+        );
+      }
+      expect(maxDisappearSeconds, 86400);
 
       // And the words each one wears, which are no longer the data: the list
       // holds durations, and a translation turns them into rows.
@@ -242,7 +255,17 @@ void main() {
         DisappearingTimerSheet.options
             .map((option) => DisappearingTimerSheet.label(text, option))
             .toList(),
-        ['Off', '30 seconds', '1 minute', '5 minutes', '1 hour', '24 hours', '7 days'],
+        [
+          'Off',
+          '30 seconds',
+          '1 minute',
+          '5 minutes',
+          '15 minutes',
+          '1 hour',
+          '6 hours',
+          '12 hours',
+          '24 hours',
+        ],
       );
     });
 

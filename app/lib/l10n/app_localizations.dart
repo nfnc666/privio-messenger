@@ -8064,6 +8064,168 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'No display name'**
   String get accountNoDisplayName;
+
+  /// No description provided for @disappearing15Minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'15 minutes'**
+  String get disappearing15Minutes;
+
+  /// No description provided for @disappearing6Hours.
+  ///
+  /// In en, this message translates to:
+  /// **'6 hours'**
+  String get disappearing6Hours;
+
+  /// No description provided for @disappearing12Hours.
+  ///
+  /// In en, this message translates to:
+  /// **'12 hours'**
+  String get disappearing12Hours;
+
+  /// No description provided for @disappearingStartsOnSend.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages are deleted automatically after this time. The timer starts when the message is sent.'**
+  String get disappearingStartsOnSend;
+
+  /// No description provided for @disappearingUseDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Use general setting'**
+  String get disappearingUseDefault;
+
+  /// No description provided for @disappearingDefaultIs.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently {value}'**
+  String disappearingDefaultIs(String value);
+
+  /// No description provided for @disappearingEffective.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies here: {value}'**
+  String disappearingEffective(String value);
+
+  /// No description provided for @disappearingFollowsDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Following your general setting'**
+  String get disappearingFollowsDefault;
+
+  /// No description provided for @disappearingSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing messages'**
+  String get disappearingSettingsTitle;
+
+  /// No description provided for @disappearingSettingsRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing messages'**
+  String get disappearingSettingsRow;
+
+  /// No description provided for @disappearingSettingsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'New chats start with this. A chat you set yourself keeps its own answer.'**
+  String get disappearingSettingsIntro;
+
+  /// No description provided for @disappearingDefaultSection.
+  ///
+  /// In en, this message translates to:
+  /// **'General setting'**
+  String get disappearingDefaultSection;
+
+  /// No description provided for @disappearingApplyToExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply to existing chats'**
+  String get disappearingApplyToExisting;
+
+  /// No description provided for @disappearingApplyPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply {value} to existing chats?'**
+  String disappearingApplyPreviewTitle(String value);
+
+  /// No description provided for @disappearingApplyFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} chats follow your general setting and will change.'**
+  String disappearingApplyFollowing(int count);
+
+  /// No description provided for @disappearingApplyExceptions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} chats have their own setting. They stay as they are unless you include them.'**
+  String disappearingApplyExceptions(int count);
+
+  /// No description provided for @disappearingApplyIncludeExceptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Also change chats with their own setting'**
+  String get disappearingApplyIncludeExceptions;
+
+  /// No description provided for @disappearingApplyConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get disappearingApplyConfirm;
+
+  /// No description provided for @disappearingApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} chats changed'**
+  String disappearingApplied(int count);
+
+  /// No description provided for @disappearingSkippedGroups.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} groups were skipped: you are not an admin there.'**
+  String disappearingSkippedGroups(int count);
+
+  /// No description provided for @disappearingExceptionsRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage exceptions'**
+  String get disappearingExceptionsRow;
+
+  /// No description provided for @disappearingExceptionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chats with their own setting'**
+  String get disappearingExceptionsTitle;
+
+  /// No description provided for @disappearingExceptionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No chat differs from your general setting.'**
+  String get disappearingExceptionsEmpty;
+
+  /// No description provided for @disappearingResetToDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Use general setting'**
+  String get disappearingResetToDefault;
+
+  /// No description provided for @disappearingResetAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset all to the general setting'**
+  String get disappearingResetAll;
+
+  /// No description provided for @disappearingCappedNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'A timer longer than 24 hours was shortened to 24 hours. Messages already sent keep the time they were sent with.'**
+  String get disappearingCappedNotice;
+
+  /// No description provided for @noticeTimerCapped.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing messages were set to 24 hours, the longest this app allows.'**
+  String get noticeTimerCapped;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

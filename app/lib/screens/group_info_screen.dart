@@ -91,12 +91,12 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     }
     final chosen = await DisappearingTimerSheet.choose(
       context,
-      current: state.conversations.disappearAfter(widget.groupId),
+      current: state.conversations.chatTimer(widget.groupId),
+      accountDefault: state.conversations.defaultDisappearAfter,
       isGroup: true,
     );
     if (chosen == null || !mounted) return;
-    final changed =
-        await state.conversations.setDisappearAfter(widget.groupId, chosen.value);
+    final changed = await state.conversations.setChatTimer(widget.groupId, chosen.value);
     if (!changed && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppText.of(context).groupAdminOnly)),

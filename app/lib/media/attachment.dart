@@ -244,6 +244,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -286,6 +287,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -331,6 +333,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         customEmoji = null;
 
@@ -386,6 +389,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         customEmoji = null;
 
@@ -427,6 +431,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -444,6 +449,7 @@ class MessagePayload {
   const MessagePayload.sessionReset()
       : sessionReset = true,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         body = '',
         mediaId = null,
@@ -515,6 +521,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         stickerItemId = null,
         stickerPackId = null,
         stickerMediaId = null,
@@ -553,6 +560,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -590,6 +598,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -633,6 +642,7 @@ class MessagePayload {
         mediaToken = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -673,6 +683,7 @@ class MessagePayload {
         call = null,
         sessionReset = false,
         timerChange = false,
+        timerVersion = null,
         receiptGroupId = null,
         stickerItemId = null,
         stickerPackId = null,
@@ -696,7 +707,7 @@ class MessagePayload {
   /// What the server learns from it is what it learns from any message: that
   /// one went to this conversation at this moment. The value is inside the
   /// ciphertext.
-  const MessagePayload.timerChange(this.expiresInSeconds)
+  const MessagePayload.timerChange(this.expiresInSeconds, {this.timerVersion})
       : timerChange = true,
         body = '',
         sessionReset = false,
@@ -768,7 +779,7 @@ class MessagePayload {
     if (json['t'] == 'timer') {
       // `ex` absent means off, which is why this is read here rather than
       // inferred from a missing field further down.
-      return MessagePayload.timerChange(expiresInSeconds);
+      return MessagePayload.timerChange(expiresInSeconds, timerVersion: json['tv'] as int?);
     }
     if (json['t'] == 'delete') {
       return MessagePayload.deletion(json['dt'] as String? ?? '');
@@ -1025,6 +1036,14 @@ class MessagePayload {
   /// matters most — turning the timer off — carries no number at all.
   final bool timerChange;
 
+  /// Which timer change this is, counted per conversation.
+  ///
+  /// Null from a build that predates it, which reads as "newer than whatever
+  /// this device has" — the old behaviour, and the right one for a single
+  /// change. What it buys is the two-at-once case: see
+  /// `ConversationController._adoptTimer`.
+  final int? timerVersion;
+
   /// On a receipt for group messages: which group they were in.
   ///
   /// The receipt itself is addressed to the author, not to the group — who read
@@ -1148,6 +1167,10 @@ class MessagePayload {
         't': _typeTag,
         'b': body,
         if (expiresInSeconds != null) 'ex': expiresInSeconds,
+        // Only on a timer change, where it decides which of two simultaneous
+        // changes the chat keeps. On an ordinary message it would be noise in
+        // every sealed payload.
+        if (timerVersion != null) 'tv': timerVersion,
         if (clientId != null) 'ci': clientId,
         if (isSync) 'sy': sync!.toJson(),
         if (isCall) 'cl': call!.toJson(),

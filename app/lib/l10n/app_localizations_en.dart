@@ -4719,4 +4719,105 @@ class AppTextEn extends AppText {
 
   @override
   String get accountNoDisplayName => 'No display name';
+
+  @override
+  String get disappearing15Minutes => '15 minutes';
+
+  @override
+  String get disappearing6Hours => '6 hours';
+
+  @override
+  String get disappearing12Hours => '12 hours';
+
+  @override
+  String get disappearingStartsOnSend =>
+      'New messages are deleted automatically after this time. The timer starts when the message is sent.';
+
+  @override
+  String get disappearingUseDefault => 'Use general setting';
+
+  @override
+  String disappearingDefaultIs(String value) {
+    return 'Currently $value';
+  }
+
+  @override
+  String disappearingEffective(String value) {
+    return 'Applies here: $value';
+  }
+
+  @override
+  String get disappearingFollowsDefault => 'Following your general setting';
+
+  @override
+  String get disappearingSettingsTitle => 'Disappearing messages';
+
+  @override
+  String get disappearingSettingsRow => 'Disappearing messages';
+
+  @override
+  String get disappearingSettingsIntro =>
+      'New chats start with this. A chat you set yourself keeps its own answer.';
+
+  @override
+  String get disappearingDefaultSection => 'General setting';
+
+  @override
+  String get disappearingApplyToExisting => 'Apply to existing chats';
+
+  @override
+  String disappearingApplyPreviewTitle(String value) {
+    return 'Apply $value to existing chats?';
+  }
+
+  @override
+  String disappearingApplyFollowing(int count) {
+    return '$count chats follow your general setting and will change.';
+  }
+
+  @override
+  String disappearingApplyExceptions(int count) {
+    return '$count chats have their own setting. They stay as they are unless you include them.';
+  }
+
+  @override
+  String get disappearingApplyIncludeExceptions =>
+      'Also change chats with their own setting';
+
+  @override
+  String get disappearingApplyConfirm => 'Apply';
+
+  @override
+  String disappearingApplied(int count) {
+    return '$count chats changed';
+  }
+
+  @override
+  String disappearingSkippedGroups(int count) {
+    return '$count groups were skipped: you are not an admin there.';
+  }
+
+  @override
+  String get disappearingExceptionsRow => 'Manage exceptions';
+
+  @override
+  String get disappearingExceptionsTitle => 'Chats with their own setting';
+
+  @override
+  String get disappearingExceptionsEmpty =>
+      'No chat differs from your general setting.';
+
+  @override
+  String get disappearingResetToDefault => 'Use general setting';
+
+  @override
+  String get disappearingResetAll => 'Reset all to the general setting';
+
+  @override
+  String get disappearingCappedNotice =>
+      'A timer longer than 24 hours was shortened to 24 hours. Messages already sent keep the time they were sent with.';
+
+  @override
+  String get noticeTimerCapped =>
+      'Disappearing messages were set to 24 hours, the longest this app allows.';
 }

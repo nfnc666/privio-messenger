@@ -989,11 +989,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _chooseTimer(AppState state) async {
     final chosen = await DisappearingTimerSheet.choose(
       context,
-      current: state.conversations.disappearAfter(widget.accountId),
+      current: state.conversations.chatTimer(widget.accountId),
+      accountDefault: state.conversations.defaultDisappearAfter,
       isGroup: false,
     );
     if (chosen == null || !mounted) return;
-    await state.conversations.setDisappearAfter(widget.accountId, chosen.value);
+    await state.conversations.setChatTimer(widget.accountId, chosen.value);
   }
 
   /// Blocks the other side of a 1:1 chat.

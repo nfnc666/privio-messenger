@@ -6,7 +6,13 @@ import { auth } from '../plugins/auth.js';
 import { findByUsername } from '../services/accounts.js';
 import type { DeliveryService, OutgoingEnvelope } from '../services/delivery.js';
 import { ApiError } from '../util/errors.js';
-import { base64Bytes, parse, usernameSchema, uuidSchema } from '../util/validate.js';
+import {
+  base64Bytes,
+  disappearSecondsSchema,
+  parse,
+  usernameSchema,
+  uuidSchema,
+} from '../util/validate.js';
 
 const perDeviceSchema = z.object({
   deviceId: uuidSchema,
@@ -40,10 +46,12 @@ const sendSchema = z
      * message set to vanish in thirty seconds does not sit here for thirty days
      * waiting for a device that never comes back.
      *
-     * Clamped rather than trusted: a client asking for a year is asking for the
-     * ordinary retention it would have got anyway.
+     * Bounded rather than trusted: twenty-four hours is the longest timer this
+     * product offers, and a call asking for more is refused rather than
+     * silently reduced — a caller that believes it set a week and got a day
+     * would be told nothing, and the difference is the whole promise.
      */
-    expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
+    expiresInSeconds: disappearSecondsSchema.optional(),
     messages: z
       .array(perDeviceSchema)
       .min(1)
@@ -189,7 +197,7 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
         z.object({
           idempotencyKey: idempotencyKeySchema.optional(),
           // Same bound as a 1:1 send, for the same reason — see `sendSchema`.
-          expiresInSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).optional(),
+          expiresInSeconds: disappearSecondsSchema.optional(),
           messages: z
             .array(perDeviceSchema)
             .min(1)
@@ -199,12 +207,26 @@ export function messageRoutes(delivery: DeliveryService): FastifyPluginAsync {
         request.body,
       );
 
-      const { rowCount: isMember } = await pool.query(
-        `SELECT 1 FROM group_members m JOIN groups g ON g.id = m.group_id
+      const { rows: membership } = await pool.query<{ role: string }>(
+        `SELECT m.role FROM group_members m JOIN groups g ON g.id = m.group_id
          WHERE m.group_id = $1 AND m.account_id = $2 AND g.deleted_at IS NULL`,
         [params.groupId, accountId],
       );
-      if (!isMember) throw ApiError.forbidden('not_a_member', 'You are not a member of this group');
+      const role = membership[0]?.role;
+      if (!role) throw ApiError.forbidden('not_a_member', 'You are not a member of this group');
+
+      // A `group_update` says something about the group itself rather than to
+      // it — the disappearing timer is the one that matters here — so the
+      // right to send one is checked against the role the *server* holds.
+      //
+      // The content stays sealed and the server still cannot read what the
+      // setting became. What it can do is refuse to carry the announcement
+      // from somebody who may not make it, which is what turns "the menu was
+      // greyed out" into a rule. A client that skips the menu and posts the
+      // envelope directly meets this.
+      if (role !== 'admin' && body.messages.some((m) => m.type === 'group_update')) {
+        throw ApiError.forbidden('not_an_admin', 'Admin role required');
+      }
 
       // Members who blocked the sender are dropped from the fan-out silently.
       const { rows } = await pool.query<{ id: string }>(

@@ -2274,5 +2274,81 @@
     }
   },
   "accountEditProfile": "Edit profile",
-  "accountNoDisplayName": "No display name"
+  "accountNoDisplayName": "No display name",
+  "disappearing15Minutes": "15 minutes",
+  "disappearing6Hours": "6 hours",
+  "disappearing12Hours": "12 hours",
+  "disappearingStartsOnSend": "New messages are deleted automatically after this time. The timer starts when the message is sent.",
+  "disappearingUseDefault": "Use general setting",
+  "disappearingDefaultIs": "Currently {value}",
+  "@disappearingDefaultIs": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "disappearingEffective": "Applies here: {value}",
+  "@disappearingEffective": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "disappearingFollowsDefault": "Following your general setting",
+  "disappearingSettingsTitle": "Disappearing messages",
+  "disappearingSettingsRow": "Disappearing messages",
+  "disappearingSettingsIntro": "New chats start with this. A chat you set yourself keeps its own answer.",
+  "disappearingDefaultSection": "General setting",
+  "disappearingApplyToExisting": "Apply to existing chats",
+  "disappearingApplyPreviewTitle": "Apply {value} to existing chats?",
+  "@disappearingApplyPreviewTitle": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "disappearingApplyFollowing": "{count} chats follow your general setting and will change.",
+  "@disappearingApplyFollowing": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "disappearingApplyExceptions": "{count} chats have their own setting. They stay as they are unless you include them.",
+  "@disappearingApplyExceptions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "disappearingApplyIncludeExceptions": "Also change chats with their own setting",
+  "disappearingApplyConfirm": "Apply",
+  "disappearingApplied": "{count} chats changed",
+  "@disappearingApplied": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "disappearingSkippedGroups": "{count} groups were skipped: you are not an admin there.",
+  "@disappearingSkippedGroups": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "disappearingExceptionsRow": "Manage exceptions",
+  "disappearingExceptionsTitle": "Chats with their own setting",
+  "disappearingExceptionsEmpty": "No chat differs from your general setting.",
+  "disappearingResetToDefault": "Use general setting",
+  "disappearingResetAll": "Reset all to the general setting",
+  "disappearingCappedNotice": "A timer longer than 24 hours was shortened to 24 hours. Messages already sent keep the time they were sent with.",
+  "noticeTimerCapped": "Disappearing messages were set to 24 hours, the longest this app allows."
 }

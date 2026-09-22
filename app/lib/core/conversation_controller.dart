@@ -737,7 +737,7 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null || text.trim().isEmpty) return;
 
     final clientId = _newClientId();
-    final timer = conversation.disappearAfter;
+    final timer = _effectiveTimer(conversation);
     final body = text.trim();
     _services.store.append(
       conversationId,
@@ -1006,7 +1006,7 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null) return null;
 
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
-    final timer = conversation.disappearAfter;
+    final timer = _effectiveTimer(conversation);
     final placeholder = Message(
       id: messageId,
       clientId: messageId,
@@ -1404,7 +1404,7 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null) return;
 
     final clientId = _newClientId();
-    final timer = conversation.disappearAfter;
+    final timer = _effectiveTimer(conversation);
     _services.store.append(
       conversationId,
       Message(
@@ -1534,7 +1534,113 @@ class ConversationController extends ChangeNotifier {
   void applyPrivacy(Map<String, dynamic> privacy) {
     _readReceipts = privacy['readReceipts'] as bool? ?? true;
     _typingIndicators = privacy['typingIndicators'] as bool? ?? true;
+    final seconds = privacy['disappearAfterSeconds'] as int?;
+    _defaultDisappearAfter = seconds == null || seconds <= 0
+        ? null
+        : Duration(seconds: seconds > maxDisappearSeconds ? maxDisappearSeconds : seconds);
     notifyListeners();
+  }
+
+  /// Sets the account-wide default.
+  ///
+  /// It governs chats that follow it — new ones, and any whose own setting was
+  /// cleared — and reaches no further. A chat somebody decided by hand keeps
+  /// what they decided until they say otherwise, which is what
+  /// [applyDefaultToFollowingChats] is for.
+  ///
+  /// Saved is not a chat for this purpose and is never touched.
+  Future<bool> setDefaultDisappearAfter(Duration? timer) async {
+    final capped = timer == null || timer.inSeconds <= maxDisappearSeconds
+        ? timer
+        : const Duration(seconds: maxDisappearSeconds);
+    if (capped == _defaultDisappearAfter) return true;
+
+    final before = _defaultDisappearAfter;
+    _defaultDisappearAfter = capped;
+    notifyListeners();
+    try {
+      await _services.api.updatePrivacy({'disappearAfterSeconds': capped?.inSeconds});
+    } on Object {
+      // Put back what it was: a default that did not reach the account is a
+      // default the next device will not have, and showing it as saved here
+      // would be the lie this codebase keeps refusing to tell.
+      _defaultDisappearAfter = before;
+      _failure = const Failure(FailureKind.couldNotSave);
+      notifyListeners();
+      return false;
+    }
+    // Chats that follow the account now expire differently, and the ones that
+    // are open should say so without waiting for a message.
+    notifyListeners();
+    return true;
+  }
+
+  /// Every chat that would change if the default were applied to it.
+  ///
+  /// Split into the ones that follow already — which change for free — and the
+  /// ones with their own answer, which are only touched when somebody says so.
+  /// The settings screen shows both lists before it asks.
+  ({List<String> following, List<String> exceptions}) chatsAffectedByDefault() {
+    final following = <String>[];
+    final exceptions = <String>[];
+    for (final conversation in _services.store.conversations()) {
+      if (isSaved(conversation.id)) continue;
+      if (!_mayChangeDisappearAfter(conversation.id)) continue;
+      if (conversation.timer.explicit) {
+        if (conversation.timer.after != _defaultDisappearAfter) exceptions.add(conversation.id);
+      } else {
+        following.add(conversation.id);
+      }
+    }
+    return (following: following, exceptions: exceptions);
+  }
+
+  /// Chats whose own setting differs from the account default.
+  ///
+  /// What "Manage exceptions" lists. Deliberately not "every chat that was
+  /// ever set by hand": a chat set to an hour while the account says an hour
+  /// is not an exception to anything, and listing it would ask somebody to
+  /// tidy up something that is already tidy.
+  List<String> timerExceptions() => [
+        for (final conversation in _services.store.conversations())
+          if (!isSaved(conversation.id) &&
+              conversation.timer.isExceptionTo(_defaultDisappearAfter))
+            conversation.id,
+      ];
+
+  /// Applies the account default to chats, and announces each change.
+  ///
+  /// [includeExceptions] is the confirmed version: without it, chats with
+  /// their own setting are left exactly as they are. Groups this account may
+  /// not change are skipped and returned, so the screen can name them rather
+  /// than pretending they were done.
+  Future<({int changed, List<String> skipped})> applyDefaultToFollowingChats({
+    bool includeExceptions = false,
+  }) async {
+    final skipped = <String>[];
+    final targets = <String>[];
+    for (final conversation in _services.store.conversations()) {
+      if (isSaved(conversation.id)) continue;
+      if (conversation.timer.explicit && !includeExceptions) continue;
+      if (!_mayChangeDisappearAfter(conversation.id)) {
+        // Only worth naming when it would actually have changed.
+        if (_effectiveTimer(conversation) != _defaultDisappearAfter) skipped.add(conversation.id);
+        continue;
+      }
+      targets.add(conversation.id);
+    }
+
+    var changed = 0;
+    for (final id in targets) {
+      final conversation = _services.store.conversationWith(id);
+      if (conversation == null) continue;
+      if (_effectiveTimer(conversation) == _defaultDisappearAfter &&
+          !conversation.timer.explicit) {
+        continue;
+      }
+      if (await setChatTimer(id, const ChatTimer.followDefault())) changed += 1;
+    }
+    return (changed: changed, skipped: skipped);
   }
 
   Future<void> setReadReceipts(bool enabled) async {
@@ -1678,7 +1784,7 @@ class ConversationController extends ChangeNotifier {
       recording.bytes,
       declaredType: recording.mediaType,
     );
-    final timer = conversation.disappearAfter;
+    final timer = _effectiveTimer(conversation);
 
     _services.store.append(
       conversationId,
@@ -1753,7 +1859,7 @@ class ConversationController extends ChangeNotifier {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null) return;
 
-    final timer = conversation.disappearAfter;
+    final timer = _effectiveTimer(conversation);
 
     for (var i = 0; i < photos.length; i++) {
       final photo = photos[i];
@@ -1997,8 +2103,35 @@ class ConversationController extends ChangeNotifier {
   // --- Disappearing messages ------------------------------------------------
 
   /// The chat's timer, or null when it is off.
+  /// How long a message sent to this chat now would live, or null for never.
+  ///
+  /// The effective answer, which is what every send path wants: a chat with
+  /// its own setting uses that, a chat that follows uses the account's
+  /// default, and Saved uses nothing at all. The three-way setting itself is
+  /// [chatTimer]; this is what it resolves to.
   Duration? disappearAfter(String conversationId) =>
-      _services.store.conversationWith(conversationId)?.disappearAfter;
+      _effectiveTimer(_services.store.conversationWith(conversationId));
+
+  Duration? _effectiveTimer(Conversation? conversation) {
+    if (conversation == null) return null;
+    // Saved is the account's own notebook. Nothing it holds expires, and the
+    // account default must not reach into it — see `saved.md`.
+    if (isSaved(conversation.id)) return null;
+    return conversation.timer.resolve(_defaultDisappearAfter);
+  }
+
+  /// What this chat is *set* to: its own duration, off, or following the
+  /// account default. What the timer sheet ticks.
+  ChatTimer chatTimer(String conversationId) =>
+      _services.store.conversationWith(conversationId)?.timer ??
+      const ChatTimer.followDefault();
+
+  /// The account-wide default, or null for off.
+  ///
+  /// Lives in the account's privacy object, so it is the same on every device
+  /// this account signs in on and needs no sync of its own.
+  Duration? get defaultDisappearAfter => _defaultDisappearAfter;
+  Duration? _defaultDisappearAfter;
 
   /// Whether this account is allowed to change a chat's timer.
   ///
@@ -2043,14 +2176,45 @@ class ConversationController extends ChangeNotifier {
   ///
   /// Returns false when the group's rights do not allow it, so the screen can
   /// say so instead of appearing to have worked.
-  Future<bool> setDisappearAfter(String conversationId, Duration? timer) async {
+  Future<bool> setDisappearAfter(String conversationId, Duration? timer) =>
+      setChatTimer(
+        conversationId,
+        timer == null ? const ChatTimer.off() : ChatTimer.after(timer),
+      );
+
+  /// Sets what a chat is: its own duration, off, or following the account.
+  ///
+  /// Each change carries a version, one higher than the last this device knew
+  /// about, and the account that made it. That is what lets two people who
+  /// change the timer in the same minute end up agreeing — see [_adoptTimer].
+  ///
+  /// Returns false when the group's rights do not allow it, so the screen can
+  /// say so instead of appearing to have worked.
+  Future<bool> setChatTimer(String conversationId, ChatTimer choice) async {
     if (!mayChangeDisappearAfter(conversationId)) return false;
-    if (_services.store.conversationWith(conversationId)?.disappearAfter == timer) return true;
-    _services.store.setDisappearAfter(conversationId, timer);
-    _noteTimerChange(conversationId, timer, by: null);
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    if (conversation.timer == choice) return true;
+
+    final effectiveBefore = _effectiveTimer(conversation);
+    _services.store.setChatTimer(
+      conversationId,
+      choice,
+      version: conversation.timerVersion + 1,
+      setBy: accountId,
+    );
+    final effectiveAfter = _effectiveTimer(conversation);
+
+    // The notice is about what changes for messages, not about which of three
+    // radio buttons is ticked: switching a chat from an explicit hour to
+    // "follow the account", where the account is also an hour, changes nothing
+    // anybody would want a line in the transcript about.
+    if (effectiveAfter != effectiveBefore) {
+      _noteTimerChange(conversationId, effectiveAfter, by: null);
+    }
     _persist();
     notifyListeners();
-    await _announceTimer(conversationId, timer);
+    await _announceTimer(conversationId, effectiveAfter);
     return true;
   }
 
@@ -2065,7 +2229,10 @@ class ConversationController extends ChangeNotifier {
   Future<void> _announceTimer(String conversationId, Duration? timer) async {
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null) return;
-    final payload = MessagePayload.timerChange(timer?.inSeconds);
+    final payload = MessagePayload.timerChange(
+      timer?.inSeconds,
+      timerVersion: conversation.timerVersion,
+    );
     try {
       if (conversation.group != null) {
         await _services.messaging.sendPayloadToGroup(conversationId, payload);
@@ -2581,7 +2748,7 @@ class ConversationController extends ChangeNotifier {
     }
 
     _adoptTimer(conversationId, payload);
-    final timer = _services.store.conversationWith(conversationId)?.disappearAfter;
+    final timer = disappearAfter(conversationId);
     final sentAt = incoming.receivedAt.toLocal();
     _services.store.append(
       conversationId,
@@ -2647,7 +2814,7 @@ class ConversationController extends ChangeNotifier {
     String? senderName,
   }) {
     final payload = incoming.payload;
-    final timer = _services.store.conversationWith(conversationId)?.disappearAfter;
+    final timer = disappearAfter(conversationId);
     final receivedAt = incoming.receivedAt.toLocal();
     return Message(
       id: 'envelope-${incoming.envelopeId}',
@@ -2694,12 +2861,36 @@ class ConversationController extends ChangeNotifier {
     // never applied here either. If a timer for Saved is ever offered it will
     // be set on this screen and confirmed there, not inherited.
     if (isSaved(conversationId)) return;
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+
     final seconds = payload.expiresInSeconds;
-    final current = _services.store.conversationWith(conversationId)?.disappearAfter;
-    final incoming = seconds == null || seconds <= 0 ? null : Duration(seconds: seconds);
-    if (incoming == current) return;
-    _services.store.setDisappearAfter(conversationId, incoming);
-    _noteTimerChange(conversationId, incoming, by: by);
+    // Clamped on the way in as well as on the way out. A message from an older
+    // build can carry a week; this device will not start keeping things for a
+    // week because somebody else's app offered it.
+    final capped = seconds == null || seconds <= 0
+        ? null
+        : Duration(seconds: seconds > maxDisappearSeconds ? maxDisappearSeconds : seconds);
+    final incoming = capped == null ? const ChatTimer.off() : ChatTimer.after(capped);
+
+    // Which change wins when two arrive at once.
+    //
+    // Higher version wins. Equal versions are broken by comparing the two
+    // account ids — an arbitrary rule, but the *same* arbitrary rule on both
+    // devices, which is what makes them agree instead of trading updates. A
+    // change that loses is dropped silently: announcing the winner back would
+    // be the loop this exists to avoid, and the next real message carries the
+    // agreed number anyway.
+    final version = payload.timerVersion ?? conversation.timerVersion + 1;
+    final mine = conversation.timerSetBy ?? '';
+    final theirs = by ?? '';
+    if (version < conversation.timerVersion) return;
+    if (version == conversation.timerVersion && theirs.compareTo(mine) <= 0) return;
+
+    final before = _effectiveTimer(conversation);
+    _services.store.setChatTimer(conversationId, incoming, version: version, setBy: by);
+    final after = _effectiveTimer(conversation);
+    if (after != before) _noteTimerChange(conversationId, after, by: by);
   }
 
   /// Files a key that someone sealed to this device after it joined by a link.

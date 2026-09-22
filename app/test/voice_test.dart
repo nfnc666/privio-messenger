@@ -278,7 +278,7 @@ void main() {
             ),
           ),
         ],
-      )..disappearAfter = const Duration(seconds: 30);
+      )..timer = const ChatTimer.after(Duration(seconds: 30));
 
       await archive.save([conversation]);
 
@@ -289,7 +289,8 @@ void main() {
 
       final restored = (await archive.load()).conversations.single;
       final message = restored.messages.single;
-      expect(restored.disappearAfter, const Duration(seconds: 30));
+      expect(restored.timer.after, const Duration(seconds: 30));
+      expect(restored.timer.explicit, isTrue, reason: 'a restored chat keeps its own setting');
       expect(message.isVoice, isTrue);
       expect(message.voiceDuration, const Duration(seconds: 9));
       expect(message.waveform, [0.2, 0.8, 0.4]);
