@@ -300,7 +300,34 @@ App Store.
 | `MAC verification failed` while importing the certificate | The `.p12` and its password disagree | Re-run the signing setup; it writes both together |
 | `The bundle version must be higher than the previously uploaded version` | TestFlight already has that build number | Re-run — the run number is higher — or set `build_number` |
 | TestFlight stays on *Missing Compliance* | Nobody answered the export question | Section 5, step 2 |
+| `Bad Gateway` / an HTML page in the upload log | App Store Connect's gateway, not your build | Nothing to fix here — see below |
 | The app installs and cannot connect | `api_url` was wrong, or the server is unreachable | Re-run with the right address |
+
+### When Apple's gateway is the thing that failed
+
+The upload step talks to App Store Connect, and App Store Connect sometimes
+answers with an HTML error page instead of its API — `Bad Gateway`, a
+correlation key, and nothing about your build. That happened on run 56:
+everything up to and including the export was green, and the upload sat there
+until the job's 75-minute ceiling ended it.
+
+Two things are true when this happens, and both are worth knowing before
+starting anything again:
+
+* **The build is finished and safe.** The signed `.ipa` was exported and kept
+  *before* the upload step, so it is in that run's artifacts. Nothing needs
+  rebuilding.
+* **Re-running the whole workflow rebuilds it anyway**, which costs another
+  20–35 minutes of macOS runner. If Apple is down, it will fail again — check
+  [Apple's system status](https://developer.apple.com/system-status/) first.
+
+The step now bounds itself rather than waiting for the job timeout: each call
+to `altool` gets 15 minutes, an upload is retried at most three times with a
+widening pause, and **only** a gateway failure is retried — anything Apple says
+about *this build* is an answer, and asking again does not change it. If the
+upload was accepted and the connection broke afterwards, the retry sees
+"already uploaded" and reports that rather than an error. The step's own
+40-minute ceiling is there in case all of that is wrong.
 
 **A certificate expires after a year**, and a provisioning profile with it.
 When that happens, run the signing setup again: it replaces both and rewrites
@@ -312,7 +339,11 @@ the secrets. You will need a fresh `SIGNING_ADMIN_TOKEN` for that run.
 
 Everything above is instructions. None of it is a result.
 
-* **Neither of these two workflows has ever run.** They are start-by-hand, and
+* **The signed-build workflow has run; the TestFlight upload has not yet
+  succeeded.** Runs 53–56 exist, run 56 built and exported a signed `.ipa` and
+  then met the gateway failure described in section 6. Everything below about
+  the signing setup is still instructions rather than a result. They are
+  start-by-hand, and
   nobody has started one. Actions itself does run again — the ordinary CI and
   the unsigned mobile builds execute on every pull request.
 * **The unsigned iOS build has been compiled on a real macOS runner**, which is
