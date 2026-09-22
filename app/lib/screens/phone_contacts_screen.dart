@@ -279,7 +279,6 @@ class _PhoneContactsScreenState extends State<PhoneContactsScreen> {
                 MaterialPageRoute<void>(
                   builder: (_) => ContactProfileScreen(
                     accountId: match.accountId,
-                    knownName: match.displayName ?? match.username,
                   ),
                 ),
               ),

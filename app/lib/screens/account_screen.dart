@@ -14,6 +14,7 @@ import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/status_sheet.dart';
 import 'backup_screen.dart';
+import 'account_phone_screen.dart';
 import 'chat_screen.dart';
 import 'invite_screen.dart';
 import 'settings_screen.dart';
@@ -196,6 +197,12 @@ class _AccountScreenState extends State<AccountScreen> {
                 // screen that crashes on a short id is a screen that crashes on
                 // whatever the server sends next.
                 value: accountId == null ? '—' : _shortId(accountId),
+              ),
+              SettingsRow(
+                icon: Icons.phone_outlined,
+                label: text.phoneFieldLabel,
+                subtitle: text.accountPhoneNote,
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AccountPhoneScreen())),
               ),
             ],
           ),

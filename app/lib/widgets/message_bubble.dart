@@ -13,6 +13,7 @@ import 'custom_emoji_text.dart';
 import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
+import 'avatar.dart';
 
 /// One message in a conversation.
 ///
@@ -53,9 +54,8 @@ class MessageBubble extends StatelessWidget {
   /// Opens the sender's profile. Set in groups, where a name is drawn above the
   /// message and somebody reading it may have no idea who that is.
   ///
-  /// Null everywhere else, and the name then draws exactly as it did: a
-  /// one-to-one chat labels nothing, and a message of one's own has a profile
-  /// that is reached from the account screen rather than from a bubble.
+  /// The parent supplies the authenticated sender id; a profile is never
+  /// resolved from the name drawn here, which anybody may choose.
   final VoidCallback? onSenderTap;
 
   @override
@@ -127,18 +127,27 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (message.isReply) _QuotedMessage(message: message, mine: mine),
-            if (message.senderName != null)
+            if (message.senderName != null || onSenderTap != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                // Tappable where there is a profile to open. Wrapped in a
-                // gesture rather than made a TextButton so the line keeps the
-                // size and spacing it had — a name that suddenly became a
-                // button would push every group message down a few points.
-                child: GestureDetector(
+                child: InkWell(
                   onTap: onSenderTap,
-                  child: Text(
-                    message.senderName!,
-                    style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onSenderTap != null) ...[
+                        PrivioAvatar(
+                          label: message.senderName ?? AppText.of(context).contactProfileYou,
+                          size: 24,
+                          seed: (message.senderAccountId ?? '').hashCode.abs(),
+                        ),
+                        const SizedBox(width: PrivioSpacing.xs),
+                      ],
+                      Flexible(child: Text(
+                        message.senderName ?? AppText.of(context).contactProfileYou,
+                        style: theme.textTheme.labelMedium?.copyWith(color: context.accents.bright),
+                      ),),
+                    ],
                   ),
                 ),
               ),

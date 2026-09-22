@@ -59,7 +59,9 @@ void detached(Future<void> work) => unawaited(
 /// Everything this class sends is already sealed by the crypto layer: message
 /// bodies, group names, attachments and backups are opaque bytes by the time
 /// they get here. Keep it that way — no plaintext content may be passed to any
-/// method that is not explicitly a public profile field.
+/// message/media method. Explicit account-settings endpoints may carry private
+/// account data over TLS, including the optional unverified phone annotation;
+/// these are not end-to-end encrypted message content.
 class PrivioApiClient {
   PrivioApiClient({required this.baseUrl, http.Client? client})
       : _client = client ?? ProxyController.instance.newClient();
@@ -78,6 +80,9 @@ class PrivioApiClient {
   /// and what matters is only whether the session changed between the question
   /// and the answer.
   int _session = 0;
+
+  /// An opaque generation, never a credential. Screens discard session-owned state when it changes.
+  int get sessionGeneration => _session;
 
   bool get isAuthenticated => _token != null;
   void invalidateTransportRequests() { _session += 1; }
@@ -247,15 +252,25 @@ class PrivioApiClient {
 
   // --- Contacts -------------------------------------------------------------
 
+  /// Private unverified annotation; intentionally not the /v1/phone discovery API.
+  Future<Map<String, dynamic>> accountPhoneNote() => _send('GET', '/v1/accounts/me/phone-note');
+
+  Future<Map<String, dynamic>> saveAccountPhoneNote(String? number) =>
+      _send('PUT', '/v1/accounts/me/phone-note', body: {'phoneNumber': number});
+
+  Future<Map<String, dynamic>> removeAccountPhoneNote() => _send('DELETE', '/v1/accounts/me/phone-note');
+
   Future<Map<String, dynamic>> contacts() => _send('GET', '/v1/contacts');
 
   Future<Map<String, dynamic>> addContact(String username) =>
       _send('POST', '/v1/contacts', body: {'username': username});
 
+  /// Adds somebody by account id, which is the only identifier that cannot be
+  /// taken over by a rename.
+  Future<Map<String, dynamic>> addContactById(String accountId) =>
+      _send('POST', '/v1/contacts', body: {'accountId': accountId});
+
   /// Removes somebody from this account's address book.
-  ///
-  /// The server has had this since the first contacts migration and nothing in
-  /// the app could ask for it: a contact could be added and never dropped.
   Future<void> removeContact(String accountId) async =>
       _send('DELETE', '/v1/contacts/$accountId');
 

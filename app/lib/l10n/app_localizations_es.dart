@@ -9,6 +9,57 @@ class AppTextEs extends AppText {
   AppTextEs([String locale = 'es']) : super(locale);
 
   @override
+  String get accountPhoneNote =>
+      'Dato voluntario. Tu número de teléfono no se verifica ni se utiliza para encontrar contactos automáticamente.';
+
+  @override
+  String get accountPhoneUnverified =>
+      'Sin verificar: no acredita la identidad';
+
+  @override
+  String get accountPhoneVerifiedSeparate =>
+      'Un número verificado por separado no cambia. Puedes gestionarlo en Ajustes → Privacidad → Número de teléfono y contactos.';
+
+  @override
+  String get accountPhoneSaveError =>
+      'No se pudo cargar o guardar el número. Inténtalo de nuevo.';
+
+  @override
+  String get accountPhoneSaved => 'Guardado';
+
+  @override
+  String get accountPhoneSessionEnded =>
+      'La sesión de tu cuenta ha cambiado. Abre este ajuste de nuevo desde tu cuenta.';
+
+  @override
+  String get contactProfileTitle => 'Perfil del contacto';
+
+  @override
+  String get contactProfileMessage => 'Escribir un mensaje';
+
+  @override
+  String get contactProfileRemove => 'Eliminar contacto';
+
+  @override
+  String get contactProfileMissing =>
+      'Esta cuenta ya no existe o no está disponible.';
+
+  @override
+  String get contactProfileError =>
+      'No se pudo cargar o actualizar el perfil. Inténtalo de nuevo.';
+
+  @override
+  String get contactProfileSessionEnded =>
+      'Esta sesión ha terminado. Abre el perfil de nuevo desde tu cuenta.';
+
+  @override
+  String get contactProfileBlockNote =>
+      'Dejarás de recibir mensajes de esta persona. El historial permanece en este dispositivo.';
+
+  @override
+  String get contactProfileYou => 'Tú';
+
+  @override
   String get proxyTitle => 'Proxy SOCKS5';
 
   @override
@@ -4500,78 +4551,10 @@ class AppTextEs extends AppText {
   String get privacyOverview => 'Resumen';
 
   @override
-  String get profileTitle => 'Perfil';
-
-  @override
-  String get profileMessageAction => 'Mensaje';
-
-  @override
-  String get profileCallAction => 'Llamar';
-
-  @override
-  String get profileVideoAction => 'Vídeo';
-
-  @override
-  String get profilePrivioId => 'ID de Privio';
-
-  @override
-  String get profileIdCopied => 'ID de Privio copiado';
-
-  @override
-  String get profileAddContact => 'Añadir a contactos';
-
-  @override
-  String get profileRemoveContact => 'Quitar de contactos';
-
-  @override
-  String profileRemoveContactTitle(String name) {
-    return '¿Quitar a $name?';
-  }
-
-  @override
-  String get profileRemoveContactBody =>
-      'Sale de tus contactos. El chat y sus mensajes se quedan como están.';
-
-  @override
   String get profileContactAdded => 'Añadido a contactos';
 
   @override
-  String get profileContactRemoved => 'Quitado de contactos';
-
-  @override
   String get profileCouldNotAddContact => 'No se pudo añadir este contacto';
-
-  @override
-  String get profileCouldNotRemoveContact => 'No se pudo quitar este contacto';
-
-  @override
-  String get profileBlockedTitle => 'Has bloqueado esta cuenta';
-
-  @override
-  String get profileBlockedBody =>
-      'Nada de lo que envíen te llega. No se les avisa y no notan ninguna diferencia.';
-
-  @override
-  String profileLastSeen(String when) {
-    return 'Última vez $when';
-  }
-
-  @override
-  String get profileYouTitle => 'Este es tu propio perfil';
-
-  @override
-  String get profileYouBody =>
-      'Tu foto, tu nombre y tu estado se cambian en la pantalla de cuenta.';
-
-  @override
-  String get profileGoneTitle => 'Esta cuenta ya no existe';
-
-  @override
-  String get profileGoneBody =>
-      'Se eliminó, o nunca existió. Los mensajes que ya están en tu chat se quedan como están.';
-
-  @override
-  String get profileCouldNotLoad => 'No se pudo cargar este perfil';
 
   @override
   String get profileReport => 'Denunciar esta cuenta';
@@ -4594,12 +4577,6 @@ class AppTextEs extends AppText {
 
   @override
   String get profileCouldNotReport => 'No se pudo enviar la denuncia';
-
-  @override
-  String get profileOpenProfile => 'Abrir perfil';
-
-  @override
-  String get profileVerifyAction => 'Verificar';
 
   @override
   String get contactMatchNow => 'Cotejar mis contactos ahora';

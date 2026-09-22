@@ -97,6 +97,14 @@ const READABLE: Record<string, string> = {
   // there. See migration 033.
   'account_reports.reason': 'one of five fixed words, never free text',
 
+  // A phone number the account typed about itself, in the clear, because the
+  // server has to hand it back to the one account that wrote it and holds no
+  // key for that account. It is not the discovery number: `phone_links` stores
+  // blinded hashes and nothing here is matched against anybody's address book,
+  // which is why this column can exist without turning a number into a way of
+  // finding a person. See migration 033_unverified_account_phone.
+  'account_phone_notes.phone_number': 'the account\'s own unverified note to itself, never used for discovery',
+
   // The profile status. The one piece of content-bearing text a *person types*
   // that this server can read, and it is here knowingly rather than by
   // oversight. It cannot be sealed the way an avatar is: an avatar is opened

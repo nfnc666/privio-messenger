@@ -1,4 +1,18 @@
 {
+  "accountPhoneNote": "Optional information. Your phone number is not verified and is not used for automatic contact discovery.",
+  "accountPhoneUnverified": "Unverified — not proof of identity",
+  "accountPhoneVerifiedSeparate": "A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.",
+  "accountPhoneSaveError": "Could not load or save the phone number. Please try again.",
+  "accountPhoneSaved": "Saved",
+  "accountPhoneSessionEnded": "Your account session has changed. Open this setting again from your account.",
+  "contactProfileTitle": "Contact profile",
+  "contactProfileMessage": "Write a message",
+  "contactProfileRemove": "Remove contact",
+  "contactProfileMissing": "This account no longer exists or is unavailable.",
+  "contactProfileError": "Could not load or update this profile. Please try again.",
+  "contactProfileSessionEnded": "This session has ended. Open the profile again from your account.",
+  "contactProfileBlockNote": "You will no longer receive messages from this person. Your chat history stays on this device.",
+  "contactProfileYou": "You",
   "@@locale": "en",
   "proxyTitle": "SOCKS5 proxy",
   "proxyEnable": "Use proxy",
@@ -2159,42 +2173,8 @@
   "privacyDashboardProxySocks": "SOCKS5",
   "privacyDashboardMetadataNote": "Content is encrypted; the fact that a message went from you to somebody, and when, is not. Privio’s server sees that much because it has to deliver it.",
   "privacyOverview": "Overview",
-  "profileTitle": "Profile",
-  "profileMessageAction": "Message",
-  "profileCallAction": "Call",
-  "profileVideoAction": "Video",
-  "profilePrivioId": "Privio ID",
-  "profileIdCopied": "Privio ID copied",
-  "profileAddContact": "Add to contacts",
-  "profileRemoveContact": "Remove from contacts",
-  "profileRemoveContactTitle": "Remove {name}?",
-  "@profileRemoveContactTitle": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "profileRemoveContactBody": "They leave your contacts. The chat and its messages stay where they are.",
   "profileContactAdded": "Added to contacts",
-  "profileContactRemoved": "Removed from contacts",
   "profileCouldNotAddContact": "Could not add this contact",
-  "profileCouldNotRemoveContact": "Could not remove this contact",
-  "profileBlockedTitle": "You blocked this account",
-  "profileBlockedBody": "Nothing they send reaches you. They are not told, and see no difference.",
-  "profileLastSeen": "Last seen {when}",
-  "@profileLastSeen": {
-    "placeholders": {
-      "when": {
-        "type": "String"
-      }
-    }
-  },
-  "profileYouTitle": "This is your own profile",
-  "profileYouBody": "Your picture, name and status are yours to change on the Account screen.",
-  "profileGoneTitle": "This account no longer exists",
-  "profileGoneBody": "It was deleted, or it never existed. Messages already in your chat stay as they are.",
-  "profileCouldNotLoad": "Could not load this profile",
   "profileReport": "Report this account",
   "profileReportTitle": "Report {name}",
   "@profileReportTitle": {
@@ -2208,8 +2188,6 @@
   "profileReported": "Report filed",
   "profileAlreadyReported": "Your earlier report about this account is still on file",
   "profileCouldNotReport": "Could not file the report",
-  "profileOpenProfile": "Open profile",
-  "profileVerifyAction": "Verify",
   "contactMatchNow": "Match my contacts now",
   "contactMatchRunning": "Matching…",
   "contactMatchNobody": "Nobody in your address book is on Privio yet, or they have not switched on being found by their number.",

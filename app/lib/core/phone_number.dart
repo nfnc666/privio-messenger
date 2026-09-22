@@ -32,6 +32,8 @@ class PhoneNumber {
 }
 
 abstract final class PhoneNumbers {
+  static String? callingCode(String e164) => _callingCodes
+      .where((code) => e164.startsWith('+$code')).firstOrNull;
   /// The public key numbers are blinded under. Matches `DISCOVERY_CONTEXT` in
   /// `server/src/services/phone.ts`; both sides must use the same string.
   static const String discoveryContext = 'privio.contact-discovery.v1';

@@ -5,7 +5,7 @@ import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import { findByUsername, publicProfile, type AccountRow } from '../services/accounts.js';
 import { lastSeenFor } from '../services/presence.js';
-import { statusFor } from '../services/status.js';
+import { statusFor, ownStatus, NO_STATUS } from '../services/status.js';
 import { ApiError } from '../util/errors.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 
@@ -27,6 +27,16 @@ async function viewerIsContactOf(viewerId: string, target: AccountRow): Promise<
  * defaults, and a viewer who may see one may well not see the other.
  */
 async function visibleProfile(viewerId: string, target: AccountRow) {
+  if (viewerId === target.id) {
+    return { lastSeenAt: null, status: ownStatus(target) };
+  }
+  const blocked = await pool.query(
+    `SELECT 1 FROM blocks WHERE
+      (account_id = $1 AND blocked_account_id = $2) OR
+      (account_id = $2 AND blocked_account_id = $1) LIMIT 1`,
+    [viewerId, target.id],
+  );
+  if (blocked.rowCount) return { lastSeenAt: null, status: NO_STATUS };
   const needsContactCheck =
     (target.privacy?.lastSeen ?? 'contacts') === 'contacts' ||
     (target.privacy?.profileStatus ?? 'everyone') === 'contacts';
@@ -50,7 +60,10 @@ async function visibleProfile(viewerId: string, target: AccountRow) {
  * stops it opening with "Add contact" and correcting itself a moment later.
  */
 async function viewerRelationship(viewerId: string, targetId: string) {
-  if (viewerId === targetId) return { isSelf: true, isContact: false, isBlocked: false };
+  // Looking at yourself: neither fact means anything, and neither query needs
+  // running. The screen knows whose profile it is from the signed-in account id
+  // it already has, so there is nothing here for it to be told.
+  if (viewerId === targetId) return { isContact: false, isBlocked: false };
   const { rows } = await pool.query<{ is_contact: boolean; is_blocked: boolean }>(
     `SELECT EXISTS (
               SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2
@@ -61,7 +74,6 @@ async function viewerRelationship(viewerId: string, targetId: string) {
     [viewerId, targetId],
   );
   return {
-    isSelf: false,
     isContact: rows[0]?.is_contact ?? false,
     isBlocked: rows[0]?.is_blocked ?? false,
   };
@@ -162,10 +174,13 @@ const contactRoutes: FastifyPluginAsync = async (app) => {
   app.post('/v1/contacts', requireAuth, async (request, reply) => {
     const { accountId } = auth(request);
     const body = parse(
-      z.object({ username: usernameSchema }),
+      z.object({ username: usernameSchema.optional(), accountId: uuidSchema.optional() })
+        .refine((value) => Boolean(value.username) !== Boolean(value.accountId)),
       request.body,
     );
-    const target = await findByUsername(body.username);
+    const target = body.accountId
+      ? (await pool.query<AccountRow>('SELECT * FROM accounts WHERE id = $1 AND deleted_at IS NULL', [body.accountId])).rows[0]
+      : await findByUsername(body.username!);
     if (!target) throw ApiError.notFound('user_not_found', 'No such user');
     if (target.id === accountId) throw ApiError.badRequest('self_contact', 'You cannot add yourself');
 

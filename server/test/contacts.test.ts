@@ -175,7 +175,6 @@ describe('contacts and privacy', () => {
     });
     assert.equal(stranger.json().isContact, false);
     assert.equal(stranger.json().isBlocked, false);
-    assert.equal(stranger.json().isSelf, false);
 
     await h.app.inject({
       method: 'POST',
@@ -209,12 +208,20 @@ describe('contacts and privacy', () => {
     assert.equal(back.json().isContact, false);
     assert.equal(back.json().isBlocked, false);
 
+    // Your own profile answers the same two questions about you and yourself,
+    // and both are no: an account is not in its own address book and has not
+    // blocked itself. Which profile is your own is something the screen knows
+    // from the account it is signed in as, so there is no third field here to
+    // tell it — and a route that grew one would be a route that could get it
+    // wrong.
     const mine = await h.app.inject({
       method: 'GET',
       url: `/v1/users/id/${viewer.accountId}`,
       headers: bearer(viewer),
     });
-    assert.equal(mine.json().isSelf, true);
+    assert.equal(mine.json().isContact, false);
+    assert.equal(mine.json().isBlocked, false);
+    assert.equal('isSelf' in mine.json(), false);
   });
 
   it('never puts a phone number in a profile', async () => {

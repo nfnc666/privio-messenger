@@ -23,6 +23,7 @@ class PhoneField extends StatefulWidget {
     super.key,
     this.onChanged,
     this.autofocus = false,
+    this.initialNumber,
   });
 
   /// Holds the local part — what comes after the country code.
@@ -30,6 +31,7 @@ class PhoneField extends StatefulWidget {
 
   final ValueChanged<String>? onChanged;
   final bool autofocus;
+  final String? initialNumber;
 
   @override
   State<PhoneField> createState() => PhoneFieldState();
@@ -39,6 +41,16 @@ class PhoneFieldState extends State<PhoneField> {
   /// The calling code, without the `+`.
   String _code = PhoneNumbers.commonCountries.first.code;
 
+  @override
+  void initState() {
+    super.initState();
+    final parsed = PhoneNumbers.normalise(widget.initialNumber ?? '');
+    if (parsed != null) {
+      _code = PhoneNumbers.callingCode(parsed.e164)!;
+      widget.controller.text = parsed.e164.substring(_code.length + 1);
+    }
+  }
+
   /// Everything typed, as one E.164 string, or null when it is not a number.
   ///
   /// Null covers both "empty" and "not a number", because the field treats them
@@ -46,6 +58,7 @@ class PhoneFieldState extends State<PhoneField> {
   PhoneNumber? get value {
     final local = widget.controller.text.trim();
     if (local.isEmpty) return null;
+    if (local.startsWith('+') || local.startsWith('00')) return PhoneNumbers.normalise(local);
     return PhoneNumbers.normalise('+$_code$local');
   }
 
@@ -74,7 +87,7 @@ class PhoneFieldState extends State<PhoneField> {
             // keyboard rather than a calculator's.
             keyboardType: TextInputType.phone,
             inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9 \-()]')),
+              FilteringTextInputFormatter.allow(RegExp(r'[+0-9 \-().]')),
               LengthLimitingTextInputFormatter(20),
             ],
             onChanged: widget.onChanged,

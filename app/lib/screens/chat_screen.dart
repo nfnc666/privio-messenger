@@ -152,16 +152,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// scroll position are all still there when the profile is popped. Nothing
   /// here saves or restores them — the correct implementation is the one that
   /// does not tear the chat down in the first place.
-  Future<void> _openProfile(String accountId, {String? name}) =>
-      Navigator.of(context).push(
+  Future<void> _openContactProfile(String accountId) => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ContactProfileScreen(
             accountId: accountId,
-            knownName: name,
             // True only in a one-to-one chat with that same person: then this
             // chat is the screen underneath, and "Message" over there means
             // "go back to it" rather than "open another one".
-            openedFromTheirChat: !widget.isGroup && accountId == widget.accountId,
+            returnToChat: !widget.isGroup && accountId == widget.accountId,
           ),
         ),
       );
@@ -1196,7 +1194,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ? _openSavedInfo()
                     : widget.isGroup
                         ? _openGroupInfo()
-                        : _openProfile(widget.accountId, name: widget.title),
+                        : _openContactProfile(widget.accountId),
               ),
               child: Row(
                 children: [
@@ -1411,18 +1409,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),
-                        // Only where there is an id to open. A message filed
-                        // before senders were recorded has a name and no
-                        // account behind it, and a tap that looked somebody up
-                        // by that name could land on the wrong person.
-                        onSenderTap: message.senderAccountId == null
+                        // Groups only, and only where there is an id to open:
+                        // a message filed before senders were recorded has a
+                        // name and no account behind it, and a tap that looked
+                        // somebody up by that name could land on the wrong
+                        // person. A notice was written by nobody.
+                        onSenderTap: !widget.isGroup ||
+                                message.isNotice ||
+                                (message.isMine ? state.accountId : message.senderAccountId) == null
                             ? null
-                            : () => unawaited(
-                                  _openProfile(
-                                    message.senderAccountId!,
-                                    name: message.senderName,
-                                  ),
-                                ),
+                            : () => unawaited(_openContactProfile(
+                                  (message.isMine ? state.accountId : message.senderAccountId)!,
+                                )),
                       );
                     },
                   ),

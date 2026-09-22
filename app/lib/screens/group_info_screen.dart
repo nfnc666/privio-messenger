@@ -309,7 +309,6 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                             MaterialPageRoute<void>(
                               builder: (_) => ContactProfileScreen(
                                 accountId: member.accountId,
-                                knownName: member.label,
                               ),
                             ),
                           ),

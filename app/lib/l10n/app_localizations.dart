@@ -103,6 +103,90 @@ abstract class AppText {
     Locale('it'),
   ];
 
+  /// No description provided for @accountPhoneNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional information. Your phone number is not verified and is not used for automatic contact discovery.'**
+  String get accountPhoneNote;
+
+  /// No description provided for @accountPhoneUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'Unverified — not proof of identity'**
+  String get accountPhoneUnverified;
+
+  /// No description provided for @accountPhoneVerifiedSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.'**
+  String get accountPhoneVerifiedSeparate;
+
+  /// No description provided for @accountPhoneSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load or save the phone number. Please try again.'**
+  String get accountPhoneSaveError;
+
+  /// No description provided for @accountPhoneSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get accountPhoneSaved;
+
+  /// No description provided for @accountPhoneSessionEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account session has changed. Open this setting again from your account.'**
+  String get accountPhoneSessionEnded;
+
+  /// No description provided for @contactProfileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact profile'**
+  String get contactProfileTitle;
+
+  /// No description provided for @contactProfileMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message'**
+  String get contactProfileMessage;
+
+  /// No description provided for @contactProfileRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove contact'**
+  String get contactProfileRemove;
+
+  /// No description provided for @contactProfileMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'This account no longer exists or is unavailable.'**
+  String get contactProfileMissing;
+
+  /// No description provided for @contactProfileError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load or update this profile. Please try again.'**
+  String get contactProfileError;
+
+  /// No description provided for @contactProfileSessionEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'This session has ended. Open the profile again from your account.'**
+  String get contactProfileSessionEnded;
+
+  /// No description provided for @contactProfileBlockNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You will no longer receive messages from this person. Your chat history stays on this device.'**
+  String get contactProfileBlockNote;
+
+  /// No description provided for @contactProfileYou.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get contactProfileYou;
+
   /// No description provided for @proxyTitle.
   ///
   /// In en, this message translates to:
@@ -7663,137 +7747,17 @@ abstract class AppText {
   /// **'Overview'**
   String get privacyOverview;
 
-  /// No description provided for @profileTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile'**
-  String get profileTitle;
-
-  /// No description provided for @profileMessageAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Message'**
-  String get profileMessageAction;
-
-  /// No description provided for @profileCallAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Call'**
-  String get profileCallAction;
-
-  /// No description provided for @profileVideoAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Video'**
-  String get profileVideoAction;
-
-  /// No description provided for @profilePrivioId.
-  ///
-  /// In en, this message translates to:
-  /// **'Privio ID'**
-  String get profilePrivioId;
-
-  /// No description provided for @profileIdCopied.
-  ///
-  /// In en, this message translates to:
-  /// **'Privio ID copied'**
-  String get profileIdCopied;
-
-  /// No description provided for @profileAddContact.
-  ///
-  /// In en, this message translates to:
-  /// **'Add to contacts'**
-  String get profileAddContact;
-
-  /// No description provided for @profileRemoveContact.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove from contacts'**
-  String get profileRemoveContact;
-
-  /// No description provided for @profileRemoveContactTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove {name}?'**
-  String profileRemoveContactTitle(String name);
-
-  /// No description provided for @profileRemoveContactBody.
-  ///
-  /// In en, this message translates to:
-  /// **'They leave your contacts. The chat and its messages stay where they are.'**
-  String get profileRemoveContactBody;
-
   /// No description provided for @profileContactAdded.
   ///
   /// In en, this message translates to:
   /// **'Added to contacts'**
   String get profileContactAdded;
 
-  /// No description provided for @profileContactRemoved.
-  ///
-  /// In en, this message translates to:
-  /// **'Removed from contacts'**
-  String get profileContactRemoved;
-
   /// No description provided for @profileCouldNotAddContact.
   ///
   /// In en, this message translates to:
   /// **'Could not add this contact'**
   String get profileCouldNotAddContact;
-
-  /// No description provided for @profileCouldNotRemoveContact.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not remove this contact'**
-  String get profileCouldNotRemoveContact;
-
-  /// No description provided for @profileBlockedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'You blocked this account'**
-  String get profileBlockedTitle;
-
-  /// No description provided for @profileBlockedBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Nothing they send reaches you. They are not told, and see no difference.'**
-  String get profileBlockedBody;
-
-  /// No description provided for @profileLastSeen.
-  ///
-  /// In en, this message translates to:
-  /// **'Last seen {when}'**
-  String profileLastSeen(String when);
-
-  /// No description provided for @profileYouTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'This is your own profile'**
-  String get profileYouTitle;
-
-  /// No description provided for @profileYouBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Your picture, name and status are yours to change on the Account screen.'**
-  String get profileYouBody;
-
-  /// No description provided for @profileGoneTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'This account no longer exists'**
-  String get profileGoneTitle;
-
-  /// No description provided for @profileGoneBody.
-  ///
-  /// In en, this message translates to:
-  /// **'It was deleted, or it never existed. Messages already in your chat stay as they are.'**
-  String get profileGoneBody;
-
-  /// No description provided for @profileCouldNotLoad.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not load this profile'**
-  String get profileCouldNotLoad;
 
   /// No description provided for @profileReport.
   ///
@@ -7830,18 +7794,6 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Could not file the report'**
   String get profileCouldNotReport;
-
-  /// No description provided for @profileOpenProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Open profile'**
-  String get profileOpenProfile;
-
-  /// No description provided for @profileVerifyAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Verify'**
-  String get profileVerifyAction;
 
   /// No description provided for @contactMatchNow.
   ///

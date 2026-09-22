@@ -157,7 +157,7 @@ suspending a *person* would mean for conversations the server cannot read is a
 design decision, not a query, and shipping a button before making it would be
 the kind of moderation that looks like an action and is not one.
 
-See [`contact-profile.md`](contact-profile.md) for what a reporter is told
+See [`contact-profiles.md`](contact-profiles.md) for what a reporter is told
 before they pick a reason.
 
 ## The audit log

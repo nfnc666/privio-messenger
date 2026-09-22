@@ -140,7 +140,7 @@ the interesting failures live (encoding, clock skew, notification behaviour).
 ## 6b. Opening a profile from a chat
 
 Covered by `app/test/contact_profile_test.dart`; none of it has been run on a
-phone. See [`contact-profile.md`](contact-profile.md).
+phone. See [`contact-profiles.md`](contact-profiles.md).
 
 | # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -152,6 +152,7 @@ phone. See [`contact-profile.md`](contact-profile.md).
 | P6 | Block from the profile, then open the blocked person again: the banner and **Unblock** are there, and unblocking restores the ordinary actions | Needs a second account | | | | not run | |
 | P7 | A contact who has hidden their status and last-seen shows neither — and no row anywhere saying something is hidden | Needs a second account with `lastSeen: nobody` and `profileStatus: nobody` | | | | not run | |
 | P8 | Tap the large picture: it opens full-screen and pinch-zooms. With no picture, the tap does nothing | Only a contact whose profile key has arrived has a picture at all | | | | not run | |
+| P9 | Report somebody, pick a reason, then report them again: the first says the report was filed, the second says the earlier one is still on file — and neither blocks them | Needs a second account; what a moderator sees is `admin-panel.md`, not the phone | | | | not run | |
 
 ## 6c. Matching the address book
 

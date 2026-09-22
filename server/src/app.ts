@@ -6,6 +6,7 @@ import { config, rateLimitFactor } from './config.js';
 import authPlugin from './plugins/auth.js';
 import accountRoutes from './routes/accounts.js';
 import contactRoutes from './routes/contacts.js';
+import accountPhoneRoutes from './routes/account_phone.js';
 import callRoutes from './routes/calls.js';
 import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
@@ -167,6 +168,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(deviceRoutes(deps.bus));
   await app.register(callRoutes);
   await app.register(contactRoutes);
+  await app.register(accountPhoneRoutes);
   await app.register(stickerRoutes);
   // Built at start-up rather than per request, so a half-finished SMS
   // configuration fails here — where a deployment notices — rather than when

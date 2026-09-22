@@ -9,6 +9,56 @@ class AppTextEn extends AppText {
   AppTextEn([String locale = 'en']) : super(locale);
 
   @override
+  String get accountPhoneNote =>
+      'Optional information. Your phone number is not verified and is not used for automatic contact discovery.';
+
+  @override
+  String get accountPhoneUnverified => 'Unverified — not proof of identity';
+
+  @override
+  String get accountPhoneVerifiedSeparate =>
+      'A separately verified number remains unchanged. Manage it under Settings → Privacy → Phone number & contacts.';
+
+  @override
+  String get accountPhoneSaveError =>
+      'Could not load or save the phone number. Please try again.';
+
+  @override
+  String get accountPhoneSaved => 'Saved';
+
+  @override
+  String get accountPhoneSessionEnded =>
+      'Your account session has changed. Open this setting again from your account.';
+
+  @override
+  String get contactProfileTitle => 'Contact profile';
+
+  @override
+  String get contactProfileMessage => 'Write a message';
+
+  @override
+  String get contactProfileRemove => 'Remove contact';
+
+  @override
+  String get contactProfileMissing =>
+      'This account no longer exists or is unavailable.';
+
+  @override
+  String get contactProfileError =>
+      'Could not load or update this profile. Please try again.';
+
+  @override
+  String get contactProfileSessionEnded =>
+      'This session has ended. Open the profile again from your account.';
+
+  @override
+  String get contactProfileBlockNote =>
+      'You will no longer receive messages from this person. Your chat history stays on this device.';
+
+  @override
+  String get contactProfileYou => 'You';
+
+  @override
   String get proxyTitle => 'SOCKS5 proxy';
 
   @override
@@ -4467,78 +4517,10 @@ class AppTextEn extends AppText {
   String get privacyOverview => 'Overview';
 
   @override
-  String get profileTitle => 'Profile';
-
-  @override
-  String get profileMessageAction => 'Message';
-
-  @override
-  String get profileCallAction => 'Call';
-
-  @override
-  String get profileVideoAction => 'Video';
-
-  @override
-  String get profilePrivioId => 'Privio ID';
-
-  @override
-  String get profileIdCopied => 'Privio ID copied';
-
-  @override
-  String get profileAddContact => 'Add to contacts';
-
-  @override
-  String get profileRemoveContact => 'Remove from contacts';
-
-  @override
-  String profileRemoveContactTitle(String name) {
-    return 'Remove $name?';
-  }
-
-  @override
-  String get profileRemoveContactBody =>
-      'They leave your contacts. The chat and its messages stay where they are.';
-
-  @override
   String get profileContactAdded => 'Added to contacts';
 
   @override
-  String get profileContactRemoved => 'Removed from contacts';
-
-  @override
   String get profileCouldNotAddContact => 'Could not add this contact';
-
-  @override
-  String get profileCouldNotRemoveContact => 'Could not remove this contact';
-
-  @override
-  String get profileBlockedTitle => 'You blocked this account';
-
-  @override
-  String get profileBlockedBody =>
-      'Nothing they send reaches you. They are not told, and see no difference.';
-
-  @override
-  String profileLastSeen(String when) {
-    return 'Last seen $when';
-  }
-
-  @override
-  String get profileYouTitle => 'This is your own profile';
-
-  @override
-  String get profileYouBody =>
-      'Your picture, name and status are yours to change on the Account screen.';
-
-  @override
-  String get profileGoneTitle => 'This account no longer exists';
-
-  @override
-  String get profileGoneBody =>
-      'It was deleted, or it never existed. Messages already in your chat stay as they are.';
-
-  @override
-  String get profileCouldNotLoad => 'Could not load this profile';
 
   @override
   String get profileReport => 'Report this account';
@@ -4561,12 +4543,6 @@ class AppTextEn extends AppText {
 
   @override
   String get profileCouldNotReport => 'Could not file the report';
-
-  @override
-  String get profileOpenProfile => 'Open profile';
-
-  @override
-  String get profileVerifyAction => 'Verify';
 
   @override
   String get contactMatchNow => 'Match my contacts now';

@@ -74,6 +74,7 @@ export async function wipeAccount(accountId: string, storage: BlobStorage): Prom
     await client.query('DELETE FROM devices WHERE account_id = $1', [accountId]);
     await client.query('DELETE FROM envelopes WHERE sender_account_id = $1', [accountId]);
     await client.query('DELETE FROM contacts WHERE account_id = $1 OR contact_account_id = $1', [accountId]);
+    await client.query('DELETE FROM account_phone_notes WHERE account_id = $1', [accountId]);
     await client.query('DELETE FROM group_members WHERE account_id = $1', [accountId]);
     const { rows: backups } = await client.query<{ storage_key: string }>(
       'DELETE FROM backups WHERE account_id = $1 RETURNING storage_key',
