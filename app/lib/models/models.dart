@@ -529,7 +529,23 @@ class Message {
 /// The controller cannot write it: "Photo" is a word, and which word depends on
 /// the reader. [text] is the one part that is never translated — a message
 /// somebody wrote, or the name they gave a file.
-enum ChatPreviewKind { empty, typing, deleted, body, notice, photo, video, voice, file }
+/// What a chat list row shows on its second line.
+///
+/// [savedEmpty] is the one that is not a message: the personal area exists
+/// before anything is in it, and an empty second line there reads as a chat
+/// somebody abandoned rather than as a notebook nobody has written in yet.
+enum ChatPreviewKind {
+  empty,
+  savedEmpty,
+  typing,
+  deleted,
+  body,
+  notice,
+  photo,
+  video,
+  voice,
+  file,
+}
 
 @immutable
 class ChatPreview {

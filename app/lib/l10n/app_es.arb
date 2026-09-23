@@ -1345,6 +1345,7 @@
   "contactMatchNote": "Tu agenda se quedó en este dispositivo. Cada número se convirtió aquí en un hash con clave y solo se compararon los hashes; no se subió nada y no se guardó nada.",
   "contactMatchUnsupported": "Esta versión no puede leer la agenda. Puedes seguir añadiendo gente por ID de Privio, enlace de invitación o código QR.",
   "savedTitle": "Guardado",
+  "savedEmptyPreview": "Tus notas y archivos privados",
   "savedAccountRow": "Guardado",
   "savedChatSubtitle": "Solo tú lo ves",
   "savedEmptyTitle": "Todavía no hay nada guardado",

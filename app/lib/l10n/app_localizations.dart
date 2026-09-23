@@ -7795,6 +7795,12 @@ abstract class AppText {
   /// **'Saved'**
   String get savedTitle;
 
+  /// Second line of the Saved row in the chat list while the area is still empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Your private notes and files'**
+  String get savedEmptyPreview;
+
   /// No description provided for @savedAccountRow.
   ///
   /// In en, this message translates to:

@@ -4586,6 +4586,9 @@ class AppTextEs extends AppText {
   String get savedTitle => 'Guardado';
 
   @override
+  String get savedEmptyPreview => 'Tus notas y archivos privados';
+
+  @override
   String get savedAccountRow => 'Guardado';
 
   @override

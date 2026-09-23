@@ -257,9 +257,27 @@ class ConversationController extends ChangeNotifier {
     // Added here rather than by loosening the store's rule, because the store
     // does not know which id is this account's own and should not have to.
     final me = accountId;
-    if (me == null || rows.any((row) => row.id == me)) return rows;
-    final saved = _services.store.conversationWith(me);
-    if (saved != null) rows.add(_summarise(saved));
+    if (me == null) return rows;
+    if (!rows.any((row) => row.id == me)) {
+      final saved = _services.store.conversationWith(me);
+      if (saved != null) rows.add(_summarise(saved));
+    }
+
+    // And then it goes to the top, ahead of pinned chats and whatever arrived
+    // most recently.
+    //
+    // Not by pinning it — a pin is somebody's choice and can be taken back,
+    // and Saved is not a chat competing for the same place. It is the one row
+    // that is a *destination*: the place your own notes live, which is worth
+    // nothing if finding it means scrolling past a busy morning. So the order
+    // is fixed here rather than in the store's sort, where it would need a
+    // rule about an id the store has no business knowing.
+    //
+    // The screen still filters this list. Under "Groups" or "Unread" the row
+    // drops out like any other, because there the question being asked is not
+    // "where do I start" but "which of these match".
+    final at = rows.indexWhere((row) => row.id == me);
+    if (at > 0) rows.insert(0, rows.removeAt(at));
     return rows;
   }
 
@@ -279,7 +297,17 @@ class ConversationController extends ChangeNotifier {
       avatarBytes: _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
       // one line, and what someone is doing now beats what they said before.
-      preview: isTyping(conversation.id) ? const ChatPreview(ChatPreviewKind.typing) : _previewOf(last),
+      // An empty Saved area says what it is for. Every other empty
+      // conversation is one the store has already left out of the list, so
+      // this is the only row that can be blank — and blank, next to a
+      // bookmark, reads as a notebook somebody gave up on rather than one
+      // nobody has opened.
+      preview: switch (true) {
+        _ when isTyping(conversation.id) => const ChatPreview(ChatPreviewKind.typing),
+        _ when last == null && isSaved(conversation.id) =>
+          const ChatPreview(ChatPreviewKind.savedEmpty),
+        _ => _previewOf(last),
+      },
       typing: isTyping(conversation.id),
       timestamp: last == null ? ChatStamp.none : _stampFor(last.sentAt),
       unreadCount: conversation.unreadCount,

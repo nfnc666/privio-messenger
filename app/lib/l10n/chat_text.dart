@@ -11,6 +11,7 @@ import 'notice_text.dart';
 /// whole language feature rests on.
 String previewWords(AppText text, ChatPreview preview) => switch (preview.kind) {
       ChatPreviewKind.empty => '',
+      ChatPreviewKind.savedEmpty => text.savedEmptyPreview,
       ChatPreviewKind.typing => text.chatTyping,
       ChatPreviewKind.deleted => text.chatsPreviewDeleted,
       ChatPreviewKind.body => preview.text ?? '',

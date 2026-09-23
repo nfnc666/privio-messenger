@@ -2188,6 +2188,10 @@
   "contactMatchNote": "Your address book stayed on this device. Each number was turned into a keyed hash here and only the hashes were compared; nothing was uploaded and nothing was stored.",
   "contactMatchUnsupported": "This build cannot read the address book. You can still add people by Privio ID, invite link or QR code.",
   "savedTitle": "Saved",
+  "savedEmptyPreview": "Your private notes and files",
+  "@savedEmptyPreview": {
+    "description": "Second line of the Saved row in the chat list while the area is still empty."
+  },
   "savedAccountRow": "Saved",
   "savedChatSubtitle": "Only you can see this",
   "savedEmptyTitle": "Nothing saved yet",

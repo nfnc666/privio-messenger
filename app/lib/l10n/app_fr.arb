@@ -1345,6 +1345,7 @@
   "contactMatchNote": "Votre carnet d’adresses est resté sur cet appareil. Chaque numéro a été transformé ici en une empreinte à clé et seules les empreintes ont été comparées ; rien n’a été envoyé ni conservé.",
   "contactMatchUnsupported": "Cette version ne peut pas lire le carnet d’adresses. Vous pouvez toujours ajouter quelqu’un par identifiant Privio, lien d’invitation ou code QR.",
   "savedTitle": "Enregistré",
+  "savedEmptyPreview": "Vos notes et fichiers privés",
   "savedAccountRow": "Enregistré",
   "savedChatSubtitle": "Vous seul le voyez",
   "savedEmptyTitle": "Rien d’enregistré pour l’instant",

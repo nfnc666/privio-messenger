@@ -195,12 +195,24 @@ class _ChatsScreenState extends State<ChatsScreen> {
         2 => chat.isGroup,
         _ => true,
       };
+      // The name as the row draws it. Saved carries this account's own
+      // username as its title and shows the word "Saved", so matching the
+      // stored title would answer a search for your own username and not one
+      // for the thing on screen.
+      final title = chat.isSaved ? text.savedTitle : chat.title;
       final matchesQuery = query.isEmpty ||
-          chat.title.toLowerCase().contains(query) ||
+          title.toLowerCase().contains(query) ||
           previewWords(text, chat.preview).toLowerCase().contains(query);
       return matchesFilter && matchesQuery;
     }).toList();
   }
+
+  /// Whether the list holds nothing but the personal area.
+  ///
+  /// Which is what an account with no conversations now looks like, since
+  /// Saved is there from the first sign-in.
+  static bool _onlySaved(List<ChatSummary> chats) =>
+      chats.length == 1 && chats.single.isSaved;
 
   Widget _row(BuildContext context, AppState state, ChatSummary chat) => ChatListRow(
         chat: chat,
@@ -358,9 +370,19 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             backgroundColor: PrivioColors.surface,
                             onRefresh: state.conversations.drain,
                             child: ListView.builder(
-                              itemCount: chats.length,
-                              itemBuilder: (context, index) =>
-                                  _row(context, state, chats[index]),
+                              // Saved is always in the list, so "no chats yet"
+                              // is now a list of exactly one row. The panel
+                              // that says where to start goes under it rather
+                              // than instead of it — losing the way to add a
+                              // first contact would be a steep price for a
+                              // notebook nobody has written in yet.
+                              itemCount: chats.length + (_onlySaved(chats) ? 1 : 0),
+                              itemBuilder: (context, index) => index < chats.length
+                                  ? _row(context, state, chats[index])
+                                  : const Padding(
+                                      padding: EdgeInsets.only(top: PrivioSpacing.xxxl),
+                                      child: _EmptyChats(),
+                                    ),
                             ),
                           ))
                     : _Results(

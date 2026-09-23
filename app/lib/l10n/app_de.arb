@@ -1345,6 +1345,7 @@
   "contactMatchNote": "Dein Adressbuch ist auf diesem Gerät geblieben. Jede Nummer wurde hier in einen Hash mit Schlüssel verwandelt, verglichen wurden nur die Hashes; hochgeladen wurde nichts und gespeichert auch nicht.",
   "contactMatchUnsupported": "Diese Fassung kann das Adressbuch nicht lesen. Über PRIVIO-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen.",
   "savedTitle": "Gespeichert",
+  "savedEmptyPreview": "Deine privaten Notizen und Dateien",
   "savedAccountRow": "Gespeichert",
   "savedChatSubtitle": "Nur du siehst das",
   "savedEmptyTitle": "Noch nichts gespeichert",

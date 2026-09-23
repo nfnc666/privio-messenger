@@ -4596,6 +4596,9 @@ class AppTextFr extends AppText {
   String get savedTitle => 'Enregistré';
 
   @override
+  String get savedEmptyPreview => 'Vos notes et fichiers privés';
+
+  @override
   String get savedAccountRow => 'Enregistré';
 
   @override

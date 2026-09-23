@@ -194,6 +194,7 @@ Covered by `app/test/saved_test.dart` and the retention tests in
 | V4 | Save a photo, then open it on the second device **after the ordinary attachment window** has passed | Needs a server with a short `MEDIA_TTL_DAYS` to test in reasonable time | | | | not run | |
 | V5 | Long-press a message that is under a disappearing timer: saving is refused with the reason, and nothing appears in Saved | Needs a chat with a timer set | | | | not run | |
 | V6 | A Saved area with a few hundred entries scrolls and searches without stalling | The search is a loop over decrypted messages, as everywhere else in the app | | | | not run | |
+| V7 | With a busy chat list — something pinned, something that just arrived — Saved is still the first row after the filter chips, and stays there after a force-quit and an account switch | Two accounts on one phone; the failure to watch for is the row sliding down as messages come in | | | | not run | |
 
 ## 6e. Disappearing messages
 
@@ -294,13 +295,13 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6b Profiles from a chat | 8 | 0 | 0 | 0 | 8 |
 | 6b-2 Two names | 5 | 0 | 0 | 0 | 5 |
 | 6c Address book | 6 | 0 | 0 | 0 | 6 |
-| 6d Saved | 6 | 0 | 0 | 0 | 6 |
+| 6d Saved | 7 | 0 | 0 | 0 | 7 |
 | 6e Disappearing messages | 9 | 0 | 0 | 0 | 9 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **98** | **0** | **0** | **0** | **98** |
+| **Total** | **99** | **0** | **0** | **0** | **99** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

@@ -1345,6 +1345,7 @@
   "contactMatchNote": "La tua rubrica è rimasta su questo dispositivo. Ogni numero è stato trasformato qui in un hash con chiave e sono stati confrontati solo gli hash; non è stato caricato né conservato nulla.",
   "contactMatchUnsupported": "Questa versione non può leggere la rubrica. Puoi comunque aggiungere qualcuno tramite ID Privio, link d’invito o codice QR.",
   "savedTitle": "Salvati",
+  "savedEmptyPreview": "Le tue note e i tuoi file privati",
   "savedAccountRow": "Salvati",
   "savedChatSubtitle": "Lo vedi solo tu",
   "savedEmptyTitle": "Non hai ancora salvato nulla",

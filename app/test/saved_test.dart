@@ -3,8 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/failure.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/data/message_store.dart';
 import 'package:privio/models/models.dart';
 import 'package:privio/screens/chat_screen.dart';
+import 'package:privio/screens/chats_screen.dart';
+import 'package:privio/theme/accent.dart';
 
 import 'widget_test.dart' show quietServices, wrap;
 
@@ -201,6 +204,204 @@ void main() {
       final media = state.conversations.savedMedia();
       expect(media, hasLength(1));
       expect(media.single.attachment!.fileName, 'contract.pdf');
+    });
+  });
+
+  group('where Saved sits in the chat list', () {
+    /// Somebody else's chat, with a message newer than anything in Saved.
+    void busyChatWith(AppState state, String id, {bool pinned = false}) {
+      state.services.store.upsertUser(KnownUser(accountId: id, username: id));
+      state.services.store.append(
+        id,
+        Message(
+          id: '$id-1',
+          body: 'later than the notes',
+          sentAt: DateTime(2026, 9, 22, 18),
+          isMine: false,
+        ),
+      );
+      if (pinned) state.services.store.setPinned(id, pinned: true);
+    }
+
+    test('it is first, however new the other chats are', () async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      state.services.store.append('acc-alice', note('an old note', at: DateTime(2026, 1, 1)));
+      busyChatWith(state, 'acc-bob');
+
+      final chats = state.conversations.chats;
+      expect(chats.first.isSaved, isTrue);
+      expect(chats.map((c) => c.id), ['acc-alice', 'acc-bob']);
+    });
+
+    test('and ahead of a pinned chat, which a pin cannot take from it', () async {
+      // The row is not competing for the pinned slot: a pin is a choice about
+      // a conversation, and this is the way into a place.
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      busyChatWith(state, 'acc-bob', pinned: true);
+
+      final chats = state.conversations.chats;
+      expect(chats.first.isSaved, isTrue);
+      expect(chats[1].id, 'acc-bob');
+      expect(chats[1].pinned, isTrue);
+      // And Saved did not quietly become pinned to get there.
+      expect(chats.first.pinned, isFalse);
+    });
+
+    test('an empty area is still listed, and says what it is for', () async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+
+      final chats = state.conversations.chats;
+      expect(chats.single.isSaved, isTrue);
+      expect(chats.single.preview.kind, ChatPreviewKind.savedEmpty);
+    });
+
+    test('and once something is in it, the last entry is the preview', () async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      state.services.store.append('acc-alice', note('erster Gedanke'));
+
+      final preview = state.conversations.chats.single.preview;
+      expect(preview.kind, ChatPreviewKind.body);
+      expect(preview.text, 'erster Gedanke');
+    });
+
+    test('a new message in another chat does not move it', () async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      state.services.store.append('acc-alice', note('a note'));
+      busyChatWith(state, 'acc-bob');
+
+      state.services.store.append(
+        'acc-bob',
+        Message(
+          id: 'newest',
+          body: 'and another',
+          sentAt: DateTime(2026, 9, 23, 9),
+          isMine: false,
+        ),
+      );
+
+      expect(state.conversations.chats.first.isSaved, isTrue);
+    });
+
+    test('a restart reads it back in the same place', () async {
+      // The order is computed, not stored, so this is really a test that
+      // restoring an archive does not leave the row somewhere else.
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      state.services.store.append('acc-alice', note('survives'));
+      busyChatWith(state, 'acc-bob');
+      await state.conversations.flush();
+
+      await state.conversations.restore();
+      state.conversations.ensureSaved(username: 'alice');
+
+      expect(state.conversations.chats.first.isSaved, isTrue);
+    });
+
+    test('each account gets its own at the top, and not the other one’s',
+        () async {
+      final first = await signedInAs('acc-alice');
+      addTearDown(first.conversations.stop);
+      first.services.store.append('acc-alice', note('Alice’s note'));
+
+      final second = await signedInAs('acc-bob');
+      addTearDown(second.conversations.stop);
+
+      final chats = second.conversations.chats;
+      expect(chats.first.isSaved, isTrue);
+      expect(chats.first.id, 'acc-bob');
+      expect(chats.first.preview.kind, ChatPreviewKind.savedEmpty);
+      expect(
+        chats.any((chat) => chat.id == 'acc-alice'),
+        isFalse,
+        reason: 'one account’s notebook appeared in another account’s list',
+      );
+    });
+  });
+
+  group('the chat list row', () {
+    Future<void> openList(WidgetTester tester, AppState state) async {
+      await tester.pumpWidget(wrap(const ChatsScreen(), state));
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('is drawn first, with a bookmark in the accent colour',
+        (tester) async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      // A chat with a message from today, which without the hoist would be
+      // drawn above a notebook whose newest entry is older.
+      state.services.store.upsertUser(
+        const KnownUser(accountId: 'acc-bob', username: 'bob'),
+      );
+      state.services.store.append(
+        'acc-bob',
+        Message(
+          id: 'b1',
+          body: 'guten Morgen',
+          sentAt: DateTime(2026, 9, 22, 18),
+          isMine: false,
+        ),
+      );
+      await openList(tester, state);
+
+      expect(find.text('Saved'), findsOneWidget);
+      expect(find.text('Your private notes and files'), findsOneWidget);
+      // Pixels, because "first in the list" is a thing somebody sees.
+      expect(
+        tester.getTopLeft(find.text('Saved')).dy,
+        lessThan(tester.getTopLeft(find.text('bob')).dy),
+      );
+      final icon = tester.widget<Icon>(find.byIcon(Icons.bookmark_rounded));
+      final accents = tester.element(find.byIcon(Icons.bookmark_rounded)).accents;
+      expect(icon.color, accents.accent);
+    });
+
+    testWidgets('an account with nothing else still finds its way to a first contact',
+        (tester) async {
+      // Saved being always present means the list is never empty, so the panel
+      // that says where to start has to survive beside it.
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      await openList(tester, state);
+
+      expect(find.text('Saved'), findsOneWidget);
+      expect(find.text('No chats yet'), findsOneWidget);
+    });
+
+    testWidgets('“Groups” and “Unread” drop it like any other chat',
+        (tester) async {
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      await openList(tester, state);
+
+      await tester.tap(find.text('Groups'));
+      await tester.pumpAndSettle();
+      expect(find.text('Saved'), findsNothing);
+
+      await tester.tap(find.text('Unread'));
+      await tester.pumpAndSettle();
+      expect(find.text('Saved'), findsNothing);
+
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      expect(find.text('Saved'), findsOneWidget);
+    });
+
+    testWidgets('and a search finds it by the word on the row', (tester) async {
+      // Its stored title is this account's username; the row says "Saved".
+      final state = await signedInAs('acc-alice');
+      addTearDown(state.conversations.stop);
+      await openList(tester, state);
+
+      await tester.enterText(find.byType(TextField).first, 'Saved');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved'), findsWidgets);
     });
   });
 

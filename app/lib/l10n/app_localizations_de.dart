@@ -4597,6 +4597,9 @@ class AppTextDe extends AppText {
   String get savedTitle => 'Gespeichert';
 
   @override
+  String get savedEmptyPreview => 'Deine privaten Notizen und Dateien';
+
+  @override
   String get savedAccountRow => 'Gespeichert';
 
   @override

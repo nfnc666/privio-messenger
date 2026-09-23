@@ -4604,6 +4604,9 @@ class AppTextIt extends AppText {
   String get savedTitle => 'Salvati';
 
   @override
+  String get savedEmptyPreview => 'Le tue note e i tuoi file privati';
+
+  @override
   String get savedAccountRow => 'Salvati';
 
   @override
