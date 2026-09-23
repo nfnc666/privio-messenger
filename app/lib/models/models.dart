@@ -230,6 +230,12 @@ enum NoticeKind {
   /// Messages arrived that this device has no key for. Carries
   /// [SystemNotice.count].
   unreadable,
+
+  /// A timer longer than a day was shortened to a day when this chat was read
+  /// back. Written once, where the change happened, because a setting that
+  /// silently changes itself is something somebody otherwise discovers from a
+  /// message that vanished earlier than they expected.
+  timerCapped,
 }
 
 /// One system notice: what happened, and the few things the sentence needs.
@@ -483,6 +489,13 @@ class Message {
     Map<String, DeliveryState>? receipts,
     Map<String, StickerRef>? reactionStickers,
     bool? pinned,
+    /// Drops the copy of a quoted message kept inside this one.
+    ///
+    /// Its own flag because `copyWith(replyPreview: null)` cannot mean
+    /// "clear it" — null is how every other field says "leave it alone". What
+    /// needs it: the original expired, and an excerpt of an expired message is
+    /// the message, sitting in the transcript under a different bubble.
+    bool forgetQuote = false,
   }) =>
       Message(
         id: id,
@@ -499,7 +512,7 @@ class Message {
         expiresAt: expiresAt ?? this.expiresAt,
         clientId: clientId,
         replyToId: replyToId,
-        replyPreview: replyPreview,
+        replyPreview: forgetQuote ? null : replyPreview,
         replySender: replySender,
         reactions: reactions ?? this.reactions,
         receipts: receipts ?? this.receipts,

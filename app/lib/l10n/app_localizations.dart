@@ -553,12 +553,6 @@ abstract class AppText {
   /// **'24 hours'**
   String get disappearing24Hours;
 
-  /// No description provided for @disappearing7Days.
-  ///
-  /// In en, this message translates to:
-  /// **'7 days'**
-  String get disappearing7Days;
-
   /// No description provided for @disappearingAdminOnly.
   ///
   /// In en, this message translates to:

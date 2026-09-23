@@ -78,7 +78,6 @@
   "disappearing5Minutes": "5 minutes",
   "disappearing1Hour": "1 hour",
   "disappearing24Hours": "24 hours",
-  "disappearing7Days": "7 days",
   "disappearingAdminOnly": "Only an admin can change this",
   "noticeTimerSetBy": "{who} set disappearing messages to {duration}",
   "@noticeTimerSetBy": {

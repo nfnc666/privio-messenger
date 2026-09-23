@@ -1339,7 +1339,29 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   if (!_isSaved(state))
                     PopupMenuItem(
                       value: 'timer',
-                      child: Text(text.disappearingTitle),
+                      // Two lines: the setting, and what it currently means
+                      // here. The composer's chip says the duration only when
+                      // there is one, so "Off" — the state somebody most
+                      // wants confirmed before typing — had nowhere to be
+                      // read without opening the sheet.
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(text.disappearingTitle),
+                          Text(
+                            state.conversations.chatTimer(widget.accountId).explicit
+                                ? text.disappearingEffective(
+                                    DisappearingTimerSheet.label(
+                                      text,
+                                      state.conversations.disappearAfter(widget.accountId),
+                                    ),
+                                  )
+                                : text.disappearingFollowsDefault,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
                   if (_isSaved(state))
                     PopupMenuItem(

@@ -322,10 +322,21 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     SettingsRow(
                       icon: Icons.timer_outlined,
                       label: text.disappearingTitle,
+                      // The effective duration — what messages sent here
+                      // actually get — rather than the group's own field,
+                      // which may be "whatever the account says".
                       value: switch (state.conversations.disappearAfter(widget.groupId)) {
                         final timer? => describeDuration(text, timer),
                         null => text.disappearingOff,
                       },
+                      // And where that number comes from, because the two
+                      // read identically otherwise: a group showing "1 hour"
+                      // because it was set to one hour and a group showing it
+                      // because the account default says so behave
+                      // differently the next time that default changes.
+                      subtitle: state.conversations.chatTimer(widget.groupId).explicit
+                          ? null
+                          : text.disappearingFollowsDefault,
                       // Still tappable for a member, and it says why rather
                       // than doing nothing: a row that ignores a tap reads as
                       // a bug, and the reason is worth one line.

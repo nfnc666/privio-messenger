@@ -195,6 +195,25 @@ Covered by `app/test/saved_test.dart` and the retention tests in
 | V5 | Long-press a message that is under a disappearing timer: saving is refused with the reason, and nothing appears in Saved | Needs a chat with a timer set | | | | not run | |
 | V6 | A Saved area with a few hundred entries scrolls and searches without stalling | The search is a loop over decrypted messages, as everywhere else in the app | | | | not run | |
 
+## 6e. Disappearing messages
+
+Covered by `app/test/disappearing_test.dart` and
+`server/test/disappearing.test.ts`; none of it has been on a phone. The rows
+below are the ones a suite cannot answer — two clocks, two devices, and a real
+network. See [`disappearing-messages.md`](disappearing-messages.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T1 | Set a chat to 30 seconds on one phone: the other phone shows the notice, the chip reads `30s` on both, and a message sent afterwards disappears from **both** within a few seconds of each other | Two handsets; the gap is the two devices' clocks, not a bug unless it is minutes | | | | not run | |
+| T2 | Settings → Privacy → Disappearing messages: set 1 hour, open a **new** chat — it follows the general setting and says so; a chat set by hand keeps its own value | | | | | not run | |
+| T3 | Apply to existing chats: the preview counts match what changes, a chat with its own setting is untouched until the checkbox is ticked, and groups where you are not an admin are named as skipped | Needs a group you are only a member of | | | | not run | |
+| T4 | Set a chat to Off explicitly, then change the general setting: that chat stays Off | This is the tri-state; a chat that starts deleting here is the failure that matters most | | | | not run | |
+| T5 | Change the same chat's timer on two phones within a second of each other: both settle on the same value without either announcing back in a loop | Needs two devices on the same conversation | | | | not run | |
+| T6 | Send a photo and a voice message with the network off, turn it back on: each starts its timer when it actually goes, not when it was recorded | | | | | not run | |
+| T7 | Force-quit both apps for longer than the timer, reopen: what expired is gone from the history, the search and the media gallery, and no bubble flashes before it is cleaned | The flash before the sweep is the bug this row exists for | | | | not run | |
+| T8 | Restore a backup taken before the messages expired: they do not come back | Needs a backup made with a timer running | | | | not run | |
+| T9 | Sign out and into a second account on the same phone: it has its own general setting and its own chat timers | | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -272,10 +291,19 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 4 Android ↔ Android | 6 | 0 | 0 | 0 | 6 |
 | 5 Android ↔ iPhone | 5 | 0 | 0 | 0 | 5 |
 | 6 Groups and channels | 8 | 0 | 0 | 0 | 8 |
+| 6b Profiles from a chat | 8 | 0 | 0 | 0 | 8 |
+| 6b-2 Two names | 5 | 0 | 0 | 0 | 5 |
+| 6c Address book | 6 | 0 | 0 | 0 | 6 |
+| 6d Saved | 6 | 0 | 0 | 0 | 6 |
+| 6e Disappearing messages | 9 | 0 | 0 | 0 | 9 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **64** | **0** | **0** | **0** | **64** |
+| **Total** | **98** | **0** | **0** | **0** | **98** |
+
+The four sections between 6 and 7 were missing from this table until the timer
+rows were added — 34 rows of scope that the total silently left out. A summary
+that undercounts what has not been run is worse than no summary.
 
 Nothing in this table has been run. It is a plan, not a result.

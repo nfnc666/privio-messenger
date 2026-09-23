@@ -254,9 +254,6 @@ class AppTextFr extends AppText {
   String get disappearing24Hours => '24 heures';
 
   @override
-  String get disappearing7Days => '7 jours';
-
-  @override
   String get disappearingAdminOnly =>
       'Seul un administrateur peut modifier ceci';
 

@@ -450,6 +450,16 @@ abstract final class ArchiveCodec {
     );
   }
 
+  /// Whether the stored timer was longer than the ceiling.
+  ///
+  /// Read separately from [_decodeChatTimer] so the clamp can be *said* as
+  /// well as done: the controller writes one notice into each chat this was
+  /// true of. See `ConversationController.restore`.
+  static bool _timerWasCapped(Map<String, dynamic> entry) {
+    final seconds = entry['disappearAfterSeconds'] as int?;
+    return seconds != null && seconds > maxDisappearSeconds;
+  }
+
   /// Custom-emoji spans out of an archive, keeping only the ones that fit.
   ///
   /// Checked against the body for the same reason the wire format is: an
@@ -554,6 +564,7 @@ abstract final class ArchiveCodec {
             ..unreadCount = entry['unreadCount'] as int? ?? 0
             ..pinned = entry['pinned'] as bool? ?? false
             ..timer = _decodeChatTimer(entry)
+            ..timerWasCapped = _timerWasCapped(entry)
             ..timerVersion = entry['timerVersion'] as int? ?? 0
             ..timerSetBy = entry['timerSetBy'] as String?,
         );
@@ -577,6 +588,7 @@ abstract final class ArchiveCodec {
           ..unreadCount = entry['unreadCount'] as int? ?? 0
           ..pinned = entry['pinned'] as bool? ?? false
           ..timer = _decodeChatTimer(entry)
+          ..timerWasCapped = _timerWasCapped(entry)
           ..timerVersion = entry['timerVersion'] as int? ?? 0
           ..timerSetBy = entry['timerSetBy'] as String?,
       );

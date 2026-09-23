@@ -75,7 +75,6 @@
   "disappearing5Minutes": "5 minuti",
   "disappearing1Hour": "1 ora",
   "disappearing24Hours": "24 ore",
-  "disappearing7Days": "7 giorni",
   "disappearingAdminOnly": "Solo un amministratore può cambiarlo",
   "noticeTimerSetBy": "{who} ha impostato i messaggi a tempo su {duration}",
   "noticeTimerOffBy": "{who} ha disattivato i messaggi a tempo",

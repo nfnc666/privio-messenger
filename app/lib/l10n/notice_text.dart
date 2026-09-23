@@ -17,6 +17,7 @@ String describeNotice(AppText text, SystemNotice notice) {
         describeDuration(text, notice.duration ?? Duration.zero),
       ),
     NoticeKind.timerOff => text.noticeTimerOffBy(who),
+    NoticeKind.timerCapped => text.noticeTimerCapped,
     NoticeKind.unreadable => notice.who == null
         ? text.noticeUnreadable(notice.count ?? 1)
         : text.noticeUnreadableFrom(notice.count ?? 1, notice.who!),

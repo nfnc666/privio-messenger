@@ -253,9 +253,6 @@ class AppTextDe extends AppText {
   String get disappearing24Hours => '24 Stunden';
 
   @override
-  String get disappearing7Days => '7 Tage';
-
-  @override
   String get disappearingAdminOnly => 'Das kann nur ein Admin ändern';
 
   @override

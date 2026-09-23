@@ -175,6 +175,13 @@ class Conversation {
   /// order to drop an undelivered one.
   ChatTimer timer = const ChatTimer.followDefault();
 
+  /// Set when this chat's stored timer was longer than the ceiling and was
+  /// shortened on the way in.
+  ///
+  /// Not persisted and not sent: it lives just long enough for the controller
+  /// to write one notice into the chat after a restore, and is cleared there.
+  bool timerWasCapped = false;
+
   /// Which change this is, so that two people setting a timer at the same
   /// moment end up agreeing.
   ///
@@ -608,11 +615,26 @@ class InMemoryMessageStore implements MessageStore {
   List<Message> pruneExpired(DateTime now) {
     final removed = <Message>[];
     for (final conversation in _conversations.values) {
+      final gone = <String>{};
       conversation.messages.removeWhere((message) {
         if (!message.hasExpiredAt(now)) return false;
         removed.add(message);
+        gone.add(message.id);
         return true;
       });
+      if (gone.isEmpty) continue;
+
+      // A reply keeps a copy of the text it quoted. When the original expires
+      // that copy is the only place the words still exist — in the transcript,
+      // in search, in the chat-list preview, and in the next backup. The reply
+      // itself stays, with its own expiry; what goes is the excerpt.
+      for (var i = 0; i < conversation.messages.length; i += 1) {
+        final message = conversation.messages[i];
+        if (message.replyToId == null) continue;
+        if (!gone.contains(message.replyToId)) continue;
+        if (message.replyPreview == null) continue;
+        conversation.messages[i] = message.copyWith(forgetQuote: true);
+      }
     }
     return removed;
   }

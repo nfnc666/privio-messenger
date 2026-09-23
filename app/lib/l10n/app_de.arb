@@ -75,7 +75,6 @@
   "disappearing5Minutes": "5 Minuten",
   "disappearing1Hour": "1 Stunde",
   "disappearing24Hours": "24 Stunden",
-  "disappearing7Days": "7 Tage",
   "disappearingAdminOnly": "Das kann nur ein Admin ändern",
   "noticeTimerSetBy": "{who} hat selbstlöschende Nachrichten auf {duration} gesetzt",
   "noticeTimerOffBy": "{who} hat selbstlöschende Nachrichten ausgeschaltet",

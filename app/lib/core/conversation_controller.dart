@@ -350,8 +350,34 @@ class ConversationController extends ChangeNotifier {
       ..addAll(contents.outbox);
     // A message queued before the app was killed is still owed to somebody.
     _services.store.pruneExpired(DateTime.now());
+    _noteCappedTimers();
     notifyListeners();
     detached(flushOutbox());
+  }
+
+  /// Says so where a stored timer was longer than a day and was shortened.
+  ///
+  /// The clamp itself happens in the archive, and doing it quietly would be
+  /// the wrong half of the job: somebody who set a week would find out from a
+  /// message that disappeared six days early. Written once per chat, into that
+  /// chat, and only about *new* messages — everything already in the history
+  /// keeps the expiry it was sent with.
+  void _noteCappedTimers() {
+    for (final conversation in _services.store.conversations()) {
+      if (!conversation.timerWasCapped) continue;
+      conversation.timerWasCapped = false;
+      _services.store.append(
+        conversation.id,
+        Message(
+          id: 'notice-capped-${conversation.id}',
+          body: 'Disappearing messages were set to 24 hours, the longest this app allows.',
+          sentAt: DateTime.now(),
+          isMine: false,
+          kind: MessageKind.notice,
+          notice: const SystemNotice(NoticeKind.timerCapped),
+        ),
+      );
+    }
   }
 
   /// Takes on a history that a restore has just put into the store.
