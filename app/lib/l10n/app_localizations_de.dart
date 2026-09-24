@@ -4095,6 +4095,10 @@ class AppTextDe extends AppText {
       'PRIVIO hat heute für dieses Konto so viele Nummern abgeglichen, wie es das tut. Versuch es morgen wieder.';
 
   @override
+  String get failureMentionUnknownUser =>
+      'Diesen Benutzernamen gibt es nicht. Vielleicht wurde das Konto gelöscht oder der Name ist falsch geschrieben.';
+
+  @override
   String get failureContactsPermissionDenied =>
       'PRIVIO hat keinen Zugriff auf deine Kontakte. Du kannst Leute weiterhin über ihre PRIVIO-ID oder einen Einladungslink hinzufügen.';
 

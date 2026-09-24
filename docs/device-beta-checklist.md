@@ -231,6 +231,22 @@ before Flutter starts — are ones no widget test can answer. See
 | C5 | Reset to default: green again, and still green after a relaunch | | | | | not run | |
 | C6 | With an app lock set: the lock screen and the sign-in still work, and the colour is right on both | The lock screen is what the splash hands over to | | | | not run | |
 
+## 6g. Tapping an @name
+
+Covered by `app/test/mentions_test.dart` and `app/test/mention_tap_test.dart`;
+none of it has been on a phone, and text selection across a tappable span is
+the row where the two platforms genuinely differ. See
+[`mentions.md`](mentions.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| M1 | Tap `@max` in a one-to-one chat, a group and a channel post: the right profile opens each time, by the account it belongs to | Needs a second account whose username you know | | | | not run | |
+| M2 | Press and hold to select text **across** a mention, and copy: the copied text is exactly what was written, `@` and all | iOS and Android handle selection over a tappable span differently; this is the row to watch | | | | not run | |
+| M3 | The tap target is comfortable for a thumb, and a tap just beside the name does **not** open a profile | | | | | not run | |
+| M4 | From a group, tap a mention, choose Message, then go back twice: the group is where it was and the unsent draft is still in the field | | | | | not run | |
+| M5 | Type `@` with the keyboard up: the suggestions sit above the field and are reachable without the keyboard covering them; picking one inserts the whole name | A short screen with a tall keyboard is the case to try | | | | not run | |
+| M6 | Tap a name that does not exist, and one while in flight mode: a sentence each time, no profile, no crash | | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -314,11 +330,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6d Saved | 7 | 0 | 0 | 0 | 7 |
 | 6e Disappearing messages | 9 | 0 | 0 | 0 | 9 |
 | 6f Accent on the loading screen | 6 | 0 | 0 | 0 | 6 |
+| 6g Tapping an @name | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **105** | **0** | **0** | **0** | **105** |
+| **Total** | **111** | **0** | **0** | **0** | **111** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

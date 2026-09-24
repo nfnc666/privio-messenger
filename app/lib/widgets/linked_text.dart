@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/message_text.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
+import 'mention_text.dart';
 
 /// Text with the links in it made tappable.
 ///
@@ -31,12 +35,6 @@ class LinkedText extends StatefulWidget {
 }
 
 class _LinkedTextState extends State<LinkedText> {
-  /// Everything that looks like a link, and nothing that merely contains a dot.
-  static final RegExp _pattern = RegExp(
-    r'(?:https?://|www\.)[^\s<>"]+',
-    caseSensitive: false,
-  );
-
   /// One recognizer per link, held so they can be disposed.
   ///
   /// A `TapGestureRecognizer` built inside `build` is never disposed and keeps
@@ -46,8 +44,12 @@ class _LinkedTextState extends State<LinkedText> {
   /// no recognizer is ever disposed in the middle of the tap it is handling.
   final Map<int, TapGestureRecognizer> _recognizers = {};
 
-  /// The text taken apart into plain runs and link runs.
-  late List<_Span> _spans;
+  /// The same holder every other mention on screen uses.
+  final MentionRecognizers _mentions = MentionRecognizers();
+
+  /// The text taken apart into plain, link and mention runs — by the one
+  /// tokenizer, so a `@` inside a URL cannot be claimed by both.
+  late List<TextRun> _spans;
 
   @override
   void initState() {
@@ -63,10 +65,10 @@ class _LinkedTextState extends State<LinkedText> {
 
   void _rebuildSpans() {
     _disposeRecognizers();
-    _spans = _split(widget.text);
+    _spans = MessageText.split(widget.text);
     for (var index = 0; index < _spans.length; index++) {
       final span = _spans[index];
-      if (!span.isLink) continue;
+      if (span.kind != TextRunKind.link) continue;
       _recognizers[index] = TapGestureRecognizer()
         ..onTap = () => _confirmAndOpen(span.text);
     }
@@ -83,40 +85,7 @@ class _LinkedTextState extends State<LinkedText> {
       recognizer.dispose();
     }
     _recognizers.clear();
-  }
-
-  /// Splits [text] into plain runs and link runs.
-  static List<_Span> _split(String text) {
-    final spans = <_Span>[];
-    var cursor = 0;
-    for (final match in _pattern.allMatches(text)) {
-      // A URL at the end of a sentence takes the full stop with it unless the
-      // trailing punctuation is handed back to the sentence it belongs to.
-      final raw = _trimTrailingPunctuation(match.group(0)!);
-      final start = match.start;
-      final end = start + raw.length;
-      if (start > cursor) spans.add(_Span(text.substring(cursor, start)));
-      spans.add(_Span(raw, isLink: true));
-      cursor = end;
-    }
-    if (cursor < text.length) spans.add(_Span(text.substring(cursor)));
-    return spans;
-  }
-
-  static String _trimTrailingPunctuation(String url) {
-    var end = url.length;
-    while (end > 0) {
-      final character = url[end - 1];
-      if ('.,;:!?"\''.contains(character)) {
-        end--;
-      } else if (character == ')' && !url.substring(0, end).contains('(')) {
-        // Only an unmatched one. `…/Foo_(bar)` is a real address.
-        end--;
-      } else {
-        break;
-      }
-    }
-    return url.substring(0, end);
+    _mentions.clear();
   }
 
   /// The address a link run actually points at.
@@ -165,33 +134,39 @@ class _LinkedTextState extends State<LinkedText> {
           decorationColor: context.accents.dim,
         );
 
-    // No link, no spans, no recognizers: the overwhelmingly common case stays a
-    // plain `Text`.
-    if (_spans.length == 1 && !_spans.first.isLink) {
+    // Nothing to tap, no spans, no recognizers: the overwhelmingly common case
+    // stays a plain `Text`.
+    if (_spans.length == 1 && _spans.first.kind == TextRunKind.plain) {
       return Text(widget.text, style: base);
     }
 
-    return Text.rich(
-      TextSpan(
-        style: base,
-        children: [
-          for (var index = 0; index < _spans.length; index++)
-            TextSpan(
-              text: _spans[index].text,
-              style: _spans[index].isLink ? link : null,
+    var offset = 0;
+    final children = <InlineSpan>[];
+    for (var index = 0; index < _spans.length; index++) {
+      final span = _spans[index];
+      children.add(
+        switch (span.kind) {
+          TextRunKind.link => TextSpan(
+              text: span.text,
+              style: link,
               recognizer: _recognizers[index],
             ),
-        ],
-      ),
-    );
+          TextRunKind.mention => TextSpan(
+              text: span.text,
+              style: mentionStyle(context, base),
+              recognizer: _mentions.forMention(
+                offset,
+                () => unawaited(openMention(context, span.username!)),
+              ),
+            ),
+          TextRunKind.plain => TextSpan(text: span.text),
+        },
+      );
+      offset += span.text.length;
+    }
+
+    return Text.rich(TextSpan(style: base, children: children));
   }
-}
-
-class _Span {
-  const _Span(this.text, {this.isLink = false});
-
-  final String text;
-  final bool isLink;
 }
 
 /// Asks before leaving the app, and says where to.

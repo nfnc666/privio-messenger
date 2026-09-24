@@ -97,6 +97,7 @@ extension FailureText on Failure {
         FailureKind.phoneNotLinked => text.failurePhoneNotLinked,
         FailureKind.phoneLookupBudgetSpent => text.failurePhoneLookupBudgetSpent,
         FailureKind.contactsPermissionDenied => text.failureContactsPermissionDenied,
+        FailureKind.mentionUnknownUser => text.failureMentionUnknownUser,
         FailureKind.stickerNotAnImage => text.failureStickerNotAnImage,
         FailureKind.stickerAnimated => text.failureStickerAnimated,
         FailureKind.stickerTooLarge =>

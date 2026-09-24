@@ -32,8 +32,8 @@ import 'package:privio/widgets/message_bubble.dart';
 
 /// Services wired to a server that answers with empty collections, so screens
 /// can be driven from a store seeded by the test itself.
-Future<PrivioServices> quietServices() async {
-  final client = MockClient((request) async => http.Response(
+Future<PrivioServices> quietServices({http.Client? client}) async {
+  client ??= MockClient((request) async => http.Response(
         jsonEncode(const {'contacts': [], 'envelopes': [], 'more': false}),
         200,
         headers: {'content-type': 'application/json'},

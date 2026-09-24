@@ -4093,6 +4093,10 @@ class AppTextFr extends AppText {
       'PRIVIO a comparé aujourd’hui autant de numéros qu’il le fait pour ce compte. Réessayez demain.';
 
   @override
+  String get failureMentionUnknownUser =>
+      'Ce nom d’utilisateur n’existe pas. Le compte a peut-être été supprimé, ou le nom est mal orthographié.';
+
+  @override
   String get failureContactsPermissionDenied =>
       'PRIVIO n’a pas accès à vos contacts. Vous pouvez toujours ajouter des personnes via leur identifiant PRIVIO ou un lien d’invitation.';
 

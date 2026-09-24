@@ -6943,6 +6943,12 @@ abstract class AppText {
   /// **'Privio has matched as many numbers for this account today as it will. Try again tomorrow.'**
   String get failurePhoneLookupBudgetSpent;
 
+  /// Shown when an @username in a message cannot be resolved to an account.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no such username. The account may have been deleted, or the name may be misspelled.'**
+  String get failureMentionUnknownUser;
+
   /// No description provided for @failureContactsPermissionDenied.
   ///
   /// In en, this message translates to:

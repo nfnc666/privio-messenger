@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../core/message_text.dart';
 import '../core/sticker_controller.dart';
 import '../models/models.dart';
+import 'mention_text.dart';
 import 'sticker_tile.dart';
 
 /// A message's text, with custom emoji drawn in place of their fallbacks.
@@ -16,12 +20,13 @@ import 'sticker_tile.dart';
 /// when it was read back from the archive, so the slicing below cannot run off
 /// the end. It re-checks anyway, because a range error here would be a crash in
 /// somebody's message list rather than a slightly wrong picture.
-class CustomEmojiText extends StatelessWidget {
+class CustomEmojiText extends StatefulWidget {
   const CustomEmojiText({
     required this.message,
     required this.controller,
     super.key,
     this.style,
+    this.fromChatWith,
   });
 
   final Message message;
@@ -32,13 +37,72 @@ class CustomEmojiText extends StatelessWidget {
 
   final TextStyle? style;
 
+  /// The account whose one-to-one chat this bubble is in, when it is in one.
+  /// Passed through to [openMention] so a mention of the person you are already
+  /// talking to offers to come back here instead of stacking a second copy of
+  /// this chat.
+  final String? fromChatWith;
+
+  @override
+  State<CustomEmojiText> createState() => _CustomEmojiTextState();
+}
+
+class _CustomEmojiTextState extends State<CustomEmojiText> {
+  /// Kept across rebuilds and disposed with the widget — a recognizer made
+  /// during a build never is, and a message list rebuilds constantly.
+  final MentionRecognizers _mentions = MentionRecognizers();
+
+  @override
+  void dispose() {
+    _mentions.clear();
+    super.dispose();
+  }
+
+  /// One run of ordinary text, with its `@names` made tappable.
+  ///
+  /// The same tokenizer the channel screens use, so a name is a name in both
+  /// places and an address is an address.
+  List<InlineSpan> _linked(String text, int offset) {
+    final runs = MessageText.split(text, links: false);
+    if (runs.length == 1 && runs.first.kind == TextRunKind.plain) {
+      return [TextSpan(text: text)];
+    }
+    var cursor = offset;
+    final spans = <InlineSpan>[];
+    for (final run in runs) {
+      if (run.kind == TextRunKind.mention) {
+        final username = run.username!;
+        spans.add(
+          TextSpan(
+            text: run.text,
+            style: mentionStyle(context, widget.style),
+            recognizer: _mentions.forMention(
+              cursor,
+              () => unawaited(
+                openMention(context, username, fromChatWith: widget.fromChatWith),
+              ),
+            ),
+          ),
+        );
+      } else {
+        spans.add(TextSpan(text: run.text));
+      }
+      cursor += run.text.length;
+    }
+    return spans;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final message = widget.message;
+    final style = widget.style;
     final refs = message.customEmoji;
     final body = message.body;
-    final controller = this.controller;
+    final controller = widget.controller;
     if (refs == null || refs.isEmpty || controller == null) {
-      return Text(body, style: style);
+      // Still not plain `Text`: the body may hold names even when it holds no
+      // pictures, and this is the path almost every message takes.
+      return Text.rich(TextSpan(children: _linked(body, 0)), style: style);
     }
 
     final ordered = [...refs]..sort((a, b) => a.offset.compareTo(b.offset));
@@ -52,7 +116,7 @@ class CustomEmojiText extends StatelessWidget {
       // simply shows its fallback character.
       if (ref.offset < cursor || !ref.fits(body)) continue;
       if (ref.offset > cursor) {
-        spans.add(TextSpan(text: body.substring(cursor, ref.offset)));
+        spans.addAll(_linked(body.substring(cursor, ref.offset), cursor));
       }
       spans.add(
         WidgetSpan(
@@ -71,7 +135,7 @@ class CustomEmojiText extends StatelessWidget {
       cursor = ref.offset + ref.length;
     }
     if (cursor < body.length) {
-      spans.add(TextSpan(text: body.substring(cursor)));
+      spans.addAll(_linked(body.substring(cursor), cursor));
     }
 
     return Text.rich(TextSpan(children: spans), style: style);
