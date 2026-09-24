@@ -29,18 +29,40 @@ class AccentController extends ChangeNotifier {
   AppAccent get accent => _accent;
   String? get accountId => _accountId;
 
+  /// Reads the stored accent before the first frame is drawn.
+  ///
+  /// Called from `main()` and awaited there, ahead of `runApp`. Everything the
+  /// splash paints — the mark, the rain behind it, the progress bar — is the
+  /// accent, so reading it *after* the app is on screen means a green frame on
+  /// every launch of an app somebody set to something else. `initialise()` also
+  /// loads it, but that runs once the splash is already visible, which is one
+  /// frame too late.
+  ///
+  /// Two local reads and no network. It is capped by its caller rather than
+  /// here: a keystore that does not answer must not hold the app on a black
+  /// screen, and green is a correct answer for an app whose preference could
+  /// not be read.
+  ///
+  /// Signed out there is nothing to read and nothing to wait for — an accent
+  /// belongs to an account, and a device with none is green.
+  Future<void> preload() async {
+    final account = await _store.readAccountId();
+    if (account == null) return;
+    await load(account);
+  }
+
   /// Loads the accent for an account.
   ///
-  /// Resets to green first, so a slow read cannot leave the previous account's
-  /// colour on screen while this one's is being fetched.
-  ///
-  /// On a cold start this is **awaited before the app leaves the splash**, which
-  /// is what stops a stored pink app showing a frame of green on every launch.
-  /// The reset above is therefore invisible there; it earns its keep on an
-  /// account switch, where the app is already drawn.
+  /// Resets to green first **when the colour on screen belongs to somebody
+  /// else**, so a slow read cannot leave the previous account's choice up while
+  /// this one's is being fetched. That is the account-switch case, and the only
+  /// one it is right for: doing it unconditionally would make `initialise()`
+  /// flash green over the colour [preload] had already put there, which is the
+  /// flash this whole path exists to prevent.
   Future<void> load(String accountId) async {
+    final somebodyElse = _accountId != null && _accountId != accountId;
     _accountId = accountId;
-    if (_accent != AppAccent.fallback) {
+    if (somebodyElse && _accent != AppAccent.fallback) {
       _accent = AppAccent.fallback;
       notifyListeners();
     }
@@ -48,9 +70,11 @@ class AccentController extends ChangeNotifier {
     final stored = await _store.readAccent(accountId);
     final found = AppAccent.forCode(stored);
     // Nothing stored is not an error: it is a new account, and a new account
-    // is green.
-    if (found != null && found != _accent) {
-      _accent = found;
+    // is green. Reaching that state from another account's colour is the reset
+    // above; reaching it from green is already done.
+    final next = found ?? AppAccent.fallback;
+    if (next != _accent) {
+      _accent = next;
       notifyListeners();
     }
   }

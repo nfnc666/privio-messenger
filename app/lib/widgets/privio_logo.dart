@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/privio_colors.dart';
+import '../theme/accent.dart';
 
 /// Asset paths for the brand marks.
 ///
@@ -19,13 +19,52 @@ abstract final class PrivioLogoAsset {
   /// where the README and the store listings take theirs from.
   static const String wordmark = 'assets/logo/privio_wordmark.png';
 
+  /// The lock-up's symbol alone, and its word alone, on the same canvas as
+  /// [wordmark].
+  ///
+  /// Two files rather than one because the screens that draw this tint the
+  /// symbol with the account's accent and leave "Privio" white, and a single
+  /// flattened image cannot be told apart that way — a colour filter over it
+  /// would recolour the text too. Both are cut to the combined bounding box by
+  /// `tools/generate_brand_assets.py`, so stacking them is the flat artwork
+  /// again, at the same size and spacing.
+  static const String wordmarkSymbol = 'assets/logo/privio_wordmark_symbol.png';
+  static const String wordmarkWord = 'assets/logo/privio_wordmark_word.png';
+
   /// What the lock-up measures, width against height. Read off the artwork
   /// rather than guessed, so a re-cut asset does not silently distort.
   static const double wordmarkAspect = 1024 / 303;
 }
 
+/// Paints [child] in [colour], keeping every edge it already had.
+///
+/// `srcIn` against artwork that is one flat ink is an exact recolour: the alpha
+/// channel — the shape, and the softness of its antialiasing — is what decides
+/// coverage, and only the ink changes. It is what lets the mark follow the
+/// account's accent without a second cut of the artwork per colour, and without
+/// the shape moving by a pixel.
+///
+/// This is *not* the home-screen icon. That is a resource the launcher reads
+/// and it stays Privio green whatever is chosen here; see `docs/app-icon.md`.
+class _Tinted extends StatelessWidget {
+  const _Tinted({required this.colour, required this.child});
+
+  final Color colour;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ColorFiltered(
+        colorFilter: ColorFilter.mode(colour, BlendMode.srcIn),
+        child: child,
+      );
+}
+
 /// The Privio mark at a given size, optionally with the accent bloom behind it
 /// that the splash and loading screens use.
+///
+/// Drawn in the account's accent, from the theme — so the splash, the lock
+/// screen and every loading view are the colour somebody chose rather than the
+/// colour the artwork was cut in.
 class PrivioMark extends StatelessWidget {
   const PrivioMark({super.key, this.size = 96, this.glow = false});
 
@@ -34,12 +73,16 @@ class PrivioMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logo = Image.asset(
-      PrivioLogoAsset.mark,
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
+    final accent = context.accents.accent;
+    final logo = _Tinted(
+      colour: accent,
+      child: Image.asset(
+        PrivioLogoAsset.mark,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+      ),
     );
 
     if (!glow) return logo;
@@ -49,7 +92,7 @@ class PrivioMark extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: PrivioColors.accent.withValues(alpha: 0.26),
+            color: accent.withValues(alpha: 0.26),
             blurRadius: size * 0.5,
             spreadRadius: size * 0.02,
           ),
@@ -90,12 +133,30 @@ class PrivioWordmark extends StatelessWidget {
     final wanted = markSize * PrivioLogoAsset.wordmarkAspect;
     final width = wanted > available ? available : wanted;
 
-    final logo = Image.asset(
-      PrivioLogoAsset.wordmark,
-      height: width / PrivioLogoAsset.wordmarkAspect,
+    final height = width / PrivioLogoAsset.wordmarkAspect;
+    final accent = context.accents.accent;
+
+    Widget layer(String asset) => Image.asset(
+          asset,
+          height: height,
+          width: width,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+        );
+
+    // The word stays white and the symbol takes the accent. Same canvas, same
+    // box, so this is the flat lock-up with one of its two inks replaced —
+    // nothing is measured here and nothing can drift.
+    final logo = SizedBox(
       width: width,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          layer(PrivioLogoAsset.wordmarkWord),
+          _Tinted(colour: accent, child: layer(PrivioLogoAsset.wordmarkSymbol)),
+        ],
+      ),
     );
 
     if (!glow) return logo;
@@ -104,7 +165,7 @@ class PrivioWordmark extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: PrivioColors.accent.withValues(alpha: 0.22),
+            color: accent.withValues(alpha: 0.22),
             blurRadius: markSize * 0.55,
             spreadRadius: markSize * 0.01,
           ),

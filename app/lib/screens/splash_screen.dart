@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/privio_logo.dart';
@@ -41,7 +42,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         children: [
           AnimatedBuilder(
             animation: _controller,
-            builder: (context, _) => CustomPaint(painter: _CodeRainPainter(_controller.value)),
+            builder: (context, _) => CustomPaint(
+              painter: _CodeRainPainter(_controller.value, context.accents.accent),
+            ),
           ),
           SafeArea(
             child: Column(
@@ -76,7 +79,7 @@ class _Tagline extends StatelessWidget {
       children: [
         Text(
           AppText.of(context).splashTagline,
-          style: theme.textTheme.bodyMedium?.copyWith(color: PrivioColors.accent),
+          style: theme.textTheme.bodyMedium?.copyWith(color: context.accents.accent),
         ),
         const SizedBox(height: PrivioSpacing.xs),
         Text(
@@ -100,13 +103,17 @@ class _InitialisingIndicator extends StatelessWidget {
       children: [
         Text(
           AppText.of(context).splashInitialising,
-          style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.accent),
+          style: theme.textTheme.bodySmall?.copyWith(color: context.accents.accent),
         ),
         const SizedBox(height: PrivioSpacing.md),
         SizedBox(
           width: 200,
           child: ClipRRect(
             borderRadius: const BorderRadius.all(PrivioRadius.pill),
+            // The fill colour is the theme's — `progressIndicatorTheme` is
+            // built from the same accent as everything else here, so this bar
+            // needs no colour of its own and must not grow one: a second place
+            // to set it is a second place for it to be wrong.
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 5,
@@ -124,9 +131,14 @@ class _InitialisingIndicator extends StatelessWidget {
 /// The faint green code rain behind the splash, as in the mockups. Purely
 /// decorative: deterministic, cheap, and never touches real data.
 class _CodeRainPainter extends CustomPainter {
-  _CodeRainPainter(this.phase);
+  _CodeRainPainter(this.phase, this.accent);
 
   final double phase;
+
+  /// Passed in rather than read from a constant: a painter has no context, and
+  /// the rain behind an accent-coloured mark must be the same colour as it.
+  final Color accent;
+
   static const int _columns = 26;
 
   @override
@@ -144,12 +156,13 @@ class _CodeRainPainter extends CustomPainter {
       for (var i = 0; i < 14; i++) {
         final y = headY - i * 16;
         if (y < 0 || y > size.height) continue;
-        paint.color = PrivioColors.accent.withValues(alpha: 0.16 * (1 - i / 14));
+        paint.color = accent.withValues(alpha: 0.16 * (1 - i / 14));
         canvas.drawLine(Offset(x, y), Offset(x, y + 7), paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _CodeRainPainter oldDelegate) => oldDelegate.phase != phase;
+  bool shouldRepaint(covariant _CodeRainPainter oldDelegate) =>
+      oldDelegate.phase != phase || oldDelegate.accent != accent;
 }

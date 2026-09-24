@@ -34,12 +34,28 @@ Future<void> main() async {
   // Channel links arriving from outside the app are wired in here for the same
   // reason push is: the platform belongs at the composition root, and every
   // test gets an app that no link ever arrives at.
-  runApp(
-    PrivioApp(
-      state: AppState(
-        pushWake: PushWakeListener(),
-        links: PlatformIncomingLinks(),
-      ),
-    ),
+  final state = AppState(
+    pushWake: PushWakeListener(),
+    links: PlatformIncomingLinks(),
   );
+
+  // The one thing read before the first frame.
+  //
+  // The splash is drawn in the account's accent — the mark, the rain behind it,
+  // the progress bar — so reading the stored colour after the app is on screen
+  // shows brand green for a frame and then the real choice. `initialise()`
+  // loads it too, but that runs with the splash already visible.
+  //
+  // Capped rather than simply awaited. This is a local keystore read with no
+  // network behind it, but it is still a platform channel, and an app that
+  // could be held on a black screen by one is an app one wedged channel can
+  // stop from starting. Past the cap the launch goes ahead in green and
+  // `initialise()` corrects it, which is the old behaviour rather than a new
+  // failure.
+  await state.accent.preload().timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {},
+      );
+
+  runApp(PrivioApp(state: state));
 }

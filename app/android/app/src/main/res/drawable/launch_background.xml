@@ -2,15 +2,19 @@
 <!--
   What Android draws between tapping the icon and Flutter's first frame.
 
-  Black with the mark centred, so the hand-off from the launcher icon to the
-  app's own splash is one continuous picture. The Flutter template ships a white
-  window here, which on this app is a white flash in front of a true-black UI.
+  Black, and nothing else.
+
+  It used to centre the launcher foreground here, so the hand-off from the icon
+  to the app was one continuous picture. That worked while the mark had one
+  colour. The mark now follows the account's accent, and this drawable cannot:
+  a window background is a static resource the system inflates before any of our
+  code runs, so there is no preference to read and nothing to read it with.
+  Drawing the green mark here for somebody whose app is pink is the colour flash
+  the accent work exists to remove — so this is left as the app's own black, and
+  the first mark anybody sees is the one Flutter draws in the right colour.
+
+  See docs/app-icon.md. The launcher icon itself is unchanged and still green.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/ic_launcher_background" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/ic_launcher_foreground" />
-    </item>
 </layer-list>

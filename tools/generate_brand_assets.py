@@ -106,17 +106,22 @@ def build_mark() -> Image.Image:
 # --- The wordmark, lifted off its white background --------------------------
 
 
-def build_wordmark(text_colour: tuple[int, int, int]) -> Image.Image:
+def _wordmark_coverage() -> tuple[np.ndarray, np.ndarray]:
+    """How much symbol and how much text covers each pixel of the master."""
     px = load(WORDMARK_MASTER)
     # The two inks never touch — the symbol ends at x=669 and the text starts at
     # x=733 — so classifying by hue is unambiguous, including on the soft edges
     # where a green pixel keeps its high green channel while a grey one does not.
     is_green = (px[:, :, 1] - px[:, :, 0]) > 25
+    return (
+        coverage(px, WORD_GREEN, bg=255) * is_green,
+        coverage(px, WORD_TEXT, bg=255) * ~is_green,
+    )
 
-    green_a = coverage(px, WORD_GREEN, bg=255) * is_green
-    text_a = coverage(px, WORD_TEXT, bg=255) * ~is_green
 
-    h, w = px.shape[:2]
+def _compose(green_a: np.ndarray, text_a: np.ndarray, text_colour) -> Image.Image:
+    """Both inks on one transparent canvas, untrimmed."""
+    h, w = green_a.shape
     out = np.zeros((h, w, 4), dtype=np.float64)
     for i in range(3):
         out[:, :, i] = WORD_GREEN[i] * green_a + text_colour[i] * text_a
@@ -126,8 +131,32 @@ def build_wordmark(text_colour: tuple[int, int, int]) -> Image.Image:
         for i in range(3):
             out[:, :, i] = np.where(total > 0, out[:, :, i] / total, 0)
     out[:, :, 3] = total * 255
-    img = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
-    return trim(img)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
+
+
+def build_wordmark(text_colour: tuple[int, int, int]) -> Image.Image:
+    green_a, text_a = _wordmark_coverage()
+    return trim(_compose(green_a, text_a, text_colour))
+
+
+def build_wordmark_layers() -> tuple[Image.Image, Image.Image]:
+    """The lock-up split into its symbol and its word, on the same canvas.
+
+    The app draws the symbol in whatever accent the account chose and leaves the
+    word white, which one flattened image cannot do: tinting it would recolour
+    the text as well.
+
+    Both layers are cropped to the **combined** bounding box rather than to
+    their own, so stacking them reproduces the flat artwork exactly — same size,
+    same spacing, same position. Cropping each to its own ink would silently
+    shift the two apart, which is the failure this note exists to prevent.
+    """
+    green_a, text_a = _wordmark_coverage()
+    box = _compose(green_a, text_a, (255, 255, 255)).getbbox()
+    zero = np.zeros_like(green_a)
+    symbol = _compose(green_a, zero, (255, 255, 255)).crop(box)
+    word = _compose(zero, text_a, (255, 255, 255)).crop(box)
+    return symbol, word
 
 
 # --- Targets ----------------------------------------------------------------
@@ -194,6 +223,14 @@ def main() -> None:
     # The app is dark throughout, so the in-app lock-up is the white-text one.
     ratio = wordmark_dark.size[1] / wordmark_dark.size[0]
     save(resize(wordmark_dark, (1024, round(1024 * ratio))), ROOT / "app/assets/logo/privio_wordmark.png")
+
+    # The same lock-up in two layers, for the screens that draw the symbol in
+    # the account's accent. Identical dimensions to the flat file above, so the
+    # two can be stacked without measuring anything.
+    symbol, word = build_wordmark_layers()
+    height = round(1024 * ratio)
+    save(resize(symbol, (1024, height)), ROOT / "app/assets/logo/privio_wordmark_symbol.png")
+    save(resize(word, (1024, height)), ROOT / "app/assets/logo/privio_wordmark_word.png")
 
     print("Flutter web shell")
     web = ROOT / "app/web"
