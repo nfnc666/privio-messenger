@@ -4086,6 +4086,10 @@ class AppTextEs extends AppText {
       'PRIVIO ha comparado hoy todos los números que compara para esta cuenta. Inténtalo mañana.';
 
   @override
+  String get failureMentionUnknownUser =>
+      'Ese nombre de usuario no existe. Puede que la cuenta se haya eliminado o que el nombre esté mal escrito.';
+
+  @override
   String get failureContactsPermissionDenied =>
       'PRIVIO no tiene acceso a tus contactos. Puedes seguir añadiendo personas con su PRIVIO ID o un enlace de invitación.';
 

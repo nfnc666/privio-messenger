@@ -1140,6 +1140,7 @@
   "failurePhoneUnchanged": "Ce numéro est déjà vérifié sur ce compte.",
   "failurePhoneNotLinked": "Aucun numéro vérifié sur ce compte.",
   "failurePhoneLookupBudgetSpent": "PRIVIO a comparé aujourd’hui autant de numéros qu’il le fait pour ce compte. Réessayez demain.",
+  "failureMentionUnknownUser": "Ce nom d’utilisateur n’existe pas. Le compte a peut-être été supprimé, ou le nom est mal orthographié.",
   "failureContactsPermissionDenied": "PRIVIO n’a pas accès à vos contacts. Vous pouvez toujours ajouter des personnes via leur identifiant PRIVIO ou un lien d’invitation.",
   "channelVerifiedTooltip": "Canal officiel PRIVIO",
   "phoneFieldLabel": "Numéro de téléphone (facultatif)",

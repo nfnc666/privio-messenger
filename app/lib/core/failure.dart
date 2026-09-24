@@ -149,6 +149,13 @@ enum FailureKind {
   /// says so.
   contactsPermissionDenied,
 
+  /// An `@name` in a message that the server does not know, or no longer does.
+  ///
+  /// Its own case rather than a generic "not found": a name that never existed
+  /// and a name whose account has been deleted read the same to whoever tapped
+  /// it, and the one thing they need told is that nothing was opened.
+  mentionUnknownUser,
+
   // Stickers and custom emoji.
   //
   // The server refuses an upload by code; these are the codes this app has its

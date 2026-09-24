@@ -30,6 +30,9 @@ import 'stickers_screen.dart';
 import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/photo_preview_sheet.dart';
 import '../widgets/privio_back_button.dart';
+import '../core/mention_suggestions.dart';
+import '../data/message_store.dart';
+import '../widgets/mention_suggestions_bar.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
@@ -70,6 +73,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   final TextEditingController _composer = TextEditingController();
 
+  /// Who to offer while an `@` is being typed, and where the `@` started.
+  ///
+  /// Recomputed from the field's own value rather than kept in step by hand:
+  /// the caret moves for reasons this screen never hears about — a tap, a
+  /// paste, an autocorrection — and a remembered offset would eventually
+  /// replace the wrong word.
+  List<MentionCandidate> _mentionOffers = const [];
+  int? _mentionStart;
+
+  /// The group's members, once something has needed them.
+  ///
+  /// Fetched at most once per open chat and only when somebody actually types
+  /// an `@`: a list of who is in a group is not something to ask for on the
+  /// chance it might be useful.
+  List<GroupMember>? _members;
+  bool _loadingMembers = false;
+
   /// Custom emoji put into the message being written, with where they sit.
   ///
   /// Held beside the field rather than inside it, because a `TextEditingValue`
@@ -109,6 +129,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _highlighted = widget.jumpTo;
+    _composer.addListener(_offerMentions);
     if (!widget.isGroup) {
       WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_readVerification()));
     }
@@ -196,8 +217,73 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _voiceRebuild.dispose();
+    _composer.removeListener(_offerMentions);
     _composer.dispose();
     super.dispose();
+  }
+
+  /// Keeps the `@` suggestions in step with what is in the field.
+  ///
+  /// Everything it needs is already on this device: the address book, and —
+  /// for a group — the member list the server decided this account may see.
+  /// Nothing is looked up for a partly typed name.
+  void _offerMentions() {
+    final active = MentionSuggestions.activeQuery(_composer.value);
+    if (active == null) {
+      if (_mentionOffers.isNotEmpty || _mentionStart != null) {
+        setState(() {
+          _mentionOffers = const [];
+          _mentionStart = null;
+        });
+      }
+      return;
+    }
+
+    final state = PrivioScope.maybeOf(context);
+    if (state == null) return;
+    if (widget.isGroup) unawaited(_ensureMembers(state));
+
+    final offers = MentionSuggestions.matches(
+      active.query,
+      contacts: state.conversations.contacts,
+      members: _members ?? const [],
+      // Mentioning yourself opens your own profile, which is a screen that
+      // already has its own way in and tells you nothing you did not know.
+      excludeAccountId: state.conversations.accountId,
+    );
+    if (offers == _mentionOffers && _mentionStart == active.start) return;
+    setState(() {
+      _mentionOffers = offers;
+      _mentionStart = active.start;
+    });
+  }
+
+  Future<void> _ensureMembers(AppState state) async {
+    if (_members != null || _loadingMembers) return;
+    _loadingMembers = true;
+    try {
+      final members = await state.conversations.groupMembers(widget.accountId);
+      if (!mounted) return;
+      _members = members;
+      // The list arrived after the query it was wanted for, so ask again.
+      _offerMentions();
+    } on Object {
+      // No members, no suggestions, and the name can still be typed out. A
+      // composer must not show an error because a convenience did not load.
+    } finally {
+      _loadingMembers = false;
+    }
+  }
+
+  void _pickMention(MentionCandidate candidate) {
+    final start = _mentionStart;
+    if (start == null) return;
+    _composer.value =
+        MentionSuggestions.insert(_composer.value, start, candidate.username);
+    setState(() {
+      _mentionOffers = const [];
+      _mentionStart = null;
+    });
   }
 
   Future<void> _send() async {
@@ -1415,6 +1501,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       final message = messages[index - 1];
                       return MessageBubble(
                         message: message,
+                        // In a one-to-one chat, a mention of the person you
+                        // are talking to comes back here rather than opening
+                        // this same conversation a second time.
+                        chatWith: widget.isGroup ? null : widget.accountId,
                         highlighted: message.clientId != null &&
                             message.clientId == _highlighted,
                         onLongPress: _isSaved(state)
@@ -1474,6 +1564,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             MaterialPageRoute<void>(builder: (_) => const LicenseScreen()),
                           )
                       : null,
+                ),
+              // The `@` suggestions, directly above the field they fill in.
+              // Built only when there is something to offer, so nothing covers
+              // the conversation while somebody is simply writing.
+              if (_mentionOffers.isNotEmpty)
+                MentionSuggestionsBar(
+                  candidates: _mentionOffers,
+                  onPick: _pickMention,
                 ),
               // The recording strip lives inside the composer row rather than
               // replacing it. The microphone that started the hold has to stay

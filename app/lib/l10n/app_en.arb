@@ -1948,6 +1948,10 @@
   "failurePhoneUnchanged": "That number is already verified on this account.",
   "failurePhoneNotLinked": "There is no verified number on this account.",
   "failurePhoneLookupBudgetSpent": "Privio has matched as many numbers for this account today as it will. Try again tomorrow.",
+  "failureMentionUnknownUser": "There is no such username. The account may have been deleted, or the name may be misspelled.",
+  "@failureMentionUnknownUser": {
+    "description": "Shown when an @username in a message cannot be resolved to an account."
+  },
   "failureContactsPermissionDenied": "Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.",
   "channelVerifiedTooltip": "Official Privio channel",
   "phoneFieldLabel": "Phone number (optional)",

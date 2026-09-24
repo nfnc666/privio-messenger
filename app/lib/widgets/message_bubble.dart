@@ -29,9 +29,16 @@ class MessageBubble extends StatelessWidget {
     this.onSenderTap,
     this.highlighted = false,
     this.selected = false,
+    this.chatWith,
   });
 
   final Message message;
+
+  /// The account whose one-to-one chat this bubble is in, or null in a group.
+  ///
+  /// Only used by `@name` taps: a mention of the person you are already talking
+  /// to should come back to this chat rather than open a second copy of it.
+  final String? chatWith;
 
   /// Drawn lit when a search sent the reader here, so the message they were
   /// looking for is the one they see rather than one of twenty on screen.
@@ -212,6 +219,7 @@ class MessageBubble extends StatelessWidget {
                   message: message,
                   controller: PrivioScope.maybeOf(context)?.stickers,
                   style: theme.textTheme.bodyMedium,
+                  fromChatWith: chatWith,
                 ),
             ],
             const SizedBox(height: 3),
