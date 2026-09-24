@@ -30,7 +30,7 @@ python3 tools/generate_brand_assets.py
 | Android legacy launcher | `mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png` |
 | Android adaptive launcher | `ic_launcher_foreground.png` per density, `mipmap-anydpi-v26/ic_launcher.xml`, `values/colors.xml` |
 | Android launch window | `drawable/` and `drawable-v21/launch_background.xml` |
-| In-app (splash, welcome, sign-in, activation, About, loading) | `app/assets/logo/privio_{mark,wordmark}.png` via `PrivioMark` / `PrivioWordmark` |
+| In-app (splash, welcome, sign-in, activation, About, loading) | `app/assets/logo/privio_{mark,wordmark}.png` and the two-layer `privio_wordmark_{symbol,word}.png`, via `PrivioMark` / `PrivioWordmark` |
 | Web shell | `favicon.png`, `Icon-{192,512}.png`, `Icon-maskable-{192,512}.png` |
 | Channel invite pages | `server/assets/privio-mark.png` on the page, `privio-icon.png` for link previews |
 | README | theme-aware `<picture>`, light and dark cuts |
@@ -56,6 +56,78 @@ and was barely wider than tall; the new one is horizontal at roughly 3.4:1. At
 the sizes the splash and About screens were passing, it would have run off the
 edge of a 320-point phone, so `PrivioWordmark` now clamps itself to a fraction
 of the available width and both call sites were re-sized.
+
+## The mark follows the accent — where it can
+
+Everything Flutter draws is painted in the accent from
+`Settings → Appearance`: the mark, the lock-up's symbol, the splash's tagline,
+its progress bar and the faint rain behind it. `PrivioColors.accent` — the
+brand green as a constant — appears in no screen any more; the colour comes
+from `Theme.of(context).extension<PrivioAccents>()`, which is the same value the
+rest of the app is drawn from. There is no second setting and no second palette.
+
+**How the artwork is recoloured.** `ColorFilter.mode(accent, BlendMode.srcIn)`
+over artwork that is one flat ink. The alpha channel decides coverage, so the
+shape and the softness of every curve survive exactly; only the ink changes.
+That is why there is no per-colour cut of the logo and why the mark cannot
+shift by a pixel between accents.
+
+The lock-up needed splitting first: it is green symbol *and* white text, and one
+filter over the flat file would recolour the word too.
+`build_wordmark_layers()` writes `privio_wordmark_symbol.png` and
+`privio_wordmark_word.png`, both cropped to the **combined** bounding box, so
+stacking them is the flat artwork again at the same size and spacing. Cropping
+each to its own ink would have shifted the two apart.
+
+### The first frame
+
+`main()` awaits `AccentController.preload()` before `runApp`. It reads the last
+signed-in account id and that account's stored accent — two local keystore
+reads, no network, no artificial delay — so the first frame the user sees is
+already the right colour. `AppState.initialise()` loads it again, and
+`load()` now only resets to green when the colour on screen belongs to *another*
+account; resetting unconditionally, as it used to, would have repainted the
+splash green for a frame directly over what `preload` had just put there.
+
+The preload is capped at 500 ms. A keystore read is still a platform channel,
+and an app that one wedged channel can hold on a black screen is worse than an
+app that starts green and corrects itself a moment later.
+
+Per account throughout: the accent is keyed on the account id, an account with
+nothing stored is green, a switch never inherits the previous account's colour,
+and every sign-out path clears it.
+
+### What the native splash can and cannot do
+
+The screen the *operating system* draws before Flutter starts is a static
+resource. No code of ours runs, so there is no preference to read and nothing to
+read it with; making one follow a per-user colour would mean writing resource
+files at runtime or reaching for private APIs, and neither is something this app
+will do.
+
+So both native launch screens are now **plain black** — the app's own
+background, and the same black the Flutter splash sits on. The hand-off is
+black to black, and the first mark anybody sees is the one Flutter draws in
+their colour. Two things changed to get there:
+
+| Platform | Before | Now |
+| --- | --- | --- |
+| iOS `LaunchScreen.storyboard` | **White** background with the green mark centred | Black, nothing on it |
+| Android `launch_background.xml` | Black with the green launcher foreground centred | Black, nothing on it |
+
+The iOS background was the Flutter template's white in front of an app that is
+true black — a white flash on every cold launch, independent of this work.
+
+**One platform limit remains, and it is Android's.** From Android 12 the system
+draws its own splash from the launcher icon (`windowSplashScreenAnimatedIcon`),
+and that icon is a resource, not a preference. On those versions the green mark
+appears briefly before the app's own view regardless of what this drawable says.
+It is the launcher icon doing what a launcher icon does; the alternative is a
+runtime resource swap, which is the kind of trick this file exists to refuse.
+
+**The home-screen icon is untouched.** It is a different asset with its own
+setting — see [`app-icon.md`](app-icon.md) — and it stays whatever the user
+picked there, whatever accent they choose here.
 
 ## What still has to be done by hand
 
@@ -88,6 +160,18 @@ dark cut is white text with the green *unchanged*; that the invite page serves
 an opaque preview image and a transparent on-page mark; the full server and
 Flutter suites.
 
+Verified for the accent work: all eight colours on the splash, read off the
+colour filter and off the tagline's own style rather than off a screenshot;
+that the background stays black whatever the accent; that `preload` reads the
+stored colour with nothing else signed in; that a signed-out device and an
+account that never chose are both green; that loading the same account twice
+repaints **nothing** — the no-flash rule, asserted by counting notifications —
+while an account switch passes through green and never through the other
+account's colour; that a relaunch reads back the choice and a reset reads back
+green. Falsified: hard-coding the green back into the lock-up turns seven colour
+tests red, and resetting unconditionally in `load` turns the no-flash test red.
+
 **Not verified:** how any of it looks on a real phone. There is no simulator
 here, so the launcher icon under a circular mask, the adaptive icon's parallax,
-and the splash hand-off have been reasoned about and measured but not seen.
+the native-to-Flutter hand-off on both platforms, and Android 12's own splash
+have been reasoned about and measured but not seen.

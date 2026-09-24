@@ -215,6 +215,22 @@ network. See [`disappearing-messages.md`](disappearing-messages.md).
 | T8 | Restore a backup taken before the messages expired: they do not come back | Needs a backup made with a timer running | | | | not run | |
 | T9 | Sign out and into a second account on the same phone: it has its own general setting and its own chat timers | | | | | not run | |
 
+## 6f. The accent on the loading screen
+
+Covered by `app/test/splash_accent_test.dart`; none of it has been on a phone,
+and the two rows that matter most — the first frame, and what the *system* draws
+before Flutter starts — are ones no widget test can answer. See
+[`brand-rollout.md`](brand-rollout.md).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| C1 | Cold start with each of the eight accents: the splash mark, its tagline and the progress bar are all that colour, on black | Eight launches; the failure is one element left green | | | | not run | |
+| C2 | Cold start with a non-green accent: **no green frame** before the chosen colour in the Flutter view | Needs a slow-motion screen recording to judge honestly | | | | not run | |
+| C3 | The native splash: **iOS** black with nothing on it, **Android 11 and below** the same, **Android 12+** the green launcher icon first — expected, record what it looks like | Android 12+ draws its own splash from the launcher icon and cannot be recoloured per user | | | | not run | |
+| C4 | Force-quit and relaunch, then switch accounts: the colour survives the restart and the second account gets **its own**, never the first's | Two accounts with different accents on one phone | | | | not run | |
+| C5 | Reset to default: green again, and still green after a relaunch | | | | | not run | |
+| C6 | With an app lock set: the lock screen and the sign-in still work, and the colour is right on both | The lock screen is what the splash hands over to | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -297,11 +313,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6c Address book | 6 | 0 | 0 | 0 | 6 |
 | 6d Saved | 7 | 0 | 0 | 0 | 7 |
 | 6e Disappearing messages | 9 | 0 | 0 | 0 | 9 |
+| 6f Accent on the loading screen | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **99** | **0** | **0** | **0** | **99** |
+| **Total** | **105** | **0** | **0** | **0** | **105** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary
