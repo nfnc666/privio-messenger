@@ -42,9 +42,10 @@ after a reconnect cannot become a second note.
 Two ways in, one place:
 
 * **Account → Saved**, with a bookmark.
-* **A row in the chat list**, with a bookmark instead of an avatar and the word
-  "Saved" instead of your own username — which would otherwise read as a chat
-  with somebody who happens to share your name.
+* **The first row in the chat list**, with a bookmark in the accent colour
+  instead of an avatar and the word "Saved" instead of your own username —
+  which would otherwise read as a chat with somebody who happens to share your
+  name.
 
 Both open the same conversation by the same id, so they cannot become two
 areas. The row is added by `ConversationController.chats` when the store leaves
@@ -52,6 +53,35 @@ it out: the store deliberately hides an empty direct conversation, because an
 empty chat with somebody is just a contact — Saved is the one direct
 conversation that is not a contact, and a place has to be reachable before
 anything is in it.
+
+### Why it is pinned above the pinned
+
+The same method then moves the row to the top, ahead of pinned chats and
+whatever arrived a minute ago, and it stays there however old its newest entry
+is.
+
+Not *by* pinning it. A pin is a choice somebody made about a conversation and
+can take back; Saved is not a chat competing for that slot, it is a
+destination. The ordering is decided in the controller rather than in the
+store's sort, because the store would need a rule about an id it has no
+business knowing — it sorts conversations and does not know which one is you.
+
+The row's second line is the one preview that is not a message: while the area
+is empty it reads *"Your private notes and files"*, because a blank line beside
+a bookmark reads as a notebook somebody gave up on rather than one nobody has
+opened yet. That is `ChatPreviewKind.savedEmpty` — a case the model returns and
+the screen turns into words, like every other preview.
+
+The chat list's **filters still apply to it**. Under "Groups" or "Unread" the
+row drops out like any other chat, because the question there is not "where do
+I start" but "which of these match"; the search matches the word on the row
+rather than the username stored behind it. It is only "always on top" in the
+tab that shows everything — which is the tab it is a starting point for.
+
+Because Saved is now always present, an account with no conversations is a list
+of exactly one row. The panel that offers a first contact is drawn **under** it
+rather than instead of it: losing the way to add somebody would be a steep
+price for a notebook nobody has written in yet.
 
 Inside, it is the chat screen with the things that only make sense against
 somebody else removed: no call, no video, no safety number, no blocking, and
@@ -122,15 +152,26 @@ a different sentence, and a true one.
 
 ## What is tested
 
-`app/test/saved_test.dart` (13) and four server tests in `storage.test.ts`:
+`app/test/saved_test.dart` (24) and four server tests in `storage.test.ts`:
 that Saved is the account's own conversation and only ever one of them, that a
 second account gets its own and cannot read the first one's, that a
 disappearing message is refused, that a timer cannot be set on Saved at all,
 pinning, the media overview, and the screen — its name, its missing call
 buttons, its empty state, its menu, and multi-select.
 
+Its place in the chat list has its own group: first however new the other chats
+are, first ahead of a pinned chat and without quietly becoming pinned itself,
+still listed while empty and saying what it is for, showing the last entry once
+there is one, unmoved by a message arriving elsewhere, back in the same place
+after a restart, and one per account with no sight of another's. On the screen
+itself: drawn above a chat with a newer message — asserted in pixels, because
+"first in the list" is something somebody sees — with the bookmark in the
+accent colour, the first-contact panel still reachable beneath it, dropped by
+"Groups" and "Unread", and found by a search for the word on the row.
+
 Falsified: removing the disappearing-message refusal, the chat-list row, and
-the timer guard each turn their own test red.
+the timer guard each turn their own test red — and removing the two lines that
+lift the row to the top turns five of the ordering tests red at once.
 
 On the server: a retained attachment survives the sweep **and is still
 downloadable**, releasing it hands it back to the ordinary retention, retaining

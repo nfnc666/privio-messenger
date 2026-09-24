@@ -310,8 +310,6 @@ class PrivioApiClient {
   /// Separate from [block] on purpose and at both ends: reporting somebody and
   /// refusing to hear from them are two decisions, and neither is allowed to
   /// silently perform the other.
-  Future<Map<String, dynamic>> reportUser(String accountId, String reason) =>
-      _send('POST', '/v1/users/$accountId/report', body: {'reason': reason});
 
   // --- Keys and messages ----------------------------------------------------
 

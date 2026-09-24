@@ -90,12 +90,14 @@ const READABLE: Record<string, string> = {
   // readable column, written by a person with every reason to. See
   // migration 022.
   'channel_reports.reason': 'one of five fixed words, never free text',
-  // The same five words, about a person rather than a channel. Doubly fixed
-  // here: the server cannot read a single message either side of this report
-  // sent, so a free field would be the *only* place the reported content could
-  // land, and somebody trying to get it in front of a moderator would put it
-  // there. See migration 033.
-  'account_reports.reason': 'one of five fixed words, never free text',
+  // Nothing writes this any more: reporting a *person* was removed, and only
+  // channels can be reported. The table stays because migration 033 has been
+  // applied and dropping an applied table to tidy up is how a rollback loses
+  // rows somebody may still need. It is declared here for the same reason it
+  // was before — a readable column has to be argued for even when it is
+  // empty — and the argument is now one line: if anything ever fills it
+  // again, it may hold one of five fixed words and never free text.
+  'account_reports.reason': 'one of five fixed words, never free text; nothing writes it',
 
   // A phone number the account typed about itself, in the clear, because the
   // server has to hand it back to the one account that wrote it and holds no

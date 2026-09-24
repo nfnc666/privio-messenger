@@ -10,6 +10,7 @@ import 'package:privio/data/message_store.dart';
 import 'package:privio/media/attachment.dart';
 import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/models/models.dart';
+import 'package:privio/core/failure.dart';
 import 'package:privio/core/message_search.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/widgets/disappearing_timer_sheet.dart';
@@ -41,6 +42,7 @@ List<Message> notices(InMemoryMessageStore store) =>
     store.conversationWith('account-bob')!.messages.where((m) => m.isNotice).toList();
 
 void main() {
+  registerDefaultTests();
   group('the timer itself', () {
     test('reads back the way a person would say it', () {
       expect(ConversationController.describeTimer(const Duration(seconds: 30)), '30 seconds');
@@ -230,10 +232,23 @@ void main() {
         const Duration(seconds: 30),
         const Duration(minutes: 1),
         const Duration(minutes: 5),
+        const Duration(minutes: 15),
         const Duration(hours: 1),
+        const Duration(hours: 6),
+        const Duration(hours: 12),
         const Duration(hours: 24),
-        const Duration(days: 7),
       ]);
+
+      // Nothing longer than a day is offered, and the constant the app clamps
+      // to is the same number the server refuses beyond.
+      for (final option in DisappearingTimerSheet.options) {
+        expect(
+          (option?.inSeconds ?? 0) <= maxDisappearSeconds,
+          isTrue,
+          reason: '$option is longer than the ceiling',
+        );
+      }
+      expect(maxDisappearSeconds, 86400);
 
       // And the words each one wears, which are no longer the data: the list
       // holds durations, and a translation turns them into rows.
@@ -242,7 +257,17 @@ void main() {
         DisappearingTimerSheet.options
             .map((option) => DisappearingTimerSheet.label(text, option))
             .toList(),
-        ['Off', '30 seconds', '1 minute', '5 minutes', '1 hour', '24 hours', '7 days'],
+        [
+          'Off',
+          '30 seconds',
+          '1 minute',
+          '5 minutes',
+          '15 minutes',
+          '1 hour',
+          '6 hours',
+          '12 hours',
+          '24 hours',
+        ],
       );
     });
 
@@ -586,6 +611,254 @@ void main() {
         isNull,
         reason: "carol's archive is empty; alice's is not hers to read",
       );
+    });
+  });
+}
+
+/// The account-wide default, the three states a chat can be in, and the rules
+/// that keep one from quietly overwriting the other.
+///
+/// Everything here is one timer system seen from different angles: a chat
+/// resolves its own setting against the account's, and every send path asks
+/// `disappearAfter` for the answer.
+void registerDefaultTests() {
+  group('a default that chats can follow', () {
+    Future<ConversationController> controllerWith(
+      InMemoryMessageStore store, {
+      Duration? accountDefault,
+    }) async {
+      final (services, _) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+      controller.applyPrivacy({
+        if (accountDefault != null) 'disappearAfterSeconds': accountDefault.inSeconds,
+      });
+      return controller;
+    }
+
+    test('a new chat follows the account, and says so rather than looking off',
+        () async {
+      final store = withBob();
+      final controller = await controllerWith(store, accountDefault: const Duration(hours: 1));
+
+      expect(controller.chatTimer('account-bob').explicit, isFalse);
+      expect(controller.disappearAfter('account-bob'), const Duration(hours: 1));
+    });
+
+    test('“off” is a decision and outlives a change of the default', () async {
+      // The case the tri-state exists for: a chat somebody deliberately kept
+      // permanent must not start deleting itself because an account-wide
+      // default appeared later.
+      final store = withBob();
+      final controller = await controllerWith(store);
+
+      await controller.setChatTimer('account-bob', const ChatTimer.off());
+      controller.applyPrivacy({'disappearAfterSeconds': 3600});
+
+      expect(controller.disappearAfter('account-bob'), isNull);
+      expect(controller.chatTimer('account-bob').explicit, isTrue);
+    });
+
+    test('a chat set by hand is not touched by the default, and is listed as an exception',
+        () async {
+      final store = withBob();
+      final controller = await controllerWith(store, accountDefault: const Duration(hours: 1));
+
+      await controller.setChatTimer('account-bob', const ChatTimer.after(Duration(minutes: 5)));
+      expect(controller.disappearAfter('account-bob'), const Duration(minutes: 5));
+      expect(controller.timerExceptions(), ['account-bob']);
+
+      // Applying the default without saying so leaves it alone.
+      final quiet = await controller.applyDefaultToFollowingChats();
+      expect(quiet.changed, 0);
+      expect(controller.disappearAfter('account-bob'), const Duration(minutes: 5));
+
+      // And with the confirmation it joins the rest.
+      final asked = await controller.applyDefaultToFollowingChats(includeExceptions: true);
+      expect(asked.changed, 1);
+      expect(controller.disappearAfter('account-bob'), const Duration(hours: 1));
+      expect(controller.timerExceptions(), isEmpty);
+    });
+
+    test('a chat set to the same thing as the default is not an exception', () async {
+      // Listing it would ask somebody to tidy up something already tidy.
+      final store = withBob();
+      final controller = await controllerWith(store, accountDefault: const Duration(hours: 1));
+      await controller.setChatTimer('account-bob', const ChatTimer.after(Duration(hours: 1)));
+
+      expect(controller.timerExceptions(), isEmpty);
+    });
+
+    test('the default is bounded at a day even if something asks for more', () async {
+      // Asserted on the request body, not only on what the screen would read
+      // back: a device that showed “24 hours” while asking the account for a
+      // week would be telling two stories, and the server's own ceiling
+      // (`server/test/disappearing.test.ts`) would be the only thing left
+      // holding the promise.
+      final store = withBob();
+      final sent = <Map<String, dynamic>>[];
+      final (services, _) = await buildServices(
+        store,
+        client: MockClient((request) async {
+          if (request.method == 'PATCH' && request.url.path == '/v1/accounts/me') {
+            sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return http.Response(
+              jsonEncode({'account': <String, dynamic>{}}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode({'error': 'not_found', 'message': request.url.path}),
+            404,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      expect(await controller.setDefaultDisappearAfter(const Duration(days: 7)), isTrue);
+      expect(controller.defaultDisappearAfter, const Duration(hours: 24));
+      expect(sent.single['privacy'], {'disappearAfterSeconds': maxDisappearSeconds});
+    });
+
+    test('a default the account never accepted is not shown as saved', () async {
+      // The harness answers every route with a 404, which is the failure this
+      // is about: the screen must go back to what is actually stored rather
+      // than keep a number only this device believes in.
+      final store = withBob();
+      final controller = await controllerWith(store, accountDefault: const Duration(hours: 1));
+
+      expect(await controller.setDefaultDisappearAfter(const Duration(minutes: 5)), isFalse);
+      expect(controller.defaultDisappearAfter, const Duration(hours: 1));
+      expect(controller.failure?.kind, FailureKind.couldNotSave);
+    });
+
+    test('Saved never takes a timer from the account default', () async {
+      final store = withBob();
+      final controller = await controllerWith(store, accountDefault: const Duration(hours: 1));
+      controller.accountId = 'account-alice';
+      controller.ensureSaved(username: 'alice');
+
+      expect(controller.disappearAfter('account-alice'), isNull);
+      expect(controller.timerExceptions(), isNot(contains('account-alice')));
+    });
+  });
+
+  group('two people changing it at once', () {
+    test('the higher version wins, whichever arrives second', () async {
+      final store = withBob();
+      final (services, messaging) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      await controller.setChatTimer('account-bob', const ChatTimer.after(Duration(minutes: 5)));
+      final mine = store.conversationWith('account-bob')!.timerVersion;
+
+      // Bob's change was made against the same starting point — same version —
+      // and arrives afterwards. Lower than what this device now holds, so it
+      // loses and nothing is announced back.
+      messaging.inbox.add(
+        IncomingMessage(
+          envelopeId: 9,
+          senderAccountId: 'account-bob',
+          payload: MessagePayload.timerChange(30, timerVersion: mine - 1),
+          receivedAt: DateTime.now(),
+        ),
+      );
+      await controller.drain();
+      expect(controller.disappearAfter('account-bob'), const Duration(minutes: 5));
+
+      // A later change from Bob does win.
+      messaging.inbox.add(
+        IncomingMessage(
+          envelopeId: 10,
+          senderAccountId: 'account-bob',
+          payload: MessagePayload.timerChange(30, timerVersion: mine + 1),
+          receivedAt: DateTime.now(),
+        ),
+      );
+      await controller.drain();
+      expect(controller.disappearAfter('account-bob'), const Duration(seconds: 30));
+    });
+
+    test('an equal version is broken the same way on both devices', () async {
+      // Whoever has the larger account id wins. Arbitrary, and the *same*
+      // arbitrary rule on both sides, which is what makes them agree instead
+      // of trading updates forever.
+      final store = withBob();
+      final (services, messaging) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      await controller.setChatTimer('account-bob', const ChatTimer.after(Duration(minutes: 5)));
+      final version = store.conversationWith('account-bob')!.timerVersion;
+
+      messaging.inbox.add(
+        IncomingMessage(
+          envelopeId: 11,
+          senderAccountId: 'account-bob',
+          payload: MessagePayload.timerChange(30, timerVersion: version),
+          receivedAt: DateTime.now(),
+        ),
+      );
+      await controller.drain();
+
+      // 'account-bob' > 'account-alice', so Bob's answer stands.
+      expect(controller.disappearAfter('account-bob'), const Duration(seconds: 30));
+    });
+
+    test('a timer arriving from an older build is still clamped to a day', () async {
+      final store = withBob();
+      final (services, messaging) = await buildServices(store);
+      final controller = ConversationController(services)..accountId = 'account-alice';
+
+      messaging.inbox.add(
+        IncomingMessage(
+          envelopeId: 12,
+          senderAccountId: 'account-bob',
+          payload: MessagePayload.timerChange(const Duration(days: 7).inSeconds),
+          receivedAt: DateTime.now(),
+        ),
+      );
+      await controller.drain();
+
+      expect(controller.disappearAfter('account-bob'), const Duration(hours: 24));
+    });
+  });
+
+  group('what expiry has to take with it', () {
+    test('a quote of an expired message loses the words it copied', () {
+      // The reply keeps its place and its own expiry. What goes is the excerpt
+      // — otherwise the text of a message that "disappeared" is still sitting
+      // in the transcript under somebody else's bubble.
+      final store = withBob();
+      store.append(
+        'account-bob',
+        Message(
+          id: 'original',
+          body: 'the secret',
+          sentAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          isMine: false,
+          expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+        ),
+      );
+      store.append(
+        'account-bob',
+        Message(
+          id: 'reply',
+          body: 'about that',
+          sentAt: DateTime.now(),
+          isMine: true,
+          replyToId: 'original',
+          replyPreview: 'the secret',
+          replySender: 'bob',
+        ),
+      );
+
+      store.pruneExpired(DateTime.now());
+
+      final left = store.conversationWith('account-bob')!.messages;
+      expect(left.map((m) => m.id), ['reply']);
+      expect(left.single.replyPreview, isNull, reason: 'the quoted words survived the original');
+      expect(left.single.body, 'about that');
     });
   });
 }

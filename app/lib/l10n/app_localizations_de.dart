@@ -253,9 +253,6 @@ class AppTextDe extends AppText {
   String get disappearing24Hours => '24 Stunden';
 
   @override
-  String get disappearing7Days => '7 Tage';
-
-  @override
   String get disappearingAdminOnly => 'Das kann nur ein Admin ändern';
 
   @override
@@ -4568,28 +4565,6 @@ class AppTextDe extends AppText {
       'Kontakt konnte nicht hinzugefügt werden';
 
   @override
-  String get profileReport => 'Konto melden';
-
-  @override
-  String profileReportTitle(String name) {
-    return '$name melden';
-  }
-
-  @override
-  String get profileReportBody =>
-      'Die Moderation erfährt den Grund und sonst nichts. Der PRIVIO-Server hat deine Nachrichten nie im Klartext, deshalb kann nichts davon beigelegt werden.';
-
-  @override
-  String get profileReported => 'Meldung eingereicht';
-
-  @override
-  String get profileAlreadyReported =>
-      'Deine frühere Meldung zu diesem Konto liegt weiterhin vor';
-
-  @override
-  String get profileCouldNotReport => 'Meldung konnte nicht eingereicht werden';
-
-  @override
   String get contactMatchNow => 'Kontakte jetzt abgleichen';
 
   @override
@@ -4620,6 +4595,9 @@ class AppTextDe extends AppText {
 
   @override
   String get savedTitle => 'Gespeichert';
+
+  @override
+  String get savedEmptyPreview => 'Deine privaten Notizen und Dateien';
 
   @override
   String get savedAccountRow => 'Gespeichert';
@@ -4787,4 +4765,107 @@ class AppTextDe extends AppText {
 
   @override
   String get accountNoDisplayName => 'Kein Anzeigename';
+
+  @override
+  String get disappearing15Minutes => '15 Minuten';
+
+  @override
+  String get disappearing6Hours => '6 Stunden';
+
+  @override
+  String get disappearing12Hours => '12 Stunden';
+
+  @override
+  String get disappearingStartsOnSend =>
+      'Neue Nachrichten werden nach dieser Zeit automatisch gelöscht. Der Timer beginnt beim Senden.';
+
+  @override
+  String get disappearingUseDefault => 'Allgemeine Einstellung verwenden';
+
+  @override
+  String disappearingDefaultIs(String value) {
+    return 'Derzeit $value';
+  }
+
+  @override
+  String disappearingEffective(String value) {
+    return 'Gilt hier: $value';
+  }
+
+  @override
+  String get disappearingFollowsDefault =>
+      'Folgt deiner allgemeinen Einstellung';
+
+  @override
+  String get disappearingSettingsTitle => 'Selbstlöschende Nachrichten';
+
+  @override
+  String get disappearingSettingsRow => 'Selbstlöschende Nachrichten';
+
+  @override
+  String get disappearingSettingsIntro =>
+      'Neue Chats starten damit. Ein Chat, den du selbst eingestellt hast, behält seine eigene Einstellung.';
+
+  @override
+  String get disappearingDefaultSection => 'Allgemeine Einstellung';
+
+  @override
+  String get disappearingApplyToExisting => 'Auf bestehende Chats anwenden';
+
+  @override
+  String disappearingApplyPreviewTitle(String value) {
+    return '$value auf bestehende Chats anwenden?';
+  }
+
+  @override
+  String disappearingApplyFollowing(int count) {
+    return '$count Chats folgen deiner allgemeinen Einstellung und ändern sich.';
+  }
+
+  @override
+  String disappearingApplyExceptions(int count) {
+    return '$count Chats haben eine eigene Einstellung. Sie bleiben unverändert, ausser du beziehst sie ein.';
+  }
+
+  @override
+  String get disappearingApplyIncludeExceptions =>
+      'Chats mit eigener Einstellung ebenfalls ändern';
+
+  @override
+  String get disappearingApplyConfirm => 'Anwenden';
+
+  @override
+  String disappearingApplied(int count) {
+    return '$count Chats geändert';
+  }
+
+  @override
+  String disappearingSkippedGroups(int count) {
+    return '$count Gruppen übersprungen: Du bist dort kein Administrator.';
+  }
+
+  @override
+  String get disappearingExceptionsRow => 'Ausnahmen verwalten';
+
+  @override
+  String get disappearingExceptionsTitle => 'Chats mit eigener Einstellung';
+
+  @override
+  String get disappearingExceptionsEmpty =>
+      'Kein Chat weicht von deiner allgemeinen Einstellung ab.';
+
+  @override
+  String get disappearingResetToDefault => 'Allgemeine Einstellung verwenden';
+
+  @override
+  String get disappearingResetAll =>
+      'Alle auf die allgemeine Einstellung zurücksetzen';
+
+  @override
+  String get disappearingCappedNotice =>
+      'Ein Timer über 24 Stunden wurde auf 24 Stunden verkürzt. Bereits gesendete Nachrichten behalten ihre ursprüngliche Zeit.';
+
+  @override
+  String get noticeTimerCapped =>
+      'Selbstlöschende Nachrichten wurden auf 24 Stunden gesetzt, das Maximum dieser App.';
 }

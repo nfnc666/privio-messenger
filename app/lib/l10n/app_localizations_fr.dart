@@ -254,9 +254,6 @@ class AppTextFr extends AppText {
   String get disappearing24Hours => '24 heures';
 
   @override
-  String get disappearing7Days => '7 jours';
-
-  @override
   String get disappearingAdminOnly =>
       'Seul un administrateur peut modifier ceci';
 
@@ -4567,28 +4564,6 @@ class AppTextFr extends AppText {
   String get profileCouldNotAddContact => 'Impossible d’ajouter ce contact';
 
   @override
-  String get profileReport => 'Signaler ce compte';
-
-  @override
-  String profileReportTitle(String name) {
-    return 'Signaler $name';
-  }
-
-  @override
-  String get profileReportBody =>
-      'La modération apprend le motif et rien d’autre. Le serveur de Privio n’a jamais vos messages en clair : rien de ce qui a été écrit ne peut être joint.';
-
-  @override
-  String get profileReported => 'Signalement envoyé';
-
-  @override
-  String get profileAlreadyReported =>
-      'Votre signalement précédent concernant ce compte est toujours enregistré';
-
-  @override
-  String get profileCouldNotReport => 'Impossible d’envoyer le signalement';
-
-  @override
   String get contactMatchNow => 'Comparer mes contacts maintenant';
 
   @override
@@ -4619,6 +4594,9 @@ class AppTextFr extends AppText {
 
   @override
   String get savedTitle => 'Enregistré';
+
+  @override
+  String get savedEmptyPreview => 'Vos notes et fichiers privés';
 
   @override
   String get savedAccountRow => 'Enregistré';
@@ -4786,4 +4764,106 @@ class AppTextFr extends AppText {
 
   @override
   String get accountNoDisplayName => 'Pas de nom affiché';
+
+  @override
+  String get disappearing15Minutes => '15 minutes';
+
+  @override
+  String get disappearing6Hours => '6 heures';
+
+  @override
+  String get disappearing12Hours => '12 heures';
+
+  @override
+  String get disappearingStartsOnSend =>
+      'Les nouveaux messages sont supprimés automatiquement après ce délai. Le minuteur démarre à l’envoi.';
+
+  @override
+  String get disappearingUseDefault => 'Utiliser le réglage général';
+
+  @override
+  String disappearingDefaultIs(String value) {
+    return 'Actuellement $value';
+  }
+
+  @override
+  String disappearingEffective(String value) {
+    return 'S’applique ici : $value';
+  }
+
+  @override
+  String get disappearingFollowsDefault => 'Suit ton réglage général';
+
+  @override
+  String get disappearingSettingsTitle => 'Messages éphémères';
+
+  @override
+  String get disappearingSettingsRow => 'Messages éphémères';
+
+  @override
+  String get disappearingSettingsIntro =>
+      'Les nouvelles conversations démarrent ainsi. Une conversation que tu règles toi-même garde son propre réglage.';
+
+  @override
+  String get disappearingDefaultSection => 'Réglage général';
+
+  @override
+  String get disappearingApplyToExisting =>
+      'Appliquer aux conversations existantes';
+
+  @override
+  String disappearingApplyPreviewTitle(String value) {
+    return 'Appliquer $value aux conversations existantes ?';
+  }
+
+  @override
+  String disappearingApplyFollowing(int count) {
+    return '$count conversations suivent ton réglage général et vont changer.';
+  }
+
+  @override
+  String disappearingApplyExceptions(int count) {
+    return '$count conversations ont leur propre réglage. Elles ne changent que si tu les inclus.';
+  }
+
+  @override
+  String get disappearingApplyIncludeExceptions =>
+      'Changer aussi les conversations réglées à part';
+
+  @override
+  String get disappearingApplyConfirm => 'Appliquer';
+
+  @override
+  String disappearingApplied(int count) {
+    return '$count conversations modifiées';
+  }
+
+  @override
+  String disappearingSkippedGroups(int count) {
+    return '$count groupes ignorés : tu n’y es pas administrateur.';
+  }
+
+  @override
+  String get disappearingExceptionsRow => 'Gérer les exceptions';
+
+  @override
+  String get disappearingExceptionsTitle => 'Conversations réglées à part';
+
+  @override
+  String get disappearingExceptionsEmpty =>
+      'Aucune conversation ne diffère de ton réglage général.';
+
+  @override
+  String get disappearingResetToDefault => 'Utiliser le réglage général';
+
+  @override
+  String get disappearingResetAll => 'Tout remettre au réglage général';
+
+  @override
+  String get disappearingCappedNotice =>
+      'Un minuteur de plus de 24 heures a été ramené à 24 heures. Les messages déjà envoyés gardent leur délai d’origine.';
+
+  @override
+  String get noticeTimerCapped =>
+      'Les messages éphémères ont été réglés sur 24 heures, le maximum de cette application.';
 }

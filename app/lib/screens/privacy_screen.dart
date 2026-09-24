@@ -12,7 +12,9 @@ import 'phone_contacts_screen.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
+import '../widgets/disappearing_timer_sheet.dart';
 import 'blocked_users_screen.dart';
+import 'disappearing_settings_screen.dart';
 import 'privacy_dashboard_screen.dart';
 import 'screen_lock_screen.dart';
 import 'security_activity_screen.dart';
@@ -200,11 +202,20 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                   onChanged: (value) => conversations.setTypingIndicators(value),
                 ),
               ),
-              // Per chat rather than global: a timer that applied to every
-              // conversation at once would be a setting nobody could use.
+              // This row used to state "Per chat" and do nothing. There is an
+              // account-wide default now, and it opens the screen that sets
+              // it — including what applying it to existing chats would do.
               SettingsRow(
-                label: text.privacyDisappearing,
-                value: text.privacyPerChat,
+                label: text.disappearingSettingsRow,
+                value: DisappearingTimerSheet.label(
+                  text,
+                  conversations.defaultDisappearAfter,
+                ),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DisappearingSettingsScreen(),
+                  ),
+                ),
               ),
             ],
           ),

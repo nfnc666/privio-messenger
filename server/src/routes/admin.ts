@@ -577,24 +577,6 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     return admin.reportedChannels(query);
   });
 
-  /**
-   * The same queue for accounts. Read-only on purpose — see
-   * `services/admin.ts`: there is no suspend to pair it with, because what
-   * suspending a person would mean for conversations the server cannot read is
-   * a design decision rather than a query.
-   */
-  app.get('/v1/admin/reports/accounts', guard, async (request) => {
-    actor(request);
-    const query = parse(
-      z.object({
-        open: booleanQuery(true),
-        limit: z.coerce.number().int().min(1).max(100).default(25),
-        offset: z.coerce.number().int().min(0).default(0),
-      }),
-      request.query,
-    );
-    return admin.reportedAccounts(query);
-  });
 
   /**
    * Suspend a public channel: it stops being listed, stops resolving by handle

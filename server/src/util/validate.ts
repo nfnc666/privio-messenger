@@ -46,6 +46,28 @@ export const usernameSchema = z
  */
 export const passwordSchema = z.string().min(10).max(1024);
 
+/**
+ * The longest a disappearing message may live: twenty-four hours.
+ *
+ * One constant rather than a number repeated in three schemas, because the
+ * ceiling is the feature. A timer is a promise that a message goes away, and a
+ * promise measured in weeks is a different product — long enough that people
+ * stop treating the chat as temporary while the server still holds ciphertext
+ * for it.
+ *
+ * Enforced here as well as in the app, and that is the point: the app's list of
+ * options is a convenience, this is what a direct API call meets. See
+ * `server/test/disappearing.test.ts`.
+ */
+export const MAX_DISAPPEAR_SECONDS = 86_400;
+
+/** A timer on the wire: a positive number of seconds, at most a day. */
+export const disappearSecondsSchema = z
+  .number()
+  .int()
+  .positive()
+  .max(MAX_DISAPPEAR_SECONDS);
+
 export const uuidSchema = z.string().uuid();
 
 /**

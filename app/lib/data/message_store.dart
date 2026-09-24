@@ -165,13 +165,34 @@ class Conversation {
 
   int unreadCount = 0;
 
-  /// How long a message in this chat lives before it disappears, or null when
-  /// the timer is off.
+  /// What this chat is set to — its own duration, off, or following the
+  /// account's default.
   ///
-  /// A per-chat setting, agreed end to end: the sender puts the number inside
-  /// each sealed payload, the recipient's device adopts it, and both delete on
-  /// their own clocks. The server is never asked.
-  Duration? disappearAfter;
+  /// A per-chat setting, agreed end to end: the sender puts the *effective*
+  /// number inside each sealed payload, the recipient's device adopts it, and
+  /// both delete on their own clocks. The server is never asked what the
+  /// setting is; it is told only when each envelope expires, which it needs in
+  /// order to drop an undelivered one.
+  ChatTimer timer = const ChatTimer.followDefault();
+
+  /// Set when this chat's stored timer was longer than the ceiling and was
+  /// shortened on the way in.
+  ///
+  /// Not persisted and not sent: it lives just long enough for the controller
+  /// to write one notice into the chat after a restore, and is cleared there.
+  bool timerWasCapped = false;
+
+  /// Which change this is, so that two people setting a timer at the same
+  /// moment end up agreeing.
+  ///
+  /// Higher wins; equal is broken by the setter's account id, which both sides
+  /// can compare and neither can argue with. Adopting never announces, so the
+  /// two devices settle rather than trading updates.
+  int timerVersion = 0;
+
+  /// Who set it last, as an account id. The tiebreak above, and nothing else:
+  /// the name shown in the notice comes from the conversation, not from here.
+  String? timerSetBy;
 
   /// Kept at the top of the chat list.
   ///
@@ -223,7 +244,11 @@ abstract interface class MessageStore {
   /// Replaces a message in place, keeping its position in the conversation.
   void replace(String id, String messageId, Message message);
 
-  void setDisappearAfter(String id, Duration? timer);
+  /// Files what a chat's timer is now, and which change said so.
+  ///
+  /// [version] and [setBy] are what make two simultaneous changes settle on
+  /// one answer; see `Conversation.timerVersion`.
+  void setChatTimer(String id, ChatTimer timer, {int? version, String? setBy});
 
   /// Pins a conversation to the top of the list, or lets it go. Returns
   /// whether anything changed.
@@ -348,7 +373,9 @@ class InMemoryMessageStore implements MessageStore {
     );
     final replacement = Conversation.direct(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
-      ..disappearAfter = existing.disappearAfter
+      ..timer = existing.timer
+      ..timerVersion = existing.timerVersion
+      ..timerSetBy = existing.timerSetBy
       // Carried over like the rest of it: an upsert happens on a contact
       // refresh and on every message from someone new, and a pin that a
       // refresh quietly undid was a pin that did not work.
@@ -375,7 +402,9 @@ class InMemoryMessageStore implements MessageStore {
     );
     final replacement = Conversation.group(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount
-      ..disappearAfter = existing.disappearAfter
+      ..timer = existing.timer
+      ..timerVersion = existing.timerVersion
+      ..timerSetBy = existing.timerSetBy
       ..pinned = existing.pinned
       ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
@@ -412,8 +441,13 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
-  void setDisappearAfter(String id, Duration? timer) =>
-      _conversations[id]?.disappearAfter = timer;
+  void setChatTimer(String id, ChatTimer timer, {int? version, String? setBy}) {
+    final conversation = _conversations[id];
+    if (conversation == null) return;
+    conversation.timer = timer;
+    if (version != null) conversation.timerVersion = version;
+    if (setBy != null) conversation.timerSetBy = setBy;
+  }
 
   @override
   void setTyping(String id, DateTime? until) => _conversations[id]?.typingUntil = until;
@@ -581,11 +615,26 @@ class InMemoryMessageStore implements MessageStore {
   List<Message> pruneExpired(DateTime now) {
     final removed = <Message>[];
     for (final conversation in _conversations.values) {
+      final gone = <String>{};
       conversation.messages.removeWhere((message) {
         if (!message.hasExpiredAt(now)) return false;
         removed.add(message);
+        gone.add(message.id);
         return true;
       });
+      if (gone.isEmpty) continue;
+
+      // A reply keeps a copy of the text it quoted. When the original expires
+      // that copy is the only place the words still exist — in the transcript,
+      // in search, in the chat-list preview, and in the next backup. The reply
+      // itself stays, with its own expiry; what goes is the excerpt.
+      for (var i = 0; i < conversation.messages.length; i += 1) {
+        final message = conversation.messages[i];
+        if (message.replyToId == null) continue;
+        if (!gone.contains(message.replyToId)) continue;
+        if (message.replyPreview == null) continue;
+        conversation.messages[i] = message.copyWith(forgetQuote: true);
+      }
     }
     return removed;
   }

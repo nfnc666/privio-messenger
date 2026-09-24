@@ -11,8 +11,6 @@ import '../core/api_client.dart';
 import '../core/contact_profile_controller.dart';
 import '../data/message_store.dart';
 import '../l10n/app_localizations.dart';
-import '../l10n/channel_text.dart';
-import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -166,82 +164,6 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
     await _change(() => profile.isBlocked ? controller.api.unblock(profile.id) : controller.api.block(profile.id));
   }
 
-  /// Reports an account to a moderator.
-  ///
-  /// Deliberately not `_change`: a report alters nothing about this profile, so
-  /// reloading it afterwards would be a round trip for no new information — and
-  /// the server's answer carries the one thing worth saying, which is whether
-  /// this complaint was already on file.
-  ///
-  /// The reasons are a fixed list. A text box is where somebody pastes the
-  /// message they are reporting, and that is the one thing the server must
-  /// never hold: it has no key for anything either of you wrote, and a report
-  /// is not the place to hand it a copy in the clear.
-  Future<void> _report(ContactProfile profile) async {
-    final controller = _controller!;
-    if (!controller.active || controller.busy) return;
-    final text = AppText.of(context);
-    final reason = await showModalBottomSheet<ReportReason>(
-      context: context,
-      backgroundColor: PrivioColors.surface,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                PrivioSpacing.xxl,
-                PrivioSpacing.xl,
-                PrivioSpacing.xxl,
-                PrivioSpacing.sm,
-              ),
-              child: Text(
-                text.profileReportTitle(profile.displayName),
-                style: Theme.of(sheetContext).textTheme.titleMedium,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                PrivioSpacing.xxl,
-                0,
-                PrivioSpacing.xxl,
-                PrivioSpacing.md,
-              ),
-              // Said before the reasons rather than after the fact: somebody
-              // about to report a person is usually expecting the messages to
-              // go with it, and they do not exist to send.
-              child: Text(
-                text.profileReportBody,
-                style: Theme.of(sheetContext).textTheme.bodySmall,
-              ),
-            ),
-            for (final reason in ReportReason.values)
-              ListTile(
-                title: Text(reportReasonLabel(AppText.of(sheetContext), reason)),
-                onTap: () => Navigator.of(sheetContext).pop(reason),
-              ),
-            const SizedBox(height: PrivioSpacing.sm),
-          ],
-        ),
-      ),
-    );
-    if (reason == null || !mounted || !controller.active) return;
-
-    String said;
-    try {
-      final answer = await controller.api.reportUser(profile.id, reason.wire);
-      said = answer['alreadyReported'] == true
-          ? text.profileAlreadyReported
-          : text.profileReported;
-    } on Object {
-      said = text.profileCouldNotReport;
-    }
-    if (!mounted || !controller.active) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(said)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = PrivioScope.of(context);
@@ -302,7 +224,6 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
             }),
           ),
           ListTile(leading: const Icon(Icons.block), title: Text(profile.isBlocked ? text.blockedUnblock : text.chatBlock), onTap: controller.busy ? null : () => _toggleBlock(profile)),
-          ListTile(leading: const Icon(Icons.flag_outlined), title: Text(text.profileReport), onTap: controller.busy ? null : () => unawaited(_report(profile))),
         ],
       ],);
     }

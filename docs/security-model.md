@@ -927,6 +927,20 @@ device that may never come back. The server learns a retention hint on one
 envelope; it does not learn what any chat's timer is, and nothing it holds is
 readable either way.
 
+**A ceiling the server enforces, rather than trusts.** The longest timer this
+product offers is twenty-four hours, and `expiresInSeconds` is validated
+against it on the way in: `86401` is a `400`, not a silently shortened day. The
+app's list of options is a convenience for the person choosing; this is what a
+patched client or a direct API call meets. The refusal is deliberate — a caller
+told nothing while its week became a day would go on believing it had a week.
+
+**The account-wide default is metadata the server holds.** The general setting
+under `Settings → Privacy` is stored as `privacy.disappearAfterSeconds` on the
+account, so that a second device signs in and finds it. The server therefore
+knows what a given account's *default* is — not what any particular chat is set
+to, and not anything about the messages themselves. It is a smaller disclosure
+than `expires_at` and is named here for the same reason.
+
 The same applies to an attachment's blob: `POST /v1/media?expiresInSeconds=…`
 shortens `media_objects.expires_at`, and the sweep deletes the bytes with it.
 The value is clamped — never longer than the ordinary retention, never shorter

@@ -205,10 +205,6 @@ class MessagingService {
 
     // Control payloads are machinery, not conversation: a receipt or a typing
     // notice on the other device would be filed as a message that was never
-    // written. A deletion is the exception — it has to reach this account's
-    // own devices or the message stays on half of them.
-    // Control payloads are machinery, not conversation: a receipt or a typing
-    // notice on the other device would be filed as a message that was never
     // written. Two are exceptions — a deletion has to reach this account's own
     // devices or the message stays on half of them, and a timer change has to
     // or this account's phone and laptop disagree about when things vanish.

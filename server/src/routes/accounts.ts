@@ -19,7 +19,14 @@ import { announceRevocation } from '../services/revocation.js';
 import type { DeliveryBus } from '../services/bus.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
 import { ApiError } from '../util/errors.js';
-import { base64Bytes, parse, passwordSchema, usernameSchema, uuidSchema } from '../util/validate.js';
+import {
+  base64Bytes,
+  disappearSecondsSchema,
+  parse,
+  passwordSchema,
+  usernameSchema,
+  uuidSchema,
+} from '../util/validate.js';
 import { DISPLAY_NAME_LIMIT, cleanDisplayName, isTooLong } from '../services/display_name.js';
 import { config, rateLimitFactor } from '../config.js';
 
@@ -54,6 +61,20 @@ const privacySchema = z.object({
   // Who may read the profile status. Its own key, never `lastSeen` — see
   // `services/status.ts`.
   profileStatus: z.enum(['everyone', 'contacts', 'nobody']).optional(),
+  /**
+   * The account's default disappearing-message timer, in seconds, or null for
+   * off.
+   *
+   * It lives in `privacy` because that is the object already read at sign-in
+   * and already the same on every device this account signs in on — which is
+   * exactly what a *default* has to be. The server stores the number and
+   * nothing else: which chats follow it, which have an exception, and when a
+   * message actually goes are all decided on the devices.
+   *
+   * Bounded by the same ceiling as a message's own timer, so a default cannot
+   * be the way somebody sets a week.
+   */
+  disappearAfterSeconds: disappearSecondsSchema.nullable().optional(),
 });
 
 /**

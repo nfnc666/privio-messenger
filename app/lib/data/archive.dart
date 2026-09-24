@@ -328,8 +328,15 @@ abstract final class ArchiveCodec {
             'id': conversation.id,
             'unreadCount': conversation.unreadCount,
             if (conversation.pinned) 'pinned': true,
-            if (conversation.disappearAfter != null)
-              'disappearAfterSeconds': conversation.disappearAfter!.inSeconds,
+            if (conversation.timer.after != null)
+              'disappearAfterSeconds': conversation.timer.after!.inSeconds,
+            // Written even when false, because its absence means something
+            // else: an archive from a build that predated the account-wide
+            // default has no such key, and every chat in it was decided by
+            // hand. See `_decodeTimer`.
+            'timerExplicit': conversation.timer.explicit,
+            if (conversation.timerVersion != 0) 'timerVersion': conversation.timerVersion,
+            if (conversation.timerSetBy != null) 'timerSetBy': conversation.timerSetBy,
             if (conversation.user != null)
               'user': {
                 'accountId': conversation.user!.accountId,
@@ -419,8 +426,39 @@ abstract final class ArchiveCodec {
           },
       ];
 
-  static Duration? _decodeTimer(Object? seconds) =>
-      seconds == null ? null : Duration(seconds: seconds as int);
+  /// A chat's timer out of an archive, including archives that predate the
+  /// account-wide default.
+  ///
+  /// The `timerExplicit` key is what tells the two apart. An archive that has
+  /// it says what the chat was set to. An archive that does not comes from a
+  /// build where every chat had been decided by hand — there was nothing to
+  /// follow — so each one is read back as explicit, and setting an account
+  /// default later does not reach into chats somebody already settled.
+  ///
+  /// Anything longer than a day is clamped on the way in. A timer of a week
+  /// could have been set by an older build, and the ceiling is now a day; the
+  /// clamp is what stops a restored archive from quietly reinstating it. The
+  /// messages already in the archive keep the expiry they were sent with —
+  /// only what happens to *new* messages changes.
+  static ChatTimer _decodeChatTimer(Map<String, dynamic> entry) {
+    final seconds = entry['disappearAfterSeconds'] as int?;
+    final explicit = entry['timerExplicit'] as bool? ?? true;
+    if (!explicit) return const ChatTimer.followDefault();
+    if (seconds == null || seconds <= 0) return const ChatTimer.off();
+    return ChatTimer.after(
+      Duration(seconds: seconds > maxDisappearSeconds ? maxDisappearSeconds : seconds),
+    );
+  }
+
+  /// Whether the stored timer was longer than the ceiling.
+  ///
+  /// Read separately from [_decodeChatTimer] so the clamp can be *said* as
+  /// well as done: the controller writes one notice into each chat this was
+  /// true of. See `ConversationController.restore`.
+  static bool _timerWasCapped(Map<String, dynamic> entry) {
+    final seconds = entry['disappearAfterSeconds'] as int?;
+    return seconds != null && seconds > maxDisappearSeconds;
+  }
 
   /// Custom-emoji spans out of an archive, keeping only the ones that fit.
   ///
@@ -525,7 +563,10 @@ abstract final class ArchiveCodec {
           )
             ..unreadCount = entry['unreadCount'] as int? ?? 0
             ..pinned = entry['pinned'] as bool? ?? false
-            ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
+            ..timer = _decodeChatTimer(entry)
+            ..timerWasCapped = _timerWasCapped(entry)
+            ..timerVersion = entry['timerVersion'] as int? ?? 0
+            ..timerSetBy = entry['timerSetBy'] as String?,
         );
         continue;
       }
@@ -546,7 +587,10 @@ abstract final class ArchiveCodec {
         )
           ..unreadCount = entry['unreadCount'] as int? ?? 0
           ..pinned = entry['pinned'] as bool? ?? false
-          ..disappearAfter = _decodeTimer(entry['disappearAfterSeconds']),
+          ..timer = _decodeChatTimer(entry)
+          ..timerWasCapped = _timerWasCapped(entry)
+          ..timerVersion = entry['timerVersion'] as int? ?? 0
+          ..timerSetBy = entry['timerSetBy'] as String?,
       );
     }
     return conversations;

@@ -1,5 +1,6 @@
-import '../media/attachment.dart' show CustomEmojiRef;
 import 'package:flutter/foundation.dart';
+
+import '../media/attachment.dart' show CustomEmojiRef;
 
 
 @immutable
@@ -61,6 +62,68 @@ enum ReportReason {
   const ReportReason(this.wire);
 
   final String wire;
+}
+
+/// The longest a disappearing message may live: twenty-four hours.
+///
+/// The same number the server enforces (`MAX_DISAPPEAR_SECONDS` in
+/// `server/src/util/validate.ts`), and it is in both places on purpose: the
+/// server's copy is what a direct API call meets, this one is what keeps the
+/// app from offering — or restoring from an older archive — a timer the server
+/// would refuse.
+const int maxDisappearSeconds = 86400;
+
+/// What a chat's disappearing-message timer is set to.
+///
+/// Three states, and the third is the reason this is a type rather than a
+/// `Duration?`. "Off" and "follow the account's default" look identical when
+/// both are written as null, and they are not the same answer: one is a chat
+/// somebody deliberately kept permanent, the other is a chat that has never
+/// been decided and should move when the default moves.
+///
+/// There is still only one timer. [ConversationController.disappearAfter]
+/// resolves this against the account default and hands every send path the
+/// same effective duration it always had.
+@immutable
+class ChatTimer {
+  /// This chat has no answer of its own and takes the account's.
+  const ChatTimer.followDefault()
+      : explicit = false,
+        after = null;
+
+  /// Deliberately permanent, whatever the account default says.
+  const ChatTimer.off()
+      : explicit = true,
+        after = null;
+
+  /// This chat's own duration.
+  const ChatTimer.after(Duration this.after) : explicit = true;
+
+  /// Whether this chat was decided rather than left to follow.
+  final bool explicit;
+
+  /// The chosen duration, null for off *or* for following — read [explicit]
+  /// to tell those apart, or use [resolve].
+  final Duration? after;
+
+  /// What actually applies, given what the account is set to.
+  Duration? resolve(Duration? accountDefault) => explicit ? after : accountDefault;
+
+  /// Whether this chat differs from what the account would give it. What
+  /// "Manage exceptions" lists, and deliberately not the same as [explicit]:
+  /// a chat set by hand to the same thing as the default is not an exception
+  /// to anything.
+  bool isExceptionTo(Duration? accountDefault) => explicit && after != accountDefault;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChatTimer && other.explicit == explicit && other.after == after;
+
+  @override
+  int get hashCode => Object.hash(explicit, after);
+
+  @override
+  String toString() => explicit ? 'ChatTimer(${after ?? 'off'})' : 'ChatTimer(follow)';
 }
 
 enum MessageKind {
@@ -167,6 +230,12 @@ enum NoticeKind {
   /// Messages arrived that this device has no key for. Carries
   /// [SystemNotice.count].
   unreadable,
+
+  /// A timer longer than a day was shortened to a day when this chat was read
+  /// back. Written once, where the change happened, because a setting that
+  /// silently changes itself is something somebody otherwise discovers from a
+  /// message that vanished earlier than they expected.
+  timerCapped,
 }
 
 /// One system notice: what happened, and the few things the sentence needs.
@@ -420,6 +489,13 @@ class Message {
     Map<String, DeliveryState>? receipts,
     Map<String, StickerRef>? reactionStickers,
     bool? pinned,
+    /// Drops the copy of a quoted message kept inside this one.
+    ///
+    /// Its own flag because `copyWith(replyPreview: null)` cannot mean
+    /// "clear it" — null is how every other field says "leave it alone". What
+    /// needs it: the original expired, and an excerpt of an expired message is
+    /// the message, sitting in the transcript under a different bubble.
+    bool forgetQuote = false,
   }) =>
       Message(
         id: id,
@@ -436,7 +512,7 @@ class Message {
         expiresAt: expiresAt ?? this.expiresAt,
         clientId: clientId,
         replyToId: replyToId,
-        replyPreview: replyPreview,
+        replyPreview: forgetQuote ? null : replyPreview,
         replySender: replySender,
         reactions: reactions ?? this.reactions,
         receipts: receipts ?? this.receipts,
@@ -453,7 +529,23 @@ class Message {
 /// The controller cannot write it: "Photo" is a word, and which word depends on
 /// the reader. [text] is the one part that is never translated — a message
 /// somebody wrote, or the name they gave a file.
-enum ChatPreviewKind { empty, typing, deleted, body, notice, photo, video, voice, file }
+/// What a chat list row shows on its second line.
+///
+/// [savedEmpty] is the one that is not a message: the personal area exists
+/// before anything is in it, and an empty second line there reads as a chat
+/// somebody abandoned rather than as a notebook nobody has written in yet.
+enum ChatPreviewKind {
+  empty,
+  savedEmpty,
+  typing,
+  deleted,
+  body,
+  notice,
+  photo,
+  video,
+  voice,
+  file,
+}
 
 @immutable
 class ChatPreview {

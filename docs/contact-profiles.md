@@ -26,30 +26,23 @@ are account-scoped API operations. Removing or blocking here does not delete cha
 - No edit actions appear in this read-only screen, including for another user.
 - There is currently no separate account biography field in PRIVIO. The existing
   permitted status is displayed; no invented biography is added.
-- Reporting an account is its own workflow, added on top of this screen rather
-  than borrowed from channels — see below.
+- There is no report action on this screen: only channels can be reported, for
+  the reason set out below.
 
-## Reporting an account
+## Reporting — channels only
 
-The profile's last action files a report. It is deliberately **not** blocking:
-the two are offered together and somebody may well want both, but a report that
-silently blocked would turn an accusation into a change to your own account, and
-a block that silently reported would send your address book to a moderator.
+There is no way to report an account, and that is a decision rather than a gap.
 
-What a report can carry is limited by what the server knows, which is nothing
-about what anybody said. There is no message to attach, because the server never
-held one in the clear — so the sheet says that before the reasons rather than
-after the fact, and the reasons themselves are a fixed list of five words.
-A free-text box is where somebody pastes the message they are reporting, which
-is the one thing that must never reach a column the server can read.
+A channel can be reported because there is something for a moderator to look
+at: its name and description are public, which is how it is searched for. An
+account is not like that. The server holds a username and nothing else it may
+read — no messages, because it never had them in the clear — so a report about
+a person could carry a reason and nothing to judge it against. `admin-panel.md`
+says the same from the operator's side.
 
-`POST /v1/users/:id/report` takes that reason, writes one row per
-(reported account, reporter) — the primary key is what makes a second complaint
-about the same person a no-op rather than a second entry — and answers whether
-this one was already on file, which is the difference between "filed" and "your
-earlier report is still on file". Migration `033_account_reports.sql` adds the
-table; `GET /v1/admin/reports/accounts` is where a moderator sees the counts,
-and `admin-panel.md` states what those counts are and are not.
+Blocking is the action that does work here, and it works entirely on this
+device and this account: nothing they send reaches you, they are not told, and
+your own history is untouched.
 
 ## Deployment
 
