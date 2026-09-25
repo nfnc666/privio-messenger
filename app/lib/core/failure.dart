@@ -160,6 +160,11 @@ enum FailureKind {
   /// because the two read the same to whoever typed it: nothing was added.
   botNotFound,
 
+  /// The bot has not been started, or was stopped. Its own case because the
+  /// answer is a thing the person can do — press Start — and a generic
+  /// "refused" would not say so.
+  botNotStarted,
+
   // Stickers and custom emoji.
   //
   // The server refuses an upload by code; these are the codes this app has its

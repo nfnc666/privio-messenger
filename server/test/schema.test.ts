@@ -168,6 +168,16 @@ const READABLE: Record<string, string> = {
   // it again before every request. The owner chose it and it is shown back only
   // to the bot holding the token. The row's *secret* is bytea, which is the
   // part that must not be readable.
+  // Buttons and presses. All three are the bot's own words and ids rather than
+  // anybody's message: the label is written by the operator to be shown to
+  // whoever opens the chat, and the id is the operator's own token for an
+  // action. The server has to read them because it is the thing that checks a
+  // press names a button the message actually carries — a check it could not
+  // make on ciphertext. The message body beside them is readable for the reason
+  // the whole bot path is, which migration 029 states.
+  'bot_messages.buttons': 'the labels the bot published and the ids it chose, checked on a press',
+  'bot_messages.kind': 'whether the row is a message or a press, which decides how it is delivered',
+  'bot_button_presses.button_id': 'which button, so the same one cannot be pressed twice',
   'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
   'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the

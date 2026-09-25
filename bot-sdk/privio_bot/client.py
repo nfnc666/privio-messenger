@@ -39,6 +39,20 @@ class Command:
 
 
 @dataclass(frozen=True)
+class Press:
+    """Somebody pressed a button under one of the bot's messages.
+
+    ``message_id`` is the message the button was under, so a bot that sent the
+    same buttons twice can tell which of the two was pressed. A press arrives
+    once: pressing again is refused server-side, so no state of yours has to
+    make that true.
+    """
+
+    id: str
+    message_id: int
+
+
+@dataclass(frozen=True)
 class Update:
     """One thing that happened."""
 
@@ -52,6 +66,8 @@ class Update:
     #: The group it happened in, when ``scope`` is ``"group"``.
     scope_id: str | None = None
     command: Command | None = None
+    #: Set when this update *is* a button press. ``text`` is then empty.
+    button: Press | None = None
 
     @property
     def in_group(self) -> bool:
@@ -61,6 +77,7 @@ class Update:
     def from_json(cls, raw: dict[str, Any]) -> "Update":
         chat = raw.get("chat") or {}
         command_raw = raw.get("command")
+        button_raw = raw.get("button")
         return cls(
             update_id=int(raw["updateId"]),
             account_id=str(chat.get("accountId", "")),
@@ -76,6 +93,11 @@ class Update:
                     addressed_to=command_raw.get("addressedTo"),
                 )
                 if command_raw
+                else None
+            ),
+            button=(
+                Press(id=str(button_raw["id"]), message_id=int(button_raw["messageId"]))
+                if button_raw
                 else None
             ),
         )
@@ -148,24 +170,46 @@ class Bot:
         raw = self._request("GET", f"/v1/bot/updates?timeout={timeout}&limit={limit}")
         return [Update.from_json(item) for item in raw.get("updates", [])]
 
-    def send(self, to: str, text: str, *, group_id: str | None = None) -> int:
+    def send(
+        self,
+        to: str,
+        text: str,
+        *,
+        group_id: str | None = None,
+        buttons: list[tuple[str, str]] | None = None,
+    ) -> int:
         """Answers somebody.
 
         A bot may not open a conversation: this fails with ``not_contacted``
         until the person has written to it. In a group it also needs the
         *Send messages* right, which an admin grants separately.
+
+        ``buttons`` is ``[(id, label), …]``, at most eight, with distinct ids.
+        The id comes back on a press and is yours; the label is what the person
+        reads. They belong to this message and cannot be changed afterwards —
+        a button whose label changed under somebody about to press it is a
+        button that did something other than what it said.
         """
         body: dict[str, Any] = {"to": to, "text": text}
         if group_id:
             body["groupId"] = group_id
+        if buttons:
+            body["buttons"] = [{"id": key, "label": label} for key, label in buttons]
         return int(self._request("POST", "/v1/bot/send", body)["messageId"])
 
-    def reply(self, update: Update, text: str) -> int:
+    def reply(
+        self,
+        update: Update,
+        text: str,
+        *,
+        buttons: list[tuple[str, str]] | None = None,
+    ) -> int:
         """Answers where the update came from, in the group if it was in one."""
         return self.send(
             update.account_id,
             text,
             group_id=update.scope_id if update.in_group else None,
+            buttons=buttons,
         )
 
     def set_commands(self, commands: list[tuple[str, str]]) -> None:

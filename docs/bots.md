@@ -50,15 +50,64 @@ so.
 
 | | |
 | --- | --- |
-| Open a conversation | **No.** A bot may only reply to somebody who wrote to it first. |
+| Open a conversation | **No.** A bot may only reply to somebody who wrote to it first, or pressed **Start**. |
 | Read past history | **No.** It receives messages sent to it after contact, and nothing from before. |
+| Be stopped | **Yes.** Stopping withdraws the licence to reply *and* stops delivery, including anything that was already queued. Writing to it again starts it over. |
 | Be blocked | **Yes.** Blocking removes the licence to reply; the bot is refused again. |
 | Send rate | 30 messages a minute, per bot, across every conversation. |
+| Message types | Text, and up to eight buttons per message. Not images, files or polls yet. |
 | Groups and channels | Only explicit commands, mentions and replies are delivered — not the whole conversation. Adding a bot needs the matching admin right. |
 
 The "may not open a conversation" rule is enforced in one place,
 `bots.mayWriteTo`, so it cannot be true on one route and false on another. The
 row in `bot_contacts` is the record of the human having written first.
+
+## Using a bot
+
+A bot is opened by its **exact** `@username` — from *Settings → Bots → Open a
+bot*, or by tapping a bot's profile, where *Message* leads here rather than to an
+encrypted chat. There is no prefix search and no directory, for the same reason
+there is none for people: a browsable list of every bot on a deployment is a
+browsable list of every operator on it.
+
+What the screen shows before anything is sent: the name with the **BOT** label,
+the `@username`, the description the owner wrote, the commands the bot published,
+and one sentence saying that whoever runs it can read what is sent to it. Then a
+**Start** button — and *no text field*, because a bot cannot write before it is
+started and a screen that looked ready to chat would be inviting somebody to
+decide before they had read anything.
+
+**Start** delivers `/start` as an ordinary message, which is how a bot knows to
+introduce itself. **Stop** withdraws the licence to reply and stops delivery,
+including messages that were waiting undelivered — a stop that let the queue
+drain afterwards would be a stop the operator still hears through. Writing to a
+stopped bot starts it again, which is the right way round: somebody typing to a
+bot has decided to talk to it. Blocking is the stronger thing and goes through
+the account block list, which no message can undo.
+
+### Buttons
+
+A bot's message can carry up to eight buttons. The requirement is attribution,
+and it comes from the primary key of `bot_button_presses` rather than from a
+check in a route: **one message, one account, one button id**.
+
+* A button id that the message does not carry is refused. A caller cannot invent
+  an action by naming one.
+* A direct message's buttons are pressable only by the person it was addressed
+  to; in a group, by a member of that group.
+* A second press by the same person is answered `already` and delivers nothing.
+  Two *different* people pressing the same button in a group are two presses.
+* Somebody who stopped or blocked the bot cannot press their way back in.
+
+A press is delivered through the same `bot_messages` row and the same take-once
+delivery as a typed message, so a bot sees presses and messages in the order they
+happened. It is not drawn as a line in the conversation — the person did not
+write the button id, and a bubble saying `yes` would be the app putting words in
+their mouth. The bot's answer is what shows. A pressed button is drawn as pressed
+and disabled, because the server refuses a second press and a live-looking button
+that does nothing is worse than one that looks spent.
+
+Writing a bot that uses them: [bot-api.md §5a](bot-api.md#5a-buttons).
 
 ## Bots in groups
 

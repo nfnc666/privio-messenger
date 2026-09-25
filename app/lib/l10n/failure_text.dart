@@ -99,6 +99,7 @@ extension FailureText on Failure {
         FailureKind.contactsPermissionDenied => text.failureContactsPermissionDenied,
         FailureKind.mentionUnknownUser => text.failureMentionUnknownUser,
         FailureKind.botNotFound => text.groupBotsNotFound,
+        FailureKind.botNotStarted => text.botChatNotStarted,
         FailureKind.stickerNotAnImage => text.failureStickerNotAnImage,
         FailureKind.stickerAnimated => text.failureStickerAnimated,
         FailureKind.stickerTooLarge =>

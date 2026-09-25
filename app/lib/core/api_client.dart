@@ -976,7 +976,15 @@ class PrivioApiClient {
 
   /// The conversation with a bot, oldest first.
   Future<Map<String, dynamic>> botConversation(String botId, {int after = 0, int limit = 50}) =>
-      _send('GET', '/v1/bots/$botId/messages?after=$after&limit=$limit');
+      // Through `query`, not written into the path: `_url` sets the path with
+      // `Uri.replace`, which percent-encodes a `?` in it — the request then
+      // asks for a path called `messages%3Fafter=0` and gets a 404. Nothing
+      // called this until the bot chat screen did, so the mistake had never
+      // shown up.
+      _send('GET', '/v1/bots/$botId/messages', query: {
+        'after': '$after',
+        'limit': '$limit',
+      });
 
   /// The bots in a group, with their rights. Readable by every member.
   Future<Map<String, dynamic>> groupBots(String groupId) =>
@@ -1029,6 +1037,36 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> revokeBotTokens(String id) =>
       _send('DELETE', '/v1/bots/$id/token');
+
+  /// What a bot looks like before you decide to talk to it: description,
+  /// published commands, and whether this account has started or stopped it.
+  Future<Map<String, dynamic>> botByUsername(String username) =>
+      _send('GET', '/v1/bots/by-username/${Uri.encodeComponent(username)}');
+
+  Future<Map<String, dynamic>> botProfile(String botId) =>
+      _send('GET', '/v1/bots/$botId/profile');
+
+  /// **Start.** What licenses a bot to write. Delivers `/start`, so the bot
+  /// knows to introduce itself.
+  Future<Map<String, dynamic>> startBot(String botId) =>
+      _send('POST', '/v1/bots/$botId/start');
+
+  /// **Stop.** It may no longer write, and nothing further reaches it.
+  Future<Map<String, dynamic>> stopBot(String botId) =>
+      _send('POST', '/v1/bots/$botId/stop');
+
+  /// Presses a button under one of the bot's messages. Once: a second press of
+  /// the same button is answered `already` and delivers nothing.
+  Future<Map<String, dynamic>> pressBotButton(
+    String botId,
+    int messageId,
+    String buttonId,
+  ) =>
+      _send(
+        'POST',
+        '/v1/bots/$botId/messages/$messageId/press',
+        body: {'buttonId': buttonId},
+      );
 
   /// One turn of the conversation with @botcreator.
   Future<Map<String, dynamic>> askBotCreator(String text) =>

@@ -18,6 +18,6 @@ explicitly switched on "receive all new messages". It holds no key for the
 group, so this is not a filter it could be talked out of.
 """
 
-from .client import Bot, Update, Command, BotError
+from .client import Bot, Update, Command, Press, BotError
 
-__all__ = ["Bot", "Update", "Command", "BotError"]
+__all__ = ["Bot", "Update", "Command", "Press", "BotError"]

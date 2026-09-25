@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as bots from '../services/bots.js';
 import * as webhooks from '../services/bot_webhooks.js';
@@ -29,6 +29,27 @@ const commandsSchema = z
     }),
   )
   .max(100);
+
+/**
+ * The buttons a bot may put under one message.
+ *
+ * Eight, because a column of buttons a person has to scroll is a column whose
+ * last button nobody presses, and because every one of them is a thing the bot
+ * has to handle. The id is what comes back on a press and is the bot's own
+ * business; the label is what the person reads and decides on.
+ */
+const buttonsSchema = z
+  .array(
+    z.object({
+      id: z.string().trim().min(1).max(64),
+      label: z.string().trim().min(1).max(64),
+    }),
+  )
+  .max(8)
+  .refine(
+    (buttons) => new Set(buttons.map((b) => b.id)).size === buttons.length,
+    { message: 'Two buttons with the same id cannot be told apart on a press' },
+  );
 
 /** Pulls the bearer token off a bot request. Never logged, anywhere. */
 function botToken(request: FastifyRequest): string | null {
@@ -210,6 +231,29 @@ const botRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
+   * The bot publishes its own command menu.
+   *
+   * Its commands and nothing else. The display name, the description and the
+   * picture stay with the owner, who is a person with a phone and a session —
+   * a token that could rewrite how a bot presents itself would make a leaked
+   * token a way to impersonate the bot to everybody already talking to it.
+   *
+   * The commands are different: they are what the bot can do, the bot is the
+   * thing that knows, and a stale menu is a menu that offers commands the code
+   * no longer has. So the process that has the code publishes them, usually on
+   * start-up.
+   */
+  app.patch('/v1/bot/me', async (request) => {
+    const bot = await requireBot(request);
+    const body = parse(z.object({ commands: commandsSchema }), request.body);
+    await pool.query('UPDATE bots SET commands = $2 WHERE account_id = $1', [
+      bot.account_id,
+      JSON.stringify(body.commands),
+    ]);
+    return { commands: body.commands };
+  });
+
+  /**
    * Long polling for what people have said to this bot.
    *
    * Held open for up to `maxPollSeconds` and answered the moment anything
@@ -254,6 +298,14 @@ const botRoutes: FastifyPluginAsync = async (app) => {
          * checked, and that is decided below.
          */
         groupId: uuidSchema.optional(),
+        /**
+         * Buttons to draw under this message.
+         *
+         * Attached to the message rather than sent separately, because a button
+         * that arrived after the message would be a button appearing under
+         * something a person has already read past.
+         */
+        buttons: buttonsSchema.optional(),
       }),
       request.body,
     );
@@ -297,14 +349,15 @@ const botRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { rows } = await pool.query<{ id: string }>(
-      `INSERT INTO bot_messages (bot_id, account_id, scope, scope_id, author, body)
-       VALUES ($1, $2, $3, $4, 'bot', $5) RETURNING id`,
+      `INSERT INTO bot_messages (bot_id, account_id, scope, scope_id, author, body, buttons)
+       VALUES ($1, $2, $3, $4, 'bot', $5, $6) RETURNING id`,
       [
         bot.account_id,
         body.to,
         body.groupId ? 'group' : 'direct',
         body.groupId ?? null,
         body.text,
+        JSON.stringify(body.buttons ?? []),
       ],
     );
     return { messageId: Number(rows[0]!.id) };
@@ -393,6 +446,99 @@ const botRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** The conversation with a bot, newest last. */
+  /**
+   * What somebody sees before they decide to talk to a bot.
+   *
+   * The description and the published command list, plus whether *this* person
+   * has started it and whether they stopped it — the two things the screen needs
+   * to know whether to draw a **Start** button or a text field.
+   *
+   * Open to any signed-in account, because a bot is meant to be opened by a
+   * stranger. It says nothing about the operator beyond the bot's own profile,
+   * and nothing about anybody else who uses it.
+   */
+  async function botProfile(botId: string, accountId: string) {
+    const bot = await bots.byAccountId(botId);
+    if (!bot || bot.disabled_at !== null) {
+      // A switched-off bot reads as gone rather than as "exists but off": the
+      // owner switched it off, and a screen saying "this bot is disabled" tells
+      // whoever is looking something about the owner's decisions.
+      throw ApiError.notFound('bot_not_found', 'No such bot');
+    }
+    const { rows } = await pool.query<{ username: string; display_name: string | null }>(
+      'SELECT username, display_name FROM accounts WHERE id = $1',
+      [botId],
+    );
+    const state = await bots.contactState(botId, accountId);
+    return {
+      id: botId,
+      username: rows[0]!.username,
+      displayName: rows[0]!.display_name,
+      description: bot.description,
+      commands: bot.commands,
+      isBot: true,
+      started: state.started,
+      stopped: state.stopped,
+    };
+  }
+
+  app.get('/v1/bots/by-username/:username', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ username: usernameSchema }), request.params);
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM accounts
+        WHERE username = $1 AND deleted_at IS NULL AND is_bot = true`,
+      [params.username.toLowerCase()],
+    );
+    // Exact username only. There is no prefix search and no directory: a
+    // browsable list of every bot on a deployment is a list of every operator
+    // on it.
+    if (rows.length === 0) throw ApiError.notFound('bot_not_found', 'No such bot');
+    return botProfile(rows[0]!.id, accountId);
+  });
+
+  app.get('/v1/bots/:id/profile', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    return botProfile(params.id, accountId);
+  });
+
+  /**
+   * **Start.** What licenses a bot to write to somebody.
+   *
+   * Until this — or a message they typed — a bot cannot reach them at all. It
+   * delivers `/start` as an ordinary message, which is how the bot knows to
+   * introduce itself; every start does, including one after a stop, because
+   * pressing Start is a request to be greeted.
+   */
+  app.post('/v1/bots/:id/start', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const bot = await bots.byAccountId(params.id);
+    if (!bot || bot.disabled_at !== null) {
+      throw ApiError.notFound('bot_not_found', 'No such bot');
+    }
+
+    await bots.noteContact(params.id, accountId);
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO bot_messages (bot_id, account_id, author, body)
+       VALUES ($1, $2, 'user', '/start') RETURNING id`,
+      [params.id, accountId],
+    );
+    return { started: true, messageId: Number(rows[0]!.id) };
+  });
+
+  /** **Stop.** The bot may no longer write, and nothing further reaches it. */
+  app.post('/v1/bots/:id/stop', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    // No existence check on purpose: stopping a bot that has been deleted or
+    // switched off has to work, or somebody is left unable to stop the thing
+    // they wanted stopped.
+    await bots.stopBot(params.id, accountId);
+    return { stopped: true };
+  });
+
   app.get('/v1/bots/:id/messages', requireAuth, async (request) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
@@ -406,10 +552,23 @@ const botRoutes: FastifyPluginAsync = async (app) => {
     );
 
     const { rows } = await pool.query(
-      `SELECT id, author, body, scope, scope_id, created_at
-         FROM bot_messages
-        WHERE bot_id = $1 AND account_id = $2 AND id > $3
-        ORDER BY id ASC LIMIT $4`,
+      `SELECT m.id, m.author, m.body, m.scope, m.scope_id, m.created_at, m.buttons,
+              -- Which of this message's buttons this person has already
+              -- pressed. Sent so the app can show a pressed button as pressed
+              -- instead of inviting a second tap that would do nothing.
+              COALESCE(
+                (SELECT array_agg(p.button_id)
+                   FROM bot_button_presses p
+                  WHERE p.message_id = m.id AND p.account_id = $2),
+                '{}'
+              ) AS pressed
+         FROM bot_messages m
+        WHERE m.bot_id = $1 AND m.account_id = $2 AND m.id > $3
+          -- A press is not a line in the conversation. It is delivered to the
+          -- bot and the bot answers; drawing it as well would show the person
+          -- a bubble they did not write.
+          AND m.kind = 'text'
+        ORDER BY m.id ASC LIMIT $4`,
       [params.id, accountId, query.after, query.limit],
     );
     return {
@@ -420,10 +579,110 @@ const botRoutes: FastifyPluginAsync = async (app) => {
         scope: r.scope as string,
         scopeId: r.scope_id as string | null,
         sentAt: (r.created_at as Date).toISOString(),
+        buttons: r.buttons as Array<{ id: string; label: string }>,
+        pressed: r.pressed as string[],
       })),
       // What to pass as `after` next time. Null when there is no more.
       nextAfter: rows.length === query.limit ? Number(rows[rows.length - 1]!.id) : null,
     };
+  });
+
+  /**
+   * Presses a button under a bot's message.
+   *
+   * The three things the requirement asks to be unambiguous are each checked
+   * against the database rather than taken from the request:
+   *
+   * * **which bot** — the message row names it, and the route refuses a message
+   *   that belongs to a different bot than the one in the path;
+   * * **which message** — the button has to be one this message actually
+   *   carries. A button id that is not in that row's `buttons` is refused, so a
+   *   caller cannot invent an action by naming one;
+   * * **which person** — a direct message is only pressable by the person it
+   *   was addressed to; in a group, by a member of that group. Nobody can press
+   *   a button on somebody else's behalf, and the bot is told who pressed.
+   *
+   * And once. The press row and the delivery row are written in one
+   * transaction, so a double tap, a retry and a replay all lose the race on the
+   * primary key and are answered `already: true` with nothing delivered.
+   */
+  app.post('/v1/bots/:id/messages/:messageId/press', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(
+      z.object({ id: uuidSchema, messageId: z.coerce.number().int().min(1) }),
+      request.params,
+    );
+    const body = parse(z.object({ buttonId: z.string().min(1).max(64) }), request.body);
+
+    const bot = await bots.byAccountId(params.id);
+    if (!bot || bot.disabled_at !== null) {
+      throw ApiError.notFound('bot_not_found', 'No such bot');
+    }
+
+    const { rows: messages } = await pool.query<{
+      account_id: string;
+      scope: string;
+      scope_id: string | null;
+      author: string;
+      buttons: Array<{ id: string; label: string }>;
+    }>(
+      `SELECT account_id, scope, scope_id, author, buttons FROM bot_messages
+        WHERE id = $1 AND bot_id = $2`,
+      [params.messageId, params.id],
+    );
+    const message = messages[0];
+    // One 404 for "no such message" and "not this bot's message": telling them
+    // apart would let somebody walk the id space of another bot's messages.
+    if (!message || message.author !== 'bot') {
+      throw ApiError.notFound('message_not_found', 'No such message from this bot');
+    }
+
+    if (!message.buttons.some((button) => button.id === body.buttonId)) {
+      throw ApiError.badRequest('no_such_button', 'That message has no such button');
+    }
+
+    if (message.scope === 'group' && message.scope_id !== null) {
+      // A button under a message in a group is pressable by the group, not only
+      // by whoever the bot happened to address it to.
+      await requireGroupMembership(message.scope_id, accountId);
+    } else if (message.account_id !== accountId) {
+      throw ApiError.forbidden('not_yours', 'That message was not addressed to you');
+    }
+
+    // A person who has stopped or blocked the bot has withdrawn the licence to
+    // be answered. A button they pressed afterwards must not be the way back
+    // in — checked here rather than left to the send, so nothing is delivered.
+    if (!(await bots.mayWriteTo(params.id, accountId))) {
+      throw ApiError.forbidden('not_contacted', 'Start this bot before using it');
+    }
+
+    const delivered = await withTransaction(async (client) => {
+      const press = await client.query(
+        `INSERT INTO bot_button_presses (message_id, account_id, button_id)
+         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [params.messageId, accountId, body.buttonId],
+      );
+      // Already pressed. Nothing is written and nothing is delivered, which is
+      // what stops a second tap causing a second booking.
+      if (press.rowCount === 0) return null;
+
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO bot_messages
+           (bot_id, account_id, scope, scope_id, author, body, kind, pressed_message_id)
+         VALUES ($1, $2, $3, $4, 'user', $5, 'button', $6) RETURNING id`,
+        [
+          params.id,
+          accountId,
+          message.scope,
+          message.scope_id,
+          body.buttonId,
+          params.messageId,
+        ],
+      );
+      return Number(rows[0]!.id);
+    });
+
+    return { pressed: true, already: delivered === null };
   });
 
   // --- Where to post this bot's updates -------------------------------------

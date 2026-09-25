@@ -7477,6 +7477,114 @@ abstract class AppText {
   /// **'I understand'**
   String get botsUnderstood;
 
+  /// No description provided for @botChatStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get botChatStart;
+
+  /// No description provided for @botChatStartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot cannot write to you until you start it.'**
+  String get botChatStartHint;
+
+  /// No description provided for @botChatNotStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Start this bot before writing to it.'**
+  String get botChatNotStarted;
+
+  /// No description provided for @botChatStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop this bot'**
+  String get botChatStop;
+
+  /// No description provided for @botChatStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'You stopped this bot. Write to it again to start it over.'**
+  String get botChatStopped;
+
+  /// No description provided for @botChatStopConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop @{username}?'**
+  String botChatStopConfirm(String username);
+
+  /// No description provided for @botChatStopExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'It can no longer write to you, and nothing further reaches it. Your messages so far stay where they are.'**
+  String get botChatStopExplain;
+
+  /// No description provided for @botChatBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Block this bot'**
+  String get botChatBlock;
+
+  /// No description provided for @botChatHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get botChatHint;
+
+  /// No description provided for @botChatCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands'**
+  String get botChatCommands;
+
+  /// No description provided for @botChatCommandsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot publishes no command list.'**
+  String get botChatCommandsEmpty;
+
+  /// No description provided for @botChatNoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot has no description.'**
+  String get botChatNoDescription;
+
+  /// No description provided for @botChatOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'An automated account. The person who runs it can read what you send it.'**
+  String get botChatOperator;
+
+  /// No description provided for @botChatEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing yet. Say hello, or pick a command.'**
+  String get botChatEmpty;
+
+  /// No description provided for @botChatButtonPressed.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressed'**
+  String get botChatButtonPressed;
+
+  /// No description provided for @botChatOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a bot'**
+  String get botChatOpenTitle;
+
+  /// No description provided for @botChatOpenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The bot\'s exact @username'**
+  String get botChatOpenHint;
+
+  /// No description provided for @botChatOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get botChatOpen;
+
   /// No description provided for @botcreatorTitle.
   ///
   /// In en, this message translates to:

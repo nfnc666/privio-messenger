@@ -288,6 +288,44 @@ export async function noteContact(botId: string, accountId: string): Promise<voi
   );
 }
 
+/**
+ * Stops a bot: it may no longer write, and nothing further reaches it.
+ *
+ * The same row `noteContact` writes, with the date set. Two effects, and both
+ * are wanted:
+ *
+ * * `mayWriteTo` goes false, so the bot's next send is refused;
+ * * [takeUpdates] stops handing over anything from this person, including
+ *   messages that were waiting undelivered when they stopped it.
+ *
+ * Writing to the bot again clears it — that is `noteContact`, and it is the
+ * right way round: somebody who types a message to a bot has decided to talk to
+ * it again. Blocking is the stronger thing and goes through the account block
+ * list, which no message of theirs can undo.
+ */
+export async function stopBot(botId: string, accountId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO bot_contacts (bot_id, account_id, blocked_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (bot_id, account_id) DO UPDATE SET blocked_at = now()`,
+    [botId, accountId],
+  );
+}
+
+/** Whether this person has ever started this bot, and whether they stopped it. */
+export async function contactState(
+  botId: string,
+  accountId: string,
+): Promise<{ started: boolean; stopped: boolean }> {
+  const { rows } = await pool.query<{ blocked_at: Date | null }>(
+    'SELECT blocked_at FROM bot_contacts WHERE bot_id = $1 AND account_id = $2',
+    [botId, accountId],
+  );
+  const row = rows[0];
+  if (row === undefined) return { started: false, stopped: false };
+  return { started: row.blocked_at === null, stopped: row.blocked_at !== null };
+}
+
 /** Whether this bot has sent too much in the last minute. */
 export async function isRateLimited(botId: string): Promise<boolean> {
   const { rows } = await pool.query<{ n: string }>(
@@ -318,6 +356,8 @@ export async function takeUpdates(botId: string, limit: number) {
     scope: string;
     scope_id: string | null;
     body: string;
+    kind: string;
+    pressed_message_id: string | null;
     created_at: Date;
     username: string;
   }>(
@@ -326,28 +366,50 @@ export async function takeUpdates(botId: string, limit: number) {
       WHERE m.id IN (
         SELECT id FROM bot_messages
          WHERE bot_id = $1 AND author = 'user' AND delivered_at IS NULL
+           -- Nothing from somebody who has stopped this bot, including what was
+           -- already waiting when they stopped it. "Stop" that let the queue
+           -- drain afterwards would be a stop the operator still hears through.
+           AND EXISTS (
+             SELECT 1 FROM bot_contacts c
+              WHERE c.bot_id = bot_messages.bot_id
+                AND c.account_id = bot_messages.account_id
+                AND c.blocked_at IS NULL
+           )
          ORDER BY id
          LIMIT $2
          FOR UPDATE SKIP LOCKED
       )
-      RETURNING m.id, m.account_id, m.scope, m.scope_id, m.body, m.created_at,
+      RETURNING m.id, m.account_id, m.scope, m.scope_id, m.body, m.kind,
+                m.pressed_message_id, m.created_at,
                 (SELECT username FROM accounts WHERE id = m.account_id) AS username`,
     [botId, limit],
   );
   return rows
     .sort((a, b) => Number(a.id) - Number(b.id))
-    .map((row) => ({
-      updateId: Number(row.id),
-      chat: { accountId: row.account_id, username: row.username },
-      scope: row.scope,
-      scopeId: row.scope_id,
-      text: row.body,
-      // Parsed here rather than in every bot. `/help@name` and `/help` differ
-      // in a group with several bots, and a parser per bot is a parser that
-      // disagrees with the one the app used to decide whether to forward it.
-      command: parseCommand(row.body),
-      at: row.created_at.toISOString(),
-    }));
+    .map((row) => {
+      // A button press travels the same way a typed message does — same table,
+      // same take-once delivery, same order — and is told apart here rather
+      // than in a second stream a bot could read out of sequence.
+      const press = row.kind === 'button' && row.pressed_message_id !== null;
+      return {
+        updateId: Number(row.id),
+        chat: { accountId: row.account_id, username: row.username },
+        scope: row.scope,
+        scopeId: row.scope_id,
+        // A press has no text. Empty rather than the button id, so a bot that
+        // only looks at `text` cannot mistake an id for something somebody
+        // typed.
+        text: press ? '' : row.body,
+        // Parsed here rather than in every bot. `/help@name` and `/help` differ
+        // in a group with several bots, and a parser per bot is a parser that
+        // disagrees with the one the app used to decide whether to forward it.
+        command: press ? null : parseCommand(row.body),
+        button: press
+          ? { id: row.body, messageId: Number(row.pressed_message_id) }
+          : null,
+        at: row.created_at.toISOString(),
+      };
+    });
 }
 
 export interface ParsedCommand {

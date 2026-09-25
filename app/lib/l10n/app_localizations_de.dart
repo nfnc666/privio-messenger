@@ -4406,6 +4406,67 @@ class AppTextDe extends AppText {
   String get botsUnderstood => 'Verstanden';
 
   @override
+  String get botChatStart => 'Starten';
+
+  @override
+  String get botChatStartHint =>
+      'Dieser Bot kann dir erst schreiben, wenn du ihn startest.';
+
+  @override
+  String get botChatNotStarted => 'Starte diesen Bot, bevor du ihm schreibst.';
+
+  @override
+  String get botChatStop => 'Diesen Bot stoppen';
+
+  @override
+  String get botChatStopped =>
+      'Du hast diesen Bot gestoppt. Schreib ihm erneut, um ihn wieder zu starten.';
+
+  @override
+  String botChatStopConfirm(String username) {
+    return '@$username stoppen?';
+  }
+
+  @override
+  String get botChatStopExplain =>
+      'Er kann dir nicht mehr schreiben, und es erreicht ihn nichts mehr. Deine bisherigen Nachrichten bleiben, wo sie sind.';
+
+  @override
+  String get botChatBlock => 'Diesen Bot blockieren';
+
+  @override
+  String get botChatHint => 'Nachricht';
+
+  @override
+  String get botChatCommands => 'Befehle';
+
+  @override
+  String get botChatCommandsEmpty =>
+      'Dieser Bot veröffentlicht keine Befehlsliste.';
+
+  @override
+  String get botChatNoDescription => 'Dieser Bot hat keine Beschreibung.';
+
+  @override
+  String get botChatOperator =>
+      'Ein automatisiertes Konto. Wer den Bot betreibt, kann lesen, was du ihm schickst.';
+
+  @override
+  String get botChatEmpty => 'Noch nichts. Sag Hallo, oder wähle einen Befehl.';
+
+  @override
+  String get botChatButtonPressed => 'Gedrückt';
+
+  @override
+  String get botChatOpenTitle => 'Bot öffnen';
+
+  @override
+  String get botChatOpenHint => 'Der genaue @Name des Bots';
+
+  @override
+  String get botChatOpen => 'Öffnen';
+
+  @override
   String get botcreatorTitle => 'Bot Creator';
 
   @override

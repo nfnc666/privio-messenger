@@ -125,8 +125,9 @@ poll for updates. Both directions are tested.
 | Route | |
 | --- | --- |
 | `GET /v1/bot/me` | who this token belongs to, and its command list |
+| `PATCH /v1/bot/me` | publishes the command menu: `{commands: [{command, description}]}` |
 | `GET /v1/bot/updates?timeout=25&limit=100` | long poll; answers the moment anything arrives, or empty at the deadline |
-| `POST /v1/bot/send` | `{to, text, groupId?}` → `{messageId}` |
+| `POST /v1/bot/send` | `{to, text, groupId?, buttons?}` → `{messageId}` |
 | `PUT /v1/bot/webhook` | `{url}` → `{url, secret, note}`; the secret is shown once |
 | `GET /v1/bot/webhook` | status: URL, failures, last attempt, last error. Never the secret |
 | `DELETE /v1/bot/webhook` | back to polling |
@@ -296,6 +297,47 @@ process is up and asking.
 
 ---
 
+## 5a. Buttons
+
+A message can carry up to eight buttons. They belong to that message and cannot
+be changed afterwards — a label that changed under somebody about to press it
+would be a button that did something other than what it said.
+
+```python
+bot.reply(update, "Pick one:", buttons=[("weather", "The weather"), ("time", "The time")])
+```
+
+`id` is yours and comes back on a press; `label` is what the person reads. Two
+buttons with the same id are refused when the message is sent, because a press
+of either could not be told from the other.
+
+A press arrives as an ordinary update with `button` set and `text` empty:
+
+```python
+if update.button:                       # a press, not something typed
+    if update.button.id == "time":
+        bot.reply(update, "...")
+    # update.button.message_id names the message it was under.
+```
+
+Three things the server settles before your code sees a press, so that your code
+does not have to:
+
+* **Which bot, which message, which person.** The button has to be one that
+  message actually carries, the message has to be this bot's, and a direct
+  message's buttons are pressable only by the person it was addressed to — in a
+  group, by a member of that group. The press names who pressed.
+* **Once.** A second press of the same button by the same person is answered
+  `already: true` and delivers nothing. Two different people pressing the same
+  button in a group are two presses, which is the point of a button on a message
+  several people can see.
+* **Not after a stop.** Somebody who stopped or blocked the bot cannot press
+  their way back in.
+
+What a button is not: a channel back to the bot that bypasses anything. It is
+delivered through the same `bot_messages` row and the same take-once delivery as
+a typed message, in the order it happened.
+
 ## 6. Idempotency, rate limits, and keeping the token out of things
 
 **Idempotency.** `POST /v1/bots/:id/messages` — the route the *app* uses to
@@ -374,6 +416,31 @@ time and watching the right tests go red: signing the body without the timestamp
 (2 red), dropping the delivery-time address check (3 red), and accepting any URL
 at registration (2 red). Each was reverted immediately.
 
+`server/test/bot_buttons.test.ts`, 18 tests: opening a bot by exact username
+only (a prefix is a 404, and so is a person's name), the profile needing a
+session, a bot that cannot write before it is started, **Start** delivering
+`/start`, **Stop** taking the licence away *and* leaving what was already queued
+undelivered, writing again counting as a restart, a button read back from the
+message with what this person already pressed, a press reaching the bot naming
+the button and its message, a press not appearing as a line in the conversation,
+three taps producing one action, a button id that the message does not carry, a
+press by somebody else, a press on another bot's message, a press after a stop,
+two buttons with the same id, and nine buttons.
+
+Each of the four rules that carry weight was broken once and the right test went
+red: accepting any button id (1 red), delivering a press that was already
+recorded (1), letting anybody press a direct message's button (1), and dropping
+the stop filter from delivery (1).
+
+On the app's side, `app/test/bot_chat_test.dart` (10 tests) and
+`app/test/bot_chat_screen_test.dart` (4 widget tests): no text field before the
+bot is started, the not-end-to-end-encrypted warning before the first send, a
+pressed button drawn as pressed and disabled, the command menu offering what the
+bot published, one bot's messages never appearing under another, and a late
+answer for a previous account dropped rather than drawn. Falsified the same way:
+drawing the composer before the start (2 red), offering a pressed button again
+(1), skipping the disclosure (1).
+
 The Python side was run, not just written:
 
 * `examples/webhook_receiver.py` was started for real and sent five deliveries —
@@ -385,6 +452,11 @@ The Python side was run, not just written:
   before contact (`not_contacted`), a person writing, a poll returning the
   update with its parsed command, a reply, an empty second poll, and a
   deduplicated retry.
+* `examples/greeter.py` itself was run against a live server, not simulated: it
+  published its command menu on start-up, answered `/start`, offered two buttons
+  on `/menu`, received the press and answered it, answered a second press with
+  nothing (the server returned `already: true`), and refused an invented button
+  id with `no_such_button`.
 
 **Not tested here, and it should not be read as working:** an end-to-end
 delivery from this server to a real public HTTPS receiver. The guard refuses
@@ -401,8 +473,8 @@ it.
 
 Stated here rather than discovered:
 
-* **Message types.** Text only. No images, files, polls or buttons over the bot
-  API yet; the message types exist in Privio but the bot routes do not carry
+* **Message types.** Text and buttons. No images, files or polls over the bot
+  API yet; those message types exist in Privio but the bot routes do not carry
   them.
 * **Channels.** A bot cannot post to a channel yet.
 * **Moderation.** `may_moderate`, `may_restrict_members` and `may_manage_invites`
