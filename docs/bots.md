@@ -192,14 +192,31 @@ cannot reach the owner's routes, and a session cannot poll for updates.
 | --- | --- |
 | `GET /v1/bot/me` | who this token belongs to, and its commands |
 | `GET /v1/bot/updates?timeout=25&limit=100` | long poll; answers the moment anything arrives, or empty at the deadline |
-| `POST /v1/bot/send` | `{to, text}`; refused with `not_contacted` until the person has written first |
+| `POST /v1/bot/send` | `{to, text, groupId?}`; refused with `not_contacted` until the person has written first |
+| `PUT`/`GET`/`DELETE /v1/bot/webhook` | deliver to an HTTPS URL instead of polling |
 
 Updates are delivered **once**: the take is a single `UPDATE … RETURNING` over
-`FOR UPDATE SKIP LOCKED`, so two pollers cannot both receive the same row.
+`FOR UPDATE SKIP LOCKED`, so two pollers cannot both receive the same row — and
+neither can a poller and a webhook.
 
-Polling rather than a push: the delivery bus exists and could carry this, but a
-second delivery path for a feature nobody is using yet is a second thing to get
-wrong. The cost is one query a second per connected bot.
+Polling first, webhooks second, and the reason is the same one either way: the
+delivery bus exists and could carry this, but a second path for a feature that
+was not yet in use would have been a second thing to get wrong. Polling costs
+one query a second per connected bot and needs nothing of the bot's host — no
+public address, no certificate, no open port. A webhook is for people who have
+a reason to want one.
+
+A webhook URL is a URL this server will fetch from inside its own network, so
+`util/outbound.ts` — the same guard the push endpoints use — insists on `https`
+and a public address, refuses credentials in the URL, refuses to follow a
+redirect, and **re-checks the address before every delivery** rather than only
+at registration. Deliveries are signed over `"{timestamp}.{body}"` with a secret
+shown once, so a captured delivery cannot be replayed later.
+
+**Writing a bot: [bot-api.md](bot-api.md).** Setup, hosting, the routes, long
+polling, webhooks and signature verification, rate limits, what was tested and
+what is not built yet. The Python package is `bot-sdk/privio_bot`, with two
+runnable examples: `examples/greeter.py` and `examples/webhook_receiver.py`.
 
 ## What is tested
 

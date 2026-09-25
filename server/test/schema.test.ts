@@ -163,6 +163,13 @@ const READABLE: Record<string, string> = {
   // owner to be shown to everybody who opens the chat.
   'bots.description': 'the bot s public description, shown to anyone who opens it',
   'bots.commands': 'the command menu the owner publishes',
+  // A webhook URL the server itself has to fetch, so it cannot be sealed: the
+  // delivery loop reads it, and the guard in `util/outbound.ts` has to resolve
+  // it again before every request. The owner chose it and it is shown back only
+  // to the bot holding the token. The row's *secret* is bytea, which is the
+  // part that must not be readable.
+  'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
+  'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the
   // policy, and it is readable because the server enforces it.
   'reserved_usernames.username': 'the policy the server enforces, not user data',

@@ -3,10 +3,12 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
 import * as bots from '../services/bots.js';
+import * as webhooks from '../services/bot_webhooks.js';
 import * as assistant from '../services/botcreator.js';
 import { cleanDisplayName, isTooLong } from '../services/display_name.js';
 import { ApiError } from '../util/errors.js';
 import { requireGroupMembership } from '../services/group_membership.js';
+import { assertResolvesPublicly, parsePushEndpoint } from '../util/outbound.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 import { rateLimitFactor } from '../config.js';
 
@@ -422,6 +424,57 @@ const botRoutes: FastifyPluginAsync = async (app) => {
       // What to pass as `after` next time. Null when there is no more.
       nextAfter: rows.length === query.limit ? Number(rows[rows.length - 1]!.id) : null,
     };
+  });
+
+  // --- Where to post this bot's updates -------------------------------------
+
+  /**
+   * Registers a webhook, and answers with its signing secret **once**.
+   *
+   * Authenticated with the bot's token, because this is the bot operator's own
+   * configuration rather than something the owner does from a phone.
+   *
+   * The URL is checked twice: here, for shape — HTTPS, no credentials, not a
+   * private address — and again before every delivery, because a name that
+   * resolves publicly today may not tomorrow. `util/outbound.ts` does both and
+   * is the same guard the push endpoints use.
+   */
+  app.put('/v1/bot/webhook', async (request) => {
+    const bot = await requireBot(request);
+    const body = parse(z.object({ url: z.string().min(8).max(2048) }), request.body);
+
+    const url = parsePushEndpoint(body.url, { code: 'invalid_webhook' });
+    try {
+      await assertResolvesPublicly(url);
+    } catch {
+      // Deliberately not echoing what it resolved to. That is a probe of the
+      // server's own network, and answering it in detail turns this route
+      // into a scanner.
+      throw ApiError.badRequest('invalid_webhook', 'That URL must resolve to a public address');
+    }
+
+    const secret = await webhooks.setWebhook(bot.account_id, url.toString());
+    return {
+      url: url.toString(),
+      // Shown once. There is no route that reads it back: a secret that can be
+      // fetched again is a secret with two places to leak from.
+      secret: secret.toString('hex'),
+      note: 'Store this now. It is shown once and cannot be read back.',
+    };
+  });
+
+  /** What the webhook is doing, without the secret. */
+  app.get('/v1/bot/webhook', async (request) => {
+    const bot = await requireBot(request);
+    const status = await webhooks.webhookStatus(bot.account_id);
+    return status ?? { url: null };
+  });
+
+  /** Removes it. Updates then wait for a poller, and nothing is lost. */
+  app.delete('/v1/bot/webhook', async (request) => {
+    const bot = await requireBot(request);
+    await webhooks.clearWebhook(bot.account_id);
+    return { removed: true };
   });
 
   // --- A group's bots, managed by its admins --------------------------------

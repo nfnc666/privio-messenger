@@ -115,6 +115,14 @@ export function isPrivateAddress(address: string): boolean {
 export interface EndpointPolicy {
   /** Empty means any public host. A non-empty list is an exact-host allowlist. */
   allowedHosts?: string[];
+  /**
+   * The error code to refuse with.
+   *
+   * Defaults to the push one, because that was the first caller. A bot
+   * webhook says `invalid_webhook`, so an operator reading the failure is not
+   * told their push configuration is wrong when it is their webhook URL.
+   */
+  code?: string;
 }
 
 /**
@@ -124,28 +132,29 @@ export interface EndpointPolicy {
  * route, and "your endpoint is not usable" is a 400, not a 500.
  */
 export function parsePushEndpoint(raw: string, policy: EndpointPolicy = {}): URL {
+  const code = policy.code ?? 'invalid_push_config';
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw ApiError.badRequest('invalid_push_config', 'The endpoint is not a URL');
+    throw ApiError.badRequest(code, 'The endpoint is not a URL');
   }
 
   if (url.protocol !== 'https:') {
-    throw ApiError.badRequest('invalid_push_config', 'The endpoint must be https');
+    throw ApiError.badRequest(code, 'The endpoint must be https');
   }
   if (url.username || url.password) {
-    throw ApiError.badRequest('invalid_push_config', 'The endpoint must not carry credentials');
+    throw ApiError.badRequest(code, 'The endpoint must not carry credentials');
   }
 
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (isIP(host) && isPrivateAddress(host)) {
-    throw ApiError.badRequest('invalid_push_config', 'The endpoint must be publicly routable');
+    throw ApiError.badRequest(code, 'The endpoint must be publicly routable');
   }
 
   const allowed = policy.allowedHosts ?? [];
   if (allowed.length > 0 && !allowed.includes(url.hostname.toLowerCase())) {
-    throw ApiError.badRequest('invalid_push_config', 'That distributor is not allowed here');
+    throw ApiError.badRequest(code, 'That distributor is not allowed here');
   }
 
   return url;

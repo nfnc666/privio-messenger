@@ -342,6 +342,45 @@ export async function takeUpdates(botId: string, limit: number) {
       scope: row.scope,
       scopeId: row.scope_id,
       text: row.body,
+      // Parsed here rather than in every bot. `/help@name` and `/help` differ
+      // in a group with several bots, and a parser per bot is a parser that
+      // disagrees with the one the app used to decide whether to forward it.
+      command: parseCommand(row.body),
       at: row.created_at.toISOString(),
     }));
+}
+
+export interface ParsedCommand {
+  /** Without the slash and lower-cased: `help`. */
+  name: string;
+  /** The bot it named, if it named one: `/help@weather` -> `weather`. */
+  addressedTo: string | null;
+  /** Everything after the first word, untouched. */
+  args: string;
+}
+
+/**
+ * The command in a message, or null when there is not one.
+ *
+ * Only a leading slash counts. A slash mid-sentence is a slash, and a message
+ * that merely contains `/help` somewhere is not a command — treating it as one
+ * is how a bot answers a sentence about commands.
+ */
+export function parseCommand(text: string): ParsedCommand | null {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith('/')) return null;
+
+  const firstSpace = trimmed.search(/\s/);
+  const head = firstSpace < 0 ? trimmed : trimmed.slice(0, firstSpace);
+  const args = firstSpace < 0 ? '' : trimmed.slice(firstSpace + 1).trim();
+
+  const at = head.indexOf('@');
+  const name = (at < 0 ? head.slice(1) : head.slice(1, at)).toLowerCase();
+  if (name.length === 0) return null;
+
+  return {
+    name,
+    addressedTo: at < 0 ? null : head.slice(at + 1).toLowerCase() || null,
+    args,
+  };
 }
