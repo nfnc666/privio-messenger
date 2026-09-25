@@ -154,6 +154,11 @@ const READABLE: Record<string, string> = {
   'bot_messages.body': 'a bot chat is not end-to-end encrypted, knowingly; see docs/bots.md',
   'bot_messages.scope': 'direct, group or channel — which delivery rule applies',
   'bot_messages.author': 'user or bot, which decides whether it is delivered to the operator',
+  // Not content: an id the sending device made up so that a retry after a
+  // dropped connection is answered instead of delivered twice. The server
+  // compares it and learns nothing from it, exactly as with
+  // `sent_message_keys.idempotency_key` on the encrypted path.
+  'bot_messages.client_id': 'the sender s own id for the message, so a retry is not a second message',
   // The bot's own public description and its command menu, both written by its
   // owner to be shown to everybody who opens the chat.
   'bots.description': 'the bot s public description, shown to anyone who opens it',

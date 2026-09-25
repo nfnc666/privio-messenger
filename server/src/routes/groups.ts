@@ -5,6 +5,7 @@ import { pool, withTransaction } from '../db/pool.js';
 import type { DeliveryBus } from '../services/bus.js';
 import { config } from '../config.js';
 import { auth } from '../plugins/auth.js';
+import { requireGroupMembership } from '../services/group_membership.js';
 import { ApiError } from '../util/errors.js';
 import { base64Bytes, parse, uuidSchema } from '../util/validate.js';
 import {
@@ -17,17 +18,9 @@ import {
 
 const MAX_MEMBERS = 512;
 
-async function requireMembership(groupId: string, accountId: string, mustBeAdmin = false) {
-  const { rows } = await pool.query<{ role: string }>(
-    `SELECT m.role FROM group_members m JOIN groups g ON g.id = m.group_id
-     WHERE m.group_id = $1 AND m.account_id = $2 AND g.deleted_at IS NULL`,
-    [groupId, accountId],
-  );
-  const role = rows[0]?.role;
-  if (!role) throw ApiError.forbidden('not_a_member', 'You are not a member of this group');
-  if (mustBeAdmin && role !== 'admin') throw ApiError.forbidden('not_an_admin', 'Admin role required');
-  return role;
-}
+/// Shared with the bot routes, which manage a group's bots and must refuse a
+/// member exactly as these routes do. See `services/group_membership.ts`.
+const requireMembership = requireGroupMembership;
 
 async function membersOf(groupId: string) {
   const { rows } = await pool.query(

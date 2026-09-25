@@ -106,6 +106,24 @@ export async function findOwned(botId: string, ownerId: string): Promise<BotRow 
  * revoking is the whole point of the column, so it is checked in the query
  * rather than afterwards where somebody could forget it.
  */
+/**
+ * A bot by its account id, whoever owns it.
+ *
+ * Distinct from [findOwned], which is the owner's view and is what every
+ * management route uses. This one answers "is this account a bot, and is it
+ * still enabled" for callers that are not the owner — a group admin adding it,
+ * for one.
+ */
+export async function byAccountId(accountId: string): Promise<BotRow | null> {
+  const { rows } = await pool.query<BotRow>(
+    `SELECT b.* FROM bots b
+       JOIN accounts a ON a.id = b.account_id AND a.deleted_at IS NULL
+      WHERE b.account_id = $1`,
+    [accountId],
+  );
+  return rows[0] ?? null;
+}
+
 export async function botForToken(token: string): Promise<BotRow | null> {
   const digest = tokenDigest(token);
   const { rows } = await pool.query<BotRow & { token_hash: Buffer; token_id: string }>(
@@ -164,6 +182,101 @@ export async function mayWriteTo(botId: string, accountId: string): Promise<bool
   );
   const row = rows[0];
   return row !== undefined && row.blocked_at === null;
+}
+
+/** What a bot is allowed to do in one group. */
+export interface BotGroupRights {
+  maySend: boolean;
+  mayModerate: boolean;
+  mayRestrictMembers: boolean;
+  mayManageInvites: boolean;
+  readsAllMessages: boolean;
+}
+
+/** None of them. What adding a bot grants before an admin decides anything. */
+export const NO_BOT_RIGHTS: BotGroupRights = {
+  maySend: false,
+  mayModerate: false,
+  mayRestrictMembers: false,
+  mayManageInvites: false,
+  readsAllMessages: false,
+};
+
+/**
+ * What a bot may do in a group, or null when it is not in that group at all.
+ *
+ * The single place the question is answered, for the same reason [mayWriteTo]
+ * is: a right that is checked in two places is a right that will eventually be
+ * true in one of them and false in the other. Every route that acts on a bot's
+ * behalf inside a group asks this, on every call, rather than trusting
+ * something the caller said.
+ *
+ * Null and "no rights" are deliberately different answers. A bot that was
+ * removed is not a bot with nothing to do; it is a bot that is not there, and
+ * the routes answer the two differently.
+ */
+export async function groupRightsOf(
+  botId: string,
+  groupId: string,
+): Promise<BotGroupRights | null> {
+  const { rows } = await pool.query<{
+    may_send: boolean;
+    may_moderate: boolean;
+    may_restrict_members: boolean;
+    may_manage_invites: boolean;
+    reads_all_messages: boolean;
+  }>(
+    `SELECT may_send, may_moderate, may_restrict_members, may_manage_invites,
+            reads_all_messages
+       FROM bot_group_members m
+       JOIN groups g ON g.id = m.group_id AND g.deleted_at IS NULL
+      WHERE m.bot_id = $1 AND m.group_id = $2`,
+    [botId, groupId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    maySend: row.may_send,
+    mayModerate: row.may_moderate,
+    mayRestrictMembers: row.may_restrict_members,
+    mayManageInvites: row.may_manage_invites,
+    readsAllMessages: row.reads_all_messages,
+  };
+}
+
+/**
+ * The bots in a group, with their rights, for the members' devices.
+ *
+ * Every member reads this, not only admins: a device has to know which bots
+ * are present in order to decide what to forward, and somebody writing in a
+ * group is entitled to know who receives it. The list carries no token and no
+ * owner contact detail — it is who is in the room, which the member list
+ * already tells them.
+ */
+export async function botsInGroup(groupId: string): Promise<
+  Array<{ botId: string; username: string; displayName: string | null } & BotGroupRights>
+> {
+  const { rows } = await pool.query(
+    `SELECT m.bot_id, a.username, a.display_name,
+            m.may_send, m.may_moderate, m.may_restrict_members,
+            m.may_manage_invites, m.reads_all_messages
+       FROM bot_group_members m
+       JOIN accounts a ON a.id = m.bot_id AND a.deleted_at IS NULL
+       JOIN bots b ON b.account_id = m.bot_id AND b.disabled_at IS NULL
+      WHERE m.group_id = $1
+      ORDER BY a.username`,
+    [groupId],
+  );
+  return rows.map((r) => ({
+    botId: r.bot_id as string,
+    username: r.username as string,
+    displayName: r.display_name as string | null,
+    maySend: r.may_send as boolean,
+    mayModerate: r.may_moderate as boolean,
+    mayRestrictMembers: r.may_restrict_members as boolean,
+    mayManageInvites: r.may_manage_invites as boolean,
+    readsAllMessages: r.reads_all_messages as boolean,
+  }));
 }
 
 /** Records that a human has written to a bot, which opens the return path. */
