@@ -957,6 +957,47 @@ class PrivioApiClient {
 
   // --- Bots ------------------------------------------------------------------
 
+  /// Writes to a bot. This is what licenses the bot to answer.
+  ///
+  /// [groupId] marks a message a member's device chose to hand over because it
+  /// was addressed to the bot — see `models/group_bot.dart`. [clientId] makes
+  /// a retry the same message rather than a second one.
+  Future<Map<String, dynamic>> sendToBot(
+    String botId,
+    String text, {
+    String? groupId,
+    String? clientId,
+  }) =>
+      _send('POST', '/v1/bots/$botId/messages', body: {
+        'text': text,
+        if (groupId != null) 'groupId': groupId,
+        if (clientId != null) 'clientId': clientId,
+      });
+
+  /// The conversation with a bot, oldest first.
+  Future<Map<String, dynamic>> botConversation(String botId, {int after = 0, int limit = 50}) =>
+      _send('GET', '/v1/bots/$botId/messages?after=$after&limit=$limit');
+
+  /// The bots in a group, with their rights. Readable by every member.
+  Future<Map<String, dynamic>> groupBots(String groupId) =>
+      _send('GET', '/v1/groups/$groupId/bots');
+
+  /// Adds a bot to a group. It arrives with **no rights**; each is a separate
+  /// call, which is what keeps the disclosure screen from being a formality.
+  Future<Map<String, dynamic>> addGroupBot(String groupId, String botId) =>
+      _send('POST', '/v1/groups/$groupId/bots', body: {'botId': botId});
+
+  /// Changes one or more of a bot's rights in a group. Admins only.
+  Future<Map<String, dynamic>> setGroupBotRights(
+    String groupId,
+    String botId,
+    Map<String, bool> rights,
+  ) =>
+      _send('PATCH', '/v1/groups/$groupId/bots/$botId', body: rights);
+
+  Future<Map<String, dynamic>> removeGroupBot(String groupId, String botId) =>
+      _send('DELETE', '/v1/groups/$groupId/bots/$botId');
+
   Future<Map<String, dynamic>> bots() => _send('GET', '/v1/bots');
 
   Future<Map<String, dynamic>> createBot({

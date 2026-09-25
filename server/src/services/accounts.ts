@@ -22,6 +22,8 @@ export interface AccountRow {
   status_updated_at: Date | null;
   created_at: Date;
   last_seen_at: Date;
+  /// Set by migration 029. What draws the **BOT** label.
+  is_bot?: boolean;
 }
 
 export interface PrivacySettings {
@@ -146,5 +148,12 @@ export function publicProfile(account: AccountRow) {
     // A pointer to ciphertext. Without the owner's profile key it opens nothing.
     avatarMediaId: account.avatar_media_id,
     avatarUpdatedAt: account.avatar_updated_at?.toISOString() ?? null,
+    // Whether this account is operated by a program rather than a person.
+    //
+    // Part of the public profile rather than a separate lookup, because every
+    // screen that draws a name has to draw the **BOT** label beside it — and a
+    // label that needs a second request is a label that is sometimes missing.
+    // It discloses nothing: a bot is meant to be recognisable as one.
+    isBot: account.is_bot === true,
   };
 }

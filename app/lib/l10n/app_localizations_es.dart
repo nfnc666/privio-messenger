@@ -1763,6 +1763,102 @@ class AppTextEs extends AppText {
   String get groupDescriptionFailed => 'No se pudo guardar la descripción.';
 
   @override
+  String get groupBotsTitle => 'Bots en este grupo';
+
+  @override
+  String get groupBotsIntro =>
+      'Los bots son cuentas automatizadas que gestiona alguien fuera de este grupo. Solo reciben lo que se les entrega deliberadamente.';
+
+  @override
+  String get groupBotsNone => 'No hay ningún bot en este grupo.';
+
+  @override
+  String get groupBotsAddTitle => 'Añadir un bot';
+
+  @override
+  String get groupBotsAddHint =>
+      'Introduce el @nombre exacto del bot. A propósito no hay un directorio de todos los bots.';
+
+  @override
+  String get groupBotsNotFound => 'Ese bot no existe.';
+
+  @override
+  String get groupBotsCouldNotAdd => 'No se pudo añadir el bot.';
+
+  @override
+  String get groupBotsCouldNotChange => 'No se pudo guardar el cambio.';
+
+  @override
+  String get groupBotsMaySend => 'Enviar mensajes';
+
+  @override
+  String get groupBotsMayModerate => 'Eliminar mensajes';
+
+  @override
+  String get groupBotsMayRestrict => 'Restringir miembros';
+
+  @override
+  String get groupBotsMayInvite => 'Gestionar invitaciones';
+
+  @override
+  String get groupBotsReadAll => 'Recibir todos los mensajes nuevos';
+
+  @override
+  String get groupBotsReadsAddressed =>
+      'Solo recibe comandos, menciones y respuestas dirigidas a él';
+
+  @override
+  String get groupBotsReadsEverything =>
+      'Recibe cada mensaje nuevo de este grupo';
+
+  @override
+  String get groupBotsReadAllTitle => '¿Entregar todos los mensajes?';
+
+  @override
+  String groupBotsReadAllBody(String name) {
+    return 'A partir de entonces el dispositivo de cada miembro entregará cada mensaje nuevo a «$name», no solo los dirigidos a él. El operador del bot puede leerlos. Los mensajes anteriores no se ven afectados.';
+  }
+
+  @override
+  String get groupBotsReadAllConfirm => 'Entregar todos';
+
+  @override
+  String groupBotsRemoveTitle(String name) {
+    return '¿Quitar «$name»?';
+  }
+
+  @override
+  String get groupBotsRemoveBody =>
+      'No se le entregará nada más. Lo que ya recibió está en el servidor de su operador y no se puede borrar desde aquí.';
+
+  @override
+  String get groupBotsRemoveAction => 'Quitar el bot';
+
+  @override
+  String groupBotsDisclosureTitle(String name) {
+    return 'Qué puede leer «$name»';
+  }
+
+  @override
+  String get groupBotsDisclosureReads =>
+      'Recibe comandos, menciones suyas y respuestas a sus mensajes, en claro, en el servidor de su operador.';
+
+  @override
+  String get groupBotsDisclosureNotReads =>
+      'No recibe nada más. No tiene ninguna clave de este grupo: los dispositivos de los miembros le entregan mensajes sueltos y nada más. Nunca recibe mensajes anteriores a su entrada.';
+
+  @override
+  String get groupBotsDisclosureNoRights =>
+      'Empieza sin ningún permiso. Cada uno se concede después por separado.';
+
+  @override
+  String get groupBotsDisclosureOperator =>
+      'El operador de este bot puede leer el contenido que compartas con el bot.';
+
+  @override
+  String get groupBotsDisclosureAdd => 'Entendido, añadir';
+
+  @override
   String get groupRename => 'Cambiar el nombre del grupo';
 
   @override

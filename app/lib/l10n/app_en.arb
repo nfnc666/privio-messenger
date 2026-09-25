@@ -895,6 +895,42 @@
   "@groupDescriptionFailed": {
     "description": "Shown when a group description could not be saved."
   },
+  "groupBotsTitle": "Bots in this group",
+  "groupBotsIntro": "Bots are automated accounts run by somebody outside this group. They receive only what is deliberately handed to them.",
+  "groupBotsNone": "There is no bot in this group.",
+  "groupBotsAddTitle": "Add a bot",
+  "groupBotsAddHint": "Enter the bot’s exact @username. There is deliberately no directory of every bot.",
+  "groupBotsNotFound": "There is no such bot.",
+  "groupBotsCouldNotAdd": "The bot could not be added.",
+  "groupBotsCouldNotChange": "The change could not be saved.",
+  "groupBotsMaySend": "Send messages",
+  "groupBotsMayModerate": "Delete messages",
+  "groupBotsMayRestrict": "Restrict members",
+  "groupBotsMayInvite": "Manage invites",
+  "groupBotsReadAll": "Receive all new messages",
+  "groupBotsReadsAddressed": "Receives only commands, mentions and replies to it",
+  "groupBotsReadsEverything": "Receives every new message in this group",
+  "groupBotsReadAllTitle": "Hand over every message?",
+  "groupBotsReadAllBody": "From then on every member’s device hands each new message to “{name}” — not only the ones addressed to it. The bot’s operator can read them. Older messages are not affected.",
+  "@groupBotsReadAllBody": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsReadAllConfirm": "Hand over all",
+  "groupBotsRemoveTitle": "Remove “{name}”?",
+  "@groupBotsRemoveTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsRemoveBody": "Nothing more will be handed to it. What it already received is on its operator’s server and cannot be deleted from here.",
+  "groupBotsRemoveAction": "Remove bot",
+  "groupBotsDisclosureTitle": "What “{name}” can read",
+  "@groupBotsDisclosureTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsDisclosureReads": "It receives commands, @mentions of it, and replies to its messages — in the clear, on its operator’s server.",
+  "groupBotsDisclosureNotReads": "It receives nothing else. It holds no key for this group: members’ devices hand it individual messages and nothing more. It never receives messages sent before it joined.",
+  "groupBotsDisclosureNoRights": "It starts with no rights at all. You grant each one separately afterwards.",
+  "groupBotsDisclosureOperator": "The operator of this bot can read content you share with the bot.",
+  "groupBotsDisclosureAdd": "Understood, add it",
   "groupRename": "Rename group",
   "groupRenameAction": "Rename",
   "groupRenamed": "Renamed. Everyone else opens the new name with the key they already have.",

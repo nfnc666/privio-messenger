@@ -18,6 +18,7 @@ import '../widgets/disappearing_timer_sheet.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
 import 'contact_profile_screen.dart';
+import 'group_bots_screen.dart';
 
 /// Who is in a group, and the way out of it.
 ///
@@ -52,6 +53,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     // The picture is fetched beside the members and not awaited with them: a
     // slow or missing picture must not hold up the list of who is here.
     unawaited(_loadAvatar(state));
+    unawaited(state.conversations.refreshGroupBots(widget.groupId));
     try {
       final members = await state.conversations.groupMembers(widget.groupId);
       if (!mounted) return;
@@ -548,6 +550,21 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         label: text.groupRename,
                         onTap: () => unawaited(_rename(state)),
                       ),
+                    // Every member may open it: knowing which bots receive
+                    // what is written here is not an admin's private matter.
+                    SettingsRow(
+                      icon: Icons.smart_toy_outlined,
+                      label: text.groupBotsTitle,
+                      value: '${state.conversations.botsIn(widget.groupId).length}',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => GroupBotsScreen(
+                            groupId: widget.groupId,
+                            isAdmin: admin,
+                          ),
+                        ),
+                      ),
+                    ),
                     if (admin)
                       SettingsRow(
                         icon: Icons.notes_rounded,

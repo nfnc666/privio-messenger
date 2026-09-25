@@ -2995,6 +2995,168 @@ abstract class AppText {
   /// **'The description could not be saved.'**
   String get groupDescriptionFailed;
 
+  /// No description provided for @groupBotsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots in this group'**
+  String get groupBotsTitle;
+
+  /// No description provided for @groupBotsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots are automated accounts run by somebody outside this group. They receive only what is deliberately handed to them.'**
+  String get groupBotsIntro;
+
+  /// No description provided for @groupBotsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no bot in this group.'**
+  String get groupBotsNone;
+
+  /// No description provided for @groupBotsAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a bot'**
+  String get groupBotsAddTitle;
+
+  /// No description provided for @groupBotsAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the bot’s exact @username. There is deliberately no directory of every bot.'**
+  String get groupBotsAddHint;
+
+  /// No description provided for @groupBotsNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no such bot.'**
+  String get groupBotsNotFound;
+
+  /// No description provided for @groupBotsCouldNotAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'The bot could not be added.'**
+  String get groupBotsCouldNotAdd;
+
+  /// No description provided for @groupBotsCouldNotChange.
+  ///
+  /// In en, this message translates to:
+  /// **'The change could not be saved.'**
+  String get groupBotsCouldNotChange;
+
+  /// No description provided for @groupBotsMaySend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send messages'**
+  String get groupBotsMaySend;
+
+  /// No description provided for @groupBotsMayModerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete messages'**
+  String get groupBotsMayModerate;
+
+  /// No description provided for @groupBotsMayRestrict.
+  ///
+  /// In en, this message translates to:
+  /// **'Restrict members'**
+  String get groupBotsMayRestrict;
+
+  /// No description provided for @groupBotsMayInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage invites'**
+  String get groupBotsMayInvite;
+
+  /// No description provided for @groupBotsReadAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive all new messages'**
+  String get groupBotsReadAll;
+
+  /// No description provided for @groupBotsReadsAddressed.
+  ///
+  /// In en, this message translates to:
+  /// **'Receives only commands, mentions and replies to it'**
+  String get groupBotsReadsAddressed;
+
+  /// No description provided for @groupBotsReadsEverything.
+  ///
+  /// In en, this message translates to:
+  /// **'Receives every new message in this group'**
+  String get groupBotsReadsEverything;
+
+  /// No description provided for @groupBotsReadAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand over every message?'**
+  String get groupBotsReadAllTitle;
+
+  /// No description provided for @groupBotsReadAllBody.
+  ///
+  /// In en, this message translates to:
+  /// **'From then on every member’s device hands each new message to “{name}” — not only the ones addressed to it. The bot’s operator can read them. Older messages are not affected.'**
+  String groupBotsReadAllBody(String name);
+
+  /// No description provided for @groupBotsReadAllConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand over all'**
+  String get groupBotsReadAllConfirm;
+
+  /// No description provided for @groupBotsRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove “{name}”?'**
+  String groupBotsRemoveTitle(String name);
+
+  /// No description provided for @groupBotsRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing more will be handed to it. What it already received is on its operator’s server and cannot be deleted from here.'**
+  String get groupBotsRemoveBody;
+
+  /// No description provided for @groupBotsRemoveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove bot'**
+  String get groupBotsRemoveAction;
+
+  /// No description provided for @groupBotsDisclosureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What “{name}” can read'**
+  String groupBotsDisclosureTitle(String name);
+
+  /// No description provided for @groupBotsDisclosureReads.
+  ///
+  /// In en, this message translates to:
+  /// **'It receives commands, @mentions of it, and replies to its messages — in the clear, on its operator’s server.'**
+  String get groupBotsDisclosureReads;
+
+  /// No description provided for @groupBotsDisclosureNotReads.
+  ///
+  /// In en, this message translates to:
+  /// **'It receives nothing else. It holds no key for this group: members’ devices hand it individual messages and nothing more. It never receives messages sent before it joined.'**
+  String get groupBotsDisclosureNotReads;
+
+  /// No description provided for @groupBotsDisclosureNoRights.
+  ///
+  /// In en, this message translates to:
+  /// **'It starts with no rights at all. You grant each one separately afterwards.'**
+  String get groupBotsDisclosureNoRights;
+
+  /// No description provided for @groupBotsDisclosureOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'The operator of this bot can read content you share with the bot.'**
+  String get groupBotsDisclosureOperator;
+
+  /// No description provided for @groupBotsDisclosureAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Understood, add it'**
+  String get groupBotsDisclosureAdd;
+
   /// No description provided for @groupRename.
   ///
   /// In en, this message translates to:

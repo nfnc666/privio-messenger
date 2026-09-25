@@ -1748,6 +1748,102 @@ class AppTextEn extends AppText {
   String get groupDescriptionFailed => 'The description could not be saved.';
 
   @override
+  String get groupBotsTitle => 'Bots in this group';
+
+  @override
+  String get groupBotsIntro =>
+      'Bots are automated accounts run by somebody outside this group. They receive only what is deliberately handed to them.';
+
+  @override
+  String get groupBotsNone => 'There is no bot in this group.';
+
+  @override
+  String get groupBotsAddTitle => 'Add a bot';
+
+  @override
+  String get groupBotsAddHint =>
+      'Enter the bot’s exact @username. There is deliberately no directory of every bot.';
+
+  @override
+  String get groupBotsNotFound => 'There is no such bot.';
+
+  @override
+  String get groupBotsCouldNotAdd => 'The bot could not be added.';
+
+  @override
+  String get groupBotsCouldNotChange => 'The change could not be saved.';
+
+  @override
+  String get groupBotsMaySend => 'Send messages';
+
+  @override
+  String get groupBotsMayModerate => 'Delete messages';
+
+  @override
+  String get groupBotsMayRestrict => 'Restrict members';
+
+  @override
+  String get groupBotsMayInvite => 'Manage invites';
+
+  @override
+  String get groupBotsReadAll => 'Receive all new messages';
+
+  @override
+  String get groupBotsReadsAddressed =>
+      'Receives only commands, mentions and replies to it';
+
+  @override
+  String get groupBotsReadsEverything =>
+      'Receives every new message in this group';
+
+  @override
+  String get groupBotsReadAllTitle => 'Hand over every message?';
+
+  @override
+  String groupBotsReadAllBody(String name) {
+    return 'From then on every member’s device hands each new message to “$name” — not only the ones addressed to it. The bot’s operator can read them. Older messages are not affected.';
+  }
+
+  @override
+  String get groupBotsReadAllConfirm => 'Hand over all';
+
+  @override
+  String groupBotsRemoveTitle(String name) {
+    return 'Remove “$name”?';
+  }
+
+  @override
+  String get groupBotsRemoveBody =>
+      'Nothing more will be handed to it. What it already received is on its operator’s server and cannot be deleted from here.';
+
+  @override
+  String get groupBotsRemoveAction => 'Remove bot';
+
+  @override
+  String groupBotsDisclosureTitle(String name) {
+    return 'What “$name” can read';
+  }
+
+  @override
+  String get groupBotsDisclosureReads =>
+      'It receives commands, @mentions of it, and replies to its messages — in the clear, on its operator’s server.';
+
+  @override
+  String get groupBotsDisclosureNotReads =>
+      'It receives nothing else. It holds no key for this group: members’ devices hand it individual messages and nothing more. It never receives messages sent before it joined.';
+
+  @override
+  String get groupBotsDisclosureNoRights =>
+      'It starts with no rights at all. You grant each one separately afterwards.';
+
+  @override
+  String get groupBotsDisclosureOperator =>
+      'The operator of this bot can read content you share with the bot.';
+
+  @override
+  String get groupBotsDisclosureAdd => 'Understood, add it';
+
+  @override
   String get groupRename => 'Rename group';
 
   @override

@@ -17,6 +17,7 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
+import '../models/group_bot.dart';
 import '../models/models.dart';
 import '../models/security_event.dart';
 import 'api_client.dart';
@@ -851,6 +852,12 @@ class ConversationController extends ChangeNotifier {
       _markSent(conversationId, clientId, timer);
       _failure = null;
       _persist();
+      // Only after the message actually went. A bot receiving a copy of
+      // something that failed to send would be a bot that saw a message the
+      // group never did.
+      if (conversation.isGroup) {
+        unawaited(_handToBots(conversationId, body, clientId, replyTo: replyTo));
+      }
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
@@ -867,6 +874,162 @@ class ConversationController extends ChangeNotifier {
       };
     }
     notifyListeners();
+  }
+
+  /// The bots in a group, as the server last listed them.
+  ///
+  /// Per group and per account, like every other cache here. Refreshed when a
+  /// group screen opens and after any change to the list, not on every send —
+  /// a device that asked before each message would turn one send into two
+  /// requests.
+  final Map<String, List<GroupBot>> _groupBots = {};
+
+  List<GroupBot> botsIn(String groupId) => _groupBots[groupId] ?? const [];
+
+  /// Reads which bots are in a group and what they may do.
+  Future<List<GroupBot>> refreshGroupBots(String groupId) async {
+    final account = accountId;
+    try {
+      final response = await _services.api.groupBots(groupId);
+      if (accountId != account) return const [];
+      final listed = [
+        for (final raw in response['bots'] as List<dynamic>? ?? const [])
+          GroupBot.fromJson(raw as Map<String, dynamic>),
+      ];
+      _groupBots[groupId] = listed;
+      notifyListeners();
+      return listed;
+    } on Object {
+      // A list that will not load is a group drawn without its bots, not an
+      // error in front of a conversation. Nothing is forwarded in that state,
+      // which is the safe direction: a bot receives less, never more.
+      return _groupBots[groupId] ?? const [];
+    }
+  }
+
+  /// Looks a bot up by its exact username, for an admin about to add one.
+  ///
+  /// The ordinary profile route: a bot is an account, and there is no bot
+  /// directory to browse — which is deliberate, since a browsable list of
+  /// every bot on a deployment is a list of every operator on it.
+  Future<GroupBot?> lookupBot(String username) async {
+    try {
+      final json = await _services.api.lookup(username.toLowerCase());
+      if (json['isBot'] != true) {
+        _failure = const Failure(FailureKind.botNotFound);
+        notifyListeners();
+        return null;
+      }
+      return GroupBot(
+        botId: json['id'] as String,
+        username: json['username'] as String,
+        displayName: json['displayName'] as String?,
+      );
+    } on ApiException catch (failure) {
+      _failure = failure.statusCode == 404 || failure.statusCode == 400
+          ? const Failure(FailureKind.botNotFound)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return null;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Adds a bot to a group. It arrives with no rights; see the server routes.
+  Future<bool> addGroupBot(String groupId, String botId) =>
+      _changeGroupBots(() => _services.api.addGroupBot(groupId, botId), groupId);
+
+  /// Grants or withdraws **one** right. One at a time, on purpose: a call that
+  /// set several would be a call somebody uses to set all of them.
+  Future<bool> setGroupBotRight(
+    String groupId,
+    String botId,
+    String right,
+    bool value,
+  ) =>
+      _changeGroupBots(
+        () => _services.api.setGroupBotRights(groupId, botId, {right: value}),
+        groupId,
+      );
+
+  Future<bool> removeGroupBot(String groupId, String botId) =>
+      _changeGroupBots(() => _services.api.removeGroupBot(groupId, botId), groupId);
+
+  /// Runs a change and files the list the server answered with.
+  ///
+  /// The server's answer rather than a guess about what the change did: a
+  /// device that predicted the new rights would eventually draw a switch that
+  /// is on while the server has it off.
+  Future<bool> _changeGroupBots(
+    Future<Map<String, dynamic>> Function() change,
+    String groupId,
+  ) async {
+    final account = accountId;
+    try {
+      final response = await change();
+      if (accountId != account) return false;
+      _groupBots[groupId] = [
+        for (final raw in response['bots'] as List<dynamic>? ?? const [])
+          GroupBot.fromJson(raw as Map<String, dynamic>),
+      ];
+      _failure = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (failure) {
+      _failure = failure.code == 'not_an_admin'
+          ? const Failure(FailureKind.insufficientPermission)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Hands a just-sent group message to the bots it was addressed to.
+  ///
+  /// **This device is the only one that can.** A group message is Signal
+  /// ciphertext addressed to member devices; the server holds no key that
+  /// opens one, so it cannot forward to a bot even if it wanted to. The
+  /// filtering therefore happens here, with the plaintext, before anything is
+  /// handed over — which is what makes it a cryptographic restriction rather
+  /// than a server's promise to look away.
+  ///
+  /// What goes is the text of this one message and nothing else. No history,
+  /// no other conversation, and nothing at all for a bot the message was not
+  /// addressed to.
+  Future<void> _handToBots(
+    String groupId,
+    String body,
+    String clientId, {
+    Message? replyTo,
+  }) async {
+    final present = _groupBots[groupId];
+    if (present == null || present.isEmpty) return;
+
+    for (final bot in present) {
+      final repliesToBot = replyTo != null && replyTo.senderAccountId == bot.botId;
+      if (!addressesBot(bot, body, repliesToBot: repliesToBot)) continue;
+      try {
+        await _services.api.sendToBot(
+          bot.botId,
+          body,
+          groupId: groupId,
+          // The same id the message carries in the group, so a retry of the
+          // send is a retry here too rather than a second delivery.
+          clientId: clientId,
+        );
+      } on Object {
+        // A bot that could not be reached is a bot that did not get this
+        // message. It is not a reason to tell somebody their message to the
+        // group failed, because it did not.
+      }
+    }
   }
 
   // --- Groups ---------------------------------------------------------------

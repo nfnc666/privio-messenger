@@ -263,6 +263,22 @@ picker is the part no widget test reaches. See
 | G5 | Rename the group afterwards: the picture and the description are still there | | | | | not run | |
 | G6 | Join by a link on a fresh device: the picture is drawn **before** the group key arrives, while the name and description are still blank | This is the whole reason the picture is not sealed | | | | not run | |
 
+## 6i. A bot in a group
+
+Covered by `app/test/group_bots_test.dart` and
+`server/test/bots_in_groups.test.ts`; none of it has been on a phone, and the
+rows below need a bot that is actually running somewhere. See
+[`bots.md`](bots.md#bots-in-groups).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| B1 | Add a bot as an admin: the disclosure names what it can read, and after adding it has **no** rights — every switch is off | Needs a bot with a token and a poller running | | | | not run | |
+| B2 | A member opens the same screen: they see the bot and its rights, and cannot change any of them | | | | | not run | |
+| B3 | With **Send messages** on, write `/help` in the group: the bot receives it and answers; write an ordinary sentence: it receives nothing (check the bot's own log) | The bot's log is the evidence; the app cannot show what was not sent | | | | not run | |
+| B4 | Turn on **Receive all new messages**: the second dialog appears, and afterwards every new message reaches the bot — but nothing from before | | | | | not run | |
+| B5 | Remove the bot: the next message reaches it no more, and the removal dialog says what cannot be undone | | | | | not run | |
+| B6 | Two bots in one group: `/help@one` reaches only that one, a bare `/help` reaches both | | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -348,11 +364,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6f Accent on the loading screen | 6 | 0 | 0 | 0 | 6 |
 | 6g Tapping an @name | 6 | 0 | 0 | 0 | 6 |
 | 6h Group picture and description | 6 | 0 | 0 | 0 | 6 |
+| 6i A bot in a group | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **117** | **0** | **0** | **0** | **117** |
+| **Total** | **123** | **0** | **0** | **0** | **123** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

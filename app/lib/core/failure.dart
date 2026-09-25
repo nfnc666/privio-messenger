@@ -156,6 +156,10 @@ enum FailureKind {
   /// it, and the one thing they need told is that nothing was opened.
   mentionUnknownUser,
 
+  /// An `@name` that is not a bot, or is not an account at all. Its own case
+  /// because the two read the same to whoever typed it: nothing was added.
+  botNotFound,
+
   // Stickers and custom emoji.
   //
   // The server refuses an upload by code; these are the codes this app has its
