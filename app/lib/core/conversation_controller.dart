@@ -294,7 +294,12 @@ class ConversationController extends ChangeNotifier {
       // else. The word is the screen's; this only says which row it is.
       isSaved: isSaved(conversation.id),
       isGroup: conversation.isGroup,
-      avatarBytes: _avatarCache[conversation.id],
+      // A group's picture comes from its own cache, keyed by group; a person's
+      // from the avatar cache, keyed by media id. Two caches because the two
+      // are fetched by different rules — see `groupAvatar`.
+      avatarBytes: conversation.isGroup
+          ? _groupAvatarCache[conversation.id]?.$2
+          : _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
       // one line, and what someone is doing now beats what they said before.
       // An empty Saved area says what it is for. Every other empty
@@ -890,11 +895,14 @@ class ConversationController extends ChangeNotifier {
   Future<void> refreshGroups() async {
     try {
       for (final group in await _services.messaging.listGroups(_services.store)) {
-        _services.store.upsertGroup(group);
+        // The whole answer, so a picture or a description an admin removed
+        // elsewhere is removed here too.
+        _services.store.upsertGroup(group, authoritative: true);
       }
       _failure = null;
       notifyListeners();
       unawaited(_maintainGroupKeys());
+      unawaited(_warmGroupAvatars());
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
       notifyListeners();
@@ -1017,19 +1025,154 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // Merged rather than rebuilt: a `GroupInfo` assembled from four fields
+    // drops every other one, and since this group has a picture and a
+    // description now, rebuilding it would make renaming a group quietly
+    // forget both.
+    _services.store.upsertGroup(group.merge(name: name));
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Sets what a group says it is for, or clears it.
+  ///
+  /// Sealed with the group's key like the name, so this too changes a blob the
+  /// server cannot read — and needs that key for the same reason.
+  ///
+  /// Admins only, and refused here as well as by the server: a screen that hid
+  /// the field would still leave the call reachable.
+  Future<bool> describeGroup(String groupId, String? description) async {
+    final group = groupInfo(groupId);
+    final key = group?.groupKey;
+    if (group == null || key == null) {
+      _failure = const Failure(FailureKind.groupKeyMissing);
+      notifyListeners();
+      return false;
+    }
+    if (!group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    final trimmed = description?.trim();
+    try {
+      await _services.messaging.describeGroup(groupId, trimmed, key);
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    }
+    // Authoritative, because this *is* the whole truth about the group now.
+    // Without it the store would merge the cleared description against what it
+    // already held and put the old text straight back — a removal that undoes
+    // itself on the way to the screen.
     _services.store.upsertGroup(
-      GroupInfo(
-        groupId: group.groupId,
-        role: group.role,
-        name: name,
-        groupKey: group.groupKey,
-        inviteCode: group.inviteCode,
-        memberIds: group.memberIds,
-      ),
+      trimmed == null || trimmed.isEmpty
+          ? group.merge(clearDescription: true)
+          : group.merge(description: trimmed),
+      authoritative: trimmed == null || trimmed.isEmpty,
     );
     _persist();
     notifyListeners();
     return true;
+  }
+
+  /// Gives a group a picture. Returns false with a reason on the failure.
+  Future<bool> setGroupAvatar(String groupId, Uint8List picked) async {
+    final group = groupInfo(groupId);
+    if (group == null || !group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    try {
+      final mediaId = await _services.messaging.setGroupAvatar(groupId, picked);
+      _services.store.upsertGroup(
+        group.merge(avatarMediaId: mediaId, avatarUpdatedAt: DateTime.now()),
+      );
+      // The old picture is still in this cache under the old id; the new one
+      // is a new id, so nothing has to be evicted for the change to show.
+      _persist();
+      notifyListeners();
+      return true;
+    } on GroupAvatarRejected catch (rejected) {
+      _failure = rejected.failure;
+      notifyListeners();
+      return false;
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    } on Object {
+      _failure = const Failure(FailureKind.couldNotSetPicture);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Takes a group's picture away.
+  Future<bool> clearGroupAvatar(String groupId) async {
+    final group = groupInfo(groupId);
+    if (group == null || !group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _services.messaging.clearGroupAvatar(groupId);
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    }
+    // Authoritative for the same reason as clearing a description: a merge
+    // against what the store already has would restore the picture that was
+    // just removed.
+    _services.store.upsertGroup(group.merge(clearAvatar: true), authoritative: true);
+    _groupAvatarCache.remove(groupId);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// The group's picture, fetched once and kept for as long as the app runs.
+  ///
+  /// Keyed on the **media id** rather than the group, so replacing a picture
+  /// is a different key and nothing has to be invalidated by hand. Per account
+  /// like every other cache here: it lives on this controller, and a controller
+  /// belongs to one signed-in account.
+  Future<Uint8List?> groupAvatar(String groupId) async {
+    final mediaId = groupInfo(groupId)?.avatarMediaId;
+    if (mediaId == null) return null;
+    final cached = _groupAvatarCache[groupId];
+    if (cached != null && cached.$1 == mediaId) return cached.$2;
+
+    final account = accountId;
+    final bytes = await _services.messaging.groupAvatarBytes(mediaId);
+    // Somebody else may be signed in by the time this answers, and their
+    // caches are not this one's to fill.
+    if (accountId != account) return null;
+    if (bytes != null) {
+      _groupAvatarCache[groupId] = (mediaId, bytes);
+      notifyListeners();
+    }
+    return bytes;
+  }
+
+  /// Fetches the pictures of groups that have one and this run has not seen.
+  ///
+  /// Once per group per run, after a listing rather than while a chat list is
+  /// being drawn: a screen that fetched as it scrolled would ask again every
+  /// time a row came back into view. Failures are silent — a group with no
+  /// picture on screen is the same thing to a reader as a group with none.
+  Future<void> _warmGroupAvatars() async {
+    for (final conversation in _services.store.conversations()) {
+      final group = conversation.group;
+      if (group?.avatarMediaId == null) continue;
+      if (_groupAvatarCache[group!.groupId]?.$1 == group.avatarMediaId) continue;
+      await groupAvatar(group.groupId);
+    }
   }
 
   /// Deletes a group for everyone in it. Admins only, enforced by the server.
@@ -3050,6 +3193,13 @@ class ConversationController extends ChangeNotifier {
   /// re-derivable, and writing faces to disk in the clear is not worth it.
   final Map<String, Uint8List> _avatarCache = {};
 
+  /// Group pictures, keyed by group id and carrying the media id they are of.
+  ///
+  /// The pair is what makes replacing a picture show up: the entry is only a
+  /// hit while it is still of the id the group currently points at. In memory
+  /// only, and on this controller, so it goes with the account.
+  final Map<String, (String, Uint8List)> _groupAvatarCache = {};
+
   /// This account's own picture, once it has been set or loaded.
   Uint8List? ownAvatar;
 
@@ -3093,7 +3243,13 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  Uint8List? avatarFor(String accountId) => _avatarCache[accountId];
+  /// The picture for a conversation, whichever kind it is.
+  ///
+  /// One question from a screen's point of view — "what do I draw here" — with
+  /// the two caches behind it, so a chat header does not have to know whether
+  /// it is looking at a person or a group.
+  Uint8List? avatarFor(String conversationId) =>
+      _avatarCache[conversationId] ?? _groupAvatarCache[conversationId]?.$2;
 
   /// Downloads and opens the pictures of everyone we have both a pointer and a
   /// key for. Quiet on failure — a missing avatar is a cosmetic problem.

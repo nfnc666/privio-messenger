@@ -91,10 +91,13 @@ class GroupInfo {
     required this.groupId,
     required this.role,
     this.name,
+    this.description,
     this.groupKey,
     this.inviteCode,
     this.memberIds = const [],
     this.memberCount = 0,
+    this.avatarMediaId,
+    this.avatarUpdatedAt,
   });
 
   final String groupId;
@@ -104,6 +107,11 @@ class GroupInfo {
 
   /// Decrypted from the group's sealed metadata. Null until the key arrives.
   final String? name;
+
+  /// What the group says it is for. Sealed with the group key like the name,
+  /// in a field of its own, and null until that key arrives — or simply because
+  /// nobody wrote one.
+  final String? description;
 
   /// Base64. Seals the group's name, and reaches members inside end-to-end
   /// encrypted messages — the server stores the sealed name and no key for it.
@@ -123,26 +131,45 @@ class GroupInfo {
   /// Zero means "not known yet", not "empty".
   final int memberCount;
 
+  /// The group's picture, as an id to fetch. **Not sealed** — see migration
+  /// 036: a picture has to be drawable before the group key arrives, and the
+  /// server hands it to members only.
+  final String? avatarMediaId;
+
+  /// When it last changed, so a cache knows to let go of the old one.
+  final DateTime? avatarUpdatedAt;
+
   bool get isAdmin => role == 'admin';
 
   GroupInfo merge({
     String? name,
+    String? description,
     String? groupKey,
     List<String>? memberIds,
     String? role,
     String? inviteCode,
     int? memberCount,
+    String? avatarMediaId,
+    DateTime? avatarUpdatedAt,
+    bool clearDescription = false,
+    bool clearAvatar = false,
   }) =>
       GroupInfo(
         groupId: groupId,
         role: role ?? this.role,
         name: name ?? this.name,
+        // Removing is a different act from not mentioning, on both of these:
+        // `??` alone can only ever add, so a description somebody deleted
+        // would come straight back on the next merge.
+        description: clearDescription ? null : (description ?? this.description),
         groupKey: groupKey ?? this.groupKey,
         inviteCode: inviteCode ?? this.inviteCode,
         memberIds: memberIds ?? this.memberIds,
         // Zero is "not known", so a listing that did not carry one must not
         // overwrite a count this device already had.
         memberCount: (memberCount ?? 0) > 0 ? memberCount! : this.memberCount,
+        avatarMediaId: clearAvatar ? null : (avatarMediaId ?? this.avatarMediaId),
+        avatarUpdatedAt: clearAvatar ? null : (avatarUpdatedAt ?? this.avatarUpdatedAt),
       );
 }
 
@@ -236,7 +263,14 @@ abstract interface class MessageStore {
   /// contact list or a profile lookup — as opposed to a fragment picked up
   /// from a message. Only an authoritative answer may remove a display name.
   Conversation upsertUser(KnownUser user, {bool authoritative = false});
-  Conversation upsertGroup(GroupInfo group);
+  /// Files what is known about a group.
+  ///
+  /// [authoritative] marks an answer that describes the whole group — a fresh
+  /// listing from the server — as opposed to a fragment picked up from a
+  /// message. Only an authoritative answer may *remove* a description or a
+  /// picture; otherwise a partial update would put back what an admin has
+  /// just deleted.
+  Conversation upsertGroup(GroupInfo group, {bool authoritative = false});
   void append(String id, Message message);
   void markRead(String id);
   void updateState(String accountId, String messageId, DeliveryState state);
@@ -385,7 +419,7 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
-  Conversation upsertGroup(GroupInfo group) {
+  Conversation upsertGroup(GroupInfo group, {bool authoritative = false}) {
     final existing = _conversations[group.groupId];
     if (existing?.group == null) {
       return _conversations[group.groupId] = Conversation.group(group);
@@ -395,10 +429,18 @@ class InMemoryMessageStore implements MessageStore {
     // name only once the key has been shared.
     final merged = existing!.group!.merge(
       name: group.name,
+      description: group.description,
       groupKey: group.groupKey,
       memberIds: group.memberIds.isEmpty ? null : group.memberIds,
       memberCount: group.memberCount,
       role: group.role,
+      avatarMediaId: group.avatarMediaId,
+      avatarUpdatedAt: group.avatarUpdatedAt,
+      // Only a whole answer may take something away. A description opened
+      // with a key this device does not have yet is null for a reason that
+      // has nothing to do with whether one exists.
+      clearDescription: authoritative && group.description == null && group.groupKey != null,
+      clearAvatar: authoritative && group.avatarMediaId == null,
     );
     final replacement = Conversation.group(merged, messages: existing.messages)
       ..unreadCount = existing.unreadCount

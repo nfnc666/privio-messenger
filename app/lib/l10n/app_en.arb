@@ -855,6 +855,46 @@
   "groupAddContactsFirst": "Add some contacts first — a group needs people in it.",
   "groupInfoCouldNotRead": "Could not read who is in this group.",
   "groupAdminOnly": "Only an admin can change this",
+  "groupPictureChoose": "Choose a picture",
+  "@groupPictureChoose": {
+    "description": "Sheet action that opens the picture chooser for a group."
+  },
+  "groupPictureRemove": "Remove picture",
+  "@groupPictureRemove": {
+    "description": "Sheet action that removes a group's picture."
+  },
+  "groupPictureFailed": "The picture could not be set.",
+  "@groupPictureFailed": {
+    "description": "Shown when setting or removing a group's picture did not work."
+  },
+  "groupDescriptionRow": "Description",
+  "@groupDescriptionRow": {
+    "description": "Settings row that opens the group description editor."
+  },
+  "groupDescriptionNone": "None",
+  "@groupDescriptionNone": {
+    "description": "Value of the description row while no description is set."
+  },
+  "groupDescriptionTitle": "Group description",
+  "@groupDescriptionTitle": {
+    "description": "Title of the group description editor."
+  },
+  "groupDescriptionHint": "What is this group for?",
+  "@groupDescriptionHint": {
+    "description": "Placeholder in the group description field."
+  },
+  "groupDescriptionSealed": "Only members can read it. It is encrypted with the group key, like the name and the messages.",
+  "@groupDescriptionSealed": {
+    "description": "Note under the group description field saying it is end-to-end encrypted."
+  },
+  "groupDescriptionSaved": "Description saved",
+  "@groupDescriptionSaved": {
+    "description": "Confirmation after saving a group description."
+  },
+  "groupDescriptionFailed": "The description could not be saved.",
+  "@groupDescriptionFailed": {
+    "description": "Shown when a group description could not be saved."
+  },
   "groupRename": "Rename group",
   "groupRenameAction": "Rename",
   "groupRenamed": "Renamed. Everyone else opens the new name with the key they already have.",

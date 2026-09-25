@@ -1717,6 +1717,37 @@ class AppTextEn extends AppText {
   String get groupAdminOnly => 'Only an admin can change this';
 
   @override
+  String get groupPictureChoose => 'Choose a picture';
+
+  @override
+  String get groupPictureRemove => 'Remove picture';
+
+  @override
+  String get groupPictureFailed => 'The picture could not be set.';
+
+  @override
+  String get groupDescriptionRow => 'Description';
+
+  @override
+  String get groupDescriptionNone => 'None';
+
+  @override
+  String get groupDescriptionTitle => 'Group description';
+
+  @override
+  String get groupDescriptionHint => 'What is this group for?';
+
+  @override
+  String get groupDescriptionSealed =>
+      'Only members can read it. It is encrypted with the group key, like the name and the messages.';
+
+  @override
+  String get groupDescriptionSaved => 'Description saved';
+
+  @override
+  String get groupDescriptionFailed => 'The description could not be saved.';
+
+  @override
   String get groupRename => 'Rename group';
 
   @override

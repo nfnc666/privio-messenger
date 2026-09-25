@@ -133,6 +133,11 @@ const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
         inviteCode: r.invite_code,
         memberCount: Number(r.member_count),
         encryptedMetadata: r.encrypted_metadata ? (r.encrypted_metadata as Buffer).toString('base64') : null,
+        encryptedDescription: r.encrypted_description
+          ? (r.encrypted_description as Buffer).toString('base64')
+          : null,
+        avatarMediaId: r.avatar_media_id ?? null,
+        avatarUpdatedAt: (r.avatar_updated_at as Date | null)?.toISOString() ?? null,
         createdAt: (r.created_at as Date).toISOString(),
       })),
     };
@@ -143,7 +148,9 @@ const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const role = await requireMembership(params.id, accountId);
     const { rows } = await pool.query(
-      'SELECT id, encrypted_metadata, created_at, invite_code FROM groups WHERE id = $1',
+      `SELECT id, encrypted_metadata, encrypted_description, avatar_media_id,
+              avatar_updated_at, created_at, invite_code
+         FROM groups WHERE id = $1`,
       [params.id],
     );
     const group = rows[0]!;
@@ -152,6 +159,11 @@ const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
       role,
       inviteCode: group.invite_code,
       encryptedMetadata: group.encrypted_metadata ? (group.encrypted_metadata as Buffer).toString('base64') : null,
+      encryptedDescription: group.encrypted_description
+        ? (group.encrypted_description as Buffer).toString('base64')
+        : null,
+      avatarMediaId: group.avatar_media_id ?? null,
+      avatarUpdatedAt: (group.avatar_updated_at as Date | null)?.toISOString() ?? null,
       createdAt: (group.created_at as Date).toISOString(),
       members: await membersOf(params.id),
     };
@@ -194,15 +206,107 @@ const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
     const { accountId } = auth(request);
     const params = parse(z.object({ id: uuidSchema }), request.params);
     const body = parse(
-      z.object({ encryptedMetadata: base64Bytes(1, config.MAX_ENVELOPE_BYTES) }),
+      z
+        .object({
+          encryptedMetadata: base64Bytes(1, config.MAX_ENVELOPE_BYTES).optional(),
+          /**
+           * The group's description, sealed with the group key.
+           *
+           * `null` clears it, which is a different request from leaving the
+           * field out — omitting it keeps whatever is there, so a screen that
+           * only changes the name cannot wipe the description by not
+           * mentioning it.
+           */
+          encryptedDescription: base64Bytes(1, config.MAX_ENVELOPE_BYTES).nullable().optional(),
+        })
+        .refine(
+          (v) => v.encryptedMetadata !== undefined || v.encryptedDescription !== undefined,
+          { message: 'nothing to update' },
+        ),
       request.body,
     );
     await requireMembership(params.id, accountId, true);
-    await pool.query('UPDATE groups SET encrypted_metadata = $2 WHERE id = $1', [
-      params.id,
-      body.encryptedMetadata,
-    ]);
+    // Two optional fields, one statement, and `COALESCE` is deliberately not
+    // used for the description: it cannot tell "leave it alone" from "clear
+    // it", and those are the two things this route has to keep apart.
+    if (body.encryptedMetadata !== undefined) {
+      await pool.query('UPDATE groups SET encrypted_metadata = $2 WHERE id = $1', [
+        params.id,
+        body.encryptedMetadata,
+      ]);
+    }
+    if (body.encryptedDescription !== undefined) {
+      await pool.query('UPDATE groups SET encrypted_description = $2 WHERE id = $1', [
+        params.id,
+        body.encryptedDescription,
+      ]);
+    }
     return { updated: true };
+  });
+
+  /**
+   * Sets the group's picture.
+   *
+   * The bytes went to `/v1/media` first as `kind=group_avatar`, unsealed —
+   * see migration 036 for why a picture is not treated like a message. This
+   * only points the group at an object the caller already owns, which is what
+   * stops one account attaching another's upload.
+   *
+   * Admins only, like the name and the disappearing timer: a picture everybody
+   * can change is a picture somebody changes at three in the morning.
+   */
+  app.put('/v1/groups/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    const body = parse(z.object({ mediaId: uuidSchema }), request.body);
+    await requireMembership(params.id, accountId, true);
+
+    const replaced = await withTransaction(async (client) => {
+      const { rows: groups } = await client.query<{ avatar_media_id: string | null }>(
+        'SELECT avatar_media_id FROM groups WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+        [params.id],
+      );
+      const group = groups[0];
+      if (!group) throw ApiError.notFound('group_not_found', 'No such group');
+
+      const { rows: media } = await client.query<{ kind: string; owner_account_id: string }>(
+        'SELECT kind, owner_account_id FROM media_objects WHERE id = $1',
+        [body.mediaId],
+      );
+      if (!media[0] || media[0].owner_account_id !== accountId) {
+        throw ApiError.notFound('media_not_found', 'No such upload');
+      }
+      if (media[0].kind !== 'group_avatar') {
+        throw ApiError.badRequest(
+          'wrong_media_kind',
+          "A group's picture is uploaded as kind=group_avatar",
+        );
+      }
+
+      await client.query(
+        'UPDATE groups SET avatar_media_id = $2, avatar_updated_at = now() WHERE id = $1',
+        [params.id, body.mediaId],
+      );
+      return group.avatar_media_id;
+    });
+
+    // The one it replaced is nobody's picture now. Left to the ordinary
+    // retention sweep rather than deleted here: a device that is still drawing
+    // the old one should finish doing so.
+    void replaced;
+    return { avatarMediaId: body.mediaId };
+  });
+
+  /** Takes the group's picture away. Admins only, as above. */
+  app.delete('/v1/groups/:id/avatar', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMembership(params.id, accountId, true);
+    await pool.query(
+      'UPDATE groups SET avatar_media_id = NULL, avatar_updated_at = now() WHERE id = $1',
+      [params.id],
+    );
+    return { avatarMediaId: null };
   });
 
   app.post('/v1/groups/:id/members', requireAuth, async (request) => {

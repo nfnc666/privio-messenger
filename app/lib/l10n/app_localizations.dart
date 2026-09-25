@@ -2935,6 +2935,66 @@ abstract class AppText {
   /// **'Only an admin can change this'**
   String get groupAdminOnly;
 
+  /// Sheet action that opens the picture chooser for a group.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a picture'**
+  String get groupPictureChoose;
+
+  /// Sheet action that removes a group's picture.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove picture'**
+  String get groupPictureRemove;
+
+  /// Shown when setting or removing a group's picture did not work.
+  ///
+  /// In en, this message translates to:
+  /// **'The picture could not be set.'**
+  String get groupPictureFailed;
+
+  /// Settings row that opens the group description editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get groupDescriptionRow;
+
+  /// Value of the description row while no description is set.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get groupDescriptionNone;
+
+  /// Title of the group description editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description'**
+  String get groupDescriptionTitle;
+
+  /// Placeholder in the group description field.
+  ///
+  /// In en, this message translates to:
+  /// **'What is this group for?'**
+  String get groupDescriptionHint;
+
+  /// Note under the group description field saying it is end-to-end encrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'Only members can read it. It is encrypted with the group key, like the name and the messages.'**
+  String get groupDescriptionSealed;
+
+  /// Confirmation after saving a group description.
+  ///
+  /// In en, this message translates to:
+  /// **'Description saved'**
+  String get groupDescriptionSaved;
+
+  /// Shown when a group description could not be saved.
+  ///
+  /// In en, this message translates to:
+  /// **'The description could not be saved.'**
+  String get groupDescriptionFailed;
+
   /// No description provided for @groupRename.
   ///
   /// In en, this message translates to:

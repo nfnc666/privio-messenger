@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/notice_text.dart';
@@ -45,6 +49,9 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
 
   Future<void> _load() async {
     final state = PrivioScope.of(context);
+    // The picture is fetched beside the members and not awaited with them: a
+    // slow or missing picture must not hold up the list of who is here.
+    unawaited(_loadAvatar(state));
     try {
       final members = await state.conversations.groupMembers(widget.groupId);
       if (!mounted) return;
@@ -103,6 +110,143 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       );
     }
   }
+
+  /// The group's picture, fetched once the screen knows there is one.
+  Uint8List? _avatar;
+  bool _busyAvatar = false;
+
+  Future<void> _loadAvatar(AppState state) async {
+    final bytes = await state.conversations.groupAvatar(widget.groupId);
+    if (!mounted) return;
+    setState(() => _avatar = bytes);
+  }
+
+  /// Offers to change or remove the picture. Admins only — a member's tap does
+  /// nothing here and the server would refuse it anyway.
+  Future<void> _pictureActions(AppState state) async {
+    final text = AppText.of(context);
+    final hasOne = state.conversations.groupInfo(widget.groupId)?.avatarMediaId != null;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PrivioColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(text.groupPictureChoose),
+              onTap: () => Navigator.of(sheetContext).pop('pick'),
+            ),
+            if (hasOne)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: PrivioColors.danger),
+                title: Text(
+                  text.groupPictureRemove,
+                  style: const TextStyle(color: PrivioColors.danger),
+                ),
+                onTap: () => Navigator.of(sheetContext).pop('remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      setState(() => _busyAvatar = true);
+      final ok = await state.conversations.clearGroupAvatar(widget.groupId);
+      if (!mounted) return;
+      setState(() {
+        _busyAvatar = false;
+        if (ok) _avatar = null;
+      });
+      if (!ok) _say(state.conversations.failure?.words(text) ?? text.groupPictureFailed);
+      return;
+    }
+
+    PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile(type: FileType.image)
+          .timeout(const Duration(minutes: 2));
+    } on Object {
+      if (mounted) _say(text.groupPictureFailed);
+      return;
+    }
+    if (picked == null || !mounted) return;
+    final Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } on Object {
+      if (mounted) _say(text.groupPictureFailed);
+      return;
+    }
+    if (!mounted) return;
+
+    setState(() => _busyAvatar = true);
+    final ok = await state.conversations.setGroupAvatar(widget.groupId, bytes);
+    if (!mounted) return;
+    setState(() => _busyAvatar = false);
+    if (!ok) {
+      _say(state.conversations.failure?.words(text) ?? text.groupPictureFailed);
+      return;
+    }
+    await _loadAvatar(state);
+  }
+
+  /// Edits what the group says it is for.
+  Future<void> _describe(AppState state) async {
+    final text = AppText.of(context);
+    final controller = TextEditingController(
+      text: state.conversations.groupInfo(widget.groupId)?.description ?? '',
+    );
+    final written = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text(text.groupDescriptionTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 4,
+              maxLength: groupDescriptionMaxLength,
+              decoration: InputDecoration(hintText: text.groupDescriptionHint),
+            ),
+            // Said here rather than assumed: the text is sealed with the
+            // group's key, like its name and its messages.
+            Text(
+              text.groupDescriptionSealed,
+              style: Theme.of(dialogContext).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(text.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: Text(text.commonSave),
+          ),
+        ],
+      ),
+    );
+    if (written == null || !mounted) return;
+    final ok = await state.conversations.describeGroup(widget.groupId, written);
+    if (!mounted) return;
+    _say(
+      ok
+          ? text.groupDescriptionSaved
+          : state.conversations.failure?.words(text) ?? text.groupDescriptionFailed,
+    );
+  }
+
+  void _say(String message) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
   Future<void> _rename(AppState state) async {
     final text = AppText.of(context);
@@ -251,11 +395,48 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               children: [
                 const SizedBox(height: PrivioSpacing.xl),
                 Center(
-                  child: PrivioAvatar(
-                    label: group?.name ?? text.chatsGroupFallbackName,
-                    isGroup: true,
-                    size: 88,
-                    seed: widget.groupId.hashCode.abs(),
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      PrivioAvatar(
+                        label: group?.name ?? text.chatsGroupFallbackName,
+                        isGroup: true,
+                        size: 88,
+                        seed: widget.groupId.hashCode.abs(),
+                        imageBytes: _avatar,
+                      ),
+                      // Only an admin is offered the camera. A member sees the
+                      // picture and nothing suggesting they can change it,
+                      // which is what the server would tell them anyway.
+                      if (admin)
+                        Material(
+                          color: context.accents.accent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _busyAvatar
+                                ? null
+                                : () => unawaited(_pictureActions(state)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(PrivioSpacing.xs),
+                              child: _busyAvatar
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: context.accents.onAccent,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.photo_camera_outlined,
+                                      size: 16,
+                                      color: context.accents.onAccent,
+                                    ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: PrivioSpacing.md),
@@ -265,6 +446,20 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     style: theme.textTheme.titleLarge,
                   ),
                 ),
+                // What the group is for, when somebody has said. Shown to
+                // every member; only an admin has the row that changes it.
+                if ((group?.description ?? '').isNotEmpty) ...[
+                  const SizedBox(height: PrivioSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxl),
+                    child: Text(
+                      group!.description!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: PrivioColors.textSecondary),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: PrivioSpacing.xxl),
                 if (_loadFailed)
                   Padding(
@@ -352,6 +547,17 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         icon: Icons.drive_file_rename_outline_rounded,
                         label: text.groupRename,
                         onTap: () => unawaited(_rename(state)),
+                      ),
+                    if (admin)
+                      SettingsRow(
+                        icon: Icons.notes_rounded,
+                        label: text.groupDescriptionRow,
+                        // The current text as the value, so an admin can see
+                        // what is there without opening the editor to find out.
+                        value: (group?.description ?? '').isEmpty
+                            ? text.groupDescriptionNone
+                            : group!.description!,
+                        onTap: () => unawaited(_describe(state)),
                       ),
                     SettingsRow(
                       label: text.groupLeaveRow,

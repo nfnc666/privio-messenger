@@ -247,6 +247,22 @@ the row where the two platforms genuinely differ. See
 | M5 | Type `@` with the keyboard up: the suggestions sit above the field and are reachable without the keyboard covering them; picking one inserts the whole name | A short screen with a tall keyboard is the case to try | | | | not run | |
 | M6 | Tap a name that does not exist, and one while in flight mode: a sentence each time, no profile, no crash | | | | | not run | |
 
+## 6h. A group's picture and description
+
+Covered by `app/test/group_profile_test.dart` and
+`server/test/group_profile.test.ts`; none of it has been on a phone, and the
+picker is the part no widget test reaches. See
+[`security-model.md`](security-model.md#groups).
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| G1 | As an admin, set a group picture from the photo library: it appears in the group info, the chat header and the chat list, on both devices | Needs a second handset in the same group | | | | not run | |
+| G2 | A member sees the picture and is offered **no** way to change it; the camera badge is absent | | | | | not run | |
+| G3 | Write a description with umlauts and an emoji: it arrives intact on the other device and is cut off at 300 characters in the field | The system emoji picker is what a widget test cannot reproduce | | | | not run | |
+| G4 | Remove the picture on one device: it disappears on the other after the next listing, and does not come back on a restart | The failure to watch for is a removal that undoes itself | | | | not run | |
+| G5 | Rename the group afterwards: the picture and the description are still there | | | | | not run | |
+| G6 | Join by a link on a fresh device: the picture is drawn **before** the group key arrives, while the name and description are still blank | This is the whole reason the picture is not sealed | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -331,11 +347,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6e Disappearing messages | 9 | 0 | 0 | 0 | 9 |
 | 6f Accent on the loading screen | 6 | 0 | 0 | 0 | 6 |
 | 6g Tapping an @name | 6 | 0 | 0 | 0 | 6 |
+| 6h Group picture and description | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **111** | **0** | **0** | **0** | **111** |
+| **Total** | **117** | **0** | **0** | **0** | **117** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

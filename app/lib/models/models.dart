@@ -73,6 +73,15 @@ enum ReportReason {
 /// would refuse.
 const int maxDisappearSeconds = 86400;
 
+/// How long a group's description may be, as a reader counts it.
+///
+/// Measured in characters rather than bytes and checked in the field, so
+/// somebody writing in a language with wide characters gets the same room as
+/// anybody else. The server does not check it: the text is sealed before it
+/// leaves, so the server could not measure it if it wanted to — which makes
+/// this a courtesy to whoever reads the group, not a security boundary.
+const int groupDescriptionMaxLength = 300;
+
 /// What a chat's disappearing-message timer is set to.
 ///
 /// Three states, and the third is the reason this is a type rather than a

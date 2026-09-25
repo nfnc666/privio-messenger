@@ -1736,6 +1736,39 @@ class AppTextIt extends AppText {
   String get groupAdminOnly => 'Solo un amministratore può cambiarlo';
 
   @override
+  String get groupPictureChoose => 'Scegli un’immagine';
+
+  @override
+  String get groupPictureRemove => 'Rimuovi l’immagine';
+
+  @override
+  String get groupPictureFailed =>
+      'Non è stato possibile impostare l’immagine.';
+
+  @override
+  String get groupDescriptionRow => 'Descrizione';
+
+  @override
+  String get groupDescriptionNone => 'Nessuna';
+
+  @override
+  String get groupDescriptionTitle => 'Descrizione del gruppo';
+
+  @override
+  String get groupDescriptionHint => 'A cosa serve questo gruppo?';
+
+  @override
+  String get groupDescriptionSealed =>
+      'Solo i membri possono leggerla. È cifrata con la chiave del gruppo, come il nome e i messaggi.';
+
+  @override
+  String get groupDescriptionSaved => 'Descrizione salvata';
+
+  @override
+  String get groupDescriptionFailed =>
+      'Non è stato possibile salvare la descrizione.';
+
+  @override
   String get groupRename => 'Rinomina il gruppo';
 
   @override

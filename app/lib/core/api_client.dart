@@ -372,6 +372,22 @@ class PrivioApiClient {
   Future<void> updateGroupMetadata(String groupId, String encryptedMetadata) async =>
       _send('PATCH', '/v1/groups/$groupId', body: {'encryptedMetadata': encryptedMetadata});
 
+  /// Sets or clears the group's sealed description.
+  ///
+  /// `null` is a value here rather than an omission — it is how a description
+  /// is removed — so the key is always sent. Leaving it out would mean
+  /// "unchanged", which is a different request and is what the rename above
+  /// makes.
+  Future<void> updateGroupDescription(String groupId, String? encryptedDescription) async =>
+      _send('PATCH', '/v1/groups/$groupId', body: {'encryptedDescription': encryptedDescription});
+
+  /// Points the group at a picture this account has already uploaded.
+  Future<void> setGroupAvatar(String groupId, String mediaId) async =>
+      _send('PUT', '/v1/groups/$groupId/avatar', body: {'mediaId': mediaId});
+
+  Future<void> clearGroupAvatar(String groupId) async =>
+      _send('DELETE', '/v1/groups/$groupId/avatar');
+
   /// Look a group up by the code in a join link.
   Future<Map<String, dynamic>> groupByInvite(String code) =>
       _send('GET', '/v1/groups/invite/$code');
@@ -1120,10 +1136,11 @@ class PrivioApiClient {
     List<int> sealedBytes, {
     bool avatar = false,
     bool channelAvatar = false,
+    bool groupAvatar = false,
     bool sticker = false,
     int? expiresInSeconds,
   }) async {
-    // Four kinds, and the kind decides who may download. `channel_avatar` is
+    // Five kinds, and the kind decides who may download. `channel_avatar` is
     // the one that is served to anyone — a public channel's picture is drawn on
     // a web page by people who hold no key — so it is only ever passed for
     // bytes that were deliberately not sealed.
@@ -1134,13 +1151,19 @@ class PrivioApiClient {
     // type, size and dimensions, read out of the header rather than taken from
     // what the client claims. So a sticker upload can be *refused*, which an
     // attachment never is, and the caller has to be ready for that.
+    //
+    // `group_avatar` is unsealed too, and narrower than either: the server
+    // hands it to the members of the group that points at it and to nobody
+    // else. A group has no public side, so an id is not a download.
     final kind = sticker
         ? const {'kind': 'sticker'}
         : channelAvatar
             ? const {'kind': 'channel_avatar'}
-            : avatar
-                ? const {'kind': 'avatar'}
-                : null;
+            : groupAvatar
+                ? const {'kind': 'group_avatar'}
+                : avatar
+                    ? const {'kind': 'avatar'}
+                    : null;
     // An attachment to a message that is set to disappear is worth keeping only
     // as long as the message can still be fetched and read. Passed to the
     // server because a timer that only runs on a screen leaves the ciphertext
