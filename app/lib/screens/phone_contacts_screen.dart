@@ -330,7 +330,14 @@ class _PhoneContactsScreenState extends State<PhoneContactsScreen> {
                     ),
                 ],
               ),
-              if (!link.canVerify) _Note(text: text.failurePhoneSmsUnavailable),
+              // The reason that actually applies. It said "no text messages"
+              // whichever of the two was missing, which sent somebody looking
+              // at an SMS provider when what the deployment lacks is a
+              // discovery key — two different things to go and configure.
+              if (!link.smsAvailable)
+                _Note(text: text.failurePhoneSmsUnavailable)
+              else if (!link.discoveryAvailable)
+                _Note(text: text.failurePhoneDiscoveryUnavailable),
 
               SettingsSection(
                 caption: text.privacyPhoneSection,
