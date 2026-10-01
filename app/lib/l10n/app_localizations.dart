@@ -2713,6 +2713,24 @@ abstract class AppText {
   /// **'Invite link'**
   String get chatInviteLink;
 
+  /// No description provided for @chatInviteLinkRenew.
+  ///
+  /// In en, this message translates to:
+  /// **'Renew link'**
+  String get chatInviteLinkRenew;
+
+  /// No description provided for @chatInviteLinkRenewed.
+  ///
+  /// In en, this message translates to:
+  /// **'Renewed. The old link no longer works.'**
+  String get chatInviteLinkRenewed;
+
+  /// No description provided for @chatInviteLinkRenewNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Renewing stops the old link working. Nobody already in the group is affected.'**
+  String get chatInviteLinkRenewNote;
+
   /// No description provided for @chatInviteLinkNote.
   ///
   /// In en, this message translates to:
@@ -3054,6 +3072,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Delete messages'**
   String get groupBotsMayModerate;
+
+  /// No description provided for @groupBotsModerateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not possible in PRIVIO: only the author of a message can delete it for everyone. A bot holds no group key, so it cannot delete anybody else’s message.'**
+  String get groupBotsModerateUnavailable;
 
   /// No description provided for @groupBotsMayRestrict.
   ///

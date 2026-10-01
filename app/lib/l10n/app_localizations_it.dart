@@ -1605,6 +1605,17 @@ class AppTextIt extends AppText {
   String get chatInviteLink => 'Link di invito';
 
   @override
+  String get chatInviteLinkRenew => 'Rinnova il link';
+
+  @override
+  String get chatInviteLinkRenewed =>
+      'Rinnovato. Il link precedente non funziona più.';
+
+  @override
+  String get chatInviteLinkRenewNote =>
+      'Rinnovandolo, il link precedente smette di funzionare. Chi è già nel gruppo non viene toccato.';
+
+  @override
   String get chatInviteLinkNote =>
       'Condividilo ovunque: non porta nessuna chiave. Chi lo apre entra nel gruppo, e la chiave del suo nome arriva cifrata sul suo dispositivo.';
 
@@ -1800,6 +1811,10 @@ class AppTextIt extends AppText {
 
   @override
   String get groupBotsMayModerate => 'Eliminare messaggi';
+
+  @override
+  String get groupBotsModerateUnavailable =>
+      'Non è possibile in PRIVIO: solo l\'autore di un messaggio può eliminarlo per tutti. Un bot non ha la chiave del gruppo, quindi non può eliminare il messaggio di nessun altro.';
 
   @override
   String get groupBotsMayRestrict => 'Limitare i membri';

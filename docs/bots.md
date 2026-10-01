@@ -190,14 +190,47 @@ every route that acts on the bot's behalf now gets null from `groupRightsOf`.
 What it already received is a copy on somebody else's server, and no re-keying
 here reaches it — which the removal dialog says rather than implying otherwise.
 
-### What is still missing here
+### What each right actually does
 
-Bots cannot yet moderate, restrict or manage invites *through the API* — the
-rights exist, are stored, are enforced on every call and are shown in the UI,
-but the routes a bot would call to use them are not written. `may_send` is the
-one that is wired end to end. The others refuse rather than pretending, which
-is the correct failure direction, and they are the next piece of work rather
-than a finished feature.
+| Right | |
+| --- | --- |
+| **Send messages** | `POST /v1/bot/send` with a `groupId`. Checked on every send. |
+| **Restrict members** | `GET /v1/bot/group/members` and `POST /v1/bot/group/members/remove`. The member list is behind the *same* right as removing somebody, not readable for merely being present: a list of who is in a group is exactly what a bot should not get for being added to it. |
+| **Manage invites** | `POST /v1/bot/group/invite/rotate` — the same renewal an admin has. A moderation bot that notices a link being spammed can close that door immediately rather than at whatever hour an admin reads about it. |
+| **Delete messages** | **Refused.** See below. |
+
+Three rules a bot is held to that a human admin is not, because a bot is a
+program somebody else runs and a mistake or a compromise in it must not be able
+to empty a group:
+
+* it may not remove an **admin** — a bot that could would be a bot that can take
+  over a group by removing everybody able to switch it off;
+* it may not remove **itself**;
+* every call re-reads the right, so an admin who withdraws one breaks the bot's
+  *next* action rather than the one after it notices.
+
+No group key rotation on a removal, and that is not an oversight: a group's key
+seals the name and the description, the bot was never given it, and the messages
+are per-device Signal ciphertext. Removing a member changes who the *members'
+devices* will seal to next, which is their decision, made with the member list
+that route just changed.
+
+### Why a bot cannot delete other people's messages
+
+`may_moderate` is **refused** when an admin tries to grant it —
+`right_not_available` — rather than stored and left inert. A permission somebody
+agreed to that quietly does nothing is worse than no permission.
+
+A deletion in Privio is an encrypted protocol message to every member's devices,
+and the rule those devices enforce is that **only the author may delete for
+everyone**: a protocol that let anyone delete anyone's messages would be a way to
+erase a conversation you were losing. A bot holds no group key and no Signal
+session with the members, so it cannot send that message at all, and no
+server-side flag changes that. The switch is still shown in the app, disabled,
+with that sentence under it — leaving it out would leave an admin wondering.
+
+When a bot can be a cryptographic endpoint of its own (see *What it would take
+to do better* above), this is the check to revisit. Not before.
 
 ## Tokens
 

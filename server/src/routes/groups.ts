@@ -382,6 +382,31 @@ const groupRoutes = (bus: DeliveryBus): FastifyPluginAsync => async (app) => {
   });
 
   /**
+   * Renews the invite link.
+   *
+   * A group's code was permanent until now, which meant a link posted once was
+   * a way in forever: somebody who screenshotted it, or a member who left with
+   * it, kept a working door. Renewing closes that door without touching the
+   * members who came through it.
+   *
+   * Admins only, and no key rotation: the code is how somebody *asks* to join,
+   * not what lets them read anything. The group's name key travels device to
+   * device after a join, exactly as before — see migration 006.
+   */
+  app.post('/v1/groups/:id/invite/rotate', requireAuth, async (request) => {
+    const { accountId } = auth(request);
+    const params = parse(z.object({ id: uuidSchema }), request.params);
+    await requireMembership(params.id, accountId, true);
+
+    const { rows } = await pool.query<{ invite_code: string }>(
+      'UPDATE groups SET invite_code = $2 WHERE id = $1 RETURNING invite_code',
+      [params.id, randomBytes(9).toString('base64url')],
+    );
+    if (!rows[0]) throw ApiError.notFound('group_not_found', 'No such group');
+    return { inviteCode: rows[0].invite_code };
+  });
+
+  /**
    * Look a group up by its invite code.
    *
    * Answers with the sealed metadata and nothing else: the name of the group is

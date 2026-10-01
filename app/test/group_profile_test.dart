@@ -36,6 +36,7 @@ class FakeServer {
   String? avatarMediaId;
   String? encryptedDescription;
   String role = 'admin';
+  String inviteCode = 'code';
 
   /// Whatever the last upload was given, so a test can say which kind it went
   /// as without reading the query string itself.
@@ -79,7 +80,7 @@ class FakeServer {
               {
                 'id': 'g1',
                 'role': role,
-                'inviteCode': 'code',
+                'inviteCode': inviteCode,
                 'memberCount': 2,
                 'encryptedMetadata': null,
                 'encryptedDescription': encryptedDescription,
@@ -91,6 +92,13 @@ class FakeServer {
               },
             ],
           });
+        }
+        if (request.method == 'POST' && path == '/v1/groups/g1/invite/rotate') {
+          if (role != 'admin') {
+            return _json({'error': 'insufficient_permission', 'message': 'no'}, 403);
+          }
+          inviteCode = 'renewed-code';
+          return _json({'inviteCode': inviteCode});
         }
         if (request.method == 'GET' && path == '/v1/messages') {
           return _json({'envelopes': [], 'more': false});
@@ -336,6 +344,36 @@ void main() {
       expect(group?.name, 'Neue Wanderung');
       expect(group?.avatarMediaId, 'media-new');
       expect(group?.description, 'Planung');
+    });
+
+    test('renewing the invite link replaces the code and keeps the rest', () async {
+      // The code was permanent before this, so a link posted once was a way in
+      // forever. Renewing must not drop the picture, the description or the key
+      // — the same trap a rename fell into.
+      final (services, server, _) = await build();
+      final controller = ConversationController(services)..accountId = 'me';
+      await controller.setGroupAvatar('g1', picture());
+      await controller.describeGroup('g1', 'Planung');
+
+      final link = await controller.rotateGroupInvite('g1');
+
+      expect(link, contains('renewed-code'));
+      expect(server.calls, contains('POST /v1/groups/g1/invite/rotate'));
+      final group = controller.groupInfo('g1');
+      expect(group?.inviteCode, 'renewed-code');
+      expect(group?.avatarMediaId, 'media-new');
+      expect(group?.description, 'Planung');
+      expect(group?.groupKey, groupKey);
+      expect(controller.groupInviteLink('g1'), contains('renewed-code'));
+    });
+
+    test('a member is refused, and the link they hold is unchanged', () async {
+      final (services, _, _) = await build(role: 'member');
+      final controller = ConversationController(services)..accountId = 'me';
+
+      expect(await controller.rotateGroupInvite('g1'), isNull);
+      expect(controller.failure?.kind, FailureKind.insufficientPermission);
+      expect(controller.groupInfo('g1')?.inviteCode, isNull);
     });
 
     test('and the chat list draws the picture once it is loaded', () async {

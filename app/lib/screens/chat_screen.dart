@@ -1194,7 +1194,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// and a member's device sends them the key to the group's name afterwards.
   Future<void> _shareGroupLink(AppState state) async {
     final text = AppText.of(context);
-    final link = state.conversations.groupInviteLink(widget.accountId);
+    var link = state.conversations.groupInviteLink(widget.accountId);
+    // Renewing is an admin's decision, like every other change to who can get
+    // in. A member sees the link and no button, rather than a button the server
+    // would refuse.
+    final isAdmin = state.conversations.groupInfo(widget.accountId)?.role == 'admin';
     if (link == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(text.chatNoGroupLink)),
@@ -1203,34 +1207,59 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: PrivioColors.surfaceRaised,
-        title: Text(text.chatInviteLink),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SelectableText(link, style: Theme.of(dialogContext).textTheme.bodySmall),
-            const SizedBox(height: PrivioSpacing.md),
-            Text(
-              text.chatInviteLinkNote,
-              style: Theme.of(dialogContext).textTheme.bodySmall,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final shown = link!;
+          return AlertDialog(
+            backgroundColor: PrivioColors.surfaceRaised,
+            title: Text(text.chatInviteLink),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(shown, style: Theme.of(dialogContext).textTheme.bodySmall),
+                const SizedBox(height: PrivioSpacing.md),
+                Text(
+                  text.chatInviteLinkNote,
+                  style: Theme.of(dialogContext).textTheme.bodySmall,
+                ),
+                if (isAdmin) ...[
+                  const SizedBox(height: PrivioSpacing.md),
+                  Text(
+                    text.chatInviteLinkRenewNote,
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final renewed =
+                          await state.conversations.rotateGroupInvite(widget.accountId);
+                      if (renewed == null || !dialogContext.mounted) return;
+                      link = renewed;
+                      setDialogState(() {});
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        SnackBar(content: Text(text.chatInviteLinkRenewed)),
+                      );
+                    },
+                    child: Text(text.chatInviteLinkRenew),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(text.commonClose),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: link));
-              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-            },
-            child: Text(text.commonCopy),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(text.commonClose),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: shown));
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                },
+                child: Text(text.commonCopy),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

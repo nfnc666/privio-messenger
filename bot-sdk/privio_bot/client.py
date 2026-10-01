@@ -212,6 +212,42 @@ class Bot:
             buttons=buttons,
         )
 
+    # -- in a group, when an admin has granted the right ------------------
+
+    def group_members(self, group_id: str) -> list[dict[str, Any]]:
+        """Who is in a group this bot is in. Needs *Restrict members*.
+
+        Behind the same right as removing somebody, not readable for merely
+        being present: a list of who is in a group is exactly what a bot should
+        not get for being added to it. Each entry carries ``removable``, so
+        there is no need to find out by being refused.
+        """
+        raw = self._request("GET", f"/v1/bot/group/members?groupId={group_id}")
+        return list(raw.get("members", []))
+
+    def remove_member(self, group_id: str, account_id: str) -> bool:
+        """Removes a member. Needs *Restrict members*.
+
+        Refused for an **admin**, and for the bot itself. A bot that could
+        remove admins would be a bot that can take over a group by removing
+        everybody able to switch it off.
+        """
+        return bool(self._request(
+            "POST",
+            "/v1/bot/group/members/remove",
+            {"groupId": group_id, "accountId": account_id},
+        )["removed"])
+
+    def rotate_invite(self, group_id: str) -> str:
+        """Renews the group's invite link and returns the new code.
+
+        Needs *Manage invites*. The old link stops working; nobody already in
+        the group is affected.
+        """
+        return str(self._request(
+            "POST", "/v1/bot/group/invite/rotate", {"groupId": group_id},
+        )["inviteCode"])
+
     def set_commands(self, commands: list[tuple[str, str]]) -> None:
         """Publishes the command menu people see in the app."""
         self._request(

@@ -1588,6 +1588,16 @@ class AppTextEn extends AppText {
   String get chatInviteLink => 'Invite link';
 
   @override
+  String get chatInviteLinkRenew => 'Renew link';
+
+  @override
+  String get chatInviteLinkRenewed => 'Renewed. The old link no longer works.';
+
+  @override
+  String get chatInviteLinkRenewNote =>
+      'Renewing stops the old link working. Nobody already in the group is affected.';
+
+  @override
   String get chatInviteLinkNote =>
       'Share it anywhere — it carries no key. Whoever opens it joins the group, and the key to its name reaches their device encrypted.';
 
@@ -1778,6 +1788,10 @@ class AppTextEn extends AppText {
 
   @override
   String get groupBotsMayModerate => 'Delete messages';
+
+  @override
+  String get groupBotsModerateUnavailable =>
+      'Not possible in PRIVIO: only the author of a message can delete it for everyone. A bot holds no group key, so it cannot delete anybody else’s message.';
 
   @override
   String get groupBotsMayRestrict => 'Restrict members';

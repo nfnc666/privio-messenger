@@ -128,6 +128,9 @@ poll for updates. Both directions are tested.
 | `PATCH /v1/bot/me` | publishes the command menu: `{commands: [{command, description}]}` |
 | `GET /v1/bot/updates?timeout=25&limit=100` | long poll; answers the moment anything arrives, or empty at the deadline |
 | `POST /v1/bot/send` | `{to, text, groupId?, buttons?}` → `{messageId}` |
+| `GET /v1/bot/group/members?groupId=` | who is in a group. Needs *Restrict members* |
+| `POST /v1/bot/group/members/remove` | `{groupId, accountId}`. Needs *Restrict members* |
+| `POST /v1/bot/group/invite/rotate` | `{groupId}` → `{inviteCode}`. Needs *Manage invites* |
 | `PUT /v1/bot/webhook` | `{url}` → `{url, secret, note}`; the secret is shown once |
 | `GET /v1/bot/webhook` | status: URL, failures, last attempt, last error. Never the secret |
 | `DELETE /v1/bot/webhook` | back to polling |
@@ -181,6 +184,33 @@ added: an admin who takes a right away breaks the next send, not the one after
 the bot happens to notice.
 
 ---
+
+## 3a. Moderating a group
+
+Three routes, each behind a right an admin grants separately in the group's bot
+screen. Nothing here works by being in the group; every call re-reads the right.
+
+```python
+for member in bot.group_members(group_id):          # needs Restrict members
+    if member["removable"] and is_spammer(member["username"]):
+        bot.remove_member(group_id, member["accountId"])
+
+new_code = bot.rotate_invite(group_id)              # needs Manage invites
+```
+
+| Refusal | Meaning |
+| --- | --- |
+| `403 not_in_group` | the bot is not a member of that group |
+| `403 missing_right` | it is a member, but without that right |
+| `403 cannot_remove_admin` | the target is an admin. Ask an admin to do it |
+| `403 not_itself` | a bot cannot remove itself from a group |
+| `404 member_not_found` | not a member — a wrong id is not a silent success |
+
+`removable` is on every member entry so a bot does not have to find out by being
+refused. Admins are never removable by a bot, and neither is the bot itself.
+
+**Deleting other people's messages is not available at all** — not as a route
+and not as a right. See §9.
 
 ## 4. Long polling
 
@@ -441,6 +471,20 @@ answer for a previous account dropped rather than drawn. Falsified the same way:
 drawing the composer before the start (2 red), offering a pressed button again
 (1), skipping the disclosure (1).
 
+`server/test/bot_moderation.test.ts`, 15 tests: a bot without the right can
+neither remove anybody nor *read the member list*, nor renew the link; with
+*Restrict members* it reads the members and is told which are removable, removes
+an ordinary member, has their stale key request cleared, is refused on an admin,
+on itself and on a non-member, cannot reach into a group it is not in, and loses
+the ability the moment the right is withdrawn; with *Manage invites* it renews
+the link, the old code stops opening the group, nobody already in it is affected,
+and the human route behind it is admin-only. `may_moderate` is refused as a
+right, and withdrawing it still works.
+
+Falsified by breaking three guards one at a time: letting a bot remove an admin,
+dropping the per-call right check, and storing `may_moderate` instead of
+refusing it.
+
 The Python side was run, not just written:
 
 * `examples/webhook_receiver.py` was started for real and sent five deliveries —
@@ -477,9 +521,11 @@ Stated here rather than discovered:
   API yet; those message types exist in Privio but the bot routes do not carry
   them.
 * **Channels.** A bot cannot post to a channel yet.
-* **Moderation.** `may_moderate`, `may_restrict_members` and `may_manage_invites`
-  are stored per group and enforced, but no route uses them, so a bot holding
-  them still cannot act. They refuse rather than pretending.
+* **Deleting other people's messages.** Not possible, and `may_moderate` is now
+  refused as a right rather than stored and left inert. A deletion is an
+  encrypted protocol message to every member's devices and only the author may
+  send it — see [bots.md](bots.md#why-a-bot-cannot-delete-other-peoples-messages).
+  *Restrict members* and *Manage invites* are wired end to end (§3a).
 * **Membership events.** A bot is not told when it is added to or removed from a
   group; it finds out by receiving, or not receiving, messages.
 * **End-to-end encrypted bots.** A bot as its own cryptographic endpoint, with

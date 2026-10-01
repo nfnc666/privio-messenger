@@ -866,6 +866,13 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> rotateInvite(String channelId) =>
       _send('POST', '/v1/channels/$channelId/invite/rotate');
 
+  /// Renews a group's invite link. Admins only.
+  ///
+  /// The old link stops working and nobody already in the group is affected:
+  /// the code is how somebody *asks* to join, not what lets them read anything.
+  Future<Map<String, dynamic>> rotateGroupInvite(String groupId) =>
+      _send('POST', '/v1/groups/$groupId/invite/rotate');
+
   /// Who is waiting at the door. Admins only; the server refuses the rest.
   Future<Map<String, dynamic>> joinRequests(String channelId) =>
       _send('GET', '/v1/channels/$channelId/join-requests');

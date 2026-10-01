@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { pool, withTransaction } from '../db/pool.js';
 import { auth } from '../plugins/auth.js';
@@ -8,6 +9,7 @@ import * as assistant from '../services/botcreator.js';
 import { cleanDisplayName, isTooLong } from '../services/display_name.js';
 import { ApiError } from '../util/errors.js';
 import { requireGroupMembership } from '../services/group_membership.js';
+import { clearKeyRequestsFor } from '../services/key_requests.js';
 import { assertResolvesPublicly, parsePushEndpoint } from '../util/outbound.js';
 import { parse, usernameSchema, uuidSchema } from '../util/validate.js';
 import { rateLimitFactor } from '../config.js';
@@ -361,6 +363,152 @@ const botRoutes: FastifyPluginAsync = async (app) => {
       ],
     );
     return { messageId: Number(rows[0]!.id) };
+  });
+
+  // --- What a bot may do in a group, when an admin has granted it -----------
+
+  /**
+   * The right, checked on this call.
+   *
+   * Never remembered from when the bot was added and never taken from the
+   * request: an admin who withdraws a right breaks the bot's *next* action, not
+   * the one after it notices. Null membership and no rights are different
+   * answers, and the caller is told which.
+   */
+  async function requireGroupRight(
+    botId: string,
+    groupId: string,
+    right: keyof bots.BotGroupRights,
+  ) {
+    const rights = await bots.groupRightsOf(botId, groupId);
+    if (rights === null) {
+      throw ApiError.forbidden('not_in_group', 'This bot is not a member of that group.');
+    }
+    if (!rights[right]) {
+      throw ApiError.forbidden(
+        'missing_right',
+        'This bot does not have that permission in that group.',
+      );
+    }
+    return rights;
+  }
+
+  /**
+   * Removes a member, with **may_restrict_members**.
+   *
+   * Three rules a human admin is not held to, because a bot is a program
+   * somebody else runs and a mistake or a compromise in it must not be able to
+   * empty a group:
+   *
+   * * it may not remove an **admin** — a bot that could would be a bot that can
+   *   take over a group by removing everybody who could switch it off;
+   * * it may not remove **itself**, which is an admin's decision about the
+   *   group rather than the bot's about itself;
+   * * the promote-the-longest-standing-member rescue that a human removal does
+   *   is not needed here, because an admin can never be the one removed.
+   *
+   * No group key rotation, and that is not an oversight: a group's key seals
+   * the name and the description, the bot was never given it, and the messages
+   * are per-device Signal ciphertext. Removing a member changes who the
+   * *members' devices* will seal to next — which is their decision, made with
+   * the member list this route just changed.
+   */
+  app.post('/v1/bot/group/members/remove', async (request) => {
+    const bot = await requireBot(request);
+    const body = parse(
+      z.object({ groupId: uuidSchema, accountId: uuidSchema }),
+      request.body,
+    );
+    await requireGroupRight(bot.account_id, body.groupId, 'mayRestrictMembers');
+
+    if (body.accountId === bot.account_id) {
+      throw ApiError.forbidden('not_itself', 'A bot cannot remove itself from a group.');
+    }
+
+    const removed = await withTransaction(async (client) => {
+      // Locked, so the role cannot change between the check and the delete: a
+      // member who is promoted to admin in that gap must not still be removed.
+      const { rows } = await client.query<{ role: string }>(
+        'SELECT role FROM group_members WHERE group_id = $1 AND account_id = $2 FOR UPDATE',
+        [body.groupId, body.accountId],
+      );
+      const member = rows[0];
+      if (!member) {
+        throw ApiError.notFound('member_not_found', 'Not a member of this group');
+      }
+      if (member.role === 'admin') {
+        throw ApiError.forbidden(
+          'cannot_remove_admin',
+          'A bot cannot remove an admin. Ask an admin to do it.',
+        );
+      }
+      await client.query(
+        'DELETE FROM group_members WHERE group_id = $1 AND account_id = $2',
+        [body.groupId, body.accountId],
+      );
+      return true;
+    });
+
+    // After the commit: a key request left behind is a request nobody should
+    // answer, and clearing it inside the transaction would undo on a rollback.
+    await clearKeyRequestsFor('group', body.groupId, body.accountId);
+    return { removed };
+  });
+
+  /**
+   * Renews the group's invite link, with **may_manage_invites**.
+   *
+   * The same operation an admin has, which is what makes this right worth
+   * granting: a moderation bot that notices a link being spammed can close that
+   * door immediately rather than at whatever hour an admin reads about it.
+   *
+   * It does not return the old code, and the new one goes only to the bot that
+   * asked. Nothing about the members is disclosed.
+   */
+  app.post('/v1/bot/group/invite/rotate', async (request) => {
+    const bot = await requireBot(request);
+    const body = parse(z.object({ groupId: uuidSchema }), request.body);
+    await requireGroupRight(bot.account_id, body.groupId, 'mayManageInvites');
+
+    const { rows } = await pool.query<{ invite_code: string }>(
+      'UPDATE groups SET invite_code = $2 WHERE id = $1 RETURNING invite_code',
+      [body.groupId, randomBytes(9).toString('base64url')],
+    );
+    if (!rows[0]) throw ApiError.notFound('group_not_found', 'No such group');
+    return { inviteCode: rows[0].invite_code };
+  });
+
+  /** The members of a group this bot is in, with **may_restrict_members**. */
+  app.get('/v1/bot/group/members', async (request) => {
+    const bot = await requireBot(request);
+    const query = parse(z.object({ groupId: uuidSchema }), request.query);
+    // Behind the same right as removing one, not readable by any bot in the
+    // group: a list of who is in a group is exactly the thing a bot should not
+    // get for being present. A bot that may act on members may read them.
+    await requireGroupRight(bot.account_id, query.groupId, 'mayRestrictMembers');
+
+    const { rows } = await pool.query<{
+      id: string;
+      username: string;
+      display_name: string | null;
+      role: string;
+    }>(
+      `SELECT a.id, a.username, a.display_name, m.role
+         FROM group_members m JOIN accounts a ON a.id = m.account_id
+        WHERE m.group_id = $1 AND a.deleted_at IS NULL
+        ORDER BY m.added_at ASC`,
+      [query.groupId],
+    );
+    return {
+      members: rows.map((row) => ({
+        accountId: row.id,
+        username: row.username,
+        displayName: row.display_name,
+        role: row.role,
+        // So a bot does not have to find out by being refused.
+        removable: row.role !== 'admin' && row.id !== bot.account_id,
+      })),
+    };
   });
 
   // --- Writing to a bot, and reading what it said back ----------------------
@@ -800,6 +948,32 @@ const botRoutes: FastifyPluginAsync = async (app) => {
       request.body,
     );
     await requireGroupMembership(params.id, accountId, true);
+
+    /*
+     * Deleting other people's messages is not a right this server can grant,
+     * and granting it anyway would be the worst kind of permission: one an
+     * admin has agreed to and that quietly does nothing.
+     *
+     * A deletion in Privio is an encrypted protocol message to every member's
+     * devices, and the rule the devices enforce is that **only the author may
+     * delete for everyone** — a protocol that let anyone delete anyone's
+     * messages would be a way to erase a conversation you were losing. A bot
+     * holds no group key and no Signal session with the members, so it cannot
+     * send that message at all, and no server-side flag changes that.
+     *
+     * So the right is refused here rather than stored. Withdrawing it stays
+     * allowed, because a group that was granted it before this check existed
+     * has to be able to tidy up. When a bot can be a cryptographic endpoint of
+     * its own — `docs/bots.md`, "What it would take to do better" — this is the
+     * check to revisit, and not before.
+     */
+    if (body.mayModerate === true) {
+      throw ApiError.badRequest(
+        'right_not_available',
+        'Deleting other people\'s messages is not something a bot can do in Privio. '
+          + 'Only the author of a message can delete it for everyone.',
+      );
+    }
 
     // Each column named on its own, and only the ones the caller sent. There
     // is deliberately no "grant everything" shape: a bot ends up with every

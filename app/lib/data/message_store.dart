@@ -434,6 +434,12 @@ class InMemoryMessageStore implements MessageStore {
       memberIds: group.memberIds.isEmpty ? null : group.memberIds,
       memberCount: group.memberCount,
       role: group.role,
+      // Was missing, and the gap was invisible until a code could change: the
+      // first listing set it when the conversation was created, and every
+      // update after that dropped whatever arrived. `merge` only overwrites
+      // with a non-null value, so a listing that carries no code still leaves
+      // the one this device holds alone.
+      inviteCode: group.inviteCode,
       avatarMediaId: group.avatarMediaId,
       avatarUpdatedAt: group.avatarUpdatedAt,
       // Only a whole answer may take something away. A description opened

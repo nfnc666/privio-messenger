@@ -255,12 +255,16 @@ class _GroupBotsScreenState extends State<GroupBotsScreen> {
                             onChanged: (v) =>
                                 unawaited(_setRight(state, bot, 'maySend', v)),
                           ),
+                          // Shown, and shown as impossible. Leaving it out would
+                          // leave an admin wondering whether a bot can delete
+                          // messages; a working switch would be worse, because
+                          // the server refuses it and nothing would happen.
                           _Right(
                             label: text.groupBotsMayModerate,
                             value: bot.mayModerate,
-                            enabled: widget.isAdmin && !_busy,
-                            onChanged: (v) =>
-                                unawaited(_setRight(state, bot, 'mayModerate', v)),
+                            enabled: false,
+                            note: text.groupBotsModerateUnavailable,
+                            onChanged: (_) {},
                           ),
                           _Right(
                             label: text.groupBotsMayRestrict,
@@ -329,6 +333,7 @@ class _Right extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.onChanged,
+    this.note,
   });
 
   final String label;
@@ -336,15 +341,37 @@ class _Right extends StatelessWidget {
   final bool enabled;
   final ValueChanged<bool> onChanged;
 
+  /// Why this one cannot be switched on, when it cannot. Under the row rather
+  /// than in a dialog: it is the answer to the question the row raises.
+  final String? note;
+
   @override
-  Widget build(BuildContext context) => SettingsRow(
-        label: label,
-        enabled: enabled,
-        trailing: Switch.adaptive(
-          value: value,
-          onChanged: enabled ? onChanged : null,
+  Widget build(BuildContext context) {
+    final row = SettingsRow(
+      label: label,
+      enabled: enabled,
+      trailing: Switch.adaptive(
+        value: value,
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+    final why = note;
+    if (why == null) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsets.only(
+            left: PrivioSpacing.gutter,
+            right: PrivioSpacing.gutter,
+            bottom: PrivioSpacing.sm,
+          ),
+          child: Text(why, style: Theme.of(context).textTheme.bodySmall),
         ),
-      );
+      ],
+    );
+  }
 }
 
 /// What a bot in this group will be able to read, before it is added.

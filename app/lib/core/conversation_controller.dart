@@ -1173,6 +1173,42 @@ class ConversationController extends ChangeNotifier {
   /// The name is sealed with the group's key, so this changes a blob the server
   /// cannot read. It needs the key: a device that joined by a link and has not
   /// been sent the key yet cannot rename what it cannot name.
+  /// Renews the group's invite link, and returns the new one.
+  ///
+  /// A group's code was permanent until now, so a link posted once was a way in
+  /// forever — somebody who screenshotted it, or a member who left with it,
+  /// kept a working door. Renewing closes that door without touching anybody
+  /// who already came through it.
+  Future<String?> rotateGroupInvite(String groupId) async {
+    final group = groupInfo(groupId);
+    if (group == null) {
+      _failure = const Failure(FailureKind.groupNotFound);
+      notifyListeners();
+      return null;
+    }
+    final String code;
+    try {
+      final json = await _services.api.rotateGroupInvite(groupId);
+      code = json['inviteCode'] as String;
+    } on ApiException catch (failure) {
+      _failure = failure.statusCode == 403
+          ? const Failure(FailureKind.insufficientPermission)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return null;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return null;
+    }
+    // Merged, not rebuilt: the picture, the description and the key all live on
+    // this object too.
+    _services.store.upsertGroup(group.merge(inviteCode: code));
+    _persist();
+    notifyListeners();
+    return ChannelService.linkForGroup(code);
+  }
+
   Future<bool> renameGroup(String groupId, String name) async {
     final group = groupInfo(groupId);
     final key = group?.groupKey;
