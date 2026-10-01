@@ -4459,6 +4459,13 @@ class AppTextEs extends AppText {
   String get botChatEmpty => 'Nada todavía. Saluda o elige un comando.';
 
   @override
+  String get botChatFileGone => 'Este archivo ya no está en el servidor.';
+
+  @override
+  String get botChatImageBroken =>
+      'No se pudo mostrar esta imagen. Ábrela como archivo.';
+
+  @override
   String get botChatButtonPressed => 'Pulsado';
 
   @override

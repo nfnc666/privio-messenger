@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
@@ -8,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/photo_viewer.dart';
 import '../widgets/privio_back_button.dart';
 import 'bots_screen.dart';
 
@@ -341,7 +344,13 @@ class _Bubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(message.text),
+            if (message.hasMedia) ...[
+              _Media(message: message),
+              const SizedBox(height: PrivioSpacing.xs),
+            ],
+            // A picture with no caption arrives with a single space, so an
+            // empty-looking line is not drawn under it.
+            if (message.text.trim().isNotEmpty) Text(message.text),
             for (final button in message.buttons) ...[
               const SizedBox(height: PrivioSpacing.xs),
               SizedBox(
@@ -363,6 +372,124 @@ class _Bubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A picture or a file a bot sent.
+///
+/// The bytes are fetched once and kept in memory by the controller. A declared
+/// image that does not decode falls back to the file row rather than showing a
+/// broken frame: the kind came from the bot, and the bot can be wrong.
+class _Media extends StatelessWidget {
+  const _Media({required this.message});
+
+  final BotMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final controller = PrivioScope.of(context).botChat;
+    final mediaId = message.mediaId;
+    if (mediaId == null) {
+      // The blob expired and the sweeper took it. The message stays, which is
+      // the honest thing to draw.
+      return _FileRow(message: message, note: text.botChatFileGone);
+    }
+
+    return FutureBuilder<Uint8List?>(
+      future: controller.mediaBytes(mediaId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _FileRow(message: message, busy: true);
+        }
+        final bytes = snapshot.data;
+        if (bytes == null) return _FileRow(message: message, note: text.botChatFileGone);
+        if (!message.isImage) {
+          return InkWell(
+            onTap: () => PhotoViewer.open(context, bytes: bytes, name: message.fileName),
+            child: _FileRow(message: message),
+          );
+        }
+        return ClipRRect(
+          borderRadius: const BorderRadius.all(PrivioRadius.bubble),
+          child: GestureDetector(
+            onTap: () => PhotoViewer.open(context, bytes: bytes, name: message.fileName),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  _FileRow(message: message, note: text.botChatImageBroken),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A file, as a row with its name and size.
+class _FileRow extends StatelessWidget {
+  const _FileRow({required this.message, this.note, this.busy = false});
+
+  final BotMessage message;
+  final String? note;
+  final bool busy;
+
+  String _size() {
+    final bytes = message.byteSize;
+    if (bytes == null) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final failed = note != null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: PrivioColors.surfaceHigh,
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+          child: busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  failed ? Icons.error_outline_rounded : Icons.insert_drive_file_outlined,
+                  size: 20,
+                  color: failed ? PrivioColors.danger : PrivioColors.textSecondary,
+                ),
+        ),
+        const SizedBox(width: PrivioSpacing.sm),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message.fileName ?? _size(),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                note ?? _size(),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: failed ? PrivioColors.danger : null,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

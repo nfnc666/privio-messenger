@@ -35,6 +35,15 @@ export const BOT_LIMITS = {
   sendsPerMinute: 30,
   /** The longest a `getUpdates` call will wait before answering empty. */
   maxPollSeconds: 30,
+  /**
+   * The largest picture or file a bot may upload, in bytes.
+   *
+   * Much smaller than `MAX_MEDIA_BYTES`, which a person's own attachment is
+   * measured against. A bot sends to many people at once and nobody is
+   * watching it pick a file, so the thing to bound is not the disk — the quota
+   * does that — but one unattended loop posting a hundred megabytes at a time.
+   */
+  maxAttachmentBytes: 8 * 1024 * 1024,
 } as const;
 
 /**

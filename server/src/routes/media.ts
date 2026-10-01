@@ -155,6 +155,23 @@ async function mayDownload(
     return rows.length > 0;
   }
 
+  // A picture or a file a bot sent, which is not sealed — see migration 040.
+  //
+  // Exactly one more account than the uploader: the one a `bot_messages` row
+  // addressed it to. Not anybody who knows the id, not the rest of a group the
+  // bot answered in, and not somebody the bot never sent it to. The id is not
+  // the capability here, the row is, which is why this is a lookup rather than
+  // a token: a bot hands the id to the server, not to a person.
+  if (object.kind === 'bot_attachment') {
+    const { rowCount } = await pool.query(
+      `SELECT 1 FROM bot_messages
+        WHERE media_id = $1 AND account_id = $2 AND author = 'bot'
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return Boolean(rowCount);
+  }
+
   if (object.kind === 'avatar') {
     const { rows } = await pool.query(
       'SELECT 1 FROM contacts WHERE account_id = $1 AND contact_account_id = $2',

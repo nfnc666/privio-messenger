@@ -55,7 +55,7 @@ so.
 | Be stopped | **Yes.** Stopping withdraws the licence to reply *and* stops delivery, including anything that was already queued. Writing to it again starts it over. |
 | Be blocked | **Yes.** Blocking removes the licence to reply; the bot is refused again. |
 | Send rate | 30 messages a minute, per bot, across every conversation. |
-| Message types | Text, and up to eight buttons per message. Not images, files or polls yet. |
+| Message types | Text, up to eight buttons per message, and pictures and files up to 8 MB. Not polls yet, and a person can only send a bot **text**. |
 | Groups and channels | Only explicit commands, mentions and replies are delivered — not the whole conversation. Adding a bot needs the matching admin right. |
 
 The "may not open a conversation" rule is enforced in one place,
@@ -84,6 +84,24 @@ drain afterwards would be a stop the operator still hears through. Writing to a
 stopped bot starts it again, which is the right way round: somebody typing to a
 bot has decided to talk to it. Blocking is the stronger thing and goes through
 the account block list, which no message can undo.
+
+### Pictures and files
+
+A bot uploads the bytes, then sends a message pointing at them. **The bytes are
+not encrypted** — everything on the bot path is plaintext this server can read,
+and a file is no different; sealing it to look like the rest of Privio while the
+bot holds the key would be the dishonest option. Migration 040 says so where the
+column is defined.
+
+What *is* narrow is who may fetch it. The id is not the capability: the rule in
+`mayDownload` is a `bot_messages` row saying this bot sent this object to this
+account. So an upload nobody has been sent is the bot's own, a stranger holding
+the id gets a 404, and so does the bot's owner — they are a person like any
+other here.
+
+When the blob ages out, the message stays in the conversation as a message whose
+file is gone. That is deliberate: hiding the message would hide that the bot
+sent something.
 
 ### Buttons
 

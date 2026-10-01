@@ -127,7 +127,8 @@ poll for updates. Both directions are tested.
 | `GET /v1/bot/me` | who this token belongs to, and its command list |
 | `PATCH /v1/bot/me` | publishes the command menu: `{commands: [{command, description}]}` |
 | `GET /v1/bot/updates?timeout=25&limit=100` | long poll; answers the moment anything arrives, or empty at the deadline |
-| `POST /v1/bot/send` | `{to, text, groupId?, buttons?}` → `{messageId}` |
+| `POST /v1/bot/send` | `{to, text, groupId?, buttons?, mediaId?, mediaKind?, fileName?}` → `{messageId}` |
+| `POST /v1/bot/media?kind=&name=` | raw bytes → `{mediaId, byteSize, …}` |
 | `GET /v1/bot/group/members?groupId=` | who is in a group. Needs *Restrict members* |
 | `POST /v1/bot/group/members/remove` | `{groupId, accountId}`. Needs *Restrict members* |
 | `POST /v1/bot/group/invite/rotate` | `{groupId}` → `{inviteCode}`. Needs *Manage invites* |
@@ -368,6 +369,41 @@ What a button is not: a channel back to the bot that bypasses anything. It is
 delivered through the same `bot_messages` row and the same take-once delivery as
 a typed message, in the order it happened.
 
+## 5b. Pictures and files
+
+Two steps: the bytes go up on their own, then a send points at the object. A
+single multipart route would mean holding a file in memory before deciding
+whether the bot may write to that person at all.
+
+```python
+bot.send_photo(update.account_id, png_bytes, caption="A red dot", name="dot.png")
+bot.send_document(update.account_id, csv_bytes, "report.csv", caption="This month")
+```
+
+| | |
+| --- | --- |
+| Largest file | **8 MB.** Much smaller than a person's own attachment: a bot sends to many people at once and nobody is watching it pick a file. The library refuses a bigger one with `attachment_too_large` before uploading, because the server's body limit closes the connection and an author would otherwise see a bare transport error |
+| Quota | Counted against the **bot's own account**, like anybody else's upload. `media_quota_exceeded` when it is full; older files free space as they expire |
+| Retention | The ordinary media window (`MEDIA_TTL_DAYS`). After that the blob is swept and the message stays in the conversation as a message whose file is gone |
+| `kind` | `image` draws it in the chat, `file` draws a row with the name and size. A hint, not a promise — the app falls back to a file row when a declared image does not decode |
+| `name` | What the person sees and saves it as. Anything that could be read as a path is **refused**, not cleaned up: a cleaned-up path is one somebody has to be sure got cleaned |
+
+### Who can fetch it, and the part to be honest about
+
+**The bytes are not encrypted.** Everything on the bot path is plaintext this
+server can read, and a file is no different — sealing it to look like the rest
+of Privio while the bot holds the key would be the dishonest option.
+
+What is narrow is who may fetch it. **The id is not the capability**: a bot
+attachment is downloadable by exactly one account more than the uploader — the
+one a `bot_messages` row addressed it to. Tested: before a message points at it
+nobody can fetch it; afterwards the recipient can; a stranger cannot; **the
+bot's owner cannot**, because they are a person like any other here.
+
+A bot naming an upload that is not its own is refused (`media_not_found`), which
+is what stops an id from becoming a way to hand a stranger's file to a third
+person.
+
 ## 6. Idempotency, rate limits, and keeping the token out of things
 
 **Idempotency.** `POST /v1/bots/:id/messages` — the route the *app* uses to
@@ -485,6 +521,30 @@ Falsified by breaking three guards one at a time: letting a bot remove an admin,
 dropping the per-call right check, and storing `may_moderate` instead of
 refusing it.
 
+`server/test/bot_attachments.test.ts`, 14 tests: an upload answering with an id
+and **no** download token, an empty body refused, three path-like names refused,
+a session unable to upload and a bot token unable to use the human media route,
+then the download rule from every side — nobody before a message points at the
+object, the recipient afterwards, not a stranger, not the bot's owner, not
+without signing in. Plus: an id that is not this bot's upload refused, an id
+that does not exist refused, the conversation carrying kind, name and size, a
+message without a file answering with nulls rather than absent keys, a kind
+with no object not stored, and a swept blob leaving the message in place.
+
+Falsified by breaking the two guards: letting anybody with the id fetch a bot
+attachment (2 red), and letting a bot send somebody else's upload (5 red).
+
+One design flaw was caught by a test rather than by a reviewer: the first
+version of migration 040 required `media_id` and `media_kind` to be null or set
+together, which made `ON DELETE SET NULL` violate the constraint — the retention
+sweeper could never have deleted a bot attachment, and the bytes would have
+stayed forever. The constraint now keeps only the half that survives expiry, and
+the leftover kind is what tells the app to say the file is gone.
+
+On the app's side, three widget tests in `app/test/bot_chat_screen_test.dart`: a
+file row with its name and size, a swept file saying so with the message still
+there, and bytes that are not an image falling back to a file row.
+
 The Python side was run, not just written:
 
 * `examples/webhook_receiver.py` was started for real and sent five deliveries —
@@ -496,6 +556,12 @@ The Python side was run, not just written:
   before contact (`not_contacted`), a person writing, a poll returning the
   update with its parsed command, a reply, an empty second poll, and a
   deduplicated retry.
+* `send_photo` and `send_document` were driven against a live server with a
+  real PNG built in the probe and a text file: refused before the bot was
+  started (`not_contacted`), then sent, listed in the conversation with the
+  right kind, name and size, and fetched back **byte-identical** by the
+  recipient — while a stranger and the bot's own owner both got a 404. A
+  nine-megabyte upload was refused.
 * `examples/greeter.py` itself was run against a live server, not simulated: it
   published its command menu on start-up, answered `/start`, offered two buttons
   on `/menu`, received the press and answered it, answered a second press with
@@ -517,9 +583,9 @@ it.
 
 Stated here rather than discovered:
 
-* **Message types.** Text and buttons. No images, files or polls over the bot
-  API yet; those message types exist in Privio but the bot routes do not carry
-  them.
+* **Message types.** Text, buttons, pictures and files. **Polls** are not
+  carried by the bot routes yet. Nor is the other direction: a *person* cannot
+  send a bot a picture or a file — only text, and a bot receives only text.
 * **Channels.** A bot cannot post to a channel yet.
 * **Deleting other people's messages.** Not possible, and `may_moderate` is now
   refused as a right rather than stored and left inert. A deletion is an

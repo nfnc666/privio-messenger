@@ -4470,6 +4470,13 @@ class AppTextDe extends AppText {
   String get botChatEmpty => 'Noch nichts. Sag Hallo, oder wähle einen Befehl.';
 
   @override
+  String get botChatFileGone => 'Diese Datei liegt nicht mehr auf dem Server.';
+
+  @override
+  String get botChatImageBroken =>
+      'Dieses Bild konnte nicht angezeigt werden. Öffne es als Datei.';
+
+  @override
   String get botChatButtonPressed => 'Gedrückt';
 
   @override

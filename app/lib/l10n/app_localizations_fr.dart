@@ -4469,6 +4469,13 @@ class AppTextFr extends AppText {
       'Rien pour l\'instant. Dites bonjour ou choisissez une commande.';
 
   @override
+  String get botChatFileGone => 'Ce fichier n\'est plus sur le serveur.';
+
+  @override
+  String get botChatImageBroken =>
+      'Cette image n\'a pas pu être affichée. Ouvrez-la comme fichier.';
+
+  @override
   String get botChatButtonPressed => 'Appuyé';
 
   @override

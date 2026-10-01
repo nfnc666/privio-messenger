@@ -7585,6 +7585,18 @@ abstract class AppText {
   /// **'Nothing yet. Say hello, or pick a command.'**
   String get botChatEmpty;
 
+  /// No description provided for @botChatFileGone.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is no longer on the server.'**
+  String get botChatFileGone;
+
+  /// No description provided for @botChatImageBroken.
+  ///
+  /// In en, this message translates to:
+  /// **'This picture could not be shown. Open it as a file.'**
+  String get botChatImageBroken;
+
   /// No description provided for @botChatButtonPressed.
   ///
   /// In en, this message translates to:

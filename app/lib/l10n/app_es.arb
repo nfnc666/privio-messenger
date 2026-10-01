@@ -1247,6 +1247,8 @@
   "botChatNoDescription": "Este bot no tiene descripción.",
   "botChatOperator": "Una cuenta automatizada. Quien la gestiona puede leer lo que le envíes.",
   "botChatEmpty": "Nada todavía. Saluda o elige un comando.",
+  "botChatFileGone": "Este archivo ya no está en el servidor.",
+  "botChatImageBroken": "No se pudo mostrar esta imagen. Ábrela como archivo.",
   "botChatButtonPressed": "Pulsado",
   "botChatOpenTitle": "Abrir un bot",
   "botChatOpenHint": "El @nombre exacto del bot",

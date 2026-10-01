@@ -31,6 +31,10 @@ class BotMessage {
     required this.sentAt,
     this.buttons = const [],
     this.pressed = const {},
+    this.mediaId,
+    this.mediaKind,
+    this.fileName,
+    this.byteSize,
   });
 
   factory BotMessage.fromJson(Map<String, dynamic> json) => BotMessage(
@@ -43,6 +47,10 @@ class BotMessage {
             .map(BotButton.fromJson)
             .toList(growable: false),
         pressed: ((json['pressed'] as List<dynamic>?) ?? const []).cast<String>().toSet(),
+        mediaId: json['mediaId'] as String?,
+        mediaKind: json['mediaKind'] as String?,
+        fileName: json['fileName'] as String?,
+        byteSize: json['byteSize'] as int?,
       );
 
   final int id;
@@ -56,6 +64,25 @@ class BotMessage {
   /// server refuses it — and a button that looks live but is not is worse than
   /// one that looks spent.
   final Set<String> pressed;
+
+  /// The attachment, when there is one.
+  ///
+  /// Null once the blob has expired and the server's sweeper has taken it: the
+  /// message stays in the conversation as a message whose file is gone, which
+  /// is the honest thing to draw rather than hiding the message.
+  final String? mediaId;
+
+  /// `image` or `file`. What to draw *before* the bytes are here — the app
+  /// falls back to a file row when a declared image turns out not to decode.
+  final String? mediaKind;
+  final String? fileName;
+  final int? byteSize;
+
+  /// Whether this message *had* a file, which is not the same as still having
+  /// one: an expired blob leaves the kind and the name behind, and that is how
+  /// the screen knows to say the file is gone rather than drawing nothing.
+  bool get hasMedia => mediaKind != null;
+  bool get isImage => mediaKind == 'image';
 }
 
 /// A bot as somebody about to talk to it sees it.
@@ -127,6 +154,37 @@ class BotChatController extends ChangeNotifier {
   bool get busy => _busy;
   Failure? get failure => _failure;
 
+  /// Downloaded attachments, by media id.
+  ///
+  /// In memory only and cleared with the conversation, like everything else
+  /// here: a bot's file is plaintext on the server already, and writing a copy
+  /// to this device's cache would be a second place it lives for no gain.
+  final Map<String, Uint8List> _media = {};
+
+  /// The bytes of one attachment, downloaded once.
+  ///
+  /// Returns null when the object is gone — expired, or never downloadable —
+  /// and the screen then draws the row as a file that cannot be fetched rather
+  /// than retrying forever.
+  Future<Uint8List?> mediaBytes(String mediaId) async {
+    final cached = _media[mediaId];
+    if (cached != null) return cached;
+    final account = _accountId;
+    if (account == null) return null;
+    try {
+      final bytes = Uint8List.fromList(await _api.downloadMedia(mediaId));
+      if (!_stillOn(account)) return null;
+      _media[mediaId] = bytes;
+      return bytes;
+    } on StaleSessionException {
+      return null;
+    } on Object {
+      // No failure on the controller: one file that will not load is not a
+      // reason to put a red sentence under the whole conversation.
+      return null;
+    }
+  }
+
   /// Opens a bot by its **exact** username.
   ///
   /// Exact because there is no prefix search: a directory of every bot on a
@@ -149,6 +207,7 @@ class BotChatController extends ChangeNotifier {
       _accountId = accountId;
       _profile = null;
       _messages = const [];
+      _media.clear();
       _failure = null;
     }
     _busy = true;
@@ -162,6 +221,7 @@ class BotChatController extends ChangeNotifier {
         // appending: nothing from the last bot may appear under this one.
         _botId = profile.id;
         _messages = const [];
+        _media.clear();
       }
       _profile = profile;
       _failure = null;
@@ -245,6 +305,7 @@ class BotChatController extends ChangeNotifier {
     _botId = null;
     _profile = null;
     _messages = const [];
+    _media.clear();
     _busy = false;
     _failure = null;
     if (notify) notifyListeners();

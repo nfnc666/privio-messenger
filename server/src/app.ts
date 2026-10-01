@@ -178,7 +178,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // `verified: false` until it is filled, and the one channel that must never
   // be answered that way is the official one.
   await officialChannel.refresh();
-  await app.register(botRoutes);
+  await app.register(botRoutes(storage));
   // The assistant has to exist before anybody can write to it, and it is
   // ensured rather than assumed — see `ensureAssistant`.
   await ensureAssistant();

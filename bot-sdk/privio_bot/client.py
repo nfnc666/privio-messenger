@@ -5,9 +5,16 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator
+
+
+#: The largest picture or file a bot may upload. Matches `BOT_LIMITS` on the
+#: server; a bigger one is refused here so the reason is a sentence rather than
+#: a dropped connection.
+MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
 
 
 class BotError(RuntimeError):
@@ -23,6 +30,24 @@ class BotError(RuntimeError):
         self.status = status
         self.code = code
         self.message = message
+
+
+def _error_from(error: urllib.error.HTTPError) -> BotError:
+    """The server's refusal, as a `BotError` carrying its code.
+
+    One place rather than two: the upload path and the JSON path both need it,
+    and a second copy is a second chance for one of them to lose the code and
+    leave a bot matching on English.
+    """
+    try:
+        parsed = json.loads(error.read())
+    except ValueError:
+        parsed = {}
+    return BotError(
+        error.code,
+        str(parsed.get("error", "http_error")),
+        str(parsed.get("message", error.reason)),
+    )
 
 
 @dataclass(frozen=True)
@@ -141,16 +166,7 @@ class Bot:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:
                 payload = response.read()
         except urllib.error.HTTPError as error:
-            raw = error.read()
-            try:
-                parsed = json.loads(raw)
-            except ValueError:
-                parsed = {}
-            raise BotError(
-                error.code,
-                str(parsed.get("error", "http_error")),
-                str(parsed.get("message", error.reason)),
-            ) from None
+            raise _error_from(error) from None
         return json.loads(payload) if payload else {}
 
     # -- the API -----------------------------------------------------------
@@ -211,6 +227,114 @@ class Bot:
             group_id=update.scope_id if update.in_group else None,
             buttons=buttons,
         )
+
+    def _upload(self, data: bytes, *, kind: str, name: str | None) -> str:
+        """Puts bytes on the server and returns the media id.
+
+        Raw bytes, not multipart: the server stores what arrives and the send
+        then points at it. **Not encrypted** — everything on the bot path is
+        plaintext the server can read, and a file is no different.
+        """
+        # Checked here rather than left to the server, because the server does
+        # not get to answer: Fastify's body limit closes the connection on a
+        # payload this size, so the author saw a bare `URLError` and no reason.
+        # Found by sending nine megabytes at a real server.
+        if len(data) > MAX_ATTACHMENT_BYTES:
+            raise BotError(
+                413,
+                "attachment_too_large",
+                f"A bot attachment must be at most {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB; "
+                f"this one is {len(data) / (1024 * 1024):.1f} MB.",
+            )
+        query = f"?kind={urllib.parse.quote(kind)}"
+        if name:
+            query += f"&name={urllib.parse.quote(name)}"
+        request = urllib.request.Request(
+            f"{self._base}/v1/bot/media{query}",
+            data=data,
+            method="POST",
+            headers={
+                "authorization": f"Bearer {self._token}",
+                "accept": "application/json",
+                "content-type": "application/octet-stream",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                return str(json.loads(response.read())["mediaId"])
+        except urllib.error.HTTPError as error:
+            raise _error_from(error) from None
+        except urllib.error.URLError as error:
+            # A refused upload can arrive as a dropped connection rather than a
+            # status. Say what it was, instead of letting a transport error
+            # reach a bot author who has no way to read it.
+            raise BotError(0, "upload_failed", f"The upload did not complete: {error.reason}") from None
+
+    def send_photo(
+        self,
+        to: str,
+        data: bytes,
+        *,
+        caption: str = "",
+        name: str = "photo",
+        group_id: str | None = None,
+        buttons: list[tuple[str, str]] | None = None,
+    ) -> int:
+        """Sends a picture, drawn in the chat.
+
+        ``caption`` is the message text; an empty one is allowed, so a picture
+        can arrive on its own. The app falls back to a file row if the bytes
+        turn out not to be an image — the declared kind is a hint, not a
+        promise the app takes on trust.
+        """
+        media_id = self._upload(data, kind="image", name=name)
+        return self._send_with_media(
+            to, caption, media_id, "image", name, group_id=group_id, buttons=buttons,
+        )
+
+    def send_document(
+        self,
+        to: str,
+        data: bytes,
+        name: str,
+        *,
+        caption: str = "",
+        group_id: str | None = None,
+        buttons: list[tuple[str, str]] | None = None,
+    ) -> int:
+        """Sends a file, shown as a row with its name and size."""
+        media_id = self._upload(data, kind="file", name=name)
+        return self._send_with_media(
+            to, caption, media_id, "file", name, group_id=group_id, buttons=buttons,
+        )
+
+    def _send_with_media(
+        self,
+        to: str,
+        text: str,
+        media_id: str,
+        kind: str,
+        name: str | None,
+        *,
+        group_id: str | None,
+        buttons: list[tuple[str, str]] | None,
+    ) -> int:
+        body: dict[str, Any] = {
+            "to": to,
+            # The server wants at least one character of text. A picture with no
+            # caption gets a single space rather than this client inventing a
+            # sentence for it.
+            "text": text or " ",
+            "mediaId": media_id,
+            "mediaKind": kind,
+        }
+        if name:
+            body["fileName"] = name
+        if group_id:
+            body["groupId"] = group_id
+        if buttons:
+            body["buttons"] = [{"id": key, "label": label} for key, label in buttons]
+        return int(self._request("POST", "/v1/bot/send", body)["messageId"])
 
     # -- in a group, when an admin has granted the right ------------------
 

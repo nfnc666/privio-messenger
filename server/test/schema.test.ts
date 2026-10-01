@@ -178,6 +178,14 @@ const READABLE: Record<string, string> = {
   'bot_messages.buttons': 'the labels the bot published and the ids it chose, checked on a press',
   'bot_messages.kind': 'whether the row is a message or a press, which decides how it is delivered',
   'bot_button_presses.button_id': 'which button, so the same one cannot be pressed twice',
+  // A picture or a file a bot sent. The bytes are not sealed either — the whole
+  // bot path is plaintext, which migration 029 argues and 040 repeats where the
+  // columns are defined. These two are what the *app* needs to draw the message
+  // before the bytes arrive, and they outlive the blob on purpose: after the
+  // sweeper takes it, the kind and the name are what say "this file is gone"
+  // instead of the message silently losing its attachment.
+  'bot_messages.media_kind': 'image or file, so the app knows what to draw',
+  'bot_messages.file_name': 'the name the bot gave it, shown and saved under',
   'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
   'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the

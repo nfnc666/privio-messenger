@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,9 @@ class _Server {
   final List<String> posted = [];
   final List<Map<String, dynamic>> messages = [];
   final Set<String> pressed = {};
+
+  /// Bytes the server will hand back, by media id.
+  final Map<String, Uint8List> media = {};
 
   http.Client client() => MockClient((request) async {
         final path = request.url.path;
@@ -63,9 +67,38 @@ class _Server {
         // AppState drains envelopes and refreshes contacts on its own, and a 404
         // there is a failure in the harness rather than anything about this
         // screen.
+        if (path.startsWith('/v1/media/')) {
+          final id = path.split('/').last;
+          final bytes = media[id];
+          if (bytes == null) return http.Response('{}', 404);
+          return http.Response.bytes(bytes, 200,
+              headers: {'content-type': 'application/octet-stream'});
+        }
         if (path == '/v1/keys/count') return _json(const {'remaining': 100});
         return _json(const {'contacts': [], 'envelopes': [], 'more': false});
       });
+
+  /// A bot message with a file attached.
+  void botSentFile({
+    required String id,
+    required String kind,
+    required String name,
+    required int size,
+    Uint8List? bytes,
+  }) {
+    if (bytes != null) media[id] = bytes;
+    messages.add({
+      'id': 11,
+      'author': 'bot',
+      'text': 'here it is',
+      'sentAt': '2026-03-04T10:00:00.000Z',
+      'buttons': <Map<String, dynamic>>[],
+      'mediaId': bytes == null ? null : id,
+      'mediaKind': kind,
+      'fileName': name,
+      'byteSize': size,
+    });
+  }
 
   void botSaid(String text, List<String> buttons) => messages.add({
         'id': 9,
@@ -215,6 +248,72 @@ void main() {
     );
     expect(button.onPressed, isNull);
     expect(find.widgetWithText(OutlinedButton, 'NO'), findsOneWidget);
+    await _letTimersRun(tester);
+  });
+
+  testWidgets('a file is a row with its name and size', (tester) async {
+    final server = _Server(startedAlready: true)
+      ..botSentFile(
+        id: 'media-1',
+        kind: 'file',
+        name: 'notes.txt',
+        size: 2048,
+        bytes: Uint8List.fromList([1, 2, 3]),
+      );
+    final state = await _state(server);
+    addTearDown(state.conversations.stop);
+    addTearDown(state.dispose);
+
+    await tester.pumpWidget(wrap(const BotChatScreen(botId: 'bot-1'), state));
+    await tester.pumpAndSettle();
+    state.conversations.stop();
+
+    expect(find.text('notes.txt'), findsOneWidget);
+    expect(find.text('2 KB'), findsOneWidget);
+    await _letTimersRun(tester);
+  });
+
+  testWidgets('a file the server no longer has says so, and the message stays',
+      (tester) async {
+    // What an expired blob looks like: the kind and the name survive, the id
+    // does not. Drawing nothing would hide a message the bot did send.
+    final server = _Server(startedAlready: true)
+      ..botSentFile(id: 'media-2', kind: 'file', name: 'gone.txt', size: 10);
+    final state = await _state(server);
+    addTearDown(state.conversations.stop);
+    addTearDown(state.dispose);
+
+    await tester.pumpWidget(wrap(const BotChatScreen(botId: 'bot-1'), state));
+    await tester.pumpAndSettle();
+    state.conversations.stop();
+
+    expect(find.text('gone.txt'), findsOneWidget);
+    expect(find.text('This file is no longer on the server.'), findsOneWidget);
+    expect(find.text('here it is'), findsOneWidget);
+    await _letTimersRun(tester);
+  });
+
+  testWidgets('bytes that are not an image fall back to a file row', (tester) async {
+    // The kind came from the bot, and the bot can be wrong. A broken frame
+    // would be worse than a row.
+    final server = _Server(startedAlready: true)
+      ..botSentFile(
+        id: 'media-3',
+        kind: 'image',
+        name: 'cat.png',
+        size: 4,
+        bytes: Uint8List.fromList([9, 9, 9, 9]),
+      );
+    final state = await _state(server);
+    addTearDown(state.conversations.stop);
+    addTearDown(state.dispose);
+
+    await tester.pumpWidget(wrap(const BotChatScreen(botId: 'bot-1'), state));
+    await tester.pumpAndSettle();
+    state.conversations.stop();
+
+    expect(find.text('This picture could not be shown. Open it as a file.'), findsOneWidget);
+    expect(find.text('cat.png'), findsOneWidget);
     await _letTimersRun(tester);
   });
 

@@ -4478,6 +4478,13 @@ class AppTextIt extends AppText {
   String get botChatEmpty => 'Ancora nulla. Salutalo o scegli un comando.';
 
   @override
+  String get botChatFileGone => 'Questo file non è più sul server.';
+
+  @override
+  String get botChatImageBroken =>
+      'Non è stato possibile mostrare questa immagine. Aprila come file.';
+
+  @override
   String get botChatButtonPressed => 'Premuto';
 
   @override
