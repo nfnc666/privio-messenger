@@ -19,9 +19,11 @@ What it writes, per style:
         foreground. The launcher masks the middle 72dp of a 108dp canvas, so the
         artwork is scaled into that window and the rest is transparent; the
         background layer is the same flat black the other icons use.
-* Flutter `assets/launcher_styles/<style>.png` — 256px, for the picker. The
-        colour swatches are the mark tinted at draw time, which cannot work for
-        a picture that is not one colour, so these are real thumbnails.
+* Flutter `assets/launcher_styles/<style>.png` — 512px, for the picker *and*
+        the splash. The colour swatches are the mark tinted at draw time, which
+        cannot work for a picture that is not one colour, so these are real
+        thumbnails. 512 rather than 256 because the splash draws one at 96pt,
+        which is 288 physical pixels on a 3x screen.
 
 Run it from `app/`:
 
@@ -115,7 +117,7 @@ def write_android(art, style):
 def write_preview(art, style):
     folder = os.path.join(HERE, 'assets/launcher_styles')
     os.makedirs(folder, exist_ok=True)
-    scaled(art, 256).save(os.path.join(folder, f'{style}.png'))
+    scaled(art, 512).save(os.path.join(folder, f'{style}.png'))
 
 
 def main(argv):

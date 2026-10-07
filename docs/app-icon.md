@@ -74,6 +74,34 @@ home screen has one icon. `reconcile` reads styles first — their codes cannot
 collide with a colour's, and a test asserts that — so a stored style is never
 mistaken for "nothing stored" and the tick never lands in both grids.
 
+**The loading screen wears it too.** With a style chosen, the splash draws that
+artwork in place of the tinted lock-up, so the tap and the first frame are one
+picture. Three things that took care:
+
+* It is read **before the first frame**, by `AppIconController.preload()`, which
+  touches the keystore and nothing else — a read that waited for the platform
+  channel would show the plain mark and then swap it, which is the flash the
+  accent preload exists to remove. A test fails the build if `preload` speaks to
+  the launcher at all.
+* It is **not tinted**. The lock-up's symbol takes the accent; a colour filter
+  over a camouflage plate or a glow would flatten it to one ink. The word below
+  stays white and the glow behind keeps the accent, which is the one place the
+  device's choice and the account's are on screen together.
+* A *colour* is deliberately ignored here. The splash mark follows the
+  **account's accent**, a different setting with a different owner, so reading
+  the icon colour would be reading a value nothing uses.
+
+The **launch screens still cannot**. `LaunchScreen.storyboard` and
+`launch_background.xml` are inflated before any Dart runs, so they stay black
+and hand over to a Flutter view on the same black. That is unchanged by this and
+cannot be worked around without a private API.
+
+**The disguise gives back what it took.** Switching the calculator off restores
+the *style* when one was chosen, not a colour — a style has no colour, so the
+old code would have handed a camouflage icon back as green. That is a test of
+its own, and it was a real defect rather than a hypothetical: the restore read
+`appIcon.colour` and nothing else.
+
 ## iOS
 
 Alternate app icons, declared in the asset catalog:

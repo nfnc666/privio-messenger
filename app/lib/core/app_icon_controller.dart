@@ -54,6 +54,24 @@ class AppIconController extends ChangeNotifier {
   /// Why the last change did not happen, as a case for the screen to say.
   Failure? get failure => _failure;
 
+  /// Reads the stored choice and nothing else, for the first frame.
+  ///
+  /// The splash draws the chosen artwork style, so a read that waited for the
+  /// platform channel would show the plain mark for a moment and then swap it —
+  /// the same flash the accent preload exists to prevent. This touches only the
+  /// keystore; [reconcile] does the platform half once the app is on screen.
+  ///
+  /// Only a style is taken. A *colour* changes nothing the splash draws — the
+  /// mark there follows the **account's accent**, which is a different setting
+  /// with a different owner — so reading one here would be a value nothing uses.
+  Future<void> preload() async {
+    final stored = AppIconStyle.forCode(await _store.readAppIcon());
+    if (stored != null && stored != _style) {
+      _style = stored;
+      notifyListeners();
+    }
+  }
+
   /// Reads the stored choice and then checks it against the platform.
   ///
   /// Called at start-up and again whenever the settings screen opens. The

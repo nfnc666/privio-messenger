@@ -7,11 +7,14 @@ import 'package:http/http.dart' as http;
 import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/accent_controller.dart';
+import 'package:privio/core/app_icon.dart';
+import 'package:privio/core/app_icon_controller.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
+import 'package:privio/disguise/launcher_disguise.dart';
 import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/screens/splash_screen.dart';
 import 'package:privio/services/backup_service.dart';
@@ -250,6 +253,102 @@ void main() {
       expect(second.accent, AppAccent.green);
     });
   });
+
+  group('the loading screen wears the chosen artwork', () {
+    testWidgets('a style replaces the tinted lock-up with the picture',
+        (tester) async {
+      final store = InMemorySecureStore();
+      final state = AppState(services: await _services(), store: store);
+      addTearDown(state.dispose);
+      await state.accent.choose(AppAccent.pink);
+
+      // What the home screen is wearing, read the way a launch reads it.
+      await store.writeAppIcon(AppIconStyle.neon.code);
+      await state.appIcon.preload();
+
+      await tester.pumpWidget(_splashOver(state));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final images = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => (image.image as AssetImage).assetName)
+          .toList();
+      expect(images, contains(AppIconStyle.neon.preview));
+      expect(
+        find.byType(PrivioWordmark),
+        findsNothing,
+        reason: 'the lock-up and the artwork were both drawn',
+      );
+      // Not tinted: a colour filter over a camouflage plate or a glow flattens
+      // it to one ink, which is the whole reason these are their own pictures.
+      expect(
+        find.descendant(of: find.byType(Image), matching: find.byType(ColorFiltered)),
+        findsNothing,
+      );
+      // The word stays, in white, under it.
+      expect(images, contains(PrivioLogoAsset.wordmarkWord));
+    });
+
+    testWidgets('and without one the lock-up is what is drawn', (tester) async {
+      final store = InMemorySecureStore();
+      final state = AppState(services: await _services(), store: store);
+      addTearDown(state.dispose);
+      await state.appIcon.preload();
+
+      await tester.pumpWidget(_splashOver(state));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byType(PrivioWordmark), findsOneWidget);
+      for (final style in AppIconStyle.values) {
+        expect(
+          tester
+              .widgetList<Image>(find.byType(Image))
+              .map((image) => (image.image as AssetImage).assetName),
+          isNot(contains(style.preview)),
+          reason: style.code,
+        );
+      }
+    });
+
+    test('the preload reads the keystore and never the platform', () async {
+      // The point of it: a read that waited for the channel would show the
+      // plain mark for a frame and then swap it.
+      final store = InMemorySecureStore();
+      await store.writeAppIcon(AppIconStyle.camoShield.code);
+
+      final controller = AppIconController(store, _AbsentLauncher());
+      await controller.preload();
+
+      expect(controller.style, AppIconStyle.camoShield);
+      expect(controller.supported, isFalse, reason: 'the platform was not asked');
+    });
+
+    test('a colour in the store leaves the splash alone', () async {
+      // A colour changes nothing the splash draws — the mark there follows the
+      // account's accent, which is a different setting with a different owner.
+      final store = InMemorySecureStore();
+      await store.writeAppIcon('pink');
+
+      final controller = AppIconController(store, _AbsentLauncher());
+      await controller.preload();
+
+      expect(controller.style, isNull);
+    });
+  });
+}
+
+/// A launcher that fails if it is spoken to. [AppIconController.preload] must
+/// not touch the platform, and a fake that answered politely would not say so.
+class _AbsentLauncher implements LauncherDisguise {
+  @override
+  Future<LauncherCapability> capability() async =>
+      fail('preload asked the platform what it can do');
+
+  @override
+  Future<LauncherEntry?> current() async => fail('preload read the launcher');
+
+  @override
+  Future<void> show(LauncherEntry entry) async => fail('preload changed the icon');
 }
 
 /// The tagline in whatever language the test host picked.

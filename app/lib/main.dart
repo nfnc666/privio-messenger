@@ -57,5 +57,14 @@ Future<void> main() async {
         onTimeout: () {},
       );
 
+  // And the chosen home-screen artwork, for the same reason and under the same
+  // cap: the splash draws it, so reading it afterwards would show the plain
+  // mark for a frame and then replace it. Keystore only — the platform half of
+  // the icon setting happens later, with the app already on screen.
+  await state.appIcon.preload().timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {},
+      );
+
   runApp(PrivioApp(state: state));
 }
