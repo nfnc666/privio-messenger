@@ -16,6 +16,7 @@ import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'channel_members_screen.dart';
 import 'channel_profile_screen.dart';
+import 'channel_settings_screen.dart';
 import 'channel_thread_screen.dart';
 import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
@@ -818,10 +819,40 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
         _report();
       case 'members':
         _openMembers();
+      case 'settings':
+        unawaited(_openSettings());
       case 'leave':
         _leave();
       case 'delete':
         _confirmDelete();
+    }
+  }
+
+  /// Channel settings, and what it hands back.
+  ///
+  /// The same arrangement the profile screen uses, and for the same reason: the
+  /// sheets that already live on this screen — the reaction picker, the
+  /// statistics, the appearance sheet, the livestream — are not copied into the
+  /// settings pages. Those pop with a name and this opens the one that exists.
+  Future<void> _openSettings() async {
+    final asked = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ChannelSettingsScreen(channel: _channel)),
+    );
+    if (!mounted) return;
+    switch (asked) {
+      case 'deleted':
+      case 'left':
+        // The channel is gone from under this screen.
+        Navigator.of(context).pop();
+      case 'reactions':
+        await _editReactions();
+      case 'stats':
+        await _openStats();
+      case 'live':
+        // The livestream flow needs the player, which lives on the profile.
+        await _openProfile();
+      default:
+        await _load();
     }
   }
 
@@ -910,62 +941,24 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
                   onSelected: _onMenu,
                   color: PrivioColors.surfaceRaised,
                   itemBuilder: (_) => [
+                    // Six entries, not thirteen. The picture, the reactions,
+                    // the comments switch, the statistics, the invite
+                    // settings, the join queue, handing the channel on and
+                    // deleting it all have a row under their own heading in
+                    // Channel settings now — a menu that lists everything is
+                    // a menu nobody reads to the bottom.
                     PopupMenuItem(value: 'profile', child: Text(text.channelInfo)),
                     if (channel.inviteCode != null)
                       PopupMenuItem(value: 'invite', child: Text(text.chatInviteLink)),
                     if (channel.permissions.canPost)
                       PopupMenuItem(value: 'scheduled', child: Text(text.feedScheduled)),
-                    if (channel.permissions.canManageMembers && channel.invite.needsApproval)
-                      PopupMenuItem(
-                        value: 'requests',
-                        child: Text(text.feedRequestsToJoin),
-                      ),
-                    if (channel.permissions.canEditChannel)
-                      PopupMenuItem(
-                        value: 'picture',
-                        child: Text(
-                          channel.hasAvatar
-                              ? text.feedChannelPicture
-                              : text.feedAddPicture,
-                        ),
-                      ),
-                    if (channel.permissions.canEditChannel)
-                      PopupMenuItem(
-                        value: 'reactions',
-                        child: Text(text.editChannelReactions),
-                      ),
-                    if (channel.permissions.canEditChannel)
-                      PopupMenuItem(
-                        value: 'comments',
-                        child: Text(
-                          channel.commentsEnabled
-                              ? text.feedTurnCommentsOff
-                              : text.feedTurnCommentsOn,
-                        ),
-                      ),
                     PopupMenuItem(value: 'members', child: Text(text.membersTitle)),
-                    if (channel.permissions.canEditChannel)
-                      PopupMenuItem(
-                        value: 'stats',
-                        child: Text(text.channelStatistics),
-                      ),
-                    if (channel.role == 'owner')
-                      PopupMenuItem(
-                        value: 'transfer',
-                        child: Text(text.feedHandChannelOn),
-                      ),
+                    PopupMenuItem(
+                      value: 'settings',
+                      child: Text(text.channelSettings),
+                    ),
                     if (channel.isMember && channel.role != 'owner')
                       PopupMenuItem(value: 'report', child: Text(text.channelReport)),
-                    if (channel.role != 'owner')
-                      PopupMenuItem(value: 'leave', child: Text(text.channelLeave)),
-                    if (channel.permissions.canDeleteChannel)
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text(
-                          text.feedDeleteChannel,
-                          style: const TextStyle(color: PrivioColors.danger),
-                        ),
-                      ),
                   ],
                 ),
               const SizedBox(width: PrivioSpacing.xs),

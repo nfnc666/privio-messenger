@@ -401,6 +401,228 @@ class AppTextEs extends AppText {
   String get channelSettings => 'Ajustes del canal';
 
   @override
+  String get chSectionProfile => 'PERFIL DEL CANAL';
+
+  @override
+  String get chSectionAccess => 'ACCESO E INVITACIONES';
+
+  @override
+  String get chSectionTeam => 'EQUIPO Y MIEMBROS';
+
+  @override
+  String get chSectionPosts => 'PUBLICACIONES E INTERACCIÓN';
+
+  @override
+  String get chSectionIntegrations => 'INTEGRACIONES';
+
+  @override
+  String get chSectionDanger => 'ESTO NO SE PUEDE DESHACER';
+
+  @override
+  String get chRowProfile => 'Imagen, nombre y descripción';
+
+  @override
+  String get chRowLink => 'Enlace';
+
+  @override
+  String get chRowVisibility => 'Quién puede encontrar este canal';
+
+  @override
+  String get chRowInvites => 'Enlace de invitación';
+
+  @override
+  String get chRowRequests => 'Solicitudes para unirse';
+
+  @override
+  String get chRowAdmins => 'Administradores';
+
+  @override
+  String get chRowSubscribers => 'Suscriptores';
+
+  @override
+  String get chRowReactions => 'Reacciones';
+
+  @override
+  String get chRowDiscussion => 'Comentarios';
+
+  @override
+  String get chRowWelcome => 'Mensaje de bienvenida';
+
+  @override
+  String get chRowSignature => 'Mostrar quién publicó';
+
+  @override
+  String get chRowDirect => 'Mensajes directos';
+
+  @override
+  String get chRowAppearance => 'Colores';
+
+  @override
+  String get chRowLivestream => 'Transmisión en directo';
+
+  @override
+  String get chRowStatistics => 'Estadísticas';
+
+  @override
+  String get chRowTransfer => 'Ceder este canal';
+
+  @override
+  String get chRowDelete => 'Eliminar este canal';
+
+  @override
+  String get chRowLeave => 'Salir de este canal';
+
+  @override
+  String get chSummaryNoDescription => 'Sin descripción';
+
+  @override
+  String get chSummaryNoLink => 'Sin enlace';
+
+  @override
+  String chSummaryAdmins(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count administradores',
+      one: '1 administrador',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chSummarySubscribers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count suscriptores',
+      one: '1 suscriptor',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chSummaryReactions(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reacciones',
+      one: '1 reacción',
+      zero: 'Ninguna',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chSummaryRequests(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count esperando',
+      one: '1 esperando',
+      zero: 'Nadie esperando',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chSummaryPublic(String handle) {
+    return 'Público · $handle';
+  }
+
+  @override
+  String get chSummaryPrivate => 'Privado · por invitación';
+
+  @override
+  String get chSummaryLivestreamReady => 'Listo';
+
+  @override
+  String get chSummaryLivestreamRunning => 'En directo ahora';
+
+  @override
+  String get chSummaryLivestreamOff => 'No configurado en este servidor';
+
+  @override
+  String get chIntegrationsNote =>
+      'Un bot todavía no puede publicar en un canal, así que aquí no hay nada que conectar. La transmisión en directo es la única integración de este canal.';
+
+  @override
+  String get chDangerNote =>
+      'Al ceder el canal, otra persona pasa a ser la propietaria y a ti solo te queda lo que te conceda. Al eliminarlo, el canal y sus publicaciones desaparecen para todos.';
+
+  @override
+  String chDeleteTitle(String title) {
+    return '¿Eliminar $title?';
+  }
+
+  @override
+  String get chDeleteBody =>
+      'El canal, sus publicaciones y su lista de suscriptores se eliminan para todos. Esto no se puede deshacer. Escribe el nombre del canal para confirmar.';
+
+  @override
+  String get chDeleteConfirmHint => 'Nombre del canal';
+
+  @override
+  String get chDeleteAction => 'Eliminar canal';
+
+  @override
+  String get chDeleted => 'Canal eliminado.';
+
+  @override
+  String get chCouldNotDelete => 'No se pudo eliminar el canal.';
+
+  @override
+  String get chProfileTitle => 'Perfil del canal';
+
+  @override
+  String get chProfilePicture => 'Imagen';
+
+  @override
+  String get chProfileChange => 'Cambiar';
+
+  @override
+  String get chProfileRemove => 'Quitar';
+
+  @override
+  String get chProfileName => 'Nombre';
+
+  @override
+  String get chProfileDescription => 'Descripción';
+
+  @override
+  String get chProfileLinkNote =>
+      'El enlace es como la gente llega a un canal público. No se puede cambiar aquí: sigue al nombre del canal en el servidor.';
+
+  @override
+  String get chAccessTitle => 'Acceso e invitaciones';
+
+  @override
+  String get chAccessWho => 'Quién puede encontrar este canal';
+
+  @override
+  String get chPostsTitle => 'Publicaciones e interacción';
+
+  @override
+  String get chUnsavedTitle => '¿Conservar los cambios?';
+
+  @override
+  String get chUnsavedBody => 'Has cambiado algo y aún no lo has guardado.';
+
+  @override
+  String get chUnsavedKeep => 'Seguir editando';
+
+  @override
+  String get chUnsavedDiscard => 'Descartar';
+
+  @override
+  String get chSaved => 'Guardado.';
+
+  @override
+  String get chSaving => 'Guardando…';
+
+  @override
+  String get chReadOnlyNote => 'Solo un administrador puede cambiar esto.';
+
+  @override
   String get channelShareLink => 'Compartir enlace';
 
   @override
