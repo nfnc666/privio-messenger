@@ -3925,6 +3925,25 @@ class AppTextDe extends AppText {
       'Dieses Gerät kann das App-Symbol nicht ändern, deshalb bietet Privio es nicht an.';
 
   @override
+  String get appearanceAppIconStyles => 'Weitere Designs';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Ganze Bilder statt Farben des Zeichens — sie werden daher nicht von deiner Akzentfarbe eingefärbt. Auf einem Startbildschirm mit eingeschalteten Themen-Icons fallen sie auf das gewöhnliche Icon zurück: ein Tarnmuster oder ein Leuchten auf einen Ton reduziert wäre ein ausgefüllter Klecks.';
+
+  @override
+  String get appIconStyleCamo => 'Tarnmuster';
+
+  @override
+  String get appIconStyleCamoShield => 'Tarnmuster, Schild';
+
+  @override
+  String get appIconStyleNeon => 'Neon, Schild';
+
+  @override
+  String get appIconStyleNeonMesh => 'Neon, Netzwerk';
+
+  @override
   String get appearanceAppIconOriginal => 'Original';
 
   @override

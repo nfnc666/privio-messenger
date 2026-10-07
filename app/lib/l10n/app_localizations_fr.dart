@@ -3922,6 +3922,25 @@ class AppTextFr extends AppText {
       'Cet appareil ne peut pas changer l\'icône de l\'app, Privio ne le propose donc pas.';
 
   @override
+  String get appearanceAppIconStyles => 'Autres designs';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Des images entières plutôt que des couleurs du logo, elles ne sont donc pas teintées par votre couleur d\'accent. Sur un lanceur avec les icônes thématiques activées, elles reviennent à l\'icône ordinaire : un motif de camouflage ou une lueur réduits à une seule teinte seraient une tache pleine.';
+
+  @override
+  String get appIconStyleCamo => 'Camouflage';
+
+  @override
+  String get appIconStyleCamoShield => 'Camouflage, bouclier';
+
+  @override
+  String get appIconStyleNeon => 'Néon, bouclier';
+
+  @override
+  String get appIconStyleNeonMesh => 'Néon, réseau';
+
+  @override
   String get appearanceAppIconOriginal => 'Originale';
 
   @override

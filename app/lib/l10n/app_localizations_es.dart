@@ -3915,6 +3915,25 @@ class AppTextEs extends AppText {
       'Este dispositivo no puede cambiar el icono de la app, así que Privio no lo ofrece.';
 
   @override
+  String get appearanceAppIconStyles => 'Otros diseños';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Imágenes completas en lugar de colores de la marca, así que no se tiñen con tu color de acento. En un lanzador con los iconos temáticos activados vuelven al icono normal: un patrón de camuflaje o un resplandor reducido a un solo tono sería una mancha.';
+
+  @override
+  String get appIconStyleCamo => 'Camuflaje';
+
+  @override
+  String get appIconStyleCamoShield => 'Camuflaje, escudo';
+
+  @override
+  String get appIconStyleNeon => 'Neón, escudo';
+
+  @override
+  String get appIconStyleNeonMesh => 'Neón, red';
+
+  @override
   String get appearanceAppIconOriginal => 'Original';
 
   @override

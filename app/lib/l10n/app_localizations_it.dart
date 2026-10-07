@@ -3933,6 +3933,25 @@ class AppTextIt extends AppText {
       'Questo dispositivo non può cambiare l\'icona dell\'app, quindi Privio non lo propone.';
 
   @override
+  String get appearanceAppIconStyles => 'Altri design';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Immagini intere anziché colori del marchio, quindi non vengono tinte dal tuo colore d\'accento. Su un launcher con le icone a tema attive tornano all\'icona normale: un motivo mimetico o un bagliore ridotti a un solo tono sarebbero una macchia piena.';
+
+  @override
+  String get appIconStyleCamo => 'Mimetico';
+
+  @override
+  String get appIconStyleCamoShield => 'Mimetico, scudo';
+
+  @override
+  String get appIconStyleNeon => 'Neon, scudo';
+
+  @override
+  String get appIconStyleNeonMesh => 'Neon, rete';
+
+  @override
   String get appearanceAppIconOriginal => 'Originale';
 
   @override

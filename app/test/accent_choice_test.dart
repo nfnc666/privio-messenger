@@ -482,6 +482,49 @@ void appIconScreen() {
     expect(find.byKey(const ValueKey('app-icon-reset')), findsNothing);
   });
 
+  testWidgets('the four artwork styles are their own section, and ticking one '
+      'un-ticks the colours', (tester) async {
+    final launcher = _RecordingLauncher();
+    final state = await tester.runAsync(
+      () => _appOver(InMemorySecureStore(), launcher: launcher),
+    ) as AppState;
+    addTearDown(state.dispose);
+    await tester.pumpWidget(_appearanceOver(state));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-name-neon_mesh')),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    for (final style in AppIconStyle.values) {
+      expect(
+        find.byKey(ValueKey('app-icon-name-${style.code}')),
+        findsOneWidget,
+        reason: '${style.code} is missing',
+      );
+    }
+    // Green is still the one ticked while no style has been chosen.
+    expect(find.byKey(const ValueKey('app-icon-check-green')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('app-icon-name-neon')));
+    await tester.pumpAndSettle();
+
+    expect(launcher.applied.last.wireName, 'neon');
+    expect(find.byKey(const ValueKey('app-icon-check-neon')), findsOneWidget);
+    // One home screen, one icon: the colour grid gives its tick up.
+    expect(
+      find.byKey(const ValueKey('app-icon-check-green')),
+      findsNothing,
+      reason: 'a style and a colour were both ticked',
+    );
+    // And "restore the original" appears, because there is now something to
+    // restore from.
+    expect(find.byKey(const ValueKey('app-icon-reset')), findsOneWidget);
+  });
+
   testWidgets('tapping one changes the launcher and moves the tick',
       (tester) async {
     final launcher = _RecordingLauncher();

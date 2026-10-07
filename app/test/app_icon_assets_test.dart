@@ -36,14 +36,19 @@ void main() {
       expect(named, declared, reason: 'an alias named on one side and not the other');
     });
 
-    test('the channel speaks every colour Dart has, and no others', () {
+    test('the channel speaks every colour and style Dart has, and no others', () {
       final table = kotlin.substring(kotlin.indexOf('val ALIASES'));
       final entries = RegExp(r'"(\w+)" to ').allMatches(table).map((m) => m.group(1)!).toSet();
 
       expect(
         entries,
-        {for (final colour in AppIconColour.values) colour.code, 'calculator'},
-        reason: 'the wire names have to match AppIconColour plus the disguise',
+        {
+          for (final colour in AppIconColour.values) colour.code,
+          for (final style in AppIconStyle.values) style.code,
+          'calculator',
+        },
+        reason: 'the wire names have to match AppIconColour and AppIconStyle, '
+            'plus the disguise',
       );
     });
 
@@ -52,7 +57,11 @@ void main() {
           .allMatches(manifest)
           .map((m) => m.group(1)!)
           .toSet();
-      expect(icons, hasLength(AppIconColour.values.length + 1), reason: 'colours + calculator');
+      expect(
+        icons,
+        hasLength(AppIconColour.values.length + AppIconStyle.values.length + 1),
+        reason: 'colours + styles + calculator',
+      );
 
       for (final icon in icons) {
         for (final density in densities) {
@@ -68,7 +77,11 @@ void main() {
     test('every adaptive icon points at a foreground that is there', () {
       final dir = Directory('android/app/src/main/res/mipmap-anydpi-v26');
       final files = dir.listSync().whereType<File>().toList();
-      expect(files, hasLength(AppIconColour.values.length), reason: 'one per colour');
+      expect(
+        files,
+        hasLength(AppIconColour.values.length + AppIconStyle.values.length),
+        reason: 'one per colour and one per style',
+      );
 
       for (final file in files) {
         final foreground = RegExp(r'foreground android:drawable="@mipmap/(\w+)"')
@@ -106,6 +119,10 @@ void main() {
         {
           for (final colour in AppIconColour.values)
             if (colour != AppIconColour.fallback) 'AppIcon-${colour.code}',
+          // Every style is an alternate. None of them is the primary icon:
+          // what ships, and what the store listing shows, is still the green
+          // original.
+          for (final style in AppIconStyle.values) 'AppIcon-${style.code}',
         },
         reason: 'green is the primary icon and has no alternate of its own',
       );
@@ -129,9 +146,13 @@ void main() {
     });
 
     test('every listed set holds every image its Contents.json promises', () {
-      for (final colour in AppIconColour.values) {
-        if (colour == AppIconColour.fallback) continue;
-        final dir = 'ios/Runner/Assets.xcassets/AppIcon-${colour.code}.appiconset';
+      final sets = [
+        for (final colour in AppIconColour.values)
+          if (colour != AppIconColour.fallback) colour.code,
+        for (final style in AppIconStyle.values) style.code,
+      ];
+      for (final code in sets) {
+        final dir = 'ios/Runner/Assets.xcassets/AppIcon-$code.appiconset';
         final contents = jsonDecode(read('$dir/Contents.json')) as Map<String, dynamic>;
         for (final image in contents['images'] as List<dynamic>) {
           final filename = (image as Map<String, dynamic>)['filename'] as String?;
@@ -141,7 +162,7 @@ void main() {
       }
     });
 
-    test('the Swift names the same colours Dart does', () {
+    test('the Swift names the same colours and styles Dart does', () {
       final swift = read('ios/Runner/LauncherIcon.swift');
       // From the `= [` rather than the declaration: the type annotation is
       // `[String: String?]`, whose bracket would close the slice early.
@@ -150,7 +171,22 @@ void main() {
       final entries =
           RegExp(r'"(\w+)":').allMatches(table).map((m) => m.group(1)!).toSet();
 
-      expect(entries, {for (final colour in AppIconColour.values) colour.code});
+      expect(entries, {
+        for (final colour in AppIconColour.values) colour.code,
+        for (final style in AppIconStyle.values) style.code,
+      });
+    });
+
+    test('every style has a thumbnail on disk, declared as an asset', () {
+      // The colour swatches tint one bundled file; these four cannot be tinted,
+      // so a missing thumbnail is a blank square in the picker rather than a
+      // wrong colour — and a file that is there but undeclared is the same
+      // blank square in a release build.
+      final pubspec = read('pubspec.yaml');
+      expect(pubspec.contains('assets/launcher_styles/'), isTrue);
+      for (final style in AppIconStyle.values) {
+        expect(File(style.preview).existsSync(), isTrue, reason: style.preview);
+      }
     });
 
     test('the handler is compiled into the target', () {

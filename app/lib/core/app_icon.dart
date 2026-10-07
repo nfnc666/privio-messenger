@@ -50,6 +50,40 @@ enum AppIconColour {
   AppAccent get accent => AppAccent.forCode(code) ?? AppAccent.fallback;
 }
 
+/// The artwork styles, which are **not** colours of the same picture.
+///
+/// The eight [AppIconColour] variants are one delivered mark with its hue
+/// shifted, which works because that artwork is two tones. These four are their
+/// own pictures — a camouflage plate, the same with a shield, neon glass, neon
+/// glass over a mesh — and nothing about them can be derived from anything
+/// else. So they ship as their own icon sets and are picked from their own
+/// thumbnails rather than from a tinted preview.
+///
+/// The code is the wire name: it reaches the keystore, the Android alias and
+/// the iOS alternate icon, so it may not change once a build has shipped.
+enum AppIconStyle {
+  camo('camo', 'assets/launcher_styles/camo.png'),
+  camoShield('camo_shield', 'assets/launcher_styles/camo_shield.png'),
+  neon('neon', 'assets/launcher_styles/neon.png'),
+  neonMesh('neon_mesh', 'assets/launcher_styles/neon_mesh.png');
+
+  const AppIconStyle(this.code, this.preview);
+
+  final String code;
+
+  /// The thumbnail the picker draws. The real artwork at 256px, not a tint:
+  /// there is no single colour these could be tinted from.
+  final String preview;
+
+  static AppIconStyle? forCode(String? code) {
+    if (code == null) return null;
+    for (final style in AppIconStyle.values) {
+      if (style.code == code) return style;
+    }
+    return null;
+  }
+}
+
 /// What the launcher should be showing — one value, so it cannot be two things.
 ///
 /// The disguise and the icon colour both want the same slot on the home screen,
@@ -59,34 +93,54 @@ enum AppIconColour {
 /// simply handed, is what makes it testable without a launcher.
 @immutable
 class LauncherEntry {
-  const LauncherEntry.icon(this.colour) : disguised = false;
+  const LauncherEntry.icon(this.colour)
+      : disguised = false,
+        style = null;
+
+  /// One of the artwork styles. The colour is the fallback and means nothing
+  /// here: a style is a whole picture, not a hue applied to one.
+  const LauncherEntry.styled(AppIconStyle this.style)
+      : colour = AppIconColour.green,
+        disguised = false;
 
   const LauncherEntry.calculator()
       : colour = AppIconColour.green,
+        style = null,
         disguised = true;
 
-  /// The colour, meaningless while [disguised].
+  /// The colour, meaningless while [disguised] or while [style] is set.
   final AppIconColour colour;
 
-  /// True for the calculator entry, whatever colour is stored underneath it.
+  /// The artwork style, when one was chosen instead of a colour.
+  final AppIconStyle? style;
+
+  /// True for the calculator entry, whatever is stored underneath it.
   final bool disguised;
 
-  /// The name the platform channel speaks. Stable; the enum is not.
-  String get wireName => disguised ? 'calculator' : colour.code;
+  /// The name the platform channel speaks. Stable; the enums are not.
+  String get wireName {
+    if (disguised) return 'calculator';
+    return style?.code ?? colour.code;
+  }
 
   static LauncherEntry? forWireName(String? name) {
     if (name == null) return null;
     if (name == 'calculator') return const LauncherEntry.calculator();
+    final style = AppIconStyle.forCode(name);
+    if (style != null) return LauncherEntry.styled(style);
     final colour = AppIconColour.forCode(name);
     return colour == null ? null : LauncherEntry.icon(colour);
   }
 
   @override
   bool operator ==(Object other) =>
-      other is LauncherEntry && other.colour == colour && other.disguised == disguised;
+      other is LauncherEntry &&
+      other.colour == colour &&
+      other.style == style &&
+      other.disguised == disguised;
 
   @override
-  int get hashCode => Object.hash(colour, disguised);
+  int get hashCode => Object.hash(colour, style, disguised);
 
   @override
   String toString() => 'LauncherEntry($wireName)';

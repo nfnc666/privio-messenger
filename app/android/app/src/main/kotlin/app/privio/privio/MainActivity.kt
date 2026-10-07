@@ -193,6 +193,12 @@ class MainActivity : FlutterActivity() {
             "red" to "app.privio.privio.LauncherRed",
             "orange" to "app.privio.privio.LauncherOrange",
             "yellow" to "app.privio.privio.LauncherYellow",
+            // The artwork styles. Their own pictures rather than recolourings
+            // of the mark, so each is its own alias and its own mipmap set.
+            "camo" to "app.privio.privio.LauncherCamo",
+            "camo_shield" to "app.privio.privio.LauncherCamoShield",
+            "neon" to "app.privio.privio.LauncherNeon",
+            "neon_mesh" to "app.privio.privio.LauncherNeonMesh",
         )
     }
 }

@@ -6661,6 +6661,42 @@ abstract class AppText {
   /// **'This device cannot change the app icon, so Privio does not offer to.'**
   String get appearanceAppIconUnavailable;
 
+  /// No description provided for @appearanceAppIconStyles.
+  ///
+  /// In en, this message translates to:
+  /// **'Other designs'**
+  String get appearanceAppIconStyles;
+
+  /// No description provided for @appearanceAppIconStylesNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole pictures rather than colours of the mark, so they are not tinted by your accent colour. On a launcher with themed icons switched on, these fall back to the ordinary icon: a camouflage plate or a glow flattened to one tone would be a filled blob.'**
+  String get appearanceAppIconStylesNote;
+
+  /// No description provided for @appIconStyleCamo.
+  ///
+  /// In en, this message translates to:
+  /// **'Camouflage'**
+  String get appIconStyleCamo;
+
+  /// No description provided for @appIconStyleCamoShield.
+  ///
+  /// In en, this message translates to:
+  /// **'Camouflage, shield'**
+  String get appIconStyleCamoShield;
+
+  /// No description provided for @appIconStyleNeon.
+  ///
+  /// In en, this message translates to:
+  /// **'Neon, shield'**
+  String get appIconStyleNeon;
+
+  /// No description provided for @appIconStyleNeonMesh.
+  ///
+  /// In en, this message translates to:
+  /// **'Neon, network'**
+  String get appIconStyleNeonMesh;
+
   /// No description provided for @appearanceAppIconOriginal.
   ///
   /// In en, this message translates to:

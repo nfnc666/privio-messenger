@@ -35,6 +35,13 @@ enum LauncherIcon {
         "red": "AppIcon-red",
         "orange": "AppIcon-orange",
         "yellow": "AppIcon-yellow",
+        // The four artwork styles. Not recolourings of the mark — their own
+        // pictures, so they ship as their own sets rather than being derived
+        // from anything. See docs/app-icon.md.
+        "camo": "AppIcon-camo",
+        "camo_shield": "AppIcon-camo_shield",
+        "neon": "AppIcon-neon",
+        "neon_mesh": "AppIcon-neon_mesh",
     ]
 
     static func attach(messenger: FlutterBinaryMessenger) {

@@ -399,6 +399,10 @@
 					"AppIcon-red",
 					"AppIcon-orange",
 					"AppIcon-yellow",
+					"AppIcon-camo",
+					"AppIcon-camo_shield",
+					"AppIcon-neon",
+					"AppIcon-neon_mesh",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -592,6 +596,10 @@
 					"AppIcon-red",
 					"AppIcon-orange",
 					"AppIcon-yellow",
+					"AppIcon-camo",
+					"AppIcon-camo_shield",
+					"AppIcon-neon",
+					"AppIcon-neon_mesh",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -626,6 +634,10 @@
 					"AppIcon-red",
 					"AppIcon-orange",
 					"AppIcon-yellow",
+					"AppIcon-camo",
+					"AppIcon-camo_shield",
+					"AppIcon-neon",
+					"AppIcon-neon_mesh",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
