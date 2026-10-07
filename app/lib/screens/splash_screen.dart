@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/app_icon.dart';
 import '../core/app_state.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
@@ -51,7 +52,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(),
-                const PrivioWordmark(markSize: 64),
+                // The artwork this device chose, when it chose one. The same
+                // picture the home screen is wearing, so the tap and the first
+                // frame are one continuous thing — which is what the launch
+                // screens themselves cannot do, because they are drawn before
+                // any of this runs. See docs/app-icon.md.
+                if (state.appIcon.style case final style?)
+                  _StyledMark(style: style)
+                else
+                  const PrivioWordmark(markSize: 64),
                 const SizedBox(height: PrivioSpacing.lg),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 350),
@@ -65,6 +74,61 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The chosen artwork over the word, in place of the tinted lock-up.
+///
+/// Not tinted, and that is the point: these four are whole pictures rather than
+/// hues of the mark, so a colour filter over one would flatten a camouflage
+/// plate or a glow into a single ink. The word below it stays white, as it is
+/// in the lock-up, and the glow around it keeps the account's accent — the
+/// artwork is the device's choice and the accent is the account's, and this is
+/// the one place both are on screen at once.
+class _StyledMark extends StatelessWidget {
+  const _StyledMark({required this.style});
+
+  final AppIconStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.accents.accent;
+    const size = 96.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(size * 0.22),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.22),
+                blurRadius: size * 0.4,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            // The radius a home-screen icon is masked to, roughly, so this
+            // reads as the icon rather than as a photograph of one.
+            borderRadius: BorderRadius.circular(size * 0.22),
+            child: Image.asset(
+              style.preview,
+              width: size,
+              height: size,
+              filterQuality: FilterQuality.medium,
+            ),
+          ),
+        ),
+        const SizedBox(height: PrivioSpacing.md),
+        Image.asset(
+          PrivioLogoAsset.wordmarkWord,
+          height: 22,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+        ),
+      ],
     );
   }
 }

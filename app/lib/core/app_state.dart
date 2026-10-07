@@ -761,13 +761,18 @@ class AppState extends ChangeNotifier {
     // everywhere except the home screen is still worth having — and the failure
     // is reported rather than swallowed.
     try {
-      // Taking the disguise off puts back the colour this device chose, not
-      // the default: somebody who set a purple icon and then used the disguise
-      // for an evening should get their purple icon back, not a surprise.
+      // Taking the disguise off puts back what this device chose, not the
+      // default: somebody who set a purple icon — or one of the artwork styles
+      // — and then used the disguise for an evening should get it back, not a
+      // surprise. The style is asked for first, because it is the one that
+      // would otherwise be silently replaced by a colour.
+      final style = appIcon.style;
       await _launcherDisguise.show(
         skin != null
             ? const LauncherEntry.calculator()
-            : LauncherEntry.icon(appIcon.colour),
+            : style != null
+                ? LauncherEntry.styled(style)
+                : LauncherEntry.icon(appIcon.colour),
       );
     } on LauncherDisguiseException catch (failure) {
       _disguiseError = failure.message;

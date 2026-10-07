@@ -148,6 +148,28 @@ void main() {
       expect(launcher.applied.last, const LauncherEntry.icon(AppIconColour.purple));
     });
 
+    test('and an artwork style is restored as the artwork, not as a colour',
+        () async {
+      // The same promise, and the case that would have broken it: a style has
+      // no colour, so putting one back would have handed a camouflage icon
+      // back as green.
+      final launcher = FakeLauncher();
+      final device = await armedDevice(launcher: launcher);
+      addTearDown(device.state.conversations.stop);
+      await device.state.appIcon.reconcile();
+      await device.state.appIcon.chooseStyle(AppIconStyle.camoShield);
+
+      await device.state.setDisguise(CalculatorSkin.iphone);
+      expect(launcher.applied.last, const LauncherEntry.calculator());
+
+      await device.state.setDisguise(null);
+      expect(
+        launcher.applied.last,
+        const LauncherEntry.styled(AppIconStyle.camoShield),
+        reason: 'the disguise swallowed the chosen artwork',
+      );
+    });
+
     test('a launcher that refuses does not stop the disguise, and is reported', () async {
       final device = await armedDevice(
         launcher: FakeLauncher(refuses: 'This device cannot change the app icon.'),
