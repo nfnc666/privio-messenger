@@ -13,7 +13,11 @@ class ContactProfile {
         status = ProfileStatus.fromJson(json['status'] as Map<String, dynamic>?),
         lastSeenAt = DateTime.tryParse(json['lastSeenAt'] as String? ?? ''),
         isContact = json['isContact'] == true,
-        isBlocked = json['isBlocked'] == true;
+        isBlocked = json['isBlocked'] == true,
+        // Whether this account is a program somebody else runs. It decides
+        // which chat *Message* opens: a bot cannot read an encrypted one, so
+        // sending it there would be sending into a void.
+        isBot = json['isBot'] == true;
 
   final String id;
   final String username;
@@ -23,6 +27,7 @@ class ContactProfile {
   final DateTime? lastSeenAt;
   final bool isContact;
   final bool isBlocked;
+  final bool isBot;
 }
 
 /// Route-owned; no global cache. Even re-login to the same account invalidates it.

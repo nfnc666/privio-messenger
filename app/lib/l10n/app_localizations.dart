@@ -2713,6 +2713,24 @@ abstract class AppText {
   /// **'Invite link'**
   String get chatInviteLink;
 
+  /// No description provided for @chatInviteLinkRenew.
+  ///
+  /// In en, this message translates to:
+  /// **'Renew link'**
+  String get chatInviteLinkRenew;
+
+  /// No description provided for @chatInviteLinkRenewed.
+  ///
+  /// In en, this message translates to:
+  /// **'Renewed. The old link no longer works.'**
+  String get chatInviteLinkRenewed;
+
+  /// No description provided for @chatInviteLinkRenewNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Renewing stops the old link working. Nobody already in the group is affected.'**
+  String get chatInviteLinkRenewNote;
+
   /// No description provided for @chatInviteLinkNote.
   ///
   /// In en, this message translates to:
@@ -2934,6 +2952,234 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Only an admin can change this'**
   String get groupAdminOnly;
+
+  /// Sheet action that opens the picture chooser for a group.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a picture'**
+  String get groupPictureChoose;
+
+  /// Sheet action that removes a group's picture.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove picture'**
+  String get groupPictureRemove;
+
+  /// Shown when setting or removing a group's picture did not work.
+  ///
+  /// In en, this message translates to:
+  /// **'The picture could not be set.'**
+  String get groupPictureFailed;
+
+  /// Settings row that opens the group description editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get groupDescriptionRow;
+
+  /// Value of the description row while no description is set.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get groupDescriptionNone;
+
+  /// Title of the group description editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Group description'**
+  String get groupDescriptionTitle;
+
+  /// Placeholder in the group description field.
+  ///
+  /// In en, this message translates to:
+  /// **'What is this group for?'**
+  String get groupDescriptionHint;
+
+  /// Note under the group description field saying it is end-to-end encrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'Only members can read it. It is encrypted with the group key, like the name and the messages.'**
+  String get groupDescriptionSealed;
+
+  /// Confirmation after saving a group description.
+  ///
+  /// In en, this message translates to:
+  /// **'Description saved'**
+  String get groupDescriptionSaved;
+
+  /// Shown when a group description could not be saved.
+  ///
+  /// In en, this message translates to:
+  /// **'The description could not be saved.'**
+  String get groupDescriptionFailed;
+
+  /// No description provided for @groupBotsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots in this group'**
+  String get groupBotsTitle;
+
+  /// No description provided for @groupBotsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Bots are automated accounts run by somebody outside this group. They receive only what is deliberately handed to them.'**
+  String get groupBotsIntro;
+
+  /// No description provided for @groupBotsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no bot in this group.'**
+  String get groupBotsNone;
+
+  /// No description provided for @groupBotsAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a bot'**
+  String get groupBotsAddTitle;
+
+  /// No description provided for @groupBotsAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the bot’s exact @username. There is deliberately no directory of every bot.'**
+  String get groupBotsAddHint;
+
+  /// No description provided for @groupBotsNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no such bot.'**
+  String get groupBotsNotFound;
+
+  /// No description provided for @groupBotsCouldNotAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'The bot could not be added.'**
+  String get groupBotsCouldNotAdd;
+
+  /// No description provided for @groupBotsCouldNotChange.
+  ///
+  /// In en, this message translates to:
+  /// **'The change could not be saved.'**
+  String get groupBotsCouldNotChange;
+
+  /// No description provided for @groupBotsMaySend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send messages'**
+  String get groupBotsMaySend;
+
+  /// No description provided for @groupBotsMayModerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete messages'**
+  String get groupBotsMayModerate;
+
+  /// No description provided for @groupBotsModerateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not possible in PRIVIO: only the author of a message can delete it for everyone. A bot holds no group key, so it cannot delete anybody else’s message.'**
+  String get groupBotsModerateUnavailable;
+
+  /// No description provided for @groupBotsMayRestrict.
+  ///
+  /// In en, this message translates to:
+  /// **'Restrict members'**
+  String get groupBotsMayRestrict;
+
+  /// No description provided for @groupBotsMayInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage invites'**
+  String get groupBotsMayInvite;
+
+  /// No description provided for @groupBotsReadAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive all new messages'**
+  String get groupBotsReadAll;
+
+  /// No description provided for @groupBotsReadsAddressed.
+  ///
+  /// In en, this message translates to:
+  /// **'Receives only commands, mentions and replies to it'**
+  String get groupBotsReadsAddressed;
+
+  /// No description provided for @groupBotsReadsEverything.
+  ///
+  /// In en, this message translates to:
+  /// **'Receives every new message in this group'**
+  String get groupBotsReadsEverything;
+
+  /// No description provided for @groupBotsReadAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand over every message?'**
+  String get groupBotsReadAllTitle;
+
+  /// No description provided for @groupBotsReadAllBody.
+  ///
+  /// In en, this message translates to:
+  /// **'From then on every member’s device hands each new message to “{name}” — not only the ones addressed to it. The bot’s operator can read them. Older messages are not affected.'**
+  String groupBotsReadAllBody(String name);
+
+  /// No description provided for @groupBotsReadAllConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand over all'**
+  String get groupBotsReadAllConfirm;
+
+  /// No description provided for @groupBotsRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove “{name}”?'**
+  String groupBotsRemoveTitle(String name);
+
+  /// No description provided for @groupBotsRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing more will be handed to it. What it already received is on its operator’s server and cannot be deleted from here.'**
+  String get groupBotsRemoveBody;
+
+  /// No description provided for @groupBotsRemoveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove bot'**
+  String get groupBotsRemoveAction;
+
+  /// No description provided for @groupBotsDisclosureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What “{name}” can read'**
+  String groupBotsDisclosureTitle(String name);
+
+  /// No description provided for @groupBotsDisclosureReads.
+  ///
+  /// In en, this message translates to:
+  /// **'It receives commands, @mentions of it, and replies to its messages — in the clear, on its operator’s server.'**
+  String get groupBotsDisclosureReads;
+
+  /// No description provided for @groupBotsDisclosureNotReads.
+  ///
+  /// In en, this message translates to:
+  /// **'It receives nothing else. It holds no key for this group: members’ devices hand it individual messages and nothing more. It never receives messages sent before it joined.'**
+  String get groupBotsDisclosureNotReads;
+
+  /// No description provided for @groupBotsDisclosureNoRights.
+  ///
+  /// In en, this message translates to:
+  /// **'It starts with no rights at all. You grant each one separately afterwards.'**
+  String get groupBotsDisclosureNoRights;
+
+  /// No description provided for @groupBotsDisclosureOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'The operator of this bot can read content you share with the bot.'**
+  String get groupBotsDisclosureOperator;
+
+  /// No description provided for @groupBotsDisclosureAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Understood, add it'**
+  String get groupBotsDisclosureAdd;
 
   /// No description provided for @groupRename.
   ///
@@ -6415,6 +6661,42 @@ abstract class AppText {
   /// **'This device cannot change the app icon, so Privio does not offer to.'**
   String get appearanceAppIconUnavailable;
 
+  /// No description provided for @appearanceAppIconStyles.
+  ///
+  /// In en, this message translates to:
+  /// **'Other designs'**
+  String get appearanceAppIconStyles;
+
+  /// No description provided for @appearanceAppIconStylesNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole pictures rather than colours of the mark, so they are not tinted by your accent colour. On a launcher with themed icons switched on, these fall back to the ordinary icon: a camouflage plate or a glow flattened to one tone would be a filled blob.'**
+  String get appearanceAppIconStylesNote;
+
+  /// No description provided for @appIconStyleCamo.
+  ///
+  /// In en, this message translates to:
+  /// **'Camouflage'**
+  String get appIconStyleCamo;
+
+  /// No description provided for @appIconStyleCamoShield.
+  ///
+  /// In en, this message translates to:
+  /// **'Camouflage, shield'**
+  String get appIconStyleCamoShield;
+
+  /// No description provided for @appIconStyleNeon.
+  ///
+  /// In en, this message translates to:
+  /// **'Neon, shield'**
+  String get appIconStyleNeon;
+
+  /// No description provided for @appIconStyleNeonMesh.
+  ///
+  /// In en, this message translates to:
+  /// **'Neon, network'**
+  String get appIconStyleNeonMesh;
+
   /// No description provided for @appearanceAppIconOriginal.
   ///
   /// In en, this message translates to:
@@ -7254,6 +7536,126 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'I understand'**
   String get botsUnderstood;
+
+  /// No description provided for @botChatStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get botChatStart;
+
+  /// No description provided for @botChatStartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot cannot write to you until you start it.'**
+  String get botChatStartHint;
+
+  /// No description provided for @botChatNotStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Start this bot before writing to it.'**
+  String get botChatNotStarted;
+
+  /// No description provided for @botChatStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop this bot'**
+  String get botChatStop;
+
+  /// No description provided for @botChatStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'You stopped this bot. Write to it again to start it over.'**
+  String get botChatStopped;
+
+  /// No description provided for @botChatStopConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop @{username}?'**
+  String botChatStopConfirm(String username);
+
+  /// No description provided for @botChatStopExplain.
+  ///
+  /// In en, this message translates to:
+  /// **'It can no longer write to you, and nothing further reaches it. Your messages so far stay where they are.'**
+  String get botChatStopExplain;
+
+  /// No description provided for @botChatBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Block this bot'**
+  String get botChatBlock;
+
+  /// No description provided for @botChatHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get botChatHint;
+
+  /// No description provided for @botChatCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands'**
+  String get botChatCommands;
+
+  /// No description provided for @botChatCommandsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot publishes no command list.'**
+  String get botChatCommandsEmpty;
+
+  /// No description provided for @botChatNoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This bot has no description.'**
+  String get botChatNoDescription;
+
+  /// No description provided for @botChatOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'An automated account. The person who runs it can read what you send it.'**
+  String get botChatOperator;
+
+  /// No description provided for @botChatEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing yet. Say hello, or pick a command.'**
+  String get botChatEmpty;
+
+  /// No description provided for @botChatFileGone.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is no longer on the server.'**
+  String get botChatFileGone;
+
+  /// No description provided for @botChatImageBroken.
+  ///
+  /// In en, this message translates to:
+  /// **'This picture could not be shown. Open it as a file.'**
+  String get botChatImageBroken;
+
+  /// No description provided for @botChatButtonPressed.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressed'**
+  String get botChatButtonPressed;
+
+  /// No description provided for @botChatOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a bot'**
+  String get botChatOpenTitle;
+
+  /// No description provided for @botChatOpenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The bot\'s exact @username'**
+  String get botChatOpenHint;
+
+  /// No description provided for @botChatOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get botChatOpen;
 
   /// No description provided for @botcreatorTitle.
   ///

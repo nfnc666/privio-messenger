@@ -98,6 +98,25 @@ async function mayDownload(
     return rows.length > 0;
   }
 
+  // A group's picture, which is not sealed either — see migration 036.
+  //
+  // Narrower than a channel's, because a group has no public side at all: only
+  // its members, never a stranger with the id. The same trailing `false` as
+  // above, and for the same reason: an object of this kind that no group points
+  // at is nobody's picture, so an id is not a download until it has been
+  // attached.
+  if (object.kind === 'group_avatar') {
+    const { rowCount } = await pool.query(
+      `SELECT 1 FROM groups g
+        WHERE g.avatar_media_id = $1 AND g.deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM group_members m
+                       WHERE m.group_id = g.id AND m.account_id = $2)
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return Boolean(rowCount);
+  }
+
   // A sticker's **picture** is downloadable by any signed-in account that can
   // name its id. The id is the capability.
   //
@@ -134,6 +153,23 @@ async function mayDownload(
       [object.id],
     );
     return rows.length > 0;
+  }
+
+  // A picture or a file a bot sent, which is not sealed — see migration 040.
+  //
+  // Exactly one more account than the uploader: the one a `bot_messages` row
+  // addressed it to. Not anybody who knows the id, not the rest of a group the
+  // bot answered in, and not somebody the bot never sent it to. The id is not
+  // the capability here, the row is, which is why this is a lookup rather than
+  // a token: a bot hands the id to the server, not to a person.
+  if (object.kind === 'bot_attachment') {
+    const { rowCount } = await pool.query(
+      `SELECT 1 FROM bot_messages
+        WHERE media_id = $1 AND account_id = $2 AND author = 'bot'
+        LIMIT 1`,
+      [object.id, accountId],
+    );
+    return Boolean(rowCount);
   }
 
   if (object.kind === 'avatar') {
@@ -190,7 +226,9 @@ export function mediaRoutes(storage: BlobStorage): FastifyPluginAsync {
         }
         const { kind, expiresInSeconds } = parse(
           z.object({
-            kind: z.enum(['attachment', 'avatar', 'channel_avatar', 'sticker']).default('attachment'),
+            kind: z
+              .enum(['attachment', 'avatar', 'channel_avatar', 'group_avatar', 'sticker'])
+              .default('attachment'),
             /**
              * How long this blob is worth keeping, for an attachment to a
              * message that is set to disappear.

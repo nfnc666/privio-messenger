@@ -1599,6 +1599,17 @@ class AppTextDe extends AppText {
   String get chatInviteLink => 'Einladungslink';
 
   @override
+  String get chatInviteLinkRenew => 'Link erneuern';
+
+  @override
+  String get chatInviteLinkRenewed =>
+      'Erneuert. Der alte Link funktioniert nicht mehr.';
+
+  @override
+  String get chatInviteLinkRenewNote =>
+      'Beim Erneuern funktioniert der alte Link nicht mehr. Wer schon in der Gruppe ist, bleibt drin.';
+
+  @override
   String get chatInviteLinkNote =>
       'Teile ihn überall — er trägt keinen Schlüssel. Wer ihn öffnet, tritt der Gruppe bei, und der Schlüssel zu ihrem Namen erreicht das Gerät verschlüsselt.';
 
@@ -1727,6 +1738,139 @@ class AppTextDe extends AppText {
 
   @override
   String get groupAdminOnly => 'Nur ein Admin kann das ändern';
+
+  @override
+  String get groupPictureChoose => 'Bild auswählen';
+
+  @override
+  String get groupPictureRemove => 'Bild entfernen';
+
+  @override
+  String get groupPictureFailed => 'Das Bild konnte nicht gesetzt werden.';
+
+  @override
+  String get groupDescriptionRow => 'Beschreibung';
+
+  @override
+  String get groupDescriptionNone => 'Keine';
+
+  @override
+  String get groupDescriptionTitle => 'Beschreibung der Gruppe';
+
+  @override
+  String get groupDescriptionHint => 'Wofür ist diese Gruppe?';
+
+  @override
+  String get groupDescriptionSealed =>
+      'Nur Mitglieder können sie lesen. Sie wird mit dem Gruppenschlüssel verschlüsselt, wie der Name und die Nachrichten.';
+
+  @override
+  String get groupDescriptionSaved => 'Beschreibung gespeichert';
+
+  @override
+  String get groupDescriptionFailed =>
+      'Die Beschreibung konnte nicht gespeichert werden.';
+
+  @override
+  String get groupBotsTitle => 'Bots in dieser Gruppe';
+
+  @override
+  String get groupBotsIntro =>
+      'Bots sind automatisierte Konten, die jemand ausserhalb dieser Gruppe betreibt. Sie bekommen nur, was ihnen ausdrücklich übergeben wird.';
+
+  @override
+  String get groupBotsNone => 'In dieser Gruppe ist kein Bot.';
+
+  @override
+  String get groupBotsAddTitle => 'Bot hinzufügen';
+
+  @override
+  String get groupBotsAddHint =>
+      'Gib den genauen @Benutzernamen des Bots ein. Es gibt bewusst kein Verzeichnis aller Bots.';
+
+  @override
+  String get groupBotsNotFound => 'Diesen Bot gibt es nicht.';
+
+  @override
+  String get groupBotsCouldNotAdd => 'Der Bot konnte nicht hinzugefügt werden.';
+
+  @override
+  String get groupBotsCouldNotChange =>
+      'Die Änderung konnte nicht gespeichert werden.';
+
+  @override
+  String get groupBotsMaySend => 'Nachrichten senden';
+
+  @override
+  String get groupBotsMayModerate => 'Nachrichten löschen';
+
+  @override
+  String get groupBotsModerateUnavailable =>
+      'In PRIVIO nicht möglich: nur der Autor einer Nachricht kann sie für alle löschen. Ein Bot hat keinen Gruppenschlüssel und kann daher keine fremde Nachricht löschen.';
+
+  @override
+  String get groupBotsMayRestrict => 'Mitglieder einschränken';
+
+  @override
+  String get groupBotsMayInvite => 'Einladungen verwalten';
+
+  @override
+  String get groupBotsReadAll => 'Alle neuen Nachrichten erhalten';
+
+  @override
+  String get groupBotsReadsAddressed =>
+      'Erhält nur Befehle, Erwähnungen und Antworten an ihn';
+
+  @override
+  String get groupBotsReadsEverything =>
+      'Erhält jede neue Nachricht in dieser Gruppe';
+
+  @override
+  String get groupBotsReadAllTitle => 'Alle Nachrichten übergeben?';
+
+  @override
+  String groupBotsReadAllBody(String name) {
+    return 'Ab dann übergeben die Geräte aller Mitglieder jede neue Nachricht an „$name“ — nicht nur die an ihn gerichteten. Der Betreiber des Bots kann sie lesen. Ältere Nachrichten sind davon nicht betroffen.';
+  }
+
+  @override
+  String get groupBotsReadAllConfirm => 'Alle übergeben';
+
+  @override
+  String groupBotsRemoveTitle(String name) {
+    return '„$name“ entfernen?';
+  }
+
+  @override
+  String get groupBotsRemoveBody =>
+      'Ab sofort wird ihm nichts mehr übergeben. Was er bereits erhalten hat, liegt beim Betreiber und kann von hier aus nicht gelöscht werden.';
+
+  @override
+  String get groupBotsRemoveAction => 'Bot entfernen';
+
+  @override
+  String groupBotsDisclosureTitle(String name) {
+    return 'Was „$name“ lesen kann';
+  }
+
+  @override
+  String get groupBotsDisclosureReads =>
+      'Er erhält Befehle, @Erwähnungen von ihm und Antworten auf seine Nachrichten — im Klartext, auf dem Server seines Betreibers.';
+
+  @override
+  String get groupBotsDisclosureNotReads =>
+      'Alles andere erhält er nicht. Er hat keinen Schlüssel für diese Gruppe: Die Geräte der Mitglieder übergeben ihm einzelne Nachrichten, sonst nichts. Nachrichten von vor seinem Beitritt erhält er nie.';
+
+  @override
+  String get groupBotsDisclosureNoRights =>
+      'Er bekommt zunächst keine Rechte. Jedes Recht schaltest du danach einzeln frei.';
+
+  @override
+  String get groupBotsDisclosureOperator =>
+      'Der Betreiber dieses Bots kann Inhalte lesen, die du mit dem Bot teilst.';
+
+  @override
+  String get groupBotsDisclosureAdd => 'Verstanden, hinzufügen';
 
   @override
   String get groupRename => 'Gruppe umbenennen';
@@ -3781,6 +3925,25 @@ class AppTextDe extends AppText {
       'Dieses Gerät kann das App-Symbol nicht ändern, deshalb bietet Privio es nicht an.';
 
   @override
+  String get appearanceAppIconStyles => 'Weitere Designs';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Ganze Bilder statt Farben des Zeichens — sie werden daher nicht von deiner Akzentfarbe eingefärbt. Auf einem Startbildschirm mit eingeschalteten Themen-Icons fallen sie auf das gewöhnliche Icon zurück: ein Tarnmuster oder ein Leuchten auf einen Ton reduziert wäre ein ausgefüllter Klecks.';
+
+  @override
+  String get appIconStyleCamo => 'Tarnmuster';
+
+  @override
+  String get appIconStyleCamoShield => 'Tarnmuster, Schild';
+
+  @override
+  String get appIconStyleNeon => 'Neon, Schild';
+
+  @override
+  String get appIconStyleNeonMesh => 'Neon, Netzwerk';
+
+  @override
   String get appearanceAppIconOriginal => 'Original';
 
   @override
@@ -4275,6 +4438,74 @@ class AppTextDe extends AppText {
 
   @override
   String get botsUnderstood => 'Verstanden';
+
+  @override
+  String get botChatStart => 'Starten';
+
+  @override
+  String get botChatStartHint =>
+      'Dieser Bot kann dir erst schreiben, wenn du ihn startest.';
+
+  @override
+  String get botChatNotStarted => 'Starte diesen Bot, bevor du ihm schreibst.';
+
+  @override
+  String get botChatStop => 'Diesen Bot stoppen';
+
+  @override
+  String get botChatStopped =>
+      'Du hast diesen Bot gestoppt. Schreib ihm erneut, um ihn wieder zu starten.';
+
+  @override
+  String botChatStopConfirm(String username) {
+    return '@$username stoppen?';
+  }
+
+  @override
+  String get botChatStopExplain =>
+      'Er kann dir nicht mehr schreiben, und es erreicht ihn nichts mehr. Deine bisherigen Nachrichten bleiben, wo sie sind.';
+
+  @override
+  String get botChatBlock => 'Diesen Bot blockieren';
+
+  @override
+  String get botChatHint => 'Nachricht';
+
+  @override
+  String get botChatCommands => 'Befehle';
+
+  @override
+  String get botChatCommandsEmpty =>
+      'Dieser Bot veröffentlicht keine Befehlsliste.';
+
+  @override
+  String get botChatNoDescription => 'Dieser Bot hat keine Beschreibung.';
+
+  @override
+  String get botChatOperator =>
+      'Ein automatisiertes Konto. Wer den Bot betreibt, kann lesen, was du ihm schickst.';
+
+  @override
+  String get botChatEmpty => 'Noch nichts. Sag Hallo, oder wähle einen Befehl.';
+
+  @override
+  String get botChatFileGone => 'Diese Datei liegt nicht mehr auf dem Server.';
+
+  @override
+  String get botChatImageBroken =>
+      'Dieses Bild konnte nicht angezeigt werden. Öffne es als Datei.';
+
+  @override
+  String get botChatButtonPressed => 'Gedrückt';
+
+  @override
+  String get botChatOpenTitle => 'Bot öffnen';
+
+  @override
+  String get botChatOpenHint => 'Der genaue @Name des Bots';
+
+  @override
+  String get botChatOpen => 'Öffnen';
 
   @override
   String get botcreatorTitle => 'Bot Creator';

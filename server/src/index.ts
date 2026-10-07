@@ -5,6 +5,7 @@ import { onPoolError, pool } from './db/pool.js';
 import { createBus } from './services/bus.js';
 import { LocalFileStorage } from './services/storage.js';
 import { startRetentionSweeper } from './services/cleanup.js';
+import { startWebhookLoop } from './services/bot_webhooks.js';
 
 const applied = await migrate();
 const bus = await createBus();
@@ -25,9 +26,14 @@ onPoolError((err) => app.log.error({ err }, 'postgres connection lost; the pool 
 
 const stopSweeper = startRetentionSweeper(storage, (err) => app.log.error({ err }, 'retention sweep failed'));
 
+// Posts bot updates to the webhooks that registered for them. A bot with no
+// webhook is unaffected: it polls, exactly as before.
+const stopWebhooks = startWebhookLoop((err) => app.log.error({ err }, 'webhook delivery failed'));
+
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
   stopSweeper();
+  stopWebhooks();
   await app.close();
   await bus.close();
   await pool.end();

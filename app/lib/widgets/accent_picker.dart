@@ -270,7 +270,10 @@ class AppIconPicker extends StatelessWidget {
     super.key,
   });
 
-  final AppIconColour selected;
+  /// The colour the home screen is wearing, or null while one of the artwork
+  /// styles is on — then nothing here is ticked, because the home screen shows
+  /// one icon and two ticks would claim it shows two.
+  final AppIconColour? selected;
   final ValueChanged<AppIconColour> onSelected;
 
   /// False while a change is in flight, or on a platform that cannot.
@@ -312,6 +315,162 @@ class AppIconPicker extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The artwork styles, picked from real thumbnails.
+///
+/// A separate row from the colours rather than nine more swatches in the same
+/// grid, because they are a different kind of choice: the colours are one
+/// picture in eight hues and these are four pictures. Mixing them would invite
+/// "which colour is the camouflage one".
+///
+/// The thumbnail is the delivered artwork at 256px — not a tint, because there
+/// is no single colour these could be tinted from. That is the one place this
+/// differs from the colour swatches, and the reason it has to.
+class AppIconStylePicker extends StatelessWidget {
+  const AppIconStylePicker({
+    required this.selected,
+    required this.onSelected,
+    required this.enabled,
+    super.key,
+  });
+
+  /// The style the home screen is wearing, or null when it is a colour.
+  final AppIconStyle? selected;
+  final ValueChanged<AppIconStyle> onSelected;
+  final bool enabled;
+
+  static String nameOf(AppText text, AppIconStyle style) => switch (style) {
+        AppIconStyle.camo => text.appIconStyleCamo,
+        AppIconStyle.camoShield => text.appIconStyleCamoShield,
+        AppIconStyle.neon => text.appIconStyleNeon,
+        AppIconStyle.neonMesh => text.appIconStyleNeonMesh,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(PrivioSpacing.lg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+          final minTile = 76.0 * scale;
+          final columns = (constraints.maxWidth / minTile).floor().clamp(2, 4);
+
+          return Opacity(
+            opacity: enabled ? 1 : 0.5,
+            child: Wrap(
+              spacing: PrivioSpacing.sm,
+              runSpacing: PrivioSpacing.lg,
+              children: [
+                for (final style in AppIconStyle.values)
+                  SizedBox(
+                    width: (constraints.maxWidth - PrivioSpacing.sm * (columns - 1)) / columns,
+                    child: _StyleSwatch(
+                      style: style,
+                      name: nameOf(text, style),
+                      selected: style == selected,
+                      onTap: enabled ? () => onSelected(style) : null,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StyleSwatch extends StatelessWidget {
+  const _StyleSwatch({
+    required this.style,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppIconStyle style;
+  final String name;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    // The accent the interface is wearing, for the tick and the border. The
+    // artwork is not recoloured by it — only the chrome around it is.
+    final accent = context.accents;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: onTap != null,
+      label: selected ? text.appIconSelected(name) : text.appIconChoose(name),
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(PrivioRadius.card),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: PrivioSpacing.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: PrivioColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? accent.accent : PrivioColors.border,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    // No padding: the artwork carries its own, and the
+                    // launcher will show it edge to edge.
+                    child: Image.asset(
+                      style.preview,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                  ),
+                  if (selected)
+                    Container(
+                      key: ValueKey('app-icon-check-${style.code}'),
+                      decoration: BoxDecoration(
+                        color: accent.accent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: PrivioColors.surface, width: 2),
+                      ),
+                      child: Icon(Icons.check_rounded, size: 14, color: accent.onAccent),
+                    ),
+                ],
+              ),
+              const SizedBox(height: PrivioSpacing.sm),
+              Text(
+                name,
+                key: ValueKey('app-icon-name-${style.code}'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: selected ? PrivioColors.textPrimary : PrivioColors.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

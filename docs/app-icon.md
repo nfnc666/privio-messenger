@@ -1,8 +1,10 @@
 # App-Icon / Home-screen icon
 
-Settings → Appearance → App icon offers the Privio mark in eight colours and
-changes the icon on the home screen. This note says where the pictures come
-from, what each platform actually does, and what has *not* been verified.
+Settings → Appearance → App icon offers the Privio mark in eight colours and,
+under them, four **artwork styles** — whole pictures rather than hues of the
+mark. Either changes the icon on the home screen. This note says where the
+pictures come from, what each platform actually does, and what has *not* been
+verified.
 
 ## The pictures
 
@@ -36,12 +38,50 @@ The swatches in the settings screen are a *third* thing again: the mark tinted
 at draw time with `BlendMode.srcIn`. Same file, so the preview cannot drift
 from what the launcher will show, and no fourth set of files to keep in step.
 
+## The four styles
+
+`camo`, `camo_shield`, `neon` and `neon_mesh`: a camouflage plate, the same with
+a shield and lock, neon glass with a shield, and neon glass over a mesh.
+
+**They are not recolourings and nothing about them is derived.** The eight
+colours work because the delivered mark is two tones and the blend factor comes
+back out of one channel; a camouflage pattern and a glow have no such structure.
+So they are *imported* rather than generated: `scripts/import_icon_styles.py`
+takes the delivered square and only resizes it, into
+
+* `AppIcon-<style>.appiconset` — the same fifteen files an existing set carries,
+  with `Contents.json` copied from one of them so the two cannot drift. The
+  script refuses if that catalogue names a file it does not produce;
+* `mipmap-<density>/ic_launcher_<style>.png` at all five densities, for
+  Android 7 and below;
+* `mipmap-<density>/ic_launcher_<style>_foreground.png`, the artwork inside the
+  72-of-108dp window a launcher actually shows, on transparency;
+* `assets/launcher_styles/<style>.png` at 256px, for the picker.
+
+The picker needs real thumbnails because the colour swatches are the mark tinted
+at draw time with `BlendMode.srcIn` — there is no single colour one of these
+could be tinted from. That is the one place the two pickers differ, and the
+reason they have to.
+
+**No `<monochrome>` layer.** A themed icon is drawn as one tone from the alpha
+channel, and these flattened to a silhouette would be filled blobs with nothing
+recognisable left. A launcher in themed mode falls back to the ordinary icon,
+which is the better of the two outcomes; the adaptive XMLs say so where they
+leave the layer out, and the settings screen says so to the person.
+
+**One slot, one icon.** A style and a colour share the stored value, because the
+home screen has one icon. `reconcile` reads styles first — their codes cannot
+collide with a colour's, and a test asserts that — so a stored style is never
+mistaken for "nothing stored" and the tick never lands in both grids.
+
 ## iOS
 
 Alternate app icons, declared in the asset catalog:
 
-* `AppIcon-blue.appiconset` … `AppIcon-yellow.appiconset` next to `AppIcon`.
-* `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` lists the seven, and
+* `AppIcon-blue.appiconset` … `AppIcon-yellow.appiconset` next to `AppIcon`,
+  and `AppIcon-camo`, `AppIcon-camo_shield`, `AppIcon-neon`,
+  `AppIcon-neon_mesh` beside them.
+* `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` lists all eleven, and
   `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES` gets them compiled
   in — both added to all three Runner build configurations.
 * `ios/Runner/LauncherIcon.swift` swaps them with
@@ -65,7 +105,8 @@ Two things iOS decides and Privio does not work around:
 
 ## Android
 
-`activity-alias` entries, one per colour, all targeting `MainActivity`, so the
+`activity-alias` entries, one per colour and one per style, all targeting
+`MainActivity`, so the
 app that opens is the same app and only what the launcher draws differs. They
 carry the ordinary app label: a colour is not a disguise, and relabelling it
 would make it one.
@@ -121,15 +162,37 @@ restart, the launcher winning a disagreement, the disguise interaction in both
 directions, an account switch leaving the icon alone, and the section's
 swatches, tick, reset and unavailable line.
 
+For the styles, eleven more: no style code colliding with a colour's or with
+`calculator`, the wire name round-tripping, the choice reaching the launcher and
+being stored, a colour afterwards clearing the style, a stored style surviving a
+restart, the launcher winning a disagreement in both directions, the disguise
+still winning, an unsupported platform refusing, a refusing device leaving the
+stored value alone, and "restore the original" clearing a style. Falsified by
+breaking three rules one at a time — storing before the platform agreed, letting
+a style survive a chosen colour, and ignoring the disguise — each turning the
+matching test red.
+
+The generator's own output was checked against an existing set rather than
+assumed: same file list, same pixel size for every file, and the Android
+densities matching `ic_launcher_blue` exactly.
+
 **The native code was not compiled here; it was compiled by CI.** This work was
 written on Linux in a container with **no Android SDK and no Xcode** —
 `flutter doctor` reports both toolchains absent — so nothing native could be
 built on the machine that wrote it. The pipeline has since built both sides on
 their own runners, and both passed:
 
+**The same is true of this change.** The four styles add eleven `activity-alias`
+entries, four adaptive XMLs, twenty Android PNGs, sixty iOS PNGs and four lines
+of Swift, and none of it was compiled here — the container still has no Android
+SDK and no Xcode. What *was* checked locally, by a script rather than by eye:
+every alias named in `MainActivity.kt` is declared in the manifest and the other
+way round, and every `@mipmap` an alias points at exists at some density. The
+compile is CI's to do.
+
 * `Android — libre APK`, `direct APK` and `play APK` each run
   `flutter build apk --release`. That compiles `MainActivity.kt`, merges the
-  manifest with the seven `activity-alias` entries, resolves each alias's
+  manifest with the `activity-alias` entries, resolves each alias's
   `android:targetActivity`, and resolves every `@mipmap` the aliases and the
   adaptive-icon XMLs point at. A misspelt alias, a missing density or a stray
   reference would have failed the build.

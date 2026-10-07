@@ -20,3 +20,7 @@ app/**/GeneratedPluginRegistrant.*
 **/*.iml
 
 .DS_Store
+
+# Python bytecode from the bot SDK and its examples.
+__pycache__/
+*.pyc

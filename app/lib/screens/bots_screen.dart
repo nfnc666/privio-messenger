@@ -11,6 +11,7 @@ import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
+import 'bot_chat_screen.dart';
 import 'botcreator_screen.dart';
 
 /// Settings → Bots: the bots this account owns.
@@ -30,6 +31,44 @@ class _BotsScreenState extends State<BotsScreen> {
       final account = state.accountId;
       if (account != null) unawaited(state.bots.load(account));
     });
+  }
+
+  /// Asks for a bot's exact `@username` and opens its chat.
+  Future<void> _openByUsername(BuildContext context) async {
+    final field = TextEditingController();
+    final text = AppText.of(context);
+    final username = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(text.botChatOpenTitle),
+        content: TextField(
+          controller: field,
+          autofocus: true,
+          decoration: InputDecoration(hintText: text.botChatOpenHint, prefixText: '@'),
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(text.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(field.text),
+            child: Text(text.botChatOpen),
+          ),
+        ],
+      ),
+    );
+    field.dispose();
+    final name = username?.trim().replaceFirst('@', '') ?? '';
+    if (name.isEmpty || !context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        // Opened by name; the screen resolves it and says so if there is no
+        // such bot, rather than this dialog guessing.
+        builder: (_) => BotChatScreen(botId: '', username: name),
+      ),
+    );
   }
 
   @override
@@ -65,6 +104,18 @@ class _BotsScreenState extends State<BotsScreen> {
                     ),
                 ],
               ),
+            SettingsSection(
+              children: [
+                SettingsRow(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: text.botChatOpenTitle,
+                  // By exact name. There is no directory to browse, and that is
+                  // deliberate: a list of every bot on a deployment is a list of
+                  // every operator on it.
+                  onTap: () => unawaited(_openByUsername(context)),
+                ),
+              ],
+            ),
             SettingsSection(
               children: [
                 SettingsRow(

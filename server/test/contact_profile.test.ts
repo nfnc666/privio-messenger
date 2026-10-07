@@ -24,7 +24,14 @@ describe('contact profiles addressed by immutable ID', () => {
     assert.equal(response.json().id, owner.accountId);
     assert.deepEqual(Object.keys(response.json()).sort(), [
       'id', 'username', 'displayName', 'avatarMediaId', 'avatarUpdatedAt', 'lastSeenAt', 'status', 'isContact', 'isBlocked',
+      // Whether this account is operated by a program. Argued for rather than
+      // waved through: every screen that draws a name has to draw the **BOT**
+      // label beside it, and a label that needs a second request is a label
+      // that is sometimes missing. It discloses nothing a bot is not meant to
+      // announce.
+      'isBot',
     ].sort());
+    assert.equal(response.json().isBot, false, 'a person is not a bot');
   });
 
   it('checks the owner address book, not the viewer address book', async () => {

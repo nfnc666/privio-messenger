@@ -154,10 +154,40 @@ const READABLE: Record<string, string> = {
   'bot_messages.body': 'a bot chat is not end-to-end encrypted, knowingly; see docs/bots.md',
   'bot_messages.scope': 'direct, group or channel — which delivery rule applies',
   'bot_messages.author': 'user or bot, which decides whether it is delivered to the operator',
+  // Not content: an id the sending device made up so that a retry after a
+  // dropped connection is answered instead of delivered twice. The server
+  // compares it and learns nothing from it, exactly as with
+  // `sent_message_keys.idempotency_key` on the encrypted path.
+  'bot_messages.client_id': 'the sender s own id for the message, so a retry is not a second message',
   // The bot's own public description and its command menu, both written by its
   // owner to be shown to everybody who opens the chat.
   'bots.description': 'the bot s public description, shown to anyone who opens it',
   'bots.commands': 'the command menu the owner publishes',
+  // A webhook URL the server itself has to fetch, so it cannot be sealed: the
+  // delivery loop reads it, and the guard in `util/outbound.ts` has to resolve
+  // it again before every request. The owner chose it and it is shown back only
+  // to the bot holding the token. The row's *secret* is bytea, which is the
+  // part that must not be readable.
+  // Buttons and presses. All three are the bot's own words and ids rather than
+  // anybody's message: the label is written by the operator to be shown to
+  // whoever opens the chat, and the id is the operator's own token for an
+  // action. The server has to read them because it is the thing that checks a
+  // press names a button the message actually carries — a check it could not
+  // make on ciphertext. The message body beside them is readable for the reason
+  // the whole bot path is, which migration 029 states.
+  'bot_messages.buttons': 'the labels the bot published and the ids it chose, checked on a press',
+  'bot_messages.kind': 'whether the row is a message or a press, which decides how it is delivered',
+  'bot_button_presses.button_id': 'which button, so the same one cannot be pressed twice',
+  // A picture or a file a bot sent. The bytes are not sealed either — the whole
+  // bot path is plaintext, which migration 029 argues and 040 repeats where the
+  // columns are defined. These two are what the *app* needs to draw the message
+  // before the bytes arrive, and they outlive the blob on purpose: after the
+  // sweeper takes it, the kind and the name are what say "this file is gone"
+  // instead of the message silently losing its attachment.
+  'bot_messages.media_kind': 'image or file, so the app knows what to draw',
+  'bot_messages.file_name': 'the name the bot gave it, shown and saved under',
+  'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
+  'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the
   // policy, and it is readable because the server enforces it.
   'reserved_usernames.username': 'the policy the server enforces, not user data',

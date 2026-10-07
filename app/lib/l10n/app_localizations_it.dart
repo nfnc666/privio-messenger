@@ -1605,6 +1605,17 @@ class AppTextIt extends AppText {
   String get chatInviteLink => 'Link di invito';
 
   @override
+  String get chatInviteLinkRenew => 'Rinnova il link';
+
+  @override
+  String get chatInviteLinkRenewed =>
+      'Rinnovato. Il link precedente non funziona più.';
+
+  @override
+  String get chatInviteLinkRenewNote =>
+      'Rinnovandolo, il link precedente smette di funzionare. Chi è già nel gruppo non viene toccato.';
+
+  @override
   String get chatInviteLinkNote =>
       'Condividilo ovunque: non porta nessuna chiave. Chi lo apre entra nel gruppo, e la chiave del suo nome arriva cifrata sul suo dispositivo.';
 
@@ -1734,6 +1745,140 @@ class AppTextIt extends AppText {
 
   @override
   String get groupAdminOnly => 'Solo un amministratore può cambiarlo';
+
+  @override
+  String get groupPictureChoose => 'Scegli un’immagine';
+
+  @override
+  String get groupPictureRemove => 'Rimuovi l’immagine';
+
+  @override
+  String get groupPictureFailed =>
+      'Non è stato possibile impostare l’immagine.';
+
+  @override
+  String get groupDescriptionRow => 'Descrizione';
+
+  @override
+  String get groupDescriptionNone => 'Nessuna';
+
+  @override
+  String get groupDescriptionTitle => 'Descrizione del gruppo';
+
+  @override
+  String get groupDescriptionHint => 'A cosa serve questo gruppo?';
+
+  @override
+  String get groupDescriptionSealed =>
+      'Solo i membri possono leggerla. È cifrata con la chiave del gruppo, come il nome e i messaggi.';
+
+  @override
+  String get groupDescriptionSaved => 'Descrizione salvata';
+
+  @override
+  String get groupDescriptionFailed =>
+      'Non è stato possibile salvare la descrizione.';
+
+  @override
+  String get groupBotsTitle => 'Bot in questo gruppo';
+
+  @override
+  String get groupBotsIntro =>
+      'I bot sono account automatizzati gestiti da qualcuno fuori da questo gruppo. Ricevono solo ciò che viene consegnato loro deliberatamente.';
+
+  @override
+  String get groupBotsNone => 'In questo gruppo non c’è nessun bot.';
+
+  @override
+  String get groupBotsAddTitle => 'Aggiungi un bot';
+
+  @override
+  String get groupBotsAddHint =>
+      'Inserisci il @nome esatto del bot. Volutamente non esiste un elenco di tutti i bot.';
+
+  @override
+  String get groupBotsNotFound => 'Questo bot non esiste.';
+
+  @override
+  String get groupBotsCouldNotAdd => 'Non è stato possibile aggiungere il bot.';
+
+  @override
+  String get groupBotsCouldNotChange =>
+      'Non è stato possibile salvare la modifica.';
+
+  @override
+  String get groupBotsMaySend => 'Inviare messaggi';
+
+  @override
+  String get groupBotsMayModerate => 'Eliminare messaggi';
+
+  @override
+  String get groupBotsModerateUnavailable =>
+      'Non è possibile in PRIVIO: solo l\'autore di un messaggio può eliminarlo per tutti. Un bot non ha la chiave del gruppo, quindi non può eliminare il messaggio di nessun altro.';
+
+  @override
+  String get groupBotsMayRestrict => 'Limitare i membri';
+
+  @override
+  String get groupBotsMayInvite => 'Gestire gli inviti';
+
+  @override
+  String get groupBotsReadAll => 'Ricevere tutti i nuovi messaggi';
+
+  @override
+  String get groupBotsReadsAddressed =>
+      'Riceve solo comandi, menzioni e risposte a lui rivolte';
+
+  @override
+  String get groupBotsReadsEverything =>
+      'Riceve ogni nuovo messaggio di questo gruppo';
+
+  @override
+  String get groupBotsReadAllTitle => 'Consegnare ogni messaggio?';
+
+  @override
+  String groupBotsReadAllBody(String name) {
+    return 'Da quel momento il dispositivo di ogni membro consegnerà ogni nuovo messaggio a «$name», non solo quelli a lui rivolti. Chi gestisce il bot può leggerli. I messaggi precedenti non sono interessati.';
+  }
+
+  @override
+  String get groupBotsReadAllConfirm => 'Consegna tutto';
+
+  @override
+  String groupBotsRemoveTitle(String name) {
+    return 'Rimuovere «$name»?';
+  }
+
+  @override
+  String get groupBotsRemoveBody =>
+      'Non gli verrà consegnato altro. Ciò che ha già ricevuto è sul server di chi lo gestisce e da qui non può essere cancellato.';
+
+  @override
+  String get groupBotsRemoveAction => 'Rimuovi il bot';
+
+  @override
+  String groupBotsDisclosureTitle(String name) {
+    return 'Cosa può leggere «$name»';
+  }
+
+  @override
+  String get groupBotsDisclosureReads =>
+      'Riceve comandi, menzioni di sé e risposte ai suoi messaggi — in chiaro, sul server di chi lo gestisce.';
+
+  @override
+  String get groupBotsDisclosureNotReads =>
+      'Non riceve altro. Non possiede alcuna chiave di questo gruppo: i dispositivi dei membri gli consegnano singoli messaggi e nulla più. Non riceve mai i messaggi inviati prima del suo ingresso.';
+
+  @override
+  String get groupBotsDisclosureNoRights =>
+      'Parte senza alcun diritto. Ogni diritto si concede poi separatamente.';
+
+  @override
+  String get groupBotsDisclosureOperator =>
+      'Chi gestisce questo bot può leggere i contenuti che condividi con il bot.';
+
+  @override
+  String get groupBotsDisclosureAdd => 'Ho capito, aggiungi';
 
   @override
   String get groupRename => 'Rinomina il gruppo';
@@ -3788,6 +3933,25 @@ class AppTextIt extends AppText {
       'Questo dispositivo non può cambiare l\'icona dell\'app, quindi Privio non lo propone.';
 
   @override
+  String get appearanceAppIconStyles => 'Altri design';
+
+  @override
+  String get appearanceAppIconStylesNote =>
+      'Immagini intere anziché colori del marchio, quindi non vengono tinte dal tuo colore d\'accento. Su un launcher con le icone a tema attive tornano all\'icona normale: un motivo mimetico o un bagliore ridotti a un solo tono sarebbero una macchia piena.';
+
+  @override
+  String get appIconStyleCamo => 'Mimetico';
+
+  @override
+  String get appIconStyleCamoShield => 'Mimetico, scudo';
+
+  @override
+  String get appIconStyleNeon => 'Neon, scudo';
+
+  @override
+  String get appIconStyleNeonMesh => 'Neon, rete';
+
+  @override
   String get appearanceAppIconOriginal => 'Originale';
 
   @override
@@ -4282,6 +4446,74 @@ class AppTextIt extends AppText {
 
   @override
   String get botsUnderstood => 'Ho capito';
+
+  @override
+  String get botChatStart => 'Avvia';
+
+  @override
+  String get botChatStartHint =>
+      'Questo bot non può scriverti finché non lo avvii.';
+
+  @override
+  String get botChatNotStarted => 'Avvia questo bot prima di scrivergli.';
+
+  @override
+  String get botChatStop => 'Ferma questo bot';
+
+  @override
+  String get botChatStopped =>
+      'Hai fermato questo bot. Scrivigli di nuovo per riavviarlo.';
+
+  @override
+  String botChatStopConfirm(String username) {
+    return 'Fermare @$username?';
+  }
+
+  @override
+  String get botChatStopExplain =>
+      'Non potrà più scriverti e non gli arriverà più nulla. I messaggi che hai già inviato restano dove sono.';
+
+  @override
+  String get botChatBlock => 'Blocca questo bot';
+
+  @override
+  String get botChatHint => 'Messaggio';
+
+  @override
+  String get botChatCommands => 'Comandi';
+
+  @override
+  String get botChatCommandsEmpty =>
+      'Questo bot non pubblica un elenco di comandi.';
+
+  @override
+  String get botChatNoDescription => 'Questo bot non ha una descrizione.';
+
+  @override
+  String get botChatOperator =>
+      'Un account automatico. Chi lo gestisce può leggere quello che gli invii.';
+
+  @override
+  String get botChatEmpty => 'Ancora nulla. Salutalo o scegli un comando.';
+
+  @override
+  String get botChatFileGone => 'Questo file non è più sul server.';
+
+  @override
+  String get botChatImageBroken =>
+      'Non è stato possibile mostrare questa immagine. Aprila come file.';
+
+  @override
+  String get botChatButtonPressed => 'Premuto';
+
+  @override
+  String get botChatOpenTitle => 'Apri un bot';
+
+  @override
+  String get botChatOpenHint => 'Il @nome esatto del bot';
+
+  @override
+  String get botChatOpen => 'Apri';
 
   @override
   String get botcreatorTitle => 'Bot Creator';

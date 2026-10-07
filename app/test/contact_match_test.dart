@@ -356,6 +356,26 @@ void main() {
       // The row is there and disabled, so the tap does nothing at all — it does
       // not open the address book on a server that could not match anyway.
       expect(book.reads, 0);
+
+      // And it says which of the two is missing. Saying "no text messages"
+      // here sent somebody looking at an SMS provider when what this
+      // deployment lacks is a discovery key.
+      expect(find.textContaining('contact discovery switched off'), findsOneWidget);
+      expect(find.textContaining('cannot send text messages'), findsNothing);
+    });
+
+    testWidgets('with no SMS provider it says that instead', (tester) async {
+      final server = _Server()
+        ..link = {..._Server().link, 'smsAvailable': false};
+      final book = _FakeAddressBook(const AddressBookNumbers(['+4915123456789']));
+      final state = await tester.runAsync(() => _signedIn(server, book)) as AppState;
+      addTearDown(state.conversations.stop);
+
+      await tester.pumpWidget(_screen(state));
+      await _settle(tester);
+
+      expect(find.textContaining('cannot send text messages'), findsOneWidget);
+      expect(find.textContaining('contact discovery switched off'), findsNothing);
     });
   });
 

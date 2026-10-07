@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The adaptive launcher icon for the **neon_mesh** style — the neon glass mark with the shield and the mesh behind it.
+
+  Not a recolour of the mark. The eight colour variants are one artwork with
+  its hue shifted; these four are their own pictures, imported by
+  scripts/import_icon_styles.py and only resized. See docs/app-icon.md.
+
+  The launcher masks this to whatever shape the device uses, and only the
+  middle 72dp of the 108dp canvas is ever visible, so the foreground carries
+  the artwork scaled into that window. The background is the same flat black
+  the other icons use, which is what the artwork's own black edges disappear
+  into under any mask shape.
+
+  **No monochrome layer, on purpose.** A themed icon is drawn as a single
+  tone from its alpha, and these pictures are a camouflage pattern, a metal
+  plate and a glow — flattening one to a silhouette would produce a filled
+  blob with none of what makes it recognisable. A launcher in themed mode
+  falls back to the ordinary icon instead, which is the better of the two.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_neon_mesh_foreground" />
+</adaptive-icon>

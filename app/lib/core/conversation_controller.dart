@@ -17,6 +17,7 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
+import '../models/group_bot.dart';
 import '../models/models.dart';
 import '../models/security_event.dart';
 import 'api_client.dart';
@@ -294,7 +295,12 @@ class ConversationController extends ChangeNotifier {
       // else. The word is the screen's; this only says which row it is.
       isSaved: isSaved(conversation.id),
       isGroup: conversation.isGroup,
-      avatarBytes: _avatarCache[conversation.id],
+      // A group's picture comes from its own cache, keyed by group; a person's
+      // from the avatar cache, keyed by media id. Two caches because the two
+      // are fetched by different rules — see `groupAvatar`.
+      avatarBytes: conversation.isGroup
+          ? _groupAvatarCache[conversation.id]?.$2
+          : _avatarCache[conversation.id],
       // Typing replaces the preview rather than sitting beside it: the row has
       // one line, and what someone is doing now beats what they said before.
       // An empty Saved area says what it is for. Every other empty
@@ -846,6 +852,12 @@ class ConversationController extends ChangeNotifier {
       _markSent(conversationId, clientId, timer);
       _failure = null;
       _persist();
+      // Only after the message actually went. A bot receiving a copy of
+      // something that failed to send would be a bot that saw a message the
+      // group never did.
+      if (conversation.isGroup) {
+        unawaited(_handToBots(conversationId, body, clientId, replyTo: replyTo));
+      }
     } on Object catch (failure) {
       // Leaving it at `sending` would be a lie. Mark it and say why.
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
@@ -862,6 +874,162 @@ class ConversationController extends ChangeNotifier {
       };
     }
     notifyListeners();
+  }
+
+  /// The bots in a group, as the server last listed them.
+  ///
+  /// Per group and per account, like every other cache here. Refreshed when a
+  /// group screen opens and after any change to the list, not on every send —
+  /// a device that asked before each message would turn one send into two
+  /// requests.
+  final Map<String, List<GroupBot>> _groupBots = {};
+
+  List<GroupBot> botsIn(String groupId) => _groupBots[groupId] ?? const [];
+
+  /// Reads which bots are in a group and what they may do.
+  Future<List<GroupBot>> refreshGroupBots(String groupId) async {
+    final account = accountId;
+    try {
+      final response = await _services.api.groupBots(groupId);
+      if (accountId != account) return const [];
+      final listed = [
+        for (final raw in response['bots'] as List<dynamic>? ?? const [])
+          GroupBot.fromJson(raw as Map<String, dynamic>),
+      ];
+      _groupBots[groupId] = listed;
+      notifyListeners();
+      return listed;
+    } on Object {
+      // A list that will not load is a group drawn without its bots, not an
+      // error in front of a conversation. Nothing is forwarded in that state,
+      // which is the safe direction: a bot receives less, never more.
+      return _groupBots[groupId] ?? const [];
+    }
+  }
+
+  /// Looks a bot up by its exact username, for an admin about to add one.
+  ///
+  /// The ordinary profile route: a bot is an account, and there is no bot
+  /// directory to browse — which is deliberate, since a browsable list of
+  /// every bot on a deployment is a list of every operator on it.
+  Future<GroupBot?> lookupBot(String username) async {
+    try {
+      final json = await _services.api.lookup(username.toLowerCase());
+      if (json['isBot'] != true) {
+        _failure = const Failure(FailureKind.botNotFound);
+        notifyListeners();
+        return null;
+      }
+      return GroupBot(
+        botId: json['id'] as String,
+        username: json['username'] as String,
+        displayName: json['displayName'] as String?,
+      );
+    } on ApiException catch (failure) {
+      _failure = failure.statusCode == 404 || failure.statusCode == 400
+          ? const Failure(FailureKind.botNotFound)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return null;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Adds a bot to a group. It arrives with no rights; see the server routes.
+  Future<bool> addGroupBot(String groupId, String botId) =>
+      _changeGroupBots(() => _services.api.addGroupBot(groupId, botId), groupId);
+
+  /// Grants or withdraws **one** right. One at a time, on purpose: a call that
+  /// set several would be a call somebody uses to set all of them.
+  Future<bool> setGroupBotRight(
+    String groupId,
+    String botId,
+    String right,
+    bool value,
+  ) =>
+      _changeGroupBots(
+        () => _services.api.setGroupBotRights(groupId, botId, {right: value}),
+        groupId,
+      );
+
+  Future<bool> removeGroupBot(String groupId, String botId) =>
+      _changeGroupBots(() => _services.api.removeGroupBot(groupId, botId), groupId);
+
+  /// Runs a change and files the list the server answered with.
+  ///
+  /// The server's answer rather than a guess about what the change did: a
+  /// device that predicted the new rights would eventually draw a switch that
+  /// is on while the server has it off.
+  Future<bool> _changeGroupBots(
+    Future<Map<String, dynamic>> Function() change,
+    String groupId,
+  ) async {
+    final account = accountId;
+    try {
+      final response = await change();
+      if (accountId != account) return false;
+      _groupBots[groupId] = [
+        for (final raw in response['bots'] as List<dynamic>? ?? const [])
+          GroupBot.fromJson(raw as Map<String, dynamic>),
+      ];
+      _failure = null;
+      notifyListeners();
+      return true;
+    } on ApiException catch (failure) {
+      _failure = failure.code == 'not_an_admin'
+          ? const Failure(FailureKind.insufficientPermission)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Hands a just-sent group message to the bots it was addressed to.
+  ///
+  /// **This device is the only one that can.** A group message is Signal
+  /// ciphertext addressed to member devices; the server holds no key that
+  /// opens one, so it cannot forward to a bot even if it wanted to. The
+  /// filtering therefore happens here, with the plaintext, before anything is
+  /// handed over — which is what makes it a cryptographic restriction rather
+  /// than a server's promise to look away.
+  ///
+  /// What goes is the text of this one message and nothing else. No history,
+  /// no other conversation, and nothing at all for a bot the message was not
+  /// addressed to.
+  Future<void> _handToBots(
+    String groupId,
+    String body,
+    String clientId, {
+    Message? replyTo,
+  }) async {
+    final present = _groupBots[groupId];
+    if (present == null || present.isEmpty) return;
+
+    for (final bot in present) {
+      final repliesToBot = replyTo != null && replyTo.senderAccountId == bot.botId;
+      if (!addressesBot(bot, body, repliesToBot: repliesToBot)) continue;
+      try {
+        await _services.api.sendToBot(
+          bot.botId,
+          body,
+          groupId: groupId,
+          // The same id the message carries in the group, so a retry of the
+          // send is a retry here too rather than a second delivery.
+          clientId: clientId,
+        );
+      } on Object {
+        // A bot that could not be reached is a bot that did not get this
+        // message. It is not a reason to tell somebody their message to the
+        // group failed, because it did not.
+      }
+    }
   }
 
   // --- Groups ---------------------------------------------------------------
@@ -890,11 +1058,14 @@ class ConversationController extends ChangeNotifier {
   Future<void> refreshGroups() async {
     try {
       for (final group in await _services.messaging.listGroups(_services.store)) {
-        _services.store.upsertGroup(group);
+        // The whole answer, so a picture or a description an admin removed
+        // elsewhere is removed here too.
+        _services.store.upsertGroup(group, authoritative: true);
       }
       _failure = null;
       notifyListeners();
       unawaited(_maintainGroupKeys());
+      unawaited(_warmGroupAvatars());
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
       notifyListeners();
@@ -1002,6 +1173,42 @@ class ConversationController extends ChangeNotifier {
   /// The name is sealed with the group's key, so this changes a blob the server
   /// cannot read. It needs the key: a device that joined by a link and has not
   /// been sent the key yet cannot rename what it cannot name.
+  /// Renews the group's invite link, and returns the new one.
+  ///
+  /// A group's code was permanent until now, so a link posted once was a way in
+  /// forever — somebody who screenshotted it, or a member who left with it,
+  /// kept a working door. Renewing closes that door without touching anybody
+  /// who already came through it.
+  Future<String?> rotateGroupInvite(String groupId) async {
+    final group = groupInfo(groupId);
+    if (group == null) {
+      _failure = const Failure(FailureKind.groupNotFound);
+      notifyListeners();
+      return null;
+    }
+    final String code;
+    try {
+      final json = await _services.api.rotateGroupInvite(groupId);
+      code = json['inviteCode'] as String;
+    } on ApiException catch (failure) {
+      _failure = failure.statusCode == 403
+          ? const Failure(FailureKind.insufficientPermission)
+          : Failure.server(failure.message);
+      notifyListeners();
+      return null;
+    } on Object {
+      _failure = const Failure(FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return null;
+    }
+    // Merged, not rebuilt: the picture, the description and the key all live on
+    // this object too.
+    _services.store.upsertGroup(group.merge(inviteCode: code));
+    _persist();
+    notifyListeners();
+    return ChannelService.linkForGroup(code);
+  }
+
   Future<bool> renameGroup(String groupId, String name) async {
     final group = groupInfo(groupId);
     final key = group?.groupKey;
@@ -1017,19 +1224,154 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // Merged rather than rebuilt: a `GroupInfo` assembled from four fields
+    // drops every other one, and since this group has a picture and a
+    // description now, rebuilding it would make renaming a group quietly
+    // forget both.
+    _services.store.upsertGroup(group.merge(name: name));
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Sets what a group says it is for, or clears it.
+  ///
+  /// Sealed with the group's key like the name, so this too changes a blob the
+  /// server cannot read — and needs that key for the same reason.
+  ///
+  /// Admins only, and refused here as well as by the server: a screen that hid
+  /// the field would still leave the call reachable.
+  Future<bool> describeGroup(String groupId, String? description) async {
+    final group = groupInfo(groupId);
+    final key = group?.groupKey;
+    if (group == null || key == null) {
+      _failure = const Failure(FailureKind.groupKeyMissing);
+      notifyListeners();
+      return false;
+    }
+    if (!group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    final trimmed = description?.trim();
+    try {
+      await _services.messaging.describeGroup(groupId, trimmed, key);
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    }
+    // Authoritative, because this *is* the whole truth about the group now.
+    // Without it the store would merge the cleared description against what it
+    // already held and put the old text straight back — a removal that undoes
+    // itself on the way to the screen.
     _services.store.upsertGroup(
-      GroupInfo(
-        groupId: group.groupId,
-        role: group.role,
-        name: name,
-        groupKey: group.groupKey,
-        inviteCode: group.inviteCode,
-        memberIds: group.memberIds,
-      ),
+      trimmed == null || trimmed.isEmpty
+          ? group.merge(clearDescription: true)
+          : group.merge(description: trimmed),
+      authoritative: trimmed == null || trimmed.isEmpty,
     );
     _persist();
     notifyListeners();
     return true;
+  }
+
+  /// Gives a group a picture. Returns false with a reason on the failure.
+  Future<bool> setGroupAvatar(String groupId, Uint8List picked) async {
+    final group = groupInfo(groupId);
+    if (group == null || !group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    try {
+      final mediaId = await _services.messaging.setGroupAvatar(groupId, picked);
+      _services.store.upsertGroup(
+        group.merge(avatarMediaId: mediaId, avatarUpdatedAt: DateTime.now()),
+      );
+      // The old picture is still in this cache under the old id; the new one
+      // is a new id, so nothing has to be evicted for the change to show.
+      _persist();
+      notifyListeners();
+      return true;
+    } on GroupAvatarRejected catch (rejected) {
+      _failure = rejected.failure;
+      notifyListeners();
+      return false;
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    } on Object {
+      _failure = const Failure(FailureKind.couldNotSetPicture);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Takes a group's picture away.
+  Future<bool> clearGroupAvatar(String groupId) async {
+    final group = groupInfo(groupId);
+    if (group == null || !group.isAdmin) {
+      _failure = const Failure(FailureKind.insufficientPermission);
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _services.messaging.clearGroupAvatar(groupId);
+    } on ApiException catch (failure) {
+      _failure = Failure.server(failure.message);
+      notifyListeners();
+      return false;
+    }
+    // Authoritative for the same reason as clearing a description: a merge
+    // against what the store already has would restore the picture that was
+    // just removed.
+    _services.store.upsertGroup(group.merge(clearAvatar: true), authoritative: true);
+    _groupAvatarCache.remove(groupId);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// The group's picture, fetched once and kept for as long as the app runs.
+  ///
+  /// Keyed on the **media id** rather than the group, so replacing a picture
+  /// is a different key and nothing has to be invalidated by hand. Per account
+  /// like every other cache here: it lives on this controller, and a controller
+  /// belongs to one signed-in account.
+  Future<Uint8List?> groupAvatar(String groupId) async {
+    final mediaId = groupInfo(groupId)?.avatarMediaId;
+    if (mediaId == null) return null;
+    final cached = _groupAvatarCache[groupId];
+    if (cached != null && cached.$1 == mediaId) return cached.$2;
+
+    final account = accountId;
+    final bytes = await _services.messaging.groupAvatarBytes(mediaId);
+    // Somebody else may be signed in by the time this answers, and their
+    // caches are not this one's to fill.
+    if (accountId != account) return null;
+    if (bytes != null) {
+      _groupAvatarCache[groupId] = (mediaId, bytes);
+      notifyListeners();
+    }
+    return bytes;
+  }
+
+  /// Fetches the pictures of groups that have one and this run has not seen.
+  ///
+  /// Once per group per run, after a listing rather than while a chat list is
+  /// being drawn: a screen that fetched as it scrolled would ask again every
+  /// time a row came back into view. Failures are silent — a group with no
+  /// picture on screen is the same thing to a reader as a group with none.
+  Future<void> _warmGroupAvatars() async {
+    for (final conversation in _services.store.conversations()) {
+      final group = conversation.group;
+      if (group?.avatarMediaId == null) continue;
+      if (_groupAvatarCache[group!.groupId]?.$1 == group.avatarMediaId) continue;
+      await groupAvatar(group.groupId);
+    }
   }
 
   /// Deletes a group for everyone in it. Admins only, enforced by the server.
@@ -3050,6 +3392,13 @@ class ConversationController extends ChangeNotifier {
   /// re-derivable, and writing faces to disk in the clear is not worth it.
   final Map<String, Uint8List> _avatarCache = {};
 
+  /// Group pictures, keyed by group id and carrying the media id they are of.
+  ///
+  /// The pair is what makes replacing a picture show up: the entry is only a
+  /// hit while it is still of the id the group currently points at. In memory
+  /// only, and on this controller, so it goes with the account.
+  final Map<String, (String, Uint8List)> _groupAvatarCache = {};
+
   /// This account's own picture, once it has been set or loaded.
   Uint8List? ownAvatar;
 
@@ -3093,7 +3442,13 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  Uint8List? avatarFor(String accountId) => _avatarCache[accountId];
+  /// The picture for a conversation, whichever kind it is.
+  ///
+  /// One question from a screen's point of view — "what do I draw here" — with
+  /// the two caches behind it, so a chat header does not have to know whether
+  /// it is looking at a person or a group.
+  Uint8List? avatarFor(String conversationId) =>
+      _avatarCache[conversationId] ?? _groupAvatarCache[conversationId]?.$2;
 
   /// Downloads and opens the pictures of everyone we have both a pointer and a
   /// key for. Quiet on failure — a missing avatar is a cosmetic problem.

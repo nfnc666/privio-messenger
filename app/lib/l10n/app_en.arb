@@ -773,6 +773,9 @@
   "chatMicrophoneDenied": "Privio cannot record without microphone access. You can grant it in your device settings.",
   "chatNoGroupLink": "No link for this group yet — pull to refresh.",
   "chatInviteLink": "Invite link",
+  "chatInviteLinkRenew": "Renew link",
+  "chatInviteLinkRenewed": "Renewed. The old link no longer works.",
+  "chatInviteLinkRenewNote": "Renewing stops the old link working. Nobody already in the group is affected.",
   "chatInviteLinkNote": "Share it anywhere — it carries no key. Whoever opens it joins the group, and the key to its name reaches their device encrypted.",
   "chatTyping": "typing…",
   "chatVideoCall": "Video call",
@@ -855,6 +858,83 @@
   "groupAddContactsFirst": "Add some contacts first — a group needs people in it.",
   "groupInfoCouldNotRead": "Could not read who is in this group.",
   "groupAdminOnly": "Only an admin can change this",
+  "groupPictureChoose": "Choose a picture",
+  "@groupPictureChoose": {
+    "description": "Sheet action that opens the picture chooser for a group."
+  },
+  "groupPictureRemove": "Remove picture",
+  "@groupPictureRemove": {
+    "description": "Sheet action that removes a group's picture."
+  },
+  "groupPictureFailed": "The picture could not be set.",
+  "@groupPictureFailed": {
+    "description": "Shown when setting or removing a group's picture did not work."
+  },
+  "groupDescriptionRow": "Description",
+  "@groupDescriptionRow": {
+    "description": "Settings row that opens the group description editor."
+  },
+  "groupDescriptionNone": "None",
+  "@groupDescriptionNone": {
+    "description": "Value of the description row while no description is set."
+  },
+  "groupDescriptionTitle": "Group description",
+  "@groupDescriptionTitle": {
+    "description": "Title of the group description editor."
+  },
+  "groupDescriptionHint": "What is this group for?",
+  "@groupDescriptionHint": {
+    "description": "Placeholder in the group description field."
+  },
+  "groupDescriptionSealed": "Only members can read it. It is encrypted with the group key, like the name and the messages.",
+  "@groupDescriptionSealed": {
+    "description": "Note under the group description field saying it is end-to-end encrypted."
+  },
+  "groupDescriptionSaved": "Description saved",
+  "@groupDescriptionSaved": {
+    "description": "Confirmation after saving a group description."
+  },
+  "groupDescriptionFailed": "The description could not be saved.",
+  "@groupDescriptionFailed": {
+    "description": "Shown when a group description could not be saved."
+  },
+  "groupBotsTitle": "Bots in this group",
+  "groupBotsIntro": "Bots are automated accounts run by somebody outside this group. They receive only what is deliberately handed to them.",
+  "groupBotsNone": "There is no bot in this group.",
+  "groupBotsAddTitle": "Add a bot",
+  "groupBotsAddHint": "Enter the bot’s exact @username. There is deliberately no directory of every bot.",
+  "groupBotsNotFound": "There is no such bot.",
+  "groupBotsCouldNotAdd": "The bot could not be added.",
+  "groupBotsCouldNotChange": "The change could not be saved.",
+  "groupBotsMaySend": "Send messages",
+  "groupBotsMayModerate": "Delete messages",
+  "groupBotsModerateUnavailable": "Not possible in PRIVIO: only the author of a message can delete it for everyone. A bot holds no group key, so it cannot delete anybody else\u2019s message.",
+  "groupBotsMayRestrict": "Restrict members",
+  "groupBotsMayInvite": "Manage invites",
+  "groupBotsReadAll": "Receive all new messages",
+  "groupBotsReadsAddressed": "Receives only commands, mentions and replies to it",
+  "groupBotsReadsEverything": "Receives every new message in this group",
+  "groupBotsReadAllTitle": "Hand over every message?",
+  "groupBotsReadAllBody": "From then on every member’s device hands each new message to “{name}” — not only the ones addressed to it. The bot’s operator can read them. Older messages are not affected.",
+  "@groupBotsReadAllBody": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsReadAllConfirm": "Hand over all",
+  "groupBotsRemoveTitle": "Remove “{name}”?",
+  "@groupBotsRemoveTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsRemoveBody": "Nothing more will be handed to it. What it already received is on its operator’s server and cannot be deleted from here.",
+  "groupBotsRemoveAction": "Remove bot",
+  "groupBotsDisclosureTitle": "What “{name}” can read",
+  "@groupBotsDisclosureTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "groupBotsDisclosureReads": "It receives commands, @mentions of it, and replies to its messages — in the clear, on its operator’s server.",
+  "groupBotsDisclosureNotReads": "It receives nothing else. It holds no key for this group: members’ devices hand it individual messages and nothing more. It never receives messages sent before it joined.",
+  "groupBotsDisclosureNoRights": "It starts with no rights at all. You grant each one separately afterwards.",
+  "groupBotsDisclosureOperator": "The operator of this bot can read content you share with the bot.",
+  "groupBotsDisclosureAdd": "Understood, add it",
   "groupRename": "Rename group",
   "groupRenameAction": "Rename",
   "groupRenamed": "Renamed. Everyone else opens the new name with the key they already have.",
@@ -1804,6 +1884,12 @@
   "appearanceAppIconReset": "Restore the original icon",
   "appearanceAppIconSlow": "The home screen can take a few seconds to redraw. That wait belongs to the launcher, not to Privio.",
   "appearanceAppIconUnavailable": "This device cannot change the app icon, so Privio does not offer to.",
+  "appearanceAppIconStyles": "Other designs",
+  "appearanceAppIconStylesNote": "Whole pictures rather than colours of the mark, so they are not tinted by your accent colour. On a launcher with themed icons switched on, these fall back to the ordinary icon: a camouflage plate or a glow flattened to one tone would be a filled blob.",
+  "appIconStyleCamo": "Camouflage",
+  "appIconStyleCamoShield": "Camouflage, shield",
+  "appIconStyleNeon": "Neon, shield",
+  "appIconStyleNeonMesh": "Neon, network",
   "appearanceAppIconOriginal": "Original",
   "failureAppIconUnsupported": "The app icon could not be changed: this device does not offer it.",
   "failureAppIconHiddenByDisguise": "The home screen is showing the calculator while the disguise is on, so the icon colour has not been changed. Switch the disguise off first.",
@@ -2031,6 +2117,27 @@
   "botsBadge": "BOT",
   "botsNotEncrypted": "A conversation with a bot is not end-to-end encrypted. The person who runs the bot can read what you send it, and so can this server. Your other chats, groups and channels are unchanged.",
   "botsUnderstood": "I understand",
+  "botChatStart": "Start",
+  "botChatStartHint": "This bot cannot write to you until you start it.",
+  "botChatNotStarted": "Start this bot before writing to it.",
+  "botChatStop": "Stop this bot",
+  "botChatStopped": "You stopped this bot. Write to it again to start it over.",
+  "botChatStopConfirm": "Stop @{username}?",
+  "@botChatStopConfirm": { "placeholders": { "username": { "type": "String" } } },
+  "botChatStopExplain": "It can no longer write to you, and nothing further reaches it. Your messages so far stay where they are.",
+  "botChatBlock": "Block this bot",
+  "botChatHint": "Message",
+  "botChatCommands": "Commands",
+  "botChatCommandsEmpty": "This bot publishes no command list.",
+  "botChatNoDescription": "This bot has no description.",
+  "botChatOperator": "An automated account. The person who runs it can read what you send it.",
+  "botChatEmpty": "Nothing yet. Say hello, or pick a command.",
+  "botChatFileGone": "This file is no longer on the server.",
+  "botChatImageBroken": "This picture could not be shown. Open it as a file.",
+  "botChatButtonPressed": "Pressed",
+  "botChatOpenTitle": "Open a bot",
+  "botChatOpenHint": "The bot's exact @username",
+  "botChatOpen": "Open",
   "botcreatorTitle": "Bot Creator",
   "botcreatorHint": "Type a command, or /help",
   "composerCamera": "Camera",

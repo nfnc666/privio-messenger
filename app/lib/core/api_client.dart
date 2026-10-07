@@ -372,6 +372,22 @@ class PrivioApiClient {
   Future<void> updateGroupMetadata(String groupId, String encryptedMetadata) async =>
       _send('PATCH', '/v1/groups/$groupId', body: {'encryptedMetadata': encryptedMetadata});
 
+  /// Sets or clears the group's sealed description.
+  ///
+  /// `null` is a value here rather than an omission — it is how a description
+  /// is removed — so the key is always sent. Leaving it out would mean
+  /// "unchanged", which is a different request and is what the rename above
+  /// makes.
+  Future<void> updateGroupDescription(String groupId, String? encryptedDescription) async =>
+      _send('PATCH', '/v1/groups/$groupId', body: {'encryptedDescription': encryptedDescription});
+
+  /// Points the group at a picture this account has already uploaded.
+  Future<void> setGroupAvatar(String groupId, String mediaId) async =>
+      _send('PUT', '/v1/groups/$groupId/avatar', body: {'mediaId': mediaId});
+
+  Future<void> clearGroupAvatar(String groupId) async =>
+      _send('DELETE', '/v1/groups/$groupId/avatar');
+
   /// Look a group up by the code in a join link.
   Future<Map<String, dynamic>> groupByInvite(String code) =>
       _send('GET', '/v1/groups/invite/$code');
@@ -850,6 +866,13 @@ class PrivioApiClient {
   Future<Map<String, dynamic>> rotateInvite(String channelId) =>
       _send('POST', '/v1/channels/$channelId/invite/rotate');
 
+  /// Renews a group's invite link. Admins only.
+  ///
+  /// The old link stops working and nobody already in the group is affected:
+  /// the code is how somebody *asks* to join, not what lets them read anything.
+  Future<Map<String, dynamic>> rotateGroupInvite(String groupId) =>
+      _send('POST', '/v1/groups/$groupId/invite/rotate');
+
   /// Who is waiting at the door. Admins only; the server refuses the rest.
   Future<Map<String, dynamic>> joinRequests(String channelId) =>
       _send('GET', '/v1/channels/$channelId/join-requests');
@@ -941,6 +964,55 @@ class PrivioApiClient {
 
   // --- Bots ------------------------------------------------------------------
 
+  /// Writes to a bot. This is what licenses the bot to answer.
+  ///
+  /// [groupId] marks a message a member's device chose to hand over because it
+  /// was addressed to the bot — see `models/group_bot.dart`. [clientId] makes
+  /// a retry the same message rather than a second one.
+  Future<Map<String, dynamic>> sendToBot(
+    String botId,
+    String text, {
+    String? groupId,
+    String? clientId,
+  }) =>
+      _send('POST', '/v1/bots/$botId/messages', body: {
+        'text': text,
+        if (groupId != null) 'groupId': groupId,
+        if (clientId != null) 'clientId': clientId,
+      });
+
+  /// The conversation with a bot, oldest first.
+  Future<Map<String, dynamic>> botConversation(String botId, {int after = 0, int limit = 50}) =>
+      // Through `query`, not written into the path: `_url` sets the path with
+      // `Uri.replace`, which percent-encodes a `?` in it — the request then
+      // asks for a path called `messages%3Fafter=0` and gets a 404. Nothing
+      // called this until the bot chat screen did, so the mistake had never
+      // shown up.
+      _send('GET', '/v1/bots/$botId/messages', query: {
+        'after': '$after',
+        'limit': '$limit',
+      });
+
+  /// The bots in a group, with their rights. Readable by every member.
+  Future<Map<String, dynamic>> groupBots(String groupId) =>
+      _send('GET', '/v1/groups/$groupId/bots');
+
+  /// Adds a bot to a group. It arrives with **no rights**; each is a separate
+  /// call, which is what keeps the disclosure screen from being a formality.
+  Future<Map<String, dynamic>> addGroupBot(String groupId, String botId) =>
+      _send('POST', '/v1/groups/$groupId/bots', body: {'botId': botId});
+
+  /// Changes one or more of a bot's rights in a group. Admins only.
+  Future<Map<String, dynamic>> setGroupBotRights(
+    String groupId,
+    String botId,
+    Map<String, bool> rights,
+  ) =>
+      _send('PATCH', '/v1/groups/$groupId/bots/$botId', body: rights);
+
+  Future<Map<String, dynamic>> removeGroupBot(String groupId, String botId) =>
+      _send('DELETE', '/v1/groups/$groupId/bots/$botId');
+
   Future<Map<String, dynamic>> bots() => _send('GET', '/v1/bots');
 
   Future<Map<String, dynamic>> createBot({
@@ -972,6 +1044,36 @@ class PrivioApiClient {
 
   Future<Map<String, dynamic>> revokeBotTokens(String id) =>
       _send('DELETE', '/v1/bots/$id/token');
+
+  /// What a bot looks like before you decide to talk to it: description,
+  /// published commands, and whether this account has started or stopped it.
+  Future<Map<String, dynamic>> botByUsername(String username) =>
+      _send('GET', '/v1/bots/by-username/${Uri.encodeComponent(username)}');
+
+  Future<Map<String, dynamic>> botProfile(String botId) =>
+      _send('GET', '/v1/bots/$botId/profile');
+
+  /// **Start.** What licenses a bot to write. Delivers `/start`, so the bot
+  /// knows to introduce itself.
+  Future<Map<String, dynamic>> startBot(String botId) =>
+      _send('POST', '/v1/bots/$botId/start');
+
+  /// **Stop.** It may no longer write, and nothing further reaches it.
+  Future<Map<String, dynamic>> stopBot(String botId) =>
+      _send('POST', '/v1/bots/$botId/stop');
+
+  /// Presses a button under one of the bot's messages. Once: a second press of
+  /// the same button is answered `already` and delivers nothing.
+  Future<Map<String, dynamic>> pressBotButton(
+    String botId,
+    int messageId,
+    String buttonId,
+  ) =>
+      _send(
+        'POST',
+        '/v1/bots/$botId/messages/$messageId/press',
+        body: {'buttonId': buttonId},
+      );
 
   /// One turn of the conversation with @botcreator.
   Future<Map<String, dynamic>> askBotCreator(String text) =>
@@ -1120,10 +1222,11 @@ class PrivioApiClient {
     List<int> sealedBytes, {
     bool avatar = false,
     bool channelAvatar = false,
+    bool groupAvatar = false,
     bool sticker = false,
     int? expiresInSeconds,
   }) async {
-    // Four kinds, and the kind decides who may download. `channel_avatar` is
+    // Five kinds, and the kind decides who may download. `channel_avatar` is
     // the one that is served to anyone — a public channel's picture is drawn on
     // a web page by people who hold no key — so it is only ever passed for
     // bytes that were deliberately not sealed.
@@ -1134,13 +1237,19 @@ class PrivioApiClient {
     // type, size and dimensions, read out of the header rather than taken from
     // what the client claims. So a sticker upload can be *refused*, which an
     // attachment never is, and the caller has to be ready for that.
+    //
+    // `group_avatar` is unsealed too, and narrower than either: the server
+    // hands it to the members of the group that points at it and to nobody
+    // else. A group has no public side, so an id is not a download.
     final kind = sticker
         ? const {'kind': 'sticker'}
         : channelAvatar
             ? const {'kind': 'channel_avatar'}
-            : avatar
-                ? const {'kind': 'avatar'}
-                : null;
+            : groupAvatar
+                ? const {'kind': 'group_avatar'}
+                : avatar
+                    ? const {'kind': 'avatar'}
+                    : null;
     // An attachment to a message that is set to disappear is worth keeping only
     // as long as the message can still be fetched and read. Passed to the
     // server because a timer that only runs on a screen leaves the ciphertext

@@ -189,12 +189,40 @@ class _AppIconSection extends StatelessWidget {
           caption: text.appearanceAppIcon,
           children: [
             AppIconPicker(
-              selected: icon.colour,
+              // Nothing is ticked in the colour grid while a style is on: the
+              // home screen is wearing one picture, and two ticks would say it
+              // is wearing two.
+              selected: icon.style == null ? icon.colour : null,
               enabled: !icon.busy,
               onSelected: (colour) =>
                   unawaited(icon.choose(colour, disguised: disguised)),
             ),
           ],
+        ),
+        const SizedBox(height: PrivioSpacing.lg),
+        SettingsSection(
+          caption: text.appearanceAppIconStyles,
+          children: [
+            AppIconStylePicker(
+              selected: icon.style,
+              enabled: !icon.busy,
+              onSelected: (style) =>
+                  unawaited(icon.chooseStyle(style, disguised: disguised)),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            PrivioSpacing.xxl,
+            PrivioSpacing.sm,
+            PrivioSpacing.xxl,
+            0,
+          ),
+          child: Text(
+            text.appearanceAppIconStylesNote,
+            key: const ValueKey('app-icon-styles-note'),
+            style: theme.textTheme.bodySmall,
+          ),
         ),
         const SizedBox(height: PrivioSpacing.lg),
         SettingsSection(
@@ -208,7 +236,7 @@ class _AppIconSection extends StatelessWidget {
                 icon.matchAccent(state.accent.accent, disguised: disguised),
               ),
             ),
-            if (icon.colour != AppIconColour.fallback)
+            if (icon.style != null || icon.colour != AppIconColour.fallback)
               SettingsRow(
                 key: const ValueKey('app-icon-reset'),
                 label: text.appearanceAppIconReset,

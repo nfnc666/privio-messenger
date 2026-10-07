@@ -7,7 +7,9 @@ import '../crypto/privio_crypto.dart';
 import 'package:cryptography/cryptography.dart';
 
 import '../data/message_store.dart';
+import '../core/failure.dart';
 import '../media/attachment.dart';
+import '../media/avatar.dart';
 import '../media/voice.dart';
 import '../media/metadata_scrubber.dart';
 
@@ -116,6 +118,19 @@ class ReceiveResult {
 ///
 /// This is the only place that turns text into ciphertext and back, so nothing
 /// above it ever holds a key and nothing below it ever sees plaintext.
+/// A picture the app refused before it went anywhere.
+///
+/// Its own type rather than a bool, so a caller cannot forget that the reason
+/// is a case a screen has to turn into a sentence.
+class GroupAvatarRejected implements Exception {
+  const GroupAvatarRejected(this.failure);
+
+  final Failure failure;
+
+  @override
+  String toString() => 'GroupAvatarRejected($failure)';
+}
+
 class MessagingService {
   MessagingService({required PrivioApiClient api, required PrivioCrypto crypto})
       : _api = api,
@@ -752,6 +767,54 @@ class MessagingService {
     await _api.updateGroupMetadata(groupId, base64Encode(sealed));
   }
 
+  /// Sets what the group says it is for, or clears it.
+  ///
+  /// Sealed with the same key as the name and stored in a column of its own —
+  /// see migration 036. Putting both in one blob would make every group on an
+  /// older build show its own JSON where its name should be.
+  Future<void> describeGroup(String groupId, String? text, String groupKey) async {
+    final trimmed = text?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      await _api.updateGroupDescription(groupId, null);
+      return;
+    }
+    final sealed = await _sealGroupName(trimmed, base64Decode(groupKey));
+    await _api.updateGroupDescription(groupId, base64Encode(sealed));
+  }
+
+  /// Gives the group a picture, and returns the id to draw it by.
+  ///
+  /// Scrubbed, cropped square, resized and re-encoded before it goes, which is
+  /// what strips a camera's location tag — a picture is the one file people
+  /// upload without thinking about where it was taken.
+  ///
+  /// **Not sealed**, unlike everything else about a group. Migration 036 has
+  /// the argument: a picture has to be drawable the moment the group is on
+  /// screen, including before the group key has reached this device, and it
+  /// must not be lost to a rotation that raced the upload. What replaces
+  /// encryption is the server handing it to members only.
+  Future<String> setGroupAvatar(String groupId, Uint8List picked) async {
+    final prepared = await AvatarImage.prepare(picked);
+    if (prepared == null) throw const GroupAvatarRejected(Failure(FailureKind.notAnImage));
+    final blob = await _api.uploadMedia(prepared, groupAvatar: true);
+    await _api.setGroupAvatar(groupId, blob.id);
+    return blob.id;
+  }
+
+  Future<void> clearGroupAvatar(String groupId) => _api.clearGroupAvatar(groupId);
+
+  /// The group's picture as bytes, or null when there is none.
+  Future<Uint8List?> groupAvatarBytes(String? mediaId) async {
+    if (mediaId == null) return null;
+    try {
+      return Uint8List.fromList(await _api.downloadMedia(mediaId));
+    } on Object {
+      // A picture that will not come is a group without one on screen, not an
+      // error in front of a conversation.
+      return null;
+    }
+  }
+
   /// The groups this account belongs to, with names opened where the key for
   /// them is already known.
   Future<List<GroupInfo>> listGroups(MessageStore store) async {
@@ -766,6 +829,8 @@ class MessagingService {
       final knownKey = store.conversationWith(groupId)?.group?.groupKey;
       final sealed = entry['encryptedMetadata'] as String?;
 
+      final sealedDescription = entry['encryptedDescription'] as String?;
+
       groups.add(
         GroupInfo(
           groupId: groupId,
@@ -778,6 +843,15 @@ class MessagingService {
           name: knownKey == null || sealed == null
               ? null
               : await _openGroupName(sealed, knownKey),
+          // Opened with the same key and by the same rules as the name: no key
+          // yet means no description yet, not an error.
+          description: knownKey == null || sealedDescription == null
+              ? null
+              : await _openGroupName(sealedDescription, knownKey),
+          // The picture is not sealed, so it arrives whether or not the key
+          // has — which is the reason it is not sealed.
+          avatarMediaId: entry['avatarMediaId'] as String?,
+          avatarUpdatedAt: DateTime.tryParse(entry['avatarUpdatedAt'] as String? ?? ''),
         ),
       );
     }

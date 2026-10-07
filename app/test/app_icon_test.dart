@@ -189,4 +189,125 @@ void main() {
       expect(const LauncherEntry.icon(AppIconColour.pink).wireName, 'pink');
     });
   });
+
+  group('the artwork styles', () {
+    test('every style has its own wire name and its own thumbnail', () {
+      final codes = AppIconStyle.values.map((s) => s.code).toSet();
+      expect(codes.length, AppIconStyle.values.length, reason: 'two styles share a name');
+      // A style code that collided with a colour would be a style the launcher
+      // reads back as a colour, and the tick would move to the wrong grid.
+      for (final colour in AppIconColour.values) {
+        expect(codes.contains(colour.code), isFalse, reason: colour.code);
+      }
+      expect(codes.contains('calculator'), isFalse);
+
+      final previews = AppIconStyle.values.map((s) => s.preview).toSet();
+      expect(previews.length, AppIconStyle.values.length);
+      for (final style in AppIconStyle.values) {
+        expect(style.preview, startsWith('assets/launcher_styles/'));
+      }
+    });
+
+    test('a style round-trips through the wire name', () {
+      for (final style in AppIconStyle.values) {
+        final entry = LauncherEntry.styled(style);
+        expect(entry.wireName, style.code);
+        expect(LauncherEntry.forWireName(style.code)?.style, style);
+        expect(entry.disguised, isFalse);
+      }
+    });
+
+    test('choosing one reaches the launcher and is stored', () async {
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.neon);
+
+      expect(launcher.applied.single.wireName, 'neon');
+      expect(controller.style, AppIconStyle.neon);
+      expect(await store.readAppIcon(), 'neon');
+    });
+
+    test('and a colour afterwards clears it', () async {
+      // One home screen, one icon. A style left behind under a chosen colour
+      // would put a tick in both grids.
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.camo);
+      await controller.choose(AppIconColour.pink);
+
+      expect(controller.style, isNull);
+      expect(controller.colour, AppIconColour.pink);
+      expect(await store.readAppIcon(), 'pink');
+    });
+
+    test('a stored style survives a restart', () async {
+      final first = await ready(launcher);
+      await first.chooseStyle(AppIconStyle.camoShield);
+
+      // A fresh controller over the same store and the same launcher.
+      final second = await ready(launcher);
+      expect(second.style, AppIconStyle.camoShield);
+    });
+
+    test('the launcher wins a disagreement about a style', () async {
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.neon);
+
+      // What a failed change or a restored backup looks like: the home screen
+      // is wearing something else.
+      launcher.showing = const LauncherEntry.styled(AppIconStyle.neonMesh);
+      await controller.reconcile();
+
+      expect(controller.style, AppIconStyle.neonMesh);
+      expect(await store.readAppIcon(), 'neon_mesh');
+    });
+
+    test('and a launcher back on a colour clears the style', () async {
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.neon);
+
+      launcher.showing = const LauncherEntry.icon(AppIconColour.teal);
+      await controller.reconcile();
+
+      expect(controller.style, isNull);
+      expect(controller.colour, AppIconColour.teal);
+    });
+
+    test('the disguise still wins, and nothing is stored', () async {
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.neon, disguised: true);
+
+      expect(launcher.applied, isEmpty, reason: 'the calculator was replaced');
+      expect(controller.style, isNull);
+      expect(controller.failure?.kind, FailureKind.appIconHiddenByDisguise);
+    });
+
+    test('a platform that cannot change the icon refuses a style too', () async {
+      final controller = await ready(
+        FakeLauncher(capable: const LauncherCapability(icon: false, name: false)),
+      );
+      await controller.chooseStyle(AppIconStyle.camo);
+
+      expect(controller.style, isNull);
+      expect(controller.failure?.kind, FailureKind.appIconUnsupported);
+    });
+
+    test('a refusal from the device leaves the style alone', () async {
+      final refusing = FakeLauncher(refuses: 'This build will not swap its icon.');
+      final controller = await ready(refusing);
+      await controller.chooseStyle(AppIconStyle.neon);
+
+      expect(controller.style, isNull);
+      expect(await store.readAppIcon(), isNull);
+      expect(controller.failure, isNotNull);
+    });
+
+    test('restoring the original clears a style', () async {
+      final controller = await ready(launcher);
+      await controller.chooseStyle(AppIconStyle.neonMesh);
+      await controller.reset();
+
+      expect(controller.style, isNull);
+      expect(controller.colour, AppIconColour.fallback);
+      expect(launcher.applied.last.wireName, 'green');
+    });
+  });
 }
