@@ -4681,6 +4681,20 @@ class AppTextIt extends AppText {
   String get botChatNotStarted => 'Avvia questo bot prima di scrivergli.';
 
   @override
+  String get botPollBotSees =>
+      'Il bot vede chi ha risposto cosa. Come il resto di questa chat, non è cifrato.';
+
+  @override
+  String get botPollResultsHidden => 'Solo il bot vede i risultati.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'I risultati compaiono quando avrai risposto.';
+
+  @override
+  String get botPollClosedFailure => 'Questo sondaggio è chiuso.';
+
+  @override
   String get botChatStop => 'Ferma questo bot';
 
   @override

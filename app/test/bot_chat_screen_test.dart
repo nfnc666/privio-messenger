@@ -26,6 +26,12 @@ class _Server {
   final List<Map<String, dynamic>> messages = [];
   final Set<String> pressed = {};
 
+  /// Every answer sent to a poll, in order, as the bodies the app sent.
+  final List<List<int>> votes = [];
+
+  /// When set, the server refuses a vote the way it does a closed poll.
+  bool refuseAsClosed = false;
+
   /// Bytes the server will hand back, by media id.
   final Map<String, Uint8List> media = {};
 
@@ -36,6 +42,31 @@ class _Server {
         if (path == '/v1/bots/bot-1/start') {
           startedAlready = true;
           return _json({'started': true, 'messageId': 1});
+        }
+        if (request.method == 'PUT' && path.endsWith('/vote')) {
+          if (refuseAsClosed) {
+            return _json({'error': 'poll_closed', 'message': 'This poll has closed'}, status: 409);
+          }
+          final options = ((jsonDecode(request.body) as Map<String, dynamic>)['options']
+                  as List<dynamic>)
+              .cast<int>();
+          votes.add(options);
+          // What the server would now say about it: this person's answer, and
+          // the tally only where the bot allows it and they have answered.
+          for (final message in messages) {
+            final poll = message['poll'] as Map<String, dynamic>?;
+            if (poll == null) continue;
+            poll['myVotes'] = options;
+            final shown = poll['showResults'] == true && options.isNotEmpty;
+            final counts = List<int>.from(poll['others'] as List<int>? ?? List.filled(
+                (poll['options'] as List).length, 0));
+            for (final i in options) {
+              counts[i] += 1;
+            }
+            poll['counts'] = shown ? counts : null;
+            poll['voters'] = shown ? (poll['otherVoters'] as int? ?? 0) + 1 : null;
+          }
+          return _json({'changed': true, 'myVotes': options});
         }
         if (path.endsWith('/press')) {
           pressed.add((jsonDecode(request.body) as Map<String, dynamic>)['buttonId'] as String);
@@ -99,6 +130,40 @@ class _Server {
       'byteSize': size,
     });
   }
+
+  /// A bot message carrying a poll.
+  ///
+  /// [others] is what everybody else has answered so far, which the server
+  /// only reveals when [showResults] is on and this person has answered.
+  void botAsked({
+    required List<String> options,
+    int maxChoices = 1,
+    bool showResults = false,
+    bool closed = false,
+    List<int>? others,
+    int otherVoters = 0,
+  }) =>
+      messages.add({
+        'id': 21,
+        'author': 'bot',
+        'text': '',
+        'sentAt': '2026-03-04T10:00:00.000Z',
+        'buttons': <Map<String, dynamic>>[],
+        'poll': {
+          'id': 5,
+          'question': 'Tea or coffee?',
+          'options': options,
+          'maxChoices': maxChoices,
+          'showResults': showResults,
+          'closesAt': null,
+          'closed': closed,
+          'myVotes': <int>[],
+          'counts': null,
+          'voters': null,
+          'others': others,
+          'otherVoters': otherVoters,
+        },
+      });
 
   void botSaid(String text, List<String> buttons) => messages.add({
         'id': 9,
@@ -340,5 +405,163 @@ void main() {
     expect(find.text('/help'), findsOneWidget);
     expect(find.text('what I can do'), findsOneWidget);
     await _letTimersRun(tester);
+  });
+
+  group('a poll from a bot', () {
+    Future<AppState> open(WidgetTester tester, _Server server) async {
+      final state = await _state(server);
+      addTearDown(state.conversations.stop);
+      addTearDown(state.dispose);
+      await tester.pumpWidget(wrap(const BotChatScreen(botId: 'bot-1'), state));
+      await tester.pumpAndSettle();
+      state.conversations.stop();
+      return state;
+    }
+
+    testWidgets('says the bot sees the answer, and that only the bot sees results',
+        (tester) async {
+      final server = _Server(startedAlready: true)..botAsked(options: ['Tea', 'Coffee']);
+      await open(tester, server);
+
+      expect(find.text('Tea or coffee?'), findsOneWidget);
+      expect(find.text('Pick one'), findsOneWidget);
+      expect(
+        find.textContaining('The bot sees who answered what.'),
+        findsOneWidget,
+        reason: 'a bot poll is not anonymous to the bot, and the card must say so',
+      );
+      expect(find.textContaining('Only the bot sees the results.'), findsOneWidget);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('a tap is the answer, and tapping it again takes it back',
+        (tester) async {
+      final server = _Server(startedAlready: true)..botAsked(options: ['Tea', 'Coffee']);
+      await open(tester, server);
+
+      await tester.tap(find.text('Coffee'));
+      await tester.pumpAndSettle();
+      expect(server.votes, [
+        [1],
+      ]);
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+      // No tally: the bot did not ask for one, so none is drawn — not even
+      // zeros, which would be a tally and a wrong one.
+      expect(find.text('1'), findsNothing);
+      expect(find.text('0'), findsNothing);
+
+      await tester.tap(find.text('Coffee'));
+      await tester.pumpAndSettle();
+      expect(server.votes.last, isEmpty);
+      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('with results shown, the tally appears after answering and not before',
+        (tester) async {
+      final server = _Server(startedAlready: true)
+        ..botAsked(
+          options: ['Tea', 'Coffee'],
+          showResults: true,
+          others: [3, 1],
+          otherVoters: 4,
+        );
+      await open(tester, server);
+
+      expect(find.textContaining('Results show once you have answered.'), findsOneWidget);
+      expect(find.text('3'), findsNothing);
+
+      await tester.tap(find.text('Tea'));
+      await tester.pumpAndSettle();
+      expect(find.text('4'), findsOneWidget, reason: 'Tea: three others and this answer');
+      expect(find.text('1'), findsOneWidget, reason: 'Coffee: one other');
+      expect(find.textContaining('5 voters'), findsOneWidget);
+      expect(find.textContaining('Results show once'), findsNothing);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('several answers are gathered and sent together', (tester) async {
+      final server = _Server(startedAlready: true)
+        ..botAsked(options: ['Mon', 'Tue', 'Wed'], maxChoices: 2);
+      await open(tester, server);
+
+      expect(find.text('Pick up to 2'), findsOneWidget);
+      await tester.tap(find.text('Wed'));
+      await tester.tap(find.text('Mon'));
+      await tester.pumpAndSettle();
+      expect(server.votes, isEmpty, reason: 'nothing is sent until Answer');
+
+      // A third pick past the limit is not taken.
+      await tester.tap(find.text('Tue'));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.check_circle_rounded), findsNWidgets(2));
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Answer'));
+      await tester.pumpAndSettle();
+      expect(server.votes.single..sort(), [0, 2]);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('a closed poll offers nothing to tap', (tester) async {
+      final server = _Server(startedAlready: true)
+        ..botAsked(options: ['Tea', 'Coffee'], closed: true);
+      await open(tester, server);
+
+      expect(find.textContaining('closed'), findsOneWidget);
+      await tester.tap(find.text('Tea'));
+      await tester.pumpAndSettle();
+      expect(server.votes, isEmpty);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('a poll that closed in the meantime says so', (tester) async {
+      final server = _Server(startedAlready: true)
+        ..botAsked(options: ['Tea', 'Coffee'])
+        ..refuseAsClosed = true;
+      await open(tester, server);
+
+      await tester.tap(find.text('Tea'));
+      await tester.pumpAndSettle();
+      expect(find.text('This poll has closed.'), findsOneWidget);
+      // And the answer that was refused is not drawn as given.
+      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('a refused answer of several is not left drawn as given', (tester) async {
+      // The picks of a several-answer poll live on the card until they are
+      // sent. If the server refuses them, keeping them would show a vote that
+      // was never recorded.
+      final server = _Server(startedAlready: true)
+        ..botAsked(options: ['Mon', 'Tue', 'Wed'], maxChoices: 2)
+        ..refuseAsClosed = true;
+      await open(tester, server);
+
+      await tester.tap(find.text('Mon'));
+      await tester.tap(find.text('Wed'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Answer'));
+      await tester.pumpAndSettle();
+      expect(find.text('This poll has closed.'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
+      await _letTimersRun(tester);
+    });
+
+    testWidgets('a screen reader hears each answer and can choose it', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final server = _Server(startedAlready: true)..botAsked(options: ['Tea', 'Coffee']);
+      await open(tester, server);
+
+      expect(
+        find.bySemanticsLabel('Tea'),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Tea')),
+        isSemantics(label: 'Tea', isButton: true, isSelected: false, hasTapAction: true),
+      );
+      semantics.dispose();
+      await _letTimersRun(tester);
+    });
   });
 }

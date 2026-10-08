@@ -7915,6 +7915,30 @@ abstract class AppText {
   /// **'Start this bot before writing to it.'**
   String get botChatNotStarted;
 
+  /// No description provided for @botPollBotSees.
+  ///
+  /// In en, this message translates to:
+  /// **'The bot sees who answered what. Like the rest of this chat, it is not encrypted.'**
+  String get botPollBotSees;
+
+  /// No description provided for @botPollResultsHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the bot sees the results.'**
+  String get botPollResultsHidden;
+
+  /// No description provided for @botPollResultsAfterAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Results show once you have answered.'**
+  String get botPollResultsAfterAnswer;
+
+  /// No description provided for @botPollClosedFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'This poll has closed.'**
+  String get botPollClosedFailure;
+
   /// No description provided for @botChatStop.
   ///
   /// In en, this message translates to:

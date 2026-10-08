@@ -1064,6 +1064,18 @@ class PrivioApiClient {
 
   /// Presses a button under one of the bot's messages. Once: a second press of
   /// the same button is answered `already` and delivers nothing.
+  /// Answers a bot's poll. [options] is the whole answer; empty takes it back.
+  Future<Map<String, dynamic>> voteBotPoll(
+    String botId,
+    int messageId,
+    List<int> options,
+  ) =>
+      _send(
+        'PUT',
+        '/v1/bots/$botId/messages/$messageId/vote',
+        body: {'options': options},
+      );
+
   Future<Map<String, dynamic>> pressBotButton(
     String botId,
     int messageId,

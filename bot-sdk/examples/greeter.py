@@ -12,14 +12,16 @@ It does three things and nothing it cannot do:
 * answers ``/start`` and ``/help`` in a private chat;
 * offers two buttons on ``/menu`` and does something different for each,
   which is a real button rather than a decoration;
+* asks a question on ``/poll`` and says back what it heard, so an answer
+  visibly reaches the bot — including a changed or withdrawn one;
 * introduces itself in a group when somebody sends it ``/start`` there, and
   says plainly what it does and does not receive;
 * answers anything else with a nudge towards ``/help``.
 
-What it deliberately does **not** do: pretend to moderate. The moderation
-rights exist and are enforced, but the API routes a bot would call to use them
-are not written yet — see docs/bots.md. A button that did nothing would be
-worse than no button.
+What it deliberately does **not** do: pretend to moderate. Deleting other
+people's messages is not something a bot can do in Privio at all — a group's
+messages are encrypted per device and only their author can withdraw them —
+see docs/bots.md. A button that did nothing would be worse than no button.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ HELP = """I can do these:
 /start — say hello
 /help — this list
 /menu — two buttons, to show that buttons work
+/poll — a question with three answers
 
 In a group I only receive messages addressed to me: a command, a mention of
 @{username}, or a reply to something I said. I hold no key for the group, so
@@ -51,7 +54,28 @@ Nothing else, and nothing sent before I was added.
 Whoever runs me can read what reaches me. Type /help for what I can do."""
 
 
+#: The answers of each poll this process sent, to say back which one was
+#: picked. In memory: a poll from before a restart is answered by number, which
+#: is enough for an example and honest about what it remembers.
+POLL_OPTIONS: dict[int, tuple[str, ...]] = {}
+
+
 def handle(bot: Bot, update: Update) -> None:
+    # An answer to a poll: the person's whole answer as it now stands. Every
+    # change arrives, and only changes — the same answer twice is not delivered
+    # twice, so there is nothing here to de-duplicate.
+    if update.vote:
+        if update.vote.retracted:
+            bot.reply(update, "You took your answer back. Pick again whenever you like.")
+            return
+        labels = POLL_OPTIONS.get(update.vote.poll_id)
+        picked = ", ".join(
+            labels[i] if labels and i < len(labels) else f"answer {i + 1}"
+            for i in update.vote.options
+        )
+        bot.reply(update, f"Noted: {picked}. You can change it until the poll closes.")
+        return
+
     # A press, not something somebody typed. It arrives once — pressing the same
     # button again is refused server-side — so this needs no state of its own to
     # avoid acting twice.
@@ -92,6 +116,21 @@ def handle(bot: Bot, update: Update) -> None:
         )
         return
 
+    if command and command.name == "poll":
+        # show_results: the person sees the tally once they have answered. Off
+        # by default in the API, and switched on here knowingly — with only a
+        # handful of people, a tally can give away how somebody else answered.
+        options = ("Tea", "Coffee", "Neither")
+        sent = bot.send_poll(
+            update.account_id,
+            "Tea or coffee?",
+            list(options),
+            show_results=True,
+            group_id=update.scope_id if update.in_group else None,
+        )
+        POLL_OPTIONS[sent.poll_id] = options
+        return
+
     if command:
         bot.reply(update, f"I do not know /{command.name}. Type /help.")
         return
@@ -118,7 +157,12 @@ def main() -> int:
     # Publish the menu, so the app can offer the commands rather than making
     # people remember them.
     bot.set_commands(
-        [("start", "Say hello"), ("help", "What I can do"), ("menu", "Two buttons")]
+        [
+            ("start", "Say hello"),
+            ("help", "What I can do"),
+            ("menu", "Two buttons"),
+            ("poll", "A question to answer"),
+        ]
     )
 
     bot.run(handle)

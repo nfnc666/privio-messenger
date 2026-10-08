@@ -37,8 +37,10 @@ is locked by the app-lock passcode. Keys live in the Keychain or Android Keystor
 hardware-backed where the device offers it.
 
 **Coerced unlock.** The duress code destroys devices, sessions, queued messages,
-contacts, group membership and backups, and returns the same error a mistyped
-password returns. Someone watching cannot tell the wipe happened.
+contacts, group membership, backups and conversations with bots — which are
+plaintext on the server by design, and which the wipe used to leave behind —
+and returns the same error a mistyped password returns.
+Someone watching cannot tell the wipe happened.
 
 **Account takeover by password alone.** Optional TOTP. Changing the password
 revokes every other session.

@@ -22,6 +22,7 @@ import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/photo_viewer.dart';
+import '../widgets/poll_option_row.dart';
 import '../widgets/privio_back_button.dart';
 
 /// One channel's feed.
@@ -292,7 +293,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
       if (publishAt != null) {
         // It is not in the feed, so without this the send looks like it failed.
         final text = AppText.of(context);
-        _say(text.feedScheduledFor(_whenLabel(text, publishAt)));
+        _say(text.feedScheduledFor(formatWhenLabel(text, publishAt)));
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1603,7 +1604,7 @@ class _ScheduledScreen extends StatelessWidget {
                                 child: Text(
                                   post.publishAt == null
                                       ? AppText.of(context).feedWaiting
-                                      : _whenLabel(
+                                      : formatWhenLabel(
                                           AppText.of(context),
                                           post.publishAt!,
                                         ),
@@ -1676,18 +1677,6 @@ class _NothingScheduled extends StatelessWidget {
   }
 }
 
-/// "Today at 18:30", "Tomorrow at 09:00", or the date.
-String _whenLabel(AppText text, DateTime when) {
-  final today = DateUtils.dateOnly(DateTime.now());
-  final day = DateUtils.dateOnly(when);
-  final hh = when.hour.toString().padLeft(2, '0');
-  final mm = when.minute.toString().padLeft(2, '0');
-  final clock = '$hh:$mm';
-  final difference = day.difference(today).inDays;
-  if (difference == 0) return text.feedTodayAt(clock);
-  if (difference == 1) return text.feedTomorrowAt(clock);
-  return text.feedDateAt(formatDayAndMonth(text, when), clock);
-}
 
 /// Which emojis a channel offers under its posts.
 ///
@@ -1924,14 +1913,14 @@ class _PollCardState extends State<_PollCard> {
               if (poll.isClosed)
                 text.feedPollClosed
               else if (poll.closesAt != null)
-                text.feedPollCloses(_whenLabel(text, poll.closesAt!)),
+                text.feedPollCloses(formatWhenLabel(text, poll.closesAt!)),
               text.feedPollVoters(poll.voters),
             ].join(' · '),
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: PrivioSpacing.sm),
           for (var index = 0; index < content.options.length; index++)
-            _PollOption(
+            PollOptionRow(
               label: content.options[index],
               count: poll.countFor(index),
               share: poll.shareOf(index),
@@ -1962,80 +1951,6 @@ class _PollCardState extends State<_PollCard> {
   }
 }
 
-class _PollOption extends StatelessWidget {
-  const _PollOption({
-    required this.label,
-    required this.count,
-    required this.share,
-    required this.chosen,
-    required this.showResults,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String label;
-  final int count;
-
-  /// Against the busiest option, not the total: in a poll that takes several
-  /// answers the totals add up to more than the people.
-  final double share;
-  final bool chosen;
-  final bool showResults;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: PrivioSpacing.xs),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: const BorderRadius.all(PrivioRadius.card),
-        child: Stack(
-          children: [
-            if (showResults)
-              Positioned.fill(
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: share.clamp(0.0, 1.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: chosen ? context.accents.surface : PrivioColors.surfaceRaised,
-                      borderRadius: const BorderRadius.all(PrivioRadius.card),
-                    ),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: PrivioSpacing.md,
-                vertical: PrivioSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    chosen
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    size: 16,
-                    color: chosen ? context.accents.bright : PrivioColors.textTertiary,
-                  ),
-                  const SizedBox(width: PrivioSpacing.sm),
-                  Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-                  if (showResults) ...[
-                    const SizedBox(width: PrivioSpacing.sm),
-                    Text('$count', style: theme.textTheme.bodySmall),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// Writing a poll.
 class _NewPollDialog extends StatefulWidget {
@@ -2801,7 +2716,7 @@ class _InviteSettingsSheetState extends State<_InviteSettingsSheet> {
                     child: Text(
                       _expiresAt == null
                           ? text.inviteNever
-                          : _whenLabel(text, _expiresAt!),
+                          : formatWhenLabel(text, _expiresAt!),
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
@@ -2926,7 +2841,7 @@ class _JoinRequestsScreen extends StatelessWidget {
                       title: Text(request.label),
                       subtitle: Text(
                         text.requestsAsked(
-                          _whenLabel(AppText.of(context), request.requestedAt),
+                          formatWhenLabel(AppText.of(context), request.requestedAt),
                         ),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
@@ -3017,7 +2932,7 @@ class _InviteDialog extends StatelessWidget {
       if (invite.maxUses != null)
         text.inviteUsedOf(invite.uses, invite.maxUses!),
       if (invite.expiresAt != null)
-        text.inviteExpires(_whenLabel(text, invite.expiresAt!)),
+        text.inviteExpires(formatWhenLabel(text, invite.expiresAt!)),
     ].join(' · ');
   }
 

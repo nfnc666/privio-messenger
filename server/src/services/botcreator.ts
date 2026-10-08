@@ -404,6 +404,9 @@ export async function deleteBot(botId: string): Promise<void> {
   await withTransaction(async (client) => {
     await client.query('UPDATE bot_tokens SET revoked_at = now() WHERE bot_id = $1', [botId]);
     await client.query('DELETE FROM bot_messages WHERE bot_id = $1', [botId]);
+    // The bot's row stays as a tombstone, so nothing cascades from it: its
+    // polls, and everybody's answers to them, go here or they stay for ever.
+    await client.query('DELETE FROM bot_polls WHERE bot_id = $1', [botId]);
     await client.query(
       `UPDATE accounts
           SET deleted_at = now(),

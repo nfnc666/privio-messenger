@@ -127,7 +127,9 @@ poll for updates. Both directions are tested.
 | `GET /v1/bot/me` | who this token belongs to, and its command list |
 | `PATCH /v1/bot/me` | publishes the command menu: `{commands: [{command, description}]}` |
 | `GET /v1/bot/updates?timeout=25&limit=100` | long poll; answers the moment anything arrives, or empty at the deadline |
-| `POST /v1/bot/send` | `{to, text, groupId?, buttons?, mediaId?, mediaKind?, fileName?}` → `{messageId}` |
+| `POST /v1/bot/send` | `{to, text, groupId?, buttons?, mediaId?, mediaKind?, fileName?}` → `{messageId}`; with `poll` or `pollId` instead of buttons and media → `{messageId, pollId}`, and `text` becomes optional |
+| `GET /v1/bot/polls/:pollId` | one poll of this bot with its tally: `{question, options, counts, voters, closed, …}` |
+| `POST /v1/bot/polls/:pollId/close` | stops it taking answers, for good; closing again is harmless |
 | `POST /v1/bot/media?kind=&name=` | raw bytes → `{mediaId, byteSize, …}` |
 | `GET /v1/bot/group/members?groupId=` | who is in a group. Needs *Restrict members* |
 | `POST /v1/bot/group/members/remove` | `{groupId, accountId}`. Needs *Restrict members* |
@@ -404,6 +406,76 @@ A bot naming an upload that is not its own is refused (`media_not_found`), which
 is what stops an id from becoming a way to hand a stranger's file to a third
 person.
 
+## 5c. Polls
+
+The part to know first: **a bot poll is not anonymous to the bot, and it is not
+encrypted.** The question, the answers and each person's choice are plaintext
+this server can read, and your bot is told who picked what — that is what a bot
+asking a question is for. The app prints it on the card, under the answers, not
+in a settings screen. A channel poll is the opposite on purpose: there the
+question travels sealed and the server only knows the shape. Here there is
+nobody to seal it for, because the bot that wrote the question holds it in the
+clear anyway.
+
+```python
+sent = bot.send_poll(update.account_id, "Tea or coffee?", ["Tea", "Coffee", "Neither"])
+# sent.message_id, sent.poll_id
+
+bot.resend_poll(other_person_id, sent.poll_id)   # the same question, one more person
+results = bot.poll_results(sent.poll_id)          # counts, voters, closed
+final = bot.close_poll(sent.poll_id)              # no more answers, for good
+```
+
+| | |
+| --- | --- |
+| Answers | 2 to 10, no two the same, up to 100 characters each. The question up to 300 |
+| `max_choices` | 1 is a single-choice poll. More lets a person pick up to that many; never more than it offers |
+| `show_results` | Off by default. When on, a person sees the tally **once they have answered**, or once it has closed. Off, only the bot sees it, and the card says so |
+| `closes_at` | Optional, in the future, with a timezone — the library refuses a naive `datetime` rather than guessing whether it meant UTC |
+| With it | Nothing else to answer: a poll cannot carry buttons or an attachment (`poll_alone`). `text`, if given, is a line drawn above the question |
+
+**One poll, many messages.** A poll is its own object so that you can put the
+same question to everybody who has started your bot and read one tally back —
+that is what makes it a poll rather than a row of buttons. Each send is still a
+message to one person, so a bot still cannot open a conversation with a poll
+(`not_contacted`), and the person it was addressed to is the only one who may
+answer it — in a group too, because a bot's reply is only ever shown to its
+addressee, and an answer from somebody who could not see the question would be
+a number in your tally that nobody can account for. Answers are per person and
+per poll: somebody you sent it to twice has one answer, shown under both.
+Another bot's poll id is answered as if it did not exist.
+
+An answer arrives as an ordinary update with `vote` set and `text` empty:
+
+```python
+if update.vote:
+    if update.vote.retracted:                  # they took their answer back
+        ...
+    else:
+        update.vote.options                    # e.g. (1,) — indices, in order
+        update.vote.poll_id
+```
+
+`options` is the person's **whole** answer as it now stands, not the change from
+the last one, so a bot that keeps the latest per person is right even if it
+missed an update. The server settles the rest before your code sees it:
+
+* **In range.** An index the poll does not offer, two picks in a single-choice
+  poll, or the same index twice are refused at the person's end and never reach
+  you.
+* **Once per change.** Answering the same thing again changes nothing and
+  delivers nothing, so a double tap is not two votes. Changing the answer is a
+  new update; an empty answer takes it back and is one too.
+* **In order.** An answer travels through the same `bot_messages` row and the
+  same take-once delivery as a typed message and a button press.
+* **Not after a stop, not after it closed.** Somebody who stopped the bot cannot
+  answer (`not_contacted`); a closed poll is refused (`poll_closed`) and is not
+  sent to anybody else either.
+
+`closed_at` is set only when the bot closes the poll. One that ran out at
+`closes_at` stays recorded as having run out, so the record says which of the
+two happened.
+
 ## 6. Idempotency, rate limits, and keeping the token out of things
 
 **Idempotency.** `POST /v1/bots/:id/messages` — the route the *app* uses to
@@ -545,6 +617,53 @@ On the app's side, three widget tests in `app/test/bot_chat_screen_test.dart`: a
 file row with its name and size, a swept file saying so with the message still
 there, and bytes that are not an image falling back to a file row.
 
+`server/test/bot_polls.test.ts`, 22 tests against a real Postgres: a poll
+carried by a message with no copy of the question in its text; five malformed
+polls refused (one answer, duplicate answers, more picks than answers, eleven
+answers, a closing time in the past); no buttons beside a poll; no message with
+neither text nor poll; no poll to somebody who never wrote; another bot unable
+to reuse or read a poll. Answering: one update per change with the whole answer,
+the same answer twice delivering nothing, a change delivering the new whole
+answer, an empty answer taking it back, an out-of-range index, two picks on a
+single-choice poll and a duplicate index refused, several picks taken and stored
+in order, only the addressee able to answer, no answer on a message without a
+poll or on the person's own line, none after a stop. One poll sent to two people
+with one tally; the same poll sent twice to one person showing one answer under
+both. No tally for the person unless the bot asked for one; with it, the tally
+after answering and not before. Closing: answers refused afterwards, closing
+again harmless, a closed poll not sent on; a poll past its time refused and not
+stamped as closed by the bot. Deleting: an account's answers, bot conversation
+and bot licence going with it, the bot's poll staying without them; a deleted
+bot taking its polls and every answer along.
+
+Falsified by breaking four rules one at a time, each turning exactly its own
+test red: letting anybody answer a poll (1 red), delivering an unchanged answer
+again (1), drawing the tally for the person regardless of `showResults` (1), and
+leaving the votes behind on account deletion (1).
+
+On the app's side, eight widget tests in `app/test/bot_chat_screen_test.dart`:
+the card saying the bot sees who answered what, and that only the bot sees the
+results; a tap answering and a second tap taking it back, with no tally drawn —
+not even zeros; the tally appearing after answering and not before when the bot
+allows it; several answers gathered, a pick past the limit not taken, and sent
+together; a closed poll offering nothing to tap; a poll closed in the meantime
+saying so; a refused answer of several not left drawn as given; and a screen
+reader hearing each answer as a button and being able to choose it. Falsified
+the same way: dropping the tap from the semantics (1 red), drawing bars without
+a tally (2), dropping the sentence about the bot (1), and keeping a refused
+draft — which no test caught until the last test was written for it.
+
+`examples/greeter.py` was run against a live server on a scratch database and
+driven the way a person would: `/poll` drew *Tea or coffee?* with three answers,
+answering *Coffee* got "Noted: Coffee", answering it again got no second reply,
+changing to *Tea* got "Noted: Tea", taking it back got the matching sentence,
+and another person answering on that message was refused (403). The library was
+then driven directly: `send_poll` with two picks and a closing time,
+`resend_poll` to a second person, both answers arriving as updates with the
+right indices, `poll_results` reading `(1, 0, 2)` from two voters, `close_poll`,
+a closed poll refused on resend, and a naive `datetime`, a single answer and a
+duplicate answer each refused with a sentence.
+
 The Python side was run, not just written:
 
 * `examples/webhook_receiver.py` was started for real and sent five deliveries —
@@ -583,9 +702,11 @@ it.
 
 Stated here rather than discovered:
 
-* **Message types.** Text, buttons, pictures and files. **Polls** are not
-  carried by the bot routes yet. Nor is the other direction: a *person* cannot
-  send a bot a picture or a file — only text, and a bot receives only text.
+* **Message types.** Text, buttons, pictures, files and polls. Not the other
+  direction: a *person* cannot send a bot a picture or a file — only text, a
+  button press or a poll answer. Quiz polls (one answer marked correct) and
+  anonymous polls are not offered: a poll the bot is told about cannot be
+  anonymous to the bot, and a switch saying otherwise would be a false one.
 * **Channels.** A bot cannot post to a channel yet.
 * **Deleting other people's messages.** Not possible, and `may_moderate` is now
   refused as a right rather than stored and left inert. A deletion is an

@@ -4673,6 +4673,20 @@ class AppTextDe extends AppText {
   String get botChatNotStarted => 'Starte diesen Bot, bevor du ihm schreibst.';
 
   @override
+  String get botPollBotSees =>
+      'Der Bot sieht, wer was geantwortet hat. Wie der Rest dieses Chats ist das nicht verschlüsselt.';
+
+  @override
+  String get botPollResultsHidden => 'Nur der Bot sieht die Ergebnisse.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'Die Ergebnisse erscheinen, sobald du geantwortet hast.';
+
+  @override
+  String get botPollClosedFailure => 'Diese Umfrage ist geschlossen.';
+
+  @override
   String get botChatStop => 'Diesen Bot stoppen';
 
   @override

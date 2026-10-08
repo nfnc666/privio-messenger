@@ -100,6 +100,7 @@ extension FailureText on Failure {
         FailureKind.mentionUnknownUser => text.failureMentionUnknownUser,
         FailureKind.botNotFound => text.groupBotsNotFound,
         FailureKind.botNotStarted => text.botChatNotStarted,
+        FailureKind.botPollClosed => text.botPollClosedFailure,
         FailureKind.stickerNotAnImage => text.failureStickerNotAnImage,
         FailureKind.stickerAnimated => text.failureStickerAnimated,
         FailureKind.stickerTooLarge =>

@@ -4630,6 +4630,20 @@ class AppTextEn extends AppText {
   String get botChatNotStarted => 'Start this bot before writing to it.';
 
   @override
+  String get botPollBotSees =>
+      'The bot sees who answered what. Like the rest of this chat, it is not encrypted.';
+
+  @override
+  String get botPollResultsHidden => 'Only the bot sees the results.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'Results show once you have answered.';
+
+  @override
+  String get botPollClosedFailure => 'This poll has closed.';
+
+  @override
   String get botChatStop => 'Stop this bot';
 
   @override

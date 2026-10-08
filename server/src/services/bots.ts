@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { pool } from '../db/pool.js';
+import { pool, type PoolClient } from '../db/pool.js';
 import { generateToken } from '../util/crypto.js';
 
 /**
@@ -44,6 +44,8 @@ export const BOT_LIMITS = {
    * does that — but one unattended loop posting a hundred megabytes at a time.
    */
   maxAttachmentBytes: 8 * 1024 * 1024,
+  /** Answers a poll may offer. Ten, like a channel poll. */
+  maxPollOptions: 10,
 } as const;
 
 /**
@@ -367,6 +369,7 @@ export async function takeUpdates(botId: string, limit: number) {
     body: string;
     kind: string;
     pressed_message_id: string | null;
+    poll_id: string | null;
     created_at: Date;
     username: string;
   }>(
@@ -389,7 +392,7 @@ export async function takeUpdates(botId: string, limit: number) {
          FOR UPDATE SKIP LOCKED
       )
       RETURNING m.id, m.account_id, m.scope, m.scope_id, m.body, m.kind,
-                m.pressed_message_id, m.created_at,
+                m.pressed_message_id, m.poll_id, m.created_at,
                 (SELECT username FROM accounts WHERE id = m.account_id) AS username`,
     [botId, limit],
   );
@@ -400,6 +403,10 @@ export async function takeUpdates(botId: string, limit: number) {
       // same take-once delivery, same order — and is told apart here rather
       // than in a second stream a bot could read out of sequence.
       const press = row.kind === 'button' && row.pressed_message_id !== null;
+      // An answer to a poll, the same way: in order with everything else, and
+      // with no text, so nothing reads a vote as something somebody typed.
+      const vote = row.kind === 'vote' && row.poll_id !== null;
+      const silent = press || vote;
       return {
         updateId: Number(row.id),
         chat: { accountId: row.account_id, username: row.username },
@@ -408,17 +415,115 @@ export async function takeUpdates(botId: string, limit: number) {
         // A press has no text. Empty rather than the button id, so a bot that
         // only looks at `text` cannot mistake an id for something somebody
         // typed.
-        text: press ? '' : row.body,
+        text: silent ? '' : row.body,
         // Parsed here rather than in every bot. `/help@name` and `/help` differ
         // in a group with several bots, and a parser per bot is a parser that
         // disagrees with the one the app used to decide whether to forward it.
-        command: press ? null : parseCommand(row.body),
+        command: silent ? null : parseCommand(row.body),
         button: press
           ? { id: row.body, messageId: Number(row.pressed_message_id) }
           : null,
+        // The person's whole answer as it now stands, not the difference from
+        // the last one: a bot that missed an update still ends up right. An
+        // empty list means they took their vote back.
+        vote: vote ? { pollId: Number(row.poll_id), options: parseVote(row.body) } : null,
         at: row.created_at.toISOString(),
       };
     });
+}
+
+/**
+ * The option indices a vote row carries, as written by the vote route.
+ *
+ * Defensive rather than trusting: the row is ours, but a reader that throws on
+ * one malformed row would stop every update behind it from being delivered.
+ */
+function parseVote(body: string): number[] {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((n): n is number => Number.isInteger(n) && n >= 0);
+  } catch {
+    return [];
+  }
+}
+
+/** What a poll looks like from the database, with its tally. */
+export interface PollState {
+  id: number;
+  question: string;
+  options: string[];
+  maxChoices: number;
+  showResults: boolean;
+  closesAt: string | null;
+  closed: boolean;
+  /** Votes per option, one entry per option, zeros included. */
+  counts: number[];
+  /** People who answered: not the sum of [counts] when several picks count. */
+  voters: number;
+}
+
+/**
+ * One poll with its tally, or null when it is not this bot's.
+ *
+ * The bot is part of the lookup rather than checked afterwards, so a poll id is
+ * never a way to read another bot's question or numbers.
+ */
+export async function pollState(
+  botId: string,
+  pollId: number,
+  db: Pick<PoolClient, 'query'> = pool,
+): Promise<PollState | null> {
+  const { rows } = await db.query<{
+    id: string;
+    question: string;
+    options: string[];
+    max_choices: number;
+    show_results: boolean;
+    closes_at: Date | null;
+    closed_at: Date | null;
+    closed: boolean;
+  }>(
+    `SELECT id, question, options, max_choices, show_results, closes_at, closed_at,
+            (closed_at IS NOT NULL OR (closes_at IS NOT NULL AND closes_at <= now())) AS closed
+       FROM bot_polls WHERE id = $1 AND bot_id = $2`,
+    [pollId, botId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const tally = await pollTally(row.options.length, pollId, db);
+  return {
+    id: Number(row.id),
+    question: row.question,
+    options: row.options,
+    maxChoices: row.max_choices,
+    showResults: row.show_results,
+    closesAt: row.closes_at?.toISOString() ?? null,
+    closed: row.closed,
+    ...tally,
+  };
+}
+
+/** The counts for one poll, one per option, and how many people answered. */
+export async function pollTally(
+  optionCount: number,
+  pollId: number,
+  db: Pick<PoolClient, 'query'> = pool,
+): Promise<{ counts: number[]; voters: number }> {
+  const { rows } = await db.query<{ option_index: number; n: number }>(
+    `SELECT option_index, count(*)::int AS n FROM bot_poll_votes
+      WHERE poll_id = $1 GROUP BY option_index`,
+    [pollId],
+  );
+  const counts = new Array<number>(optionCount).fill(0);
+  for (const row of rows) {
+    if (row.option_index < optionCount) counts[row.option_index] = row.n;
+  }
+  const { rows: people } = await db.query<{ voters: number }>(
+    'SELECT count(DISTINCT account_id)::int AS voters FROM bot_poll_votes WHERE poll_id = $1',
+    [pollId],
+  );
+  return { counts, voters: people[0]?.voters ?? 0 };
 }
 
 export interface ParsedCommand {

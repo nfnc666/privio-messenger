@@ -2,15 +2,18 @@ import 'dart:async';
 
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/bot_chat_controller.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/channel_text.dart';
 import '../l10n/failure_text.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/photo_viewer.dart';
+import '../widgets/poll_option_row.dart';
 import '../widgets/privio_back_button.dart';
 import 'bots_screen.dart';
 
@@ -28,6 +31,9 @@ import 'bots_screen.dart';
 ///   button is shown pressed rather than offered again, because the server
 ///   refuses a second press and a live-looking button that does nothing is
 ///   worse than one that looks spent.
+/// * **A poll says who sees the answer.** The bot does, by name — that is the
+///   difference from a channel poll, and it is printed on the card rather than
+///   left for somebody to assume.
 class BotChatScreen extends StatefulWidget {
   const BotChatScreen({super.key, required this.botId, this.username});
 
@@ -248,9 +254,12 @@ class _BotChatScreenState extends State<BotChatScreen> {
                         itemCount: controller.messages.length,
                         itemBuilder: (context, index) => _Bubble(
                           message: controller.messages[index],
+                          busy: controller.busy,
                           onPress: (button) => unawaited(
                             controller.press(controller.messages[index].id, button.id),
                           ),
+                          onVote: (options) =>
+                              controller.vote(controller.messages[index].id, options),
                         ),
                       ),
               ),
@@ -320,10 +329,17 @@ class _Header extends StatelessWidget {
 
 /// One message, with its buttons if it has any.
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.onPress});
+  const _Bubble({
+    required this.message,
+    required this.onPress,
+    required this.onVote,
+    this.busy = false,
+  });
 
   final BotMessage message;
   final void Function(BotButton button) onPress;
+  final Future<bool> Function(List<int> options) onVote;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +367,10 @@ class _Bubble extends StatelessWidget {
             // A picture with no caption arrives with a single space, so an
             // empty-looking line is not drawn under it.
             if (message.text.trim().isNotEmpty) Text(message.text),
+            if (message.poll != null) ...[
+              if (message.text.trim().isNotEmpty) const SizedBox(height: PrivioSpacing.sm),
+              _BotPollCard(poll: message.poll!, busy: busy, onVote: onVote),
+            ],
             for (final button in message.buttons) ...[
               const SizedBox(height: PrivioSpacing.xs),
               SizedBox(
@@ -371,6 +391,165 @@ class _Bubble extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A poll a bot asked.
+///
+/// Answered the way a channel poll is — one tap is the answer in a one-answer
+/// poll and tapping it again takes it back; a poll that takes several gathers
+/// them and sends with a button — so the two kinds of poll do not teach two
+/// habits. What is different is said on the card: the bot sees who answered
+/// what, and whether anybody else's answers are shown is the bot's choice.
+class _BotPollCard extends StatefulWidget {
+  const _BotPollCard({required this.poll, required this.busy, required this.onVote});
+
+  final BotPoll poll;
+  final bool busy;
+  final Future<bool> Function(List<int> options) onVote;
+
+  @override
+  State<_BotPollCard> createState() => _BotPollCardState();
+}
+
+class _BotPollCardState extends State<_BotPollCard> {
+  bool _sending = false;
+
+  /// What is picked but not yet sent, in a poll that takes several answers.
+  /// Null while untouched, so the server's own answer shows.
+  Set<int>? _draft;
+
+  Set<int> get _selected => _draft ?? widget.poll.myVotes;
+
+  bool get _canAnswer => !widget.poll.isClosed && !widget.busy && !_sending;
+
+  @override
+  void didUpdateWidget(covariant _BotPollCard old) {
+    super.didUpdateWidget(old);
+    // A reload brought the server's answer: a draft from before it would show
+    // a choice that is no longer the one on record.
+    // Compared by content: every reload builds new sets, and comparing those by
+    // identity would throw away a half-made choice whenever anything else in
+    // the chat refreshed.
+    if (!setEquals(old.poll.myVotes, widget.poll.myVotes)) _draft = null;
+  }
+
+  Future<void> _send(List<int> options) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    await widget.onVote(options);
+    // Cleared either way: on success the reload has the server's answer, and on
+    // failure a draft left behind would show a vote nobody cast.
+    if (mounted) {
+      setState(() {
+        _sending = false;
+        _draft = null;
+      });
+    }
+  }
+
+  void _tap(int index) {
+    final poll = widget.poll;
+    if (!_canAnswer) return;
+    if (!poll.takesSeveral) {
+      unawaited(_send(poll.myVotes.contains(index) ? const [] : [index]));
+      return;
+    }
+    final next = {..._selected};
+    if (next.contains(index)) {
+      next.remove(index);
+    } else if (next.length < poll.maxChoices) {
+      next.add(index);
+    } else {
+      return;
+    }
+    setState(() => _draft = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    final poll = widget.poll;
+    final voters = poll.voters;
+
+    final facts = [
+      if (poll.takesSeveral) text.feedPollPickUpTo(poll.maxChoices) else text.feedPollPickOne,
+      if (poll.isClosed)
+        text.feedPollClosed
+      else if (poll.closesAt != null)
+        text.feedPollCloses(formatWhenLabel(text, poll.closesAt!)),
+      if (voters != null) text.feedPollVoters(voters),
+    ].join(' · ');
+
+    // Why there are no bars, when there are none. "Nobody voted" and "not
+    // yours to see" look identical as empty tracks, and they are not the same.
+    final String? resultsNote = poll.resultsVisible
+        ? null
+        : poll.showResults
+            ? text.botPollResultsAfterAnswer
+            : text.botPollResultsHidden;
+
+    return Container(
+      padding: const EdgeInsets.all(PrivioSpacing.md),
+      decoration: const BoxDecoration(
+        color: PrivioColors.surfaceHigh,
+        borderRadius: BorderRadius.all(PrivioRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(poll.question, style: theme.textTheme.titleSmall),
+          const SizedBox(height: PrivioSpacing.xs),
+          Text(facts, style: theme.textTheme.bodySmall),
+          const SizedBox(height: PrivioSpacing.sm),
+          for (var index = 0; index < poll.options.length; index++)
+            PollOptionRow(
+              label: poll.options[index],
+              count: poll.countFor(index),
+              share: poll.shareOf(index),
+              chosen: _selected.contains(index),
+              showResults: poll.resultsVisible,
+              enabled: _canAnswer,
+              onTap: () => _tap(index),
+            ),
+          if (poll.takesSeveral && !poll.isClosed) ...[
+            const SizedBox(height: PrivioSpacing.xs),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: _canAnswer ? () => unawaited(_send(_selected.toList())) : null,
+                child: Text(
+                  _selected.isEmpty ? text.feedPollClearAnswer : text.feedPollAnswer,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: PrivioSpacing.xs),
+          // The one thing a bot poll must not let anybody assume otherwise.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.visibility_outlined,
+                  size: 14,
+                  color: PrivioColors.textTertiary,
+                ),
+              ),
+              const SizedBox(width: PrivioSpacing.xs),
+              Expanded(
+                child: Text(
+                  [text.botPollBotSees, if (resultsNote != null) resultsNote].join(' '),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

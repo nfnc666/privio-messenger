@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable, Iterator
 
 
@@ -15,6 +16,23 @@ from typing import Any, Callable, Iterator
 #: server; a bigger one is refused here so the reason is a sentence rather than
 #: a dropped connection.
 MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
+
+#: The most answers one poll may offer. Matches `BOT_LIMITS.maxPollOptions`.
+MAX_POLL_OPTIONS = 10
+
+
+def _iso(value: datetime | str) -> str:
+    """A timestamp the server accepts: ISO 8601 with an offset.
+
+    A naive ``datetime`` is refused rather than guessed at — whether it meant
+    UTC or the machine's local time is exactly the thing that makes a poll
+    close an hour early.
+    """
+    if isinstance(value, str):
+        return value
+    if value.tzinfo is None:
+        raise ValueError("closes_at needs a timezone; use datetime.now(timezone.utc) + …")
+    return value.astimezone(timezone.utc).isoformat()
 
 
 class BotError(RuntimeError):
@@ -78,6 +96,70 @@ class Press:
 
 
 @dataclass(frozen=True)
+class Vote:
+    """Somebody answered one of the bot's polls, changed or took back an answer.
+
+    ``options`` is their **whole** answer as it now stands — indices into the
+    poll's options, in order — not the difference from the last one. A bot that
+    missed an update still ends up right by keeping the latest per person. An
+    empty tuple means they took their vote back.
+
+    The same answer twice is not delivered twice: the server only tells you
+    about a change.
+    """
+
+    poll_id: int
+    options: tuple[int, ...]
+
+    @property
+    def retracted(self) -> bool:
+        return not self.options
+
+
+@dataclass(frozen=True)
+class PollResults:
+    """One poll and its tally, as the bot sees it.
+
+    The bot sees every count whatever ``show_results`` says: that switch is
+    about what the *people answering* see.
+    """
+
+    id: int
+    question: str
+    options: tuple[str, ...]
+    max_choices: int
+    show_results: bool
+    closes_at: str | None
+    closed: bool
+    #: One count per option, zeros included.
+    counts: tuple[int, ...]
+    #: People who answered. Not ``sum(counts)`` when several picks are allowed.
+    voters: int
+
+    @classmethod
+    def from_json(cls, raw: dict[str, Any]) -> "PollResults":
+        return cls(
+            id=int(raw["id"]),
+            question=str(raw["question"]),
+            options=tuple(str(o) for o in raw.get("options", [])),
+            max_choices=int(raw.get("maxChoices", 1)),
+            show_results=bool(raw.get("showResults", False)),
+            closes_at=raw.get("closesAt"),
+            closed=bool(raw.get("closed", False)),
+            counts=tuple(int(n) for n in raw.get("counts", [])),
+            voters=int(raw.get("voters", 0)),
+        )
+
+
+@dataclass(frozen=True)
+class SentPoll:
+    """What sending a poll gives back: the message, and the poll to reuse."""
+
+    message_id: int
+    poll_id: int
+
+
+@dataclass(frozen=True)
 class Update:
     """One thing that happened."""
 
@@ -93,6 +175,8 @@ class Update:
     command: Command | None = None
     #: Set when this update *is* a button press. ``text`` is then empty.
     button: Press | None = None
+    #: Set when this update *is* an answer to a poll. ``text`` is then empty.
+    vote: Vote | None = None
 
     @property
     def in_group(self) -> bool:
@@ -103,6 +187,7 @@ class Update:
         chat = raw.get("chat") or {}
         command_raw = raw.get("command")
         button_raw = raw.get("button")
+        vote_raw = raw.get("vote")
         return cls(
             update_id=int(raw["updateId"]),
             account_id=str(chat.get("accountId", "")),
@@ -123,6 +208,14 @@ class Update:
             button=(
                 Press(id=str(button_raw["id"]), message_id=int(button_raw["messageId"]))
                 if button_raw
+                else None
+            ),
+            vote=(
+                Vote(
+                    poll_id=int(vote_raw["pollId"]),
+                    options=tuple(int(i) for i in vote_raw.get("options", [])),
+                )
+                if vote_raw
                 else None
             ),
         )
@@ -335,6 +428,80 @@ class Bot:
         if buttons:
             body["buttons"] = [{"id": key, "label": label} for key, label in buttons]
         return int(self._request("POST", "/v1/bot/send", body)["messageId"])
+
+    # -- polls -------------------------------------------------------------
+
+    def send_poll(
+        self,
+        to: str,
+        question: str,
+        options: list[str],
+        *,
+        max_choices: int = 1,
+        show_results: bool = False,
+        closes_at: datetime | str | None = None,
+        text: str | None = None,
+        group_id: str | None = None,
+    ) -> SentPoll:
+        """Asks somebody a question with fixed answers.
+
+        Two to ten answers, no two the same. ``max_choices`` above 1 lets a
+        person pick up to that many. Answers arrive as updates whose ``vote`` is
+        set, telling you **who** answered **what** — a bot poll is not
+        anonymous to the bot, and like everything on the bot path it is not
+        encrypted.
+
+        ``show_results`` lets the people answering see the tally once they have
+        answered, or once it has closed. It is off unless you ask: they do not
+        know who else you asked, and with few people a tally gives away how
+        somebody else answered.
+
+        Keep the returned ``poll_id`` to put the same question to more people
+        with [resend_poll] and read one tally back with [poll_results].
+        """
+        if not 2 <= len(options) <= MAX_POLL_OPTIONS:
+            raise ValueError(f"a poll offers 2 to {MAX_POLL_OPTIONS} answers")
+        poll: dict[str, Any] = {
+            "question": question,
+            "options": list(options),
+            "maxChoices": max_choices,
+            "showResults": show_results,
+        }
+        if closes_at is not None:
+            poll["closesAt"] = _iso(closes_at)
+        body: dict[str, Any] = {"to": to, "poll": poll}
+        if text:
+            body["text"] = text
+        if group_id:
+            body["groupId"] = group_id
+        raw = self._request("POST", "/v1/bot/send", body)
+        return SentPoll(message_id=int(raw["messageId"]), poll_id=int(raw["pollId"]))
+
+    def resend_poll(self, to: str, poll_id: int, *, group_id: str | None = None) -> int:
+        """Puts a poll this bot already made to one more person.
+
+        Answers are per person and per poll: somebody sent it twice has one
+        answer, shown under both. A closed poll is refused with
+        ``poll_closed``.
+        """
+        body: dict[str, Any] = {"to": to, "pollId": poll_id}
+        if group_id:
+            body["groupId"] = group_id
+        return int(self._request("POST", "/v1/bot/send", body)["messageId"])
+
+    def poll_results(self, poll_id: int) -> PollResults:
+        """The tally across everybody the poll was sent to."""
+        return PollResults.from_json(self._request("GET", f"/v1/bot/polls/{int(poll_id)}"))
+
+    def close_poll(self, poll_id: int) -> PollResults:
+        """Stops a poll taking answers and returns the final tally.
+
+        Final: there is no reopening. Closing a closed poll returns the same
+        tally, so a retry is harmless.
+        """
+        return PollResults.from_json(
+            self._request("POST", f"/v1/bot/polls/{int(poll_id)}/close", {})
+        )
 
     # -- in a group, when an admin has granted the right ------------------
 
