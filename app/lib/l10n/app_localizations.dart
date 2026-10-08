@@ -685,6 +685,366 @@ abstract class AppText {
   /// **'Channel settings'**
   String get channelSettings;
 
+  /// No description provided for @chSectionProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'CHANNEL PROFILE'**
+  String get chSectionProfile;
+
+  /// No description provided for @chSectionAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'ACCESS & INVITATIONS'**
+  String get chSectionAccess;
+
+  /// No description provided for @chSectionTeam.
+  ///
+  /// In en, this message translates to:
+  /// **'TEAM & MEMBERS'**
+  String get chSectionTeam;
+
+  /// No description provided for @chSectionPosts.
+  ///
+  /// In en, this message translates to:
+  /// **'POSTS & INTERACTION'**
+  String get chSectionPosts;
+
+  /// No description provided for @chSectionIntegrations.
+  ///
+  /// In en, this message translates to:
+  /// **'INTEGRATIONS'**
+  String get chSectionIntegrations;
+
+  /// No description provided for @chSectionDanger.
+  ///
+  /// In en, this message translates to:
+  /// **'THIS CANNOT BE UNDONE'**
+  String get chSectionDanger;
+
+  /// No description provided for @chRowProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Picture, name and description'**
+  String get chRowProfile;
+
+  /// No description provided for @chRowLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Link'**
+  String get chRowLink;
+
+  /// No description provided for @chRowVisibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can find this channel'**
+  String get chRowVisibility;
+
+  /// No description provided for @chRowInvites.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite link'**
+  String get chRowInvites;
+
+  /// No description provided for @chRowRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests to join'**
+  String get chRowRequests;
+
+  /// No description provided for @chRowAdmins.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrators'**
+  String get chRowAdmins;
+
+  /// No description provided for @chRowSubscribers.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribers'**
+  String get chRowSubscribers;
+
+  /// No description provided for @chRowReactions.
+  ///
+  /// In en, this message translates to:
+  /// **'Reactions'**
+  String get chRowReactions;
+
+  /// No description provided for @chRowDiscussion.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments'**
+  String get chRowDiscussion;
+
+  /// No description provided for @chRowWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome message'**
+  String get chRowWelcome;
+
+  /// No description provided for @chRowSignature.
+  ///
+  /// In en, this message translates to:
+  /// **'Show who posted'**
+  String get chRowSignature;
+
+  /// No description provided for @chRowDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct messages'**
+  String get chRowDirect;
+
+  /// No description provided for @chRowAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Colours'**
+  String get chRowAppearance;
+
+  /// No description provided for @chRowLivestream.
+  ///
+  /// In en, this message translates to:
+  /// **'Livestream'**
+  String get chRowLivestream;
+
+  /// No description provided for @chRowStatistics.
+  ///
+  /// In en, this message translates to:
+  /// **'Statistics'**
+  String get chRowStatistics;
+
+  /// No description provided for @chRowTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Hand this channel on'**
+  String get chRowTransfer;
+
+  /// No description provided for @chRowDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this channel'**
+  String get chRowDelete;
+
+  /// No description provided for @chRowLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave this channel'**
+  String get chRowLeave;
+
+  /// No description provided for @chSummaryNoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'No description'**
+  String get chSummaryNoDescription;
+
+  /// No description provided for @chSummaryNoLink.
+  ///
+  /// In en, this message translates to:
+  /// **'No link'**
+  String get chSummaryNoLink;
+
+  /// No description provided for @chSummaryAdmins.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 administrator} other{{count} administrators}}'**
+  String chSummaryAdmins(int count);
+
+  /// No description provided for @chSummarySubscribers.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 subscriber} other{{count} subscribers}}'**
+  String chSummarySubscribers(int count);
+
+  /// No description provided for @chSummaryReactions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{None} =1{1 reaction} other{{count} reactions}}'**
+  String chSummaryReactions(int count);
+
+  /// No description provided for @chSummaryRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Nobody waiting} =1{1 waiting} other{{count} waiting}}'**
+  String chSummaryRequests(int count);
+
+  /// No description provided for @chSummaryPublic.
+  ///
+  /// In en, this message translates to:
+  /// **'Public · {handle}'**
+  String chSummaryPublic(String handle);
+
+  /// No description provided for @chSummaryPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Private · by invitation'**
+  String get chSummaryPrivate;
+
+  /// No description provided for @chSummaryLivestreamReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get chSummaryLivestreamReady;
+
+  /// No description provided for @chSummaryLivestreamRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running now'**
+  String get chSummaryLivestreamRunning;
+
+  /// No description provided for @chSummaryLivestreamOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set up on this server'**
+  String get chSummaryLivestreamOff;
+
+  /// No description provided for @chIntegrationsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A bot cannot post to a channel yet, so there is nothing to connect here. The livestream is this channel\'s one integration.'**
+  String get chIntegrationsNote;
+
+  /// No description provided for @chDangerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Handing the channel on makes somebody else the owner, and you keep only what they grant you. Deleting it removes the channel and its posts for everybody.'**
+  String get chDangerNote;
+
+  /// No description provided for @chDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {title}?'**
+  String chDeleteTitle(String title);
+
+  /// No description provided for @chDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The channel, its posts and its subscriber list are removed for everybody. This cannot be undone. Type the channel\'s name to confirm.'**
+  String get chDeleteBody;
+
+  /// No description provided for @chDeleteConfirmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Channel name'**
+  String get chDeleteConfirmHint;
+
+  /// No description provided for @chDeleteAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete channel'**
+  String get chDeleteAction;
+
+  /// No description provided for @chDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Channel deleted.'**
+  String get chDeleted;
+
+  /// No description provided for @chCouldNotDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'The channel could not be deleted.'**
+  String get chCouldNotDelete;
+
+  /// No description provided for @chProfileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Channel profile'**
+  String get chProfileTitle;
+
+  /// No description provided for @chProfilePicture.
+  ///
+  /// In en, this message translates to:
+  /// **'Picture'**
+  String get chProfilePicture;
+
+  /// No description provided for @chProfileChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get chProfileChange;
+
+  /// No description provided for @chProfileRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get chProfileRemove;
+
+  /// No description provided for @chProfileName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get chProfileName;
+
+  /// No description provided for @chProfileDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get chProfileDescription;
+
+  /// No description provided for @chProfileLinkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The link is how people reach a public channel. It cannot be changed here — it follows the channel\'s name on the server.'**
+  String get chProfileLinkNote;
+
+  /// No description provided for @chAccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Access & invitations'**
+  String get chAccessTitle;
+
+  /// No description provided for @chAccessWho.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can find this channel'**
+  String get chAccessWho;
+
+  /// No description provided for @chPostsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts & interaction'**
+  String get chPostsTitle;
+
+  /// No description provided for @chUnsavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your changes?'**
+  String get chUnsavedTitle;
+
+  /// No description provided for @chUnsavedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You changed something and have not saved it yet.'**
+  String get chUnsavedBody;
+
+  /// No description provided for @chUnsavedKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get chUnsavedKeep;
+
+  /// No description provided for @chUnsavedDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get chUnsavedDiscard;
+
+  /// No description provided for @chSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved.'**
+  String get chSaved;
+
+  /// No description provided for @chSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get chSaving;
+
+  /// No description provided for @chReadOnlyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only an administrator can change these.'**
+  String get chReadOnlyNote;
+
   /// No description provided for @channelShareLink.
   ///
   /// In en, this message translates to:

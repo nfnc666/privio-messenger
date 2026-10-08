@@ -10,14 +10,14 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
-import '../widgets/verified_badge.dart';
-import '../widgets/channel_avatar.dart';
+import '../widgets/channel_header.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/profile_action_button.dart';
 import '../widgets/settings_row.dart';
 import 'channel_admins_screen.dart';
-import 'channel_edit_screen.dart';
+import 'channel_profile_edit_screen.dart';
+import 'channel_settings_screen.dart';
 import 'channel_subscribers_screen.dart';
 
 /// A channel's front page: who it is, what it links to, and what it holds.
@@ -374,46 +374,18 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
               padding: const EdgeInsets.only(bottom: PrivioSpacing.xl),
               children: [
                 // --- Identity ---
-                Center(
-                  child: ChannelAvatar(
-                    channel: channel,
-                    imageBytes: controller.avatarFor(channel),
-                    size: 96,
-                  ),
+                //
+                // The same compact row the settings pages open with, so moving
+                // between them never costs anybody their place. It replaced a
+                // 96pt circle over a centred name over a count, which spent the
+                // first third of a phone before the first thing to do.
+                ChannelHeader(
+                  channel: channel,
+                  imageBytes: controller.avatarFor(channel),
+                  // The description has its own card further down this screen;
+                  // the header shows the audience instead of saying it twice.
+                  showDescription: false,
                 ),
-                const SizedBox(height: PrivioSpacing.md),
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
-                    // Centred as a row, so the badge sits beside the name
-                    // rather than under it.
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            channel.title,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ),
-                        if (channel.verified) const VerifiedBadge(size: 22),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: PrivioSpacing.xs),
-                Center(
-                  child: Text(
-                    channel.subscriberLabel,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: PrivioColors.textSecondary),
-                  ),
-                ),
-                const SizedBox(height: PrivioSpacing.lg),
 
                 // --- The four actions ---
                 Padding(
@@ -523,13 +495,16 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
                         value: '${channel.memberCount}',
                         onTap: () => unawaited(_openSubscribers()),
                       ),
+                      // Only for somebody who may change something. A
+                      // subscriber keeps the lists, the link and Leave through
+                      // the overflow — the rule the old screen had, kept.
                       if (channel.permissions.canEditChannel) ...[
                         const _Hairline(),
                         SettingsRow(
                           icon: Icons.tune_rounded,
-                          iconTint: const Color(0xFFD97706),
+                          iconTint: context.accents.accent,
                           label: text.channelSettings,
-                          onTap: () => unawaited(_edit()),
+                          onTap: () => unawaited(_openSettings()),
                         ),
                       ],
                     ],
@@ -559,11 +534,33 @@ class _ChannelProfileScreenState extends State<ChannelProfileScreen> {
     );
   }
 
+  /// The channel's identity — picture, name, description, link.
   Future<void> _edit() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => ChannelEditScreen(channel: _channel)),
+      MaterialPageRoute(builder: (_) => ChannelProfileEditScreen(channel: _channel)),
     );
     if (mounted) await _load();
+  }
+
+  /// Everything the channel is set to, under its own headings.
+  ///
+  /// Results are forwarded to the feed rather than handled here: the reaction
+  /// picker, the statistics and the appearance sheet live there, and this
+  /// screen is between them and the settings page.
+  Future<void> _openSettings() async {
+    final asked = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ChannelSettingsScreen(channel: _channel)),
+    );
+    if (!mounted) return;
+    switch (asked) {
+      case 'deleted':
+      case 'left':
+        Navigator.of(context).pop('left');
+      case final forward? when forward.isNotEmpty:
+        Navigator.of(context).pop(forward);
+      default:
+        await _load();
+    }
   }
 
   Future<void> _openAdmins() async {
