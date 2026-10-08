@@ -25,7 +25,7 @@ the app rather than another page.
 ## The link shapes
 
 ```
-https://<host>/houseoftrading    a public channel, by handle
+https://<host>/privionews    a public channel, by handle
 https://<host>/+<code>           a private invitation
 https://<host>/c/<code>          what every shipped build generates
 ```

@@ -120,7 +120,7 @@ Future<
 ChannelInfo channel({int unread = 0, int lastRead = 0}) => ChannelInfo(
       id: 'channel-1',
       visibility: ChannelVisibility.public,
-      title: 'HouseOfTrading',
+      title: 'PrivioNews',
       role: 'subscriber',
       hasKey: true,
       unreadCount: unread,

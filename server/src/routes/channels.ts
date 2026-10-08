@@ -501,7 +501,7 @@ const channelRoutes =
   /** Look a channel up by its invite code, which is how a private one is found. */
   /**
    * A public channel by its handle, which is what a link like
-   * `https://privio.channel/houseoftrading` names.
+   * `https://privio.channel/privionews` names.
    *
    * Exact rather than a search: discovery ranks by member count and is meant
    * for somebody browsing, while a link names one channel and has to find that

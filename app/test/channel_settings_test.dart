@@ -84,11 +84,11 @@ void main() {
       );
 
       final header = tester.widget<ChannelHeader>(find.byType(ChannelHeader));
-      expect(header.channel.title, 'HouseOfTrading');
+      expect(header.channel.title, 'PrivioNews');
 
       // The name sits to the left of the screen's middle. A centred lock-up
       // cannot satisfy this, which is the point of asserting it.
-      final name = tester.getRect(find.text('HouseOfTrading'));
+      final name = tester.getRect(find.text('PrivioNews'));
       final screen = tester.getRect(find.byType(Scaffold));
       expect(
         name.center.dx,
@@ -150,7 +150,7 @@ void main() {
       );
 
       // The question somebody opens this screen with, answered on it.
-      expect(find.text('Public · @houseoftrading'), findsOneWidget);
+      expect(find.text('Public · @privionews'), findsOneWidget);
       expect(find.text('Daily notes'), findsOneWidget);
       // Twice, and deliberately: once in the header as who this channel is,
       // once on the row that opens the list. The header does not repeat the
@@ -259,12 +259,12 @@ void main() {
       final action = find.widgetWithText(TextButton, 'Delete channel');
       expect(tester.widget<TextButton>(action).onPressed, isNull);
 
-      await tester.enterText(find.byType(TextField), 'HouseOfTrad');
+      await tester.enterText(find.byType(TextField), 'PrivioNew');
       await tester.pumpAndSettle();
       expect(tester.widget<TextButton>(action).onPressed, isNull,
           reason: 'a near-miss was accepted');
 
-      await tester.enterText(find.byType(TextField), 'HouseOfTrading');
+      await tester.enterText(find.byType(TextField), 'PrivioNews');
       await tester.pumpAndSettle();
       expect(tester.widget<TextButton>(action).onPressed, isNotNull);
 
