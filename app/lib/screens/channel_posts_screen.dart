@@ -10,7 +10,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/channel_appearance_sheet.dart';
 import '../widgets/channel_header.dart';
 import '../widgets/privio_back_button.dart';
-import '../widgets/settings_row.dart';
+import '../widgets/channel_settings_tiles.dart';
 
 /// What happens around a post: comments, who is named on it, what readers may
 /// send back, and the welcome that greets them.
@@ -195,111 +195,99 @@ class _ChannelPostsScreenState extends State<ChannelPostsScreen> {
               imageBytes: controller.avatarFor(channel),
             ),
 
-            SettingsSection(
+            ChannelSettingsGroup(
               caption: text.chSectionPosts,
               children: [
-                SettingsRow(
-                  label: text.chRowReactions,
-                  value: text.chSummaryReactions(channel.reactionEmojis.length),
+                ChannelSettingsTile(
+                  icon: Icons.add_reaction_outlined,
+                  title: text.chRowReactions,
+                  summary: text.chSummaryReactions(channel.reactionEmojis.length),
                   enabled: !_saving,
                   // The picker lives on the feed, which is where the emoji are
                   // drawn at the size they will be used. Two pops: this page
                   // and the settings screen above it.
                   onTap: () => Navigator.of(context).pop('reactions'),
                 ),
-                SettingsRow(
-                  label: text.chRowDiscussion,
-                  subtitle: text.discussionBody,
+                ChannelSettingsTile(
+                  icon: Icons.forum_outlined,
+                  title: text.chRowDiscussion,
+                  summary: text.discussionBody,
+                  summaryLines: 3,
                   enabled: !_saving,
                   trailing: Switch(
                     value: channel.commentsEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (on) => unawaited(_toggleComments(on)),
+                    onChanged: _saving ? null : (on) => unawaited(_toggleComments(on)),
                   ),
                 ),
-                SettingsRow(
-                  label: text.chRowSignature,
-                  subtitle: text.adminsShowSenderNameNote,
+                ChannelSettingsTile(
+                  icon: Icons.draw_outlined,
+                  title: text.chRowSignature,
+                  summary: text.adminsShowSenderNameNote,
+                  summaryLines: 3,
                   enabled: !_saving,
                   trailing: Switch(
                     value: _showSenderName,
-                    onChanged:
-                        _saving ? null : (on) => setState(() => _showSenderName = on),
+                    onChanged: _saving ? null : (on) => setState(() => _showSenderName = on),
                   ),
                 ),
-                SettingsRow(
-                  label: text.chRowDirect,
+                ChannelSettingsTile(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: text.chRowDirect,
                   enabled: !_saving,
                   trailing: Switch(
                     value: _directMessages,
-                    onChanged:
-                        _saving ? null : (on) => setState(() => _directMessages = on),
+                    onChanged: _saving ? null : (on) => setState(() => _directMessages = on),
                   ),
                 ),
               ],
             ),
 
-            SettingsSection(
+            ChannelSettingsGroup(
               caption: text.chRowWelcome,
+              footnote: channel.isPublic ? null : text.welcomePrivateNote,
               children: [
-                SettingsRow(
-                  label: text.welcomeShowToNew,
+                ChannelSettingsTile(
+                  icon: Icons.waving_hand_outlined,
+                  title: text.welcomeShowToNew,
                   enabled: !_saving,
                   trailing: Switch(
                     value: _welcomeEnabled,
-                    onChanged:
-                        _saving ? null : (on) => setState(() => _welcomeEnabled = on),
+                    onChanged: _saving ? null : (on) => setState(() => _welcomeEnabled = on),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: PrivioSpacing.lg,
-                    vertical: PrivioSpacing.xs,
+                  padding: const EdgeInsets.fromLTRB(
+                    PrivioSpacing.lg,
+                    PrivioSpacing.sm,
+                    PrivioSpacing.lg,
+                    PrivioSpacing.lg,
                   ),
-                  child: TextField(
+                  // No label of its own: the section caption above already
+                  // says what this is, and saying it twice is noise.
+                  child: ChannelTextField(
                     controller: _welcome,
+                    hint: text.welcomeHint,
                     enabled: !_saving && _welcomeEnabled,
                     maxLines: 4,
                     minLines: 2,
                     maxLength: 1024,
                     onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: text.welcomeHint,
-                      border: InputBorder.none,
-                      counterText: '',
-                    ),
                   ),
                 ),
-                if (!channel.isPublic)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      PrivioSpacing.lg,
-                      0,
-                      PrivioSpacing.lg,
-                      PrivioSpacing.md,
-                    ),
-                    child: Text(
-                      text.welcomePrivateNote,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: PrivioColors.textTertiary),
-                    ),
-                  ),
               ],
             ),
 
-            SettingsSection(
+            ChannelSettingsGroup(
               caption: text.chRowAppearance,
               children: [
-                SettingsRow(
-                  label: text.chRowAppearance,
-                  value: _accent == null && _background == null
+                ChannelSettingsTile(
+                  icon: Icons.palette_outlined,
+                  title: text.chRowAppearance,
+                  summary: _accent == null && _background == null
                       ? text.commonDefault
                       : text.commonCustom,
                   enabled: !_saving,
-                  onTap: _saving ? null : () => unawaited(_openAppearance()),
+                  onTap: () => unawaited(_openAppearance()),
                 ),
               ],
             ),

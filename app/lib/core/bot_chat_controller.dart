@@ -21,6 +21,87 @@ class BotButton {
   final String label;
 }
 
+/// A poll a bot asked, as the person answering it sees it.
+///
+/// Plaintext like everything on the bot path, and **not anonymous to the
+/// bot**: the bot is told who answered what. The card says so. The tally is
+/// here only when the bot chose to show it and this person has answered or
+/// can no longer answer — the server leaves it out otherwise rather than
+/// sending zeros, so [counts] being null means "not yours to see", never
+/// "nobody voted".
+@immutable
+class BotPoll {
+  const BotPoll({
+    required this.id,
+    required this.question,
+    required this.options,
+    this.maxChoices = 1,
+    this.showResults = false,
+    this.closesAt,
+    this.closed = false,
+    this.myVotes = const {},
+    this.counts,
+    this.voters,
+  });
+
+  static BotPoll? fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final options = ((raw['options'] as List<dynamic>?) ?? const []).whereType<String>().toList();
+    // Fewer than two is not a poll the server would have stored. Drawn as the
+    // message it came with rather than as a question with one answer.
+    if (options.length < 2) return null;
+    final counts = raw['counts'];
+    return BotPoll(
+      id: raw['id'] as int? ?? 0,
+      question: raw['question'] as String? ?? '',
+      options: options,
+      maxChoices: raw['maxChoices'] as int? ?? 1,
+      showResults: raw['showResults'] as bool? ?? false,
+      closesAt: DateTime.tryParse(raw['closesAt'] as String? ?? '')?.toLocal(),
+      closed: raw['closed'] as bool? ?? false,
+      myVotes: ((raw['myVotes'] as List<dynamic>?) ?? const []).whereType<int>().toSet(),
+      counts: counts is List ? counts.whereType<int>().toList(growable: false) : null,
+      voters: raw['voters'] as int?,
+    );
+  }
+
+  final int id;
+  final String question;
+  final List<String> options;
+  final int maxChoices;
+
+  /// Whether the bot lets the people answering see the tally.
+  final bool showResults;
+  final DateTime? closesAt;
+  final bool closed;
+  final Set<int> myVotes;
+  final List<int>? counts;
+  final int? voters;
+
+  /// Closed by the bot, or past its time. The second is checked here too, so a
+  /// card left open across the deadline stops offering a tap the server would
+  /// refuse.
+  bool get isClosed => closed || (closesAt != null && !closesAt!.isAfter(DateTime.now()));
+  bool get takesSeveral => maxChoices > 1;
+  bool get hasVoted => myVotes.isNotEmpty;
+  bool get resultsVisible => counts != null;
+
+  int countFor(int index) {
+    final tally = counts;
+    if (tally == null || index >= tally.length) return 0;
+    return tally[index];
+  }
+
+  /// Against the busiest answer, as a channel poll draws it.
+  double shareOf(int index) {
+    final tally = counts;
+    if (tally == null || tally.isEmpty) return 0;
+    final highest = tally.fold(0, (a, b) => a > b ? a : b);
+    if (highest == 0) return 0;
+    return countFor(index) / highest;
+  }
+}
+
 /// One message in a conversation with a bot.
 @immutable
 class BotMessage {
@@ -35,6 +116,7 @@ class BotMessage {
     this.mediaKind,
     this.fileName,
     this.byteSize,
+    this.poll,
   });
 
   factory BotMessage.fromJson(Map<String, dynamic> json) => BotMessage(
@@ -51,6 +133,7 @@ class BotMessage {
         mediaKind: json['mediaKind'] as String?,
         fileName: json['fileName'] as String?,
         byteSize: json['byteSize'] as int?,
+        poll: BotPoll.fromJson(json['poll']),
       );
 
   final int id;
@@ -83,6 +166,9 @@ class BotMessage {
   /// the screen knows to say the file is gone rather than drawing nothing.
   bool get hasMedia => mediaKind != null;
   bool get isImage => mediaKind == 'image';
+
+  /// The poll this message carries, when it carries one.
+  final BotPoll? poll;
 }
 
 /// A bot as somebody about to talk to it sees it.
@@ -294,6 +380,16 @@ class BotChatController extends ChangeNotifier {
         return true;
       });
 
+  /// Answers a poll, or changes or takes back an answer.
+  ///
+  /// The whole answer each time, as for a channel poll: [options] *is* the
+  /// answer from now on, and an empty list takes it back. The reload after it
+  /// is what draws the tally, when the bot lets this person see one.
+  Future<bool> vote(int messageId, List<int> options) => _act((account, bot) async {
+        await _api.voteBotPoll(bot, messageId, options);
+        return true;
+      });
+
   void clearFailure() {
     if (_failure == null) return;
     _failure = null;
@@ -349,6 +445,7 @@ class BotChatController extends ChangeNotifier {
       _failure = switch (error.code) {
         'not_contacted' => const Failure(FailureKind.botNotStarted),
         'bot_not_found' || 'message_not_found' => const Failure(FailureKind.botNotFound),
+        'poll_closed' => const Failure(FailureKind.botPollClosed),
         _ => Failure.server(error.message),
       };
       return false;

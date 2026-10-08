@@ -19,9 +19,9 @@ void main() {
     });
 
     test('a public channel is a handle, and carries no capability', () {
-      final target = parse('https://privio.channel/houseoftrading');
+      final target = parse('https://privio.channel/privionews');
       expect(target, isA<ChannelLinkByHandle>());
-      expect((target! as ChannelLinkByHandle).handle, 'houseoftrading');
+      expect((target! as ChannelLinkByHandle).handle, 'privionews');
     });
 
     test('the shape every shipped build generates still works', () {
@@ -47,8 +47,8 @@ void main() {
         (parse('https://privio.channel/+code123')! as ChannelLinkByCode).code,
       );
       expect(
-        (parse('https://privio.channel/open/houseoftrading')! as ChannelLinkByHandle).handle,
-        'houseoftrading',
+        (parse('https://privio.channel/open/privionews')! as ChannelLinkByHandle).handle,
+        'privionews',
       );
     });
 
@@ -58,8 +58,8 @@ void main() {
         'code123',
       );
       expect(
-        (parse('privio://houseoftrading')! as ChannelLinkByHandle).handle,
-        'houseoftrading',
+        (parse('privio://privionews')! as ChannelLinkByHandle).handle,
+        'privionews',
       );
       expect((parse('privio://c/oldstyle')! as ChannelLinkByCode).code, 'oldstyle');
     });
@@ -114,11 +114,11 @@ void main() {
         id: 'x',
         visibility: ChannelVisibility.public,
         title: 'House of Trading',
-        handle: 'houseoftrading',
+        handle: 'privionews',
         inviteCode: 'secretcapability',
       );
       final link = ChannelService.shareLinkFor(channel);
-      expect(link, 'https://privio.channel/houseoftrading');
+      expect(link, 'https://privio.channel/privionews');
       expect(
         link,
         isNot(contains('secretcapability')),

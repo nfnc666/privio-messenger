@@ -745,13 +745,13 @@ describe('channels', () => {
     it('a public channel is found by its handle, exactly', async () => {
       await createChannel(owner, {
         visibility: 'public',
-        handle: 'houseoftrading',
+        handle: 'privionews',
         title: 'House of Trading',
       });
 
       const found = await h.app.inject({
         method: 'GET',
-        url: '/v1/channels/by-handle/houseoftrading',
+        url: '/v1/channels/by-handle/privionews',
         headers: bearer(reader),
       });
       assert.equal(found.statusCode, 200);
@@ -760,7 +760,7 @@ describe('channels', () => {
       // Exact, not a search: a link names one channel and has to find that one.
       const near = await h.app.inject({
         method: 'GET',
-        url: '/v1/channels/by-handle/houseoftradin',
+        url: '/v1/channels/by-handle/privionew',
         headers: bearer(reader),
       });
       assert.equal(near.statusCode, 404);

@@ -55,6 +55,38 @@ const buttonsSchema = z
     { message: 'Two buttons with the same id cannot be told apart on a press' },
   );
 
+/**
+ * A poll a bot puts to the people it sends it to.
+ *
+ * Ten answers at most, like a channel poll, and no two the same: an answer a
+ * person cannot tell from its neighbour is an answer they cannot choose. The
+ * question and the answers are plaintext, as everything on the bot path is —
+ * migration 041 says so where the columns are defined.
+ */
+const pollSchema = z
+  .object({
+    question: z.string().trim().min(1).max(300),
+    options: z
+      .array(z.string().trim().min(1).max(100))
+      .min(2)
+      .max(bots.BOT_LIMITS.maxPollOptions)
+      .refine((options) => new Set(options).size === options.length, {
+        message: 'Two answers with the same words cannot be told apart',
+      }),
+    /** 1 for a single choice; more lets a person pick up to that many. */
+    maxChoices: z.number().int().min(1).max(bots.BOT_LIMITS.maxPollOptions).default(1),
+    /**
+     * Whether the people answering may see the tally. Off by default: they do
+     * not know who else was asked, and with few people a tally gives away how
+     * somebody else answered.
+     */
+    showResults: z.boolean().default(false),
+    closesAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .refine((poll) => poll.maxChoices <= poll.options.length, {
+    message: 'A poll cannot take more answers than it offers',
+  });
+
 /** Pulls the bearer token off a bot request. Never logged, anywhere. */
 function botToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
@@ -381,7 +413,8 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
       const body = parse(
         z.object({
           to: uuidSchema,
-          text: z.string().trim().min(1).max(4096),
+          /** Optional only beside a poll, whose question is the message. */
+          text: z.string().trim().min(1).max(4096).optional(),
           /**
            * The group this is a reply in, when it is one.
            *
@@ -410,9 +443,45 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
           mediaKind: z.enum(['image', 'file']).optional(),
           /** What to call it on screen and when saving it. */
           fileName: z.string().trim().min(1).max(200).optional(),
+          /**
+           * A new poll, carried by this message.
+           *
+           * The question is the message: `text`, when given as well, is a line
+           * drawn above it.
+           */
+          poll: pollSchema.optional(),
+          /**
+           * A poll this bot made before, put to one more person.
+           *
+           * What makes it a poll rather than a row of buttons: the same question
+           * to everybody who has started the bot, and one tally read back. The
+           * answers are per person and per poll, so somebody sent it twice still
+           * has one answer.
+           */
+          pollId: z.number().int().min(1).optional(),
         }),
         request.body,
       );
+
+      const carriesPoll = body.poll !== undefined || body.pollId !== undefined;
+      if (body.poll !== undefined && body.pollId !== undefined) {
+        throw ApiError.badRequest('poll_twice', 'Send a new poll or an existing pollId, not both');
+      }
+      if (!carriesPoll && body.text === undefined) {
+        throw ApiError.badRequest('text_required', 'A message needs text');
+      }
+      // One thing to answer per message. Buttons under a poll would be two ways
+      // to reply to the same bubble, and a poll around a file is a file nobody
+      // will notice under the question.
+      if (carriesPoll && (body.buttons?.length || body.mediaId)) {
+        throw ApiError.badRequest(
+          'poll_alone',
+          'A poll cannot carry buttons or an attachment as well',
+        );
+      }
+      if (body.poll?.closesAt && new Date(body.poll.closesAt).getTime() <= Date.now()) {
+        throw ApiError.badRequest('closes_in_past', 'A poll cannot close before it is sent');
+      }
 
       if (body.groupId) {
         // Checked on this call rather than remembered from when the bot was
@@ -469,27 +538,104 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
         mediaId = rows[0]!.id;
       }
 
-      const { rows } = await pool.query<{ id: string }>(
-        `INSERT INTO bot_messages
-           (bot_id, account_id, scope, scope_id, author, body, buttons,
-            media_id, media_kind, file_name)
-         VALUES ($1, $2, $3, $4, 'bot', $5, $6, $7, $8, $9) RETURNING id`,
-        [
-          bot.account_id,
-          body.to,
-          body.groupId ? 'group' : 'direct',
-          body.groupId ?? null,
-          body.text,
-          JSON.stringify(body.buttons ?? []),
-          mediaId,
-          // The constraint in migration 040 wants both or neither, so the kind
-          // follows the object rather than the request: a `mediaKind` with no
-          // `mediaId` is a picture frame around nothing.
-          mediaId === null ? null : body.mediaKind ?? 'file',
-          mediaId === null ? null : body.fileName ?? null,
-        ],
+      // An existing poll has to be this bot's own and still open. Another bot's
+      // id is answered like no id at all, so poll ids cannot be walked.
+      if (body.pollId !== undefined) {
+        const existing = await bots.pollState(bot.account_id, body.pollId);
+        if (!existing) throw ApiError.notFound('poll_not_found', 'No such poll of this bot');
+        if (existing.closed) {
+          throw ApiError.conflict('poll_closed', 'That poll has closed');
+        }
+      }
+
+      // The poll and the message in one transaction: a message that claims a
+      // poll which was never written would be a question nobody can answer.
+      const sent = await withTransaction(async (client) => {
+        let pollId: number | null = body.pollId ?? null;
+        if (body.poll) {
+          const { rows: made } = await client.query<{ id: string }>(
+            `INSERT INTO bot_polls
+               (bot_id, question, options, max_choices, show_results, closes_at)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [
+              bot.account_id,
+              body.poll.question,
+              JSON.stringify(body.poll.options),
+              body.poll.maxChoices,
+              body.poll.showResults,
+              body.poll.closesAt ?? null,
+            ],
+          );
+          pollId = Number(made[0]!.id);
+        }
+
+        const { rows } = await client.query<{ id: string }>(
+          `INSERT INTO bot_messages
+             (bot_id, account_id, scope, scope_id, author, body, buttons,
+              media_id, media_kind, file_name, poll_id)
+           VALUES ($1, $2, $3, $4, 'bot', $5, $6, $7, $8, $9, $10) RETURNING id`,
+          [
+            bot.account_id,
+            body.to,
+            body.groupId ? 'group' : 'direct',
+            body.groupId ?? null,
+            // Beside a poll with no line of its own, the body is empty rather
+            // than a copy of the question: the question lives in the poll, and
+            // one place is the place it cannot disagree with.
+            body.text ?? '',
+            JSON.stringify(body.buttons ?? []),
+            mediaId,
+            // The constraint in migration 040 wants both or neither, so the kind
+            // follows the object rather than the request: a `mediaKind` with no
+            // `mediaId` is a picture frame around nothing.
+            mediaId === null ? null : body.mediaKind ?? 'file',
+            mediaId === null ? null : body.fileName ?? null,
+            pollId,
+          ],
+        );
+        return { messageId: Number(rows[0]!.id), pollId };
+      });
+      return sent.pollId === null ? { messageId: sent.messageId } : sent;
+    });
+
+    // --- Polls, from the bot's side -------------------------------------------
+
+    /**
+     * One poll's tally.
+     *
+     * The bot sees every count whatever `showResults` says: that switch is about
+     * what the *people answering* see, and the bot is told each answer as it
+     * arrives in any case.
+     */
+    app.get('/v1/bot/polls/:pollId', async (request) => {
+      const bot = await requireBot(request);
+      const params = parse(z.object({ pollId: z.coerce.number().int().min(1) }), request.params);
+      const poll = await bots.pollState(bot.account_id, params.pollId);
+      if (!poll) throw ApiError.notFound('poll_not_found', 'No such poll of this bot');
+      return poll;
+    });
+
+    /**
+     * Stops a poll taking answers, before its time or when it had none.
+     *
+     * Final: there is no reopening, because a poll that closes and opens again
+     * is one whose result depends on when somebody looked. Closing a closed
+     * poll answers the same tally rather than an error, so a retry is harmless.
+     */
+    app.post('/v1/bot/polls/:pollId/close', async (request) => {
+      const bot = await requireBot(request);
+      const params = parse(z.object({ pollId: z.coerce.number().int().min(1) }), request.params);
+      const { rowCount } = await pool.query(
+        `UPDATE bot_polls SET closed_at = now()
+          WHERE id = $1 AND bot_id = $2 AND closed_at IS NULL
+            -- One that ran out on its own keeps saying so: closed_at is the
+            -- record of the bot closing it, not of anybody looking afterwards.
+            AND (closes_at IS NULL OR closes_at > now())`,
+        [params.pollId, bot.account_id],
       );
-      return { messageId: Number(rows[0]!.id) };
+      const poll = await bots.pollState(bot.account_id, params.pollId);
+      if (!poll) throw ApiError.notFound('poll_not_found', 'No such poll of this bot');
+      return { ...poll, alreadyClosed: rowCount === 0 };
     });
 
     // --- What a bot may do in a group, when an admin has granted it -----------
@@ -828,7 +974,20 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
 
       const { rows } = await pool.query(
         `SELECT m.id, m.author, m.body, m.scope, m.scope_id, m.created_at, m.buttons,
-                m.media_id, m.media_kind, m.file_name,
+                m.media_id, m.media_kind, m.file_name, m.poll_id,
+                p.question AS poll_question, p.options AS poll_options,
+                p.max_choices AS poll_max_choices, p.show_results AS poll_show_results,
+                p.closes_at AS poll_closes_at,
+                (p.closed_at IS NOT NULL OR (p.closes_at IS NOT NULL AND p.closes_at <= now()))
+                  AS poll_closed,
+                -- This person's own answer. Per poll, so the same poll sent
+                -- twice shows the same answer under both.
+                COALESCE(
+                  (SELECT array_agg(v.option_index ORDER BY v.option_index)
+                     FROM bot_poll_votes v
+                    WHERE v.poll_id = m.poll_id AND v.account_id = $2),
+                  '{}'
+                ) AS poll_mine,
                 (SELECT byte_size FROM media_objects o WHERE o.id = m.media_id) AS byte_size,
                 -- Which of this message's buttons this person has already
                 -- pressed. Sent so the app can show a pressed button as pressed
@@ -840,6 +999,9 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
                   '{}'
                 ) AS pressed
            FROM bot_messages m
+           -- LEFT, so a message without a poll is still a message: an inner
+           -- join here would drop every ordinary line from the conversation.
+           LEFT JOIN bot_polls p ON p.id = m.poll_id
           WHERE m.bot_id = $1 AND m.account_id = $2 AND m.id > $3
             -- A press is not a line in the conversation. It is delivered to the
             -- bot and the bot answers; drawing it as well would show the person
@@ -848,6 +1010,21 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
           ORDER BY m.id ASC LIMIT $4`,
         [params.id, accountId, query.after, query.limit],
       );
+      // The tally, for the polls whose bot chose to show it and whose reader
+      // has answered or can no longer answer. Fetched only for those: a count
+      // the route is not going to send is one it has no reason to compute.
+      const tallies = new Map<number, { counts: number[]; voters: number }>();
+      for (const r of rows) {
+        if (r.poll_id === null || !r.poll_show_results) continue;
+        const pollId = Number(r.poll_id);
+        if (tallies.has(pollId)) continue;
+        if ((r.poll_mine as number[]).length === 0 && !r.poll_closed) continue;
+        tallies.set(
+          pollId,
+          await bots.pollTally((r.poll_options as string[]).length, pollId),
+        );
+      }
+
       return {
         messages: rows.map((r) => ({
           id: Number(r.id),
@@ -865,6 +1042,23 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
           mediaKind: r.media_kind as string | null,
           fileName: r.file_name as string | null,
           byteSize: r.byte_size === null ? null : Number(r.byte_size),
+          poll:
+            r.poll_id === null
+              ? null
+              : {
+                  id: Number(r.poll_id),
+                  question: r.poll_question as string,
+                  options: r.poll_options as string[],
+                  maxChoices: r.poll_max_choices as number,
+                  showResults: r.poll_show_results as boolean,
+                  closesAt: (r.poll_closes_at as Date | null)?.toISOString() ?? null,
+                  closed: r.poll_closed as boolean,
+                  myVotes: r.poll_mine as number[],
+                  // Null, not zeros, when the reader may not see them: zeros
+                  // would be a tally, and a wrong one.
+                  counts: tallies.get(Number(r.poll_id))?.counts ?? null,
+                  voters: tallies.get(Number(r.poll_id))?.voters ?? null,
+                },
         })),
         // What to pass as `after` next time. Null when there is no more.
         nextAfter: rows.length === query.limit ? Number(rows[rows.length - 1]!.id) : null,
@@ -967,6 +1161,159 @@ export function botRoutes(storage: BlobStorage): FastifyPluginAsync {
       });
 
       return { pressed: true, already: delivered === null };
+    });
+
+    /**
+     * Answers a poll a bot sent, or changes or takes back an answer.
+     *
+     * The whole answer, not one more vote: the list given *is* the answer from
+     * now on, exactly as for a channel poll, because changing a single choice
+     * otherwise takes two calls with a moment between them where the person has
+     * answered twice or not at all. An empty list takes the answer back.
+     *
+     * Who may answer is who the message was addressed to, and nobody else —
+     * including in a group. A bot's message is only ever shown to its addressee,
+     * and a vote from somebody who could not see the question would be a number
+     * in the bot's tally that nobody can account for.
+     *
+     * Each change reaches the bot once, in order with everything else the person
+     * did; answering the same thing again changes nothing and delivers nothing,
+     * so a double tap is not two votes.
+     */
+    app.put('/v1/bots/:id/messages/:messageId/vote', requireAuth, async (request) => {
+      const { accountId } = auth(request);
+      const params = parse(
+        z.object({ id: uuidSchema, messageId: z.coerce.number().int().min(1) }),
+        request.params,
+      );
+      const body = parse(
+        z.object({
+          options: z
+            .array(z.number().int().min(0).max(bots.BOT_LIMITS.maxPollOptions - 1))
+            .max(bots.BOT_LIMITS.maxPollOptions),
+        }),
+        request.body,
+      );
+
+      const bot = await bots.byAccountId(params.id);
+      if (!bot || bot.disabled_at !== null) {
+        throw ApiError.notFound('bot_not_found', 'No such bot');
+      }
+
+      const { rows: messages } = await pool.query<{
+        account_id: string;
+        scope: string;
+        scope_id: string | null;
+        author: string;
+        poll_id: string | null;
+      }>(
+        `SELECT account_id, scope, scope_id, author, poll_id FROM bot_messages
+          WHERE id = $1 AND bot_id = $2`,
+        [params.messageId, params.id],
+      );
+      const message = messages[0];
+      // The same one 404 as a press, for the same reason.
+      if (!message || message.author !== 'bot') {
+        throw ApiError.notFound('message_not_found', 'No such message from this bot');
+      }
+      if (message.poll_id === null) {
+        throw ApiError.badRequest('no_poll', 'That message is not a poll');
+      }
+      if (message.account_id !== accountId) {
+        throw ApiError.forbidden('not_yours', 'That message was not addressed to you');
+      }
+      // Stopping a bot withdraws the answers too, as it withdraws presses.
+      if (!(await bots.mayWriteTo(params.id, accountId))) {
+        throw ApiError.forbidden('not_contacted', 'Start this bot before using it');
+      }
+
+      const chosen = [...new Set(body.options)].sort((a, b) => a - b);
+      if (chosen.length !== body.options.length) {
+        throw ApiError.badRequest('duplicate_option', 'An answer was picked twice');
+      }
+      const pollId = Number(message.poll_id);
+
+      const result = await withTransaction(async (client) => {
+        // The poll row, locked: two answers from the same person racing each
+        // other are put one after the other, so the second sees the first and
+        // a double tap cannot become two deliveries.
+        const { rows: polls } = await client.query<{
+          options: string[];
+          max_choices: number;
+          show_results: boolean;
+          closed: boolean;
+        }>(
+          `SELECT options, max_choices, show_results,
+                  (closed_at IS NOT NULL OR (closes_at IS NOT NULL AND closes_at <= now())) AS closed
+             FROM bot_polls WHERE id = $1 AND bot_id = $2 FOR UPDATE`,
+          [pollId, params.id],
+        );
+        const poll = polls[0];
+        if (!poll) throw ApiError.notFound('poll_not_found', 'No such poll');
+        if (poll.closed) throw ApiError.conflict('poll_closed', 'This poll has closed');
+        if (chosen.some((index) => index >= poll.options.length)) {
+          throw ApiError.badRequest('no_such_option', 'That poll has no such answer');
+        }
+        if (chosen.length > poll.max_choices) {
+          throw ApiError.badRequest(
+            'too_many_options',
+            `This poll takes ${poll.max_choices} answer${poll.max_choices === 1 ? '' : 's'}`,
+          );
+        }
+
+        const { rows: before } = await client.query<{ option_index: number }>(
+          `SELECT option_index FROM bot_poll_votes
+            WHERE poll_id = $1 AND account_id = $2 ORDER BY option_index`,
+          [pollId, accountId],
+        );
+        const previous = before.map((r) => r.option_index);
+        const changed =
+          previous.length !== chosen.length || previous.some((v, i) => v !== chosen[i]);
+
+        if (changed) {
+          await client.query(
+            'DELETE FROM bot_poll_votes WHERE poll_id = $1 AND account_id = $2',
+            [pollId, accountId],
+          );
+          for (const index of chosen) {
+            await client.query(
+              `INSERT INTO bot_poll_votes (poll_id, account_id, option_index)
+               VALUES ($1, $2, $3)`,
+              [pollId, accountId, index],
+            );
+          }
+          // The delivery row, in the same transaction as the answer it reports:
+          // an answer the bot was never told about, or told about but never
+          // recorded, would be two different polls.
+          await client.query(
+            `INSERT INTO bot_messages
+               (bot_id, account_id, scope, scope_id, author, body, kind, poll_id)
+             VALUES ($1, $2, $3, $4, 'user', $5, 'vote', $6)`,
+            [
+              params.id,
+              accountId,
+              message.scope,
+              message.scope_id,
+              JSON.stringify(chosen),
+              pollId,
+            ],
+          );
+        }
+
+        // What the person may now see, under the same rule as the conversation.
+        const visible = poll.show_results && chosen.length > 0;
+        const tally = visible
+          ? await bots.pollTally(poll.options.length, pollId, client)
+          : null;
+        return {
+          changed,
+          myVotes: chosen,
+          counts: tally?.counts ?? null,
+          voters: tally?.voters ?? null,
+        };
+      });
+
+      return result;
     });
 
     // --- Where to post this bot's updates -------------------------------------

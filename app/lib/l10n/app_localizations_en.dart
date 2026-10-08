@@ -399,22 +399,22 @@ class AppTextEn extends AppText {
   String get channelSettings => 'Channel settings';
 
   @override
-  String get chSectionProfile => 'CHANNEL PROFILE';
+  String get chSectionProfile => 'Channel profile';
 
   @override
-  String get chSectionAccess => 'ACCESS & INVITATIONS';
+  String get chSectionAccess => 'Access & invitations';
 
   @override
-  String get chSectionTeam => 'TEAM & MEMBERS';
+  String get chSectionTeam => 'Team & members';
 
   @override
-  String get chSectionPosts => 'POSTS & INTERACTION';
+  String get chSectionPosts => 'Posts & interaction';
 
   @override
-  String get chSectionIntegrations => 'INTEGRATIONS';
+  String get chSectionIntegrations => 'Integrations';
 
   @override
-  String get chSectionDanger => 'THIS CANNOT BE UNDONE';
+  String get chSectionDanger => 'This cannot be undone';
 
   @override
   String get chRowProfile => 'Picture, name and description';
@@ -4628,6 +4628,20 @@ class AppTextEn extends AppText {
 
   @override
   String get botChatNotStarted => 'Start this bot before writing to it.';
+
+  @override
+  String get botPollBotSees =>
+      'The bot sees who answered what. Like the rest of this chat, it is not encrypted.';
+
+  @override
+  String get botPollResultsHidden => 'Only the bot sees the results.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'Results show once you have answered.';
+
+  @override
+  String get botPollClosedFailure => 'This poll has closed.';
 
   @override
   String get botChatStop => 'Stop this bot';

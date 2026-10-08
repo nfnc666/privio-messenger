@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show DateUtils;
 import 'package:intl/intl.dart';
 
 import '../models/channel.dart';
@@ -91,3 +92,16 @@ String reportReasonLabel(AppText text, ReportReason reason) =>
       ReportReason.impersonation => text.reportImpersonation,
       ReportReason.other => text.reportOther,
     };
+
+/// "Today at 18:30", "Tomorrow at 09:00", or the date.
+String formatWhenLabel(AppText text, DateTime when) {
+  final today = DateUtils.dateOnly(DateTime.now());
+  final day = DateUtils.dateOnly(when);
+  final hh = when.hour.toString().padLeft(2, '0');
+  final mm = when.minute.toString().padLeft(2, '0');
+  final clock = '$hh:$mm';
+  final difference = day.difference(today).inDays;
+  if (difference == 0) return text.feedTodayAt(clock);
+  if (difference == 1) return text.feedTomorrowAt(clock);
+  return text.feedDateAt(formatDayAndMonth(text, when), clock);
+}

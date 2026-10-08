@@ -12,7 +12,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/search_field.dart';
-import '../widgets/settings_row.dart';
+import '../widgets/channel_settings_tiles.dart';
 
 /// Who runs a channel, and exactly what each of them may do.
 ///
@@ -308,11 +308,13 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                   child: _Card(
                     children: [
-                      SettingsRow(
-                        label: text.adminsShowSenderName,
-                        subtitle: channel.permissions.canEditChannel
+                      ChannelSettingsTile(
+                        icon: Icons.draw_outlined,
+                        title: text.adminsShowSenderName,
+                        summary: channel.permissions.canEditChannel
                             ? text.adminsShowSenderNameOn
                             : text.adminsShowSenderNameLocked,
+                        summaryLines: 3,
                         enabled: channel.permissions.canEditChannel,
                         trailing: Switch(
                           value: channel.showSenderName,
@@ -343,11 +345,14 @@ class _ChannelAdminsScreenState extends State<ChannelAdminsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
                     child: _Card(
                       children: [
-                        SettingsRow(
+                        ChannelSettingsTile(
                           icon: Icons.swap_horiz_rounded,
-                          iconTint: const Color(0xFFD97706),
-                          label: text.adminsTransfer,
-                          subtitle: text.adminsTransferNote,
+                          title: text.adminsTransfer,
+                          summary: text.adminsTransferNote,
+                          summaryLines: 3,
+                          // Red like every other step on these pages that
+                          // cannot be taken back, not a one-off amber.
+                          tone: ChannelTileTone.danger,
                           onTap: () => unawaited(_transferOwnership()),
                         ),
                       ],

@@ -41,10 +41,10 @@ void main() {
     await links.start();
     expect(links.pending, isNull);
 
-    source.arrive('https://privio.channel/houseoftrading');
+    source.arrive('https://privio.channel/privionews');
     await pumpEventQueue();
 
-    expect((links.pending! as ChannelLinkByHandle).handle, 'houseoftrading');
+    expect((links.pending! as ChannelLinkByHandle).handle, 'privionews');
   });
 
   test('it waits rather than being read once', () async {

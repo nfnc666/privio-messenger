@@ -186,6 +186,13 @@ const READABLE: Record<string, string> = {
   // instead of the message silently losing its attachment.
   'bot_messages.media_kind': 'image or file, so the app knows what to draw',
   'bot_messages.file_name': 'the name the bot gave it, shown and saved under',
+  // A poll a bot asks. Readable for the reason the whole bot path is — the bot
+  // wrote the question in the clear and is told every answer — and because the
+  // server is the thing that checks an answer is one the poll offers, which it
+  // could not do on ciphertext. A channel poll is the sealed counterpart: there
+  // the server holds the shape only. Migration 041 says so where these live.
+  'bot_polls.question': 'a bot s own question, plaintext like the bot chat it is sent in',
+  'bot_polls.options': 'the answers the bot offers, checked on every vote',
   'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
   'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the

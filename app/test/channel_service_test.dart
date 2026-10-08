@@ -642,7 +642,7 @@ void main() {
       final service = await _serviceOn(server);
       final channel = await service.create(
         visibility: ChannelVisibility.public,
-        handle: 'houseoftrading',
+        handle: 'privionews',
         title: 'House of Trading',
       );
 
@@ -651,7 +651,7 @@ void main() {
       // and has no business on a poster.
       expect(
         ChannelService.shareLinkFor(channel),
-        'https://privio.channel/houseoftrading',
+        'https://privio.channel/privionews',
       );
       expect(
         ChannelService.shareLinkFor(channel),

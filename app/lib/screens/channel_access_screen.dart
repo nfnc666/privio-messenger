@@ -12,7 +12,7 @@ import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_header.dart';
 import '../widgets/privio_back_button.dart';
-import '../widgets/settings_row.dart';
+import '../widgets/channel_settings_tiles.dart';
 
 /// Who can find this channel, how they get in, and who is waiting at the door.
 ///
@@ -194,47 +194,36 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
               ),
 
               // --- Who can find it ---
-              SettingsSection(
+              ChannelSettingsGroup(
                 caption: text.chAccessWho,
+                // Said rather than offered as a switch that would half-work:
+                // public and private decide whether the name is a plaintext
+                // column or a sealed blob, and moving either way means
+                // re-sealing or publishing everything.
+                footnote: channel.isPublic
+                    ? text.visibilityPublicBody(channel.handle ?? '')
+                    : text.visibilityPrivateBody,
                 children: [
-                  SettingsRow(
-                    label: channel.isPublic ? text.channelPublic : text.channelPrivate,
-                    value: channel.isPublic
+                  ChannelSettingsTile(
+                    icon: channel.isPublic ? Icons.public_rounded : Icons.lock_outline_rounded,
+                    title: channel.isPublic ? text.channelPublic : text.channelPrivate,
+                    summary: channel.isPublic
                         ? '@${channel.handle ?? ''}'
                         : text.chSummaryPrivate,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      PrivioSpacing.lg,
-                      PrivioSpacing.sm,
-                      PrivioSpacing.lg,
-                      PrivioSpacing.md,
-                    ),
-                    child: Text(
-                      // Said rather than offered as a switch that would
-                      // half-work: public and private decide whether the name
-                      // is a plaintext column or a sealed blob, and moving
-                      // either way means re-sealing or publishing everything.
-                      channel.isPublic
-                          ? text.visibilityPublicBody(channel.handle ?? '')
-                          : text.visibilityPrivateBody,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: PrivioColors.textTertiary),
-                    ),
                   ),
                 ],
               ),
 
               // --- The link ---
               if (link != null)
-                SettingsSection(
+                ChannelSettingsGroup(
                   caption: text.chRowInvites,
                   children: [
-                    SettingsRow(
-                      label: link,
-                      value: text.channelCopyLink,
+                    ChannelSettingsTile(
+                      icon: Icons.copy_rounded,
+                      title: text.channelCopyLink,
+                      summary: link,
+                      summaryLines: 1,
                       enabled: !_busy,
                       onTap: () async {
                         await Clipboard.setData(ClipboardData(text: link));
@@ -242,9 +231,11 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
                       },
                     ),
                     if (mayManageInvites) ...[
-                      SettingsRow(
-                        label: text.inviteAskMeFirst,
-                        subtitle: text.inviteAskMeFirstNote,
+                      ChannelSettingsTile(
+                        icon: Icons.verified_user_outlined,
+                        title: text.inviteAskMeFirst,
+                        summary: text.inviteAskMeFirstNote,
+                        summaryLines: 3,
                         enabled: !_busy,
                         trailing: Switch(
                           value: invite.needsApproval,
@@ -258,27 +249,31 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
                                   )),
                         ),
                       ),
-                      SettingsRow(
-                        label: text.inviteExpiresLabel,
-                        value: invite.expiresAt == null
+                      ChannelSettingsTile(
+                        icon: Icons.schedule_rounded,
+                        title: text.inviteExpiresLabel,
+                        summary: invite.expiresAt == null
                             ? text.inviteNever
                             : MaterialLocalizations.of(context)
                                 .formatMediumDate(invite.expiresAt!.toLocal()),
                         enabled: !_busy,
                         onTap: () => unawaited(_pickExpiry()),
                       ),
-                      SettingsRow(
-                        label: text.inviteHowMany,
-                        value: invite.maxUses == null
+                      ChannelSettingsTile(
+                        icon: Icons.tag_rounded,
+                        title: text.inviteHowMany,
+                        summary: invite.maxUses == null
                             ? text.inviteNoLimit
                             : text.inviteUsedOf(invite.uses, invite.maxUses!),
                         enabled: !_busy,
                         onTap: () => unawaited(_pickUses()),
                       ),
-                      SettingsRow(
-                        label: text.inviteReplaceLink,
-                        subtitle: text.inviteReplaceNote,
-                        destructive: true,
+                      ChannelSettingsTile(
+                        icon: Icons.autorenew_rounded,
+                        title: text.inviteReplaceLink,
+                        summary: text.inviteReplaceNote,
+                        summaryLines: 3,
+                        tone: ChannelTileTone.danger,
                         enabled: !_busy,
                         onTap: () => unawaited(_replaceLink()),
                       ),
@@ -288,49 +283,16 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
 
               // --- Who is waiting ---
               if (mayManageMembers && invite.needsApproval)
-                SettingsSection(
+                ChannelSettingsGroup(
                   caption: text.chRowRequests,
+                  footnote: waiting.isEmpty ? text.chSummaryRequests(0) : null,
                   children: [
-                    if (waiting.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(PrivioSpacing.lg),
-                        child: Text(
-                          text.chSummaryRequests(0),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: PrivioColors.textTertiary),
-                        ),
-                      ),
                     for (final request in waiting)
-                      ListTile(
-                        title: Text(request.displayName ?? request.username),
-                        subtitle: Text('@${request.username}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: text.commonOk,
-                              onPressed: _busy
-                                  ? null
-                                  : () => unawaited(_answer(request, admit: true)),
-                              icon: Icon(
-                                Icons.check_rounded,
-                                color: context.accents.accent,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: text.commonCancel,
-                              onPressed: _busy
-                                  ? null
-                                  : () => unawaited(_answer(request, admit: false)),
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: PrivioColors.danger,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _RequestTile(
+                        request: request,
+                        busy: _busy,
+                        onAdmit: () => unawaited(_answer(request, admit: true)),
+                        onRefuse: () => unawaited(_answer(request, admit: false)),
                       ),
                   ],
                 ),
@@ -338,6 +300,89 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Somebody waiting at the door, with the two answers an admin can give.
+///
+/// Admit is the filled accent button and refuse the quiet red one, so the two
+/// cannot be told apart only by an icon somebody has to know.
+class _RequestTile extends StatelessWidget {
+  const _RequestTile({
+    required this.request,
+    required this.busy,
+    required this.onAdmit,
+    required this.onRefuse,
+  });
+
+  final ChannelJoinRequest request;
+  final bool busy;
+  final VoidCallback onAdmit;
+  final VoidCallback onRefuse;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final theme = Theme.of(context);
+    final accents = context.accents;
+    final name = request.displayName ?? request.username;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: PrivioSpacing.lg,
+        vertical: PrivioSpacing.md,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 19,
+            backgroundColor: accents.surface,
+            child: Text(
+              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+              style: TextStyle(color: accents.bright, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '@${request.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: text.commonCancel,
+            onPressed: busy ? null : onRefuse,
+            style: IconButton.styleFrom(
+              backgroundColor: PrivioColors.danger.withValues(alpha: 0.14),
+            ),
+            icon: const Icon(Icons.close_rounded, color: PrivioColors.danger),
+          ),
+          const SizedBox(width: PrivioSpacing.xs),
+          IconButton.filled(
+            tooltip: text.commonOk,
+            onPressed: busy ? null : onAdmit,
+            style: IconButton.styleFrom(
+              backgroundColor: accents.accent,
+              foregroundColor: accents.onAccent,
+            ),
+            icon: const Icon(Icons.check_rounded),
+          ),
+        ],
+      ),
     );
   }
 }

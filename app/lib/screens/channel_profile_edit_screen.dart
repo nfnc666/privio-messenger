@@ -13,7 +13,7 @@ import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/privio_back_button.dart';
-import '../widgets/settings_row.dart';
+import '../widgets/channel_settings_tiles.dart';
 
 /// The channel's picture, name, description and link.
 ///
@@ -244,116 +244,111 @@ class _ChannelProfileEditScreenState extends State<ChannelProfileEditScreen> {
           padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
           children: [
             // The picture, left-aligned with its action beside it rather than
-            // centred above everything.
+            // centred above everything — on its own card, with the action as a
+            // real button rather than a word somebody has to guess is one.
             Padding(
-              padding: const EdgeInsets.all(PrivioSpacing.lg),
-              child: Row(
-                children: [
-                  ChannelAvatar(
-                    channel: channel,
-                    imageBytes: _removePicture ? null : picture,
-                    size: 72,
-                  ),
-                  const SizedBox(width: PrivioSpacing.lg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(text.chProfilePicture, style: Theme.of(context).textTheme.bodyMedium),
-                        const SizedBox(height: PrivioSpacing.xs),
-                        Row(
-                          children: [
-                            TextButton(
-                              onPressed: _saving ? null : () => unawaited(_choosePicture()),
-                              child: Text(text.chProfileChange),
-                            ),
-                          ],
-                        ),
-                      ],
+              padding: const EdgeInsets.fromLTRB(
+                PrivioSpacing.gutter,
+                PrivioSpacing.sm,
+                PrivioSpacing.gutter,
+                0,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(PrivioSpacing.lg),
+                decoration: BoxDecoration(
+                  color: PrivioColors.surface,
+                  borderRadius: const BorderRadius.all(Radius.circular(16)),
+                  border: Border.all(color: PrivioColors.border),
+                ),
+                child: Row(
+                  children: [
+                    ChannelAvatar(
+                      channel: channel,
+                      imageBytes: _removePicture ? null : picture,
+                      size: 72,
                     ),
+                    const SizedBox(width: PrivioSpacing.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            text.chProfilePicture,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: PrivioSpacing.sm),
+                          FilledButton.tonalIcon(
+                            onPressed: _saving ? null : () => unawaited(_choosePicture()),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: context.accents.surface,
+                              foregroundColor: context.accents.bright,
+                            ),
+                            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                            label: Text(text.chProfileChange),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // The two fields, each labelled inside its own box, with the
+            // counter under it: what the field is, and how much room is left.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                PrivioSpacing.gutter,
+                PrivioSpacing.xl,
+                PrivioSpacing.gutter,
+                0,
+              ),
+              child: Column(
+                children: [
+                  ChannelTextField(
+                    controller: _title,
+                    label: text.chProfileName,
+                    hint: text.editChannelName,
+                    enabled: !_saving,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLength: 64,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: PrivioSpacing.sm),
+                  ChannelTextField(
+                    controller: _description,
+                    label: text.chProfileDescription,
+                    hint: text.editChannelDescriptionHint,
+                    enabled: !_saving,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLines: 5,
+                    minLines: 3,
+                    maxLength: 512,
+                    onChanged: (_) => setState(() {}),
                   ),
                 ],
               ),
             ),
 
-            SettingsSection(
-              caption: text.chProfileName,
+            ChannelSettingsGroup(
+              caption: text.chRowLink,
+              footnote: channel.isPublic ? text.chProfileLinkNote : text.editChannelPrivateNameNote,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: PrivioSpacing.lg,
-                    vertical: PrivioSpacing.xs,
-                  ),
-                  child: TextField(
-                    controller: _title,
-                    enabled: !_saving,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLength: 64,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: text.editChannelName,
-                      border: InputBorder.none,
-                      counterText: '',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            SettingsSection(
-              caption: text.chProfileDescription,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: PrivioSpacing.lg,
-                    vertical: PrivioSpacing.xs,
-                  ),
-                  child: TextField(
-                    controller: _description,
-                    enabled: !_saving,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLines: 5,
-                    minLines: 2,
-                    maxLength: 512,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: text.editChannelDescriptionHint,
-                      border: InputBorder.none,
-                      counterText: '',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            if (link != null)
-              SettingsSection(
-                caption: text.chRowLink,
-                children: [
-                  SettingsRow(
-                    label: link,
-                    value: text.channelCopyLink,
+                if (link != null)
+                  ChannelSettingsTile(
+                    icon: Icons.copy_rounded,
+                    title: text.channelCopyLink,
+                    summary: link,
+                    summaryLines: 1,
                     onTap: () async {
                       await Clipboard.setData(ClipboardData(text: link));
                       _say(text.channelLinkCopied);
                     },
                   ),
-                ],
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                PrivioSpacing.lg,
-                PrivioSpacing.sm,
-                PrivioSpacing.lg,
-                0,
-              ),
-              child: Text(
-                channel.isPublic ? text.chProfileLinkNote : text.editChannelPrivateNameNote,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: PrivioColors.textTertiary),
-              ),
+              ],
             ),
           ],
         ),

@@ -165,6 +165,10 @@ enum FailureKind {
   /// "refused" would not say so.
   botNotStarted,
 
+  /// A bot's poll stopped taking answers — the bot closed it, or its time ran
+  /// out — between drawing it and the tap.
+  botPollClosed,
+
   // Stickers and custom emoji.
   //
   // The server refuses an upload by code; these are the codes this app has its

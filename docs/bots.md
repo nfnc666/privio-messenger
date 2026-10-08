@@ -55,7 +55,8 @@ so.
 | Be stopped | **Yes.** Stopping withdraws the licence to reply *and* stops delivery, including anything that was already queued. Writing to it again starts it over. |
 | Be blocked | **Yes.** Blocking removes the licence to reply; the bot is refused again. |
 | Send rate | 30 messages a minute, per bot, across every conversation. |
-| Message types | Text, up to eight buttons per message, and pictures and files up to 8 MB. Not polls yet, and a person can only send a bot **text**. |
+| Message types | Text, up to eight buttons per message, pictures and files up to 8 MB, and polls. A poll is **not anonymous to the bot**: it is told who picked what, and the card says so. A person can send a bot only **text**, a button press or a poll answer. |
+| When an account is deleted | Its conversations with bots, its button presses, its poll answers and its licence for bots to write go with it. What a bot's operator already received is theirs and out of reach either way; the copy on this server is not. |
 | Groups and channels | Only explicit commands, mentions and replies are delivered — not the whole conversation. Adding a bot needs the matching admin right. |
 
 The "may not open a conversation" rule is enforced in one place,

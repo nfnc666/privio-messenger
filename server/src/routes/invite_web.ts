@@ -28,7 +28,7 @@ import {
  *
  * **Three link shapes, and why.**
  *
- *   /houseoftrading   a public channel, named by its handle
+ *   /privionews   a public channel, named by its handle
  *   /+<code>          a private invitation, carrying its capability
  *   /c/<code>         what the app has always generated
  *
@@ -493,7 +493,7 @@ export const inviteWebRoutes =
    * exact path and rejects anything served as something else.
    *
    * The paths list is the design decision, not a detail. Only `/open/*` is
-   * claimed, so `/houseoftrading` and `/+token` open the *page* and the button
+   * claimed, so `/privionews` and `/+token` open the *page* and the button
    * on it opens the app. Claiming the share paths instead would mean the app
    * swallowing every link before anybody ever saw a page, which is exactly the
    * behaviour this whole feature exists to avoid.

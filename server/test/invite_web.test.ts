@@ -33,12 +33,12 @@ describe('the invite web page', () => {
   it('a public channel is shown by its handle, with no invite code in the link', async () => {
     const channel = (await createChannel({
       visibility: 'public',
-      handle: 'houseoftrading',
+      handle: 'privionews',
       title: 'House of Trading',
       description: 'Charts every morning',
     })).json();
 
-    const page = await open('/houseoftrading');
+    const page = await open('/privionews');
     assert.equal(page.statusCode, 200, 'no sign-in: a stranger tapped a link');
     assert.match(page.headers['content-type'] as string, /text\/html/);
 

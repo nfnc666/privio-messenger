@@ -75,3 +75,37 @@ Nothing else was added. In particular there is **no bot row under
 Integrations**: a bot cannot post to a channel yet — see
 [`bot-api.md` §9](bot-api.md#9-what-is-not-built-yet) — and a row that led
 nowhere would be exactly the kind of decoration this redesign removes.
+
+## Second pass: what a real phone showed
+
+The first version was tested in widget tests at the default text size and looked
+right there. On a phone with the text size turned up it did not: a row laid its
+summary *beside* its title, the channel description took the whole width, and
+"Bild, Name und Beschreibung" was pressed into a column one letter wide. The
+header also said "1 subscriber" in English on a German phone, because the count
+came from the model's own English string instead of the translations.
+
+What changed:
+
+* **Every row is a tile** (`widgets/channel_settings_tiles.dart`): an icon in a
+  tile of the account's accent, the title on its own line, what it is set to
+  under it, and a chevron. The title can no longer be squeezed by anything.
+* **Switch states read as a pill** — *An* in the accent, *Aus* in grey — on the
+  overview, so nobody has to open a page to see how it is set.
+* **Red is kept for what cannot be undone**: the last section, its caption, its
+  tiles and *Link ersetzen* on the access page. Ownership transfer on the admin
+  page moved from a one-off amber to the same red.
+* **Fields are labelled above the box**, with a quiet counter under it, instead
+  of a label floating on the outline.
+* **Captions are sentence case** in all five languages, in the accent.
+* **The header says public or private in words** with an icon, not a grey
+  globe, and the audience comes from the translations.
+* `SettingsRow` everywhere else no longer lets a value take more than its half
+  of the line, so the same squeeze cannot happen on any other settings screen.
+
+No function moved or disappeared: the inventory test still asserts every row by
+name for the owner, an editor-only admin, a doorkeeper and a subscriber. New
+tests: a phone-sized screen at 1.6× text with a long description (the title must
+be wider than tall and the summary below it), every tile carrying its icon, the
+four switch states drawn as pills, and the audience in German.
+

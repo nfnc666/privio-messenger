@@ -7,7 +7,9 @@ import 'package:privio/screens/channel_posts_screen.dart';
 import 'package:privio/screens/channel_profile_edit_screen.dart';
 import 'package:privio/screens/channel_settings_screen.dart';
 import 'package:privio/widgets/channel_header.dart';
-import 'package:privio/widgets/settings_row.dart';
+import 'package:privio/l10n/app_localizations.dart';
+import 'package:privio/theme/privio_theme.dart';
+import 'package:privio/widgets/channel_settings_tiles.dart';
 
 import 'channel_profile_test.dart' show FakeServer, channelFor, ownerPermissions, stateWith, wrap;
 
@@ -82,11 +84,11 @@ void main() {
       );
 
       final header = tester.widget<ChannelHeader>(find.byType(ChannelHeader));
-      expect(header.channel.title, 'HouseOfTrading');
+      expect(header.channel.title, 'PrivioNews');
 
       // The name sits to the left of the screen's middle. A centred lock-up
       // cannot satisfy this, which is the point of asserting it.
-      final name = tester.getRect(find.text('HouseOfTrading'));
+      final name = tester.getRect(find.text('PrivioNews'));
       final screen = tester.getRect(find.byType(Scaffold));
       expect(
         name.center.dx,
@@ -95,7 +97,7 @@ void main() {
       );
       // And it is compact: the first section caption is on screen without
       // scrolling, which it never was under a 96pt circle.
-      expect(find.text('CHANNEL PROFILE'), findsOneWidget);
+      expect(find.text('Channel profile'), findsOneWidget);
     });
 
     testWidgets('every section is captioned, and the dangerous one is last',
@@ -103,13 +105,14 @@ void main() {
       await open(
         tester,
         channel: channelFor(role: 'owner', permissions: ownerPermissions),
+        tall: true,
       );
 
       for (final caption in [
-        'CHANNEL PROFILE',
-        'ACCESS & INVITATIONS',
-        'TEAM & MEMBERS',
-        'POSTS & INTERACTION',
+        'Channel profile',
+        'Access & invitations',
+        'Team & members',
+        'Posts & interaction',
       ]) {
         expect(find.text(caption), findsOneWidget, reason: caption);
       }
@@ -119,16 +122,19 @@ void main() {
       // Then the order is read off the tree rather than off pixels, because by
       // that point the first captions have scrolled away.
       await tester.scrollUntilVisible(
-        find.text('THIS CANNOT BE UNDONE'),
+        find.text('This cannot be undone'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      final captions = tester
-          .widgetList<SettingsSection>(find.byType(SettingsSection))
-          .map((section) => section.caption)
-          .whereType<String>()
+      final groups = tester
+          .widgetList<ChannelSettingsGroup>(find.byType(ChannelSettingsGroup))
           .toList();
-      expect(captions.last, 'THIS CANNOT BE UNDONE', reason: 'danger is not last');
+      expect(groups.last.caption, 'This cannot be undone', reason: 'danger is not last');
+      // And it is the only section drawn in red.
+      expect(
+        groups.where((group) => group.tone == ChannelTileTone.danger).map((g) => g.caption),
+        ['This cannot be undone'],
+      );
     });
 
     testWidgets('rows say what they are set to without being opened',
@@ -144,7 +150,7 @@ void main() {
       );
 
       // The question somebody opens this screen with, answered on it.
-      expect(find.text('Public · @houseoftrading'), findsOneWidget);
+      expect(find.text('Public · @privionews'), findsOneWidget);
       expect(find.text('Daily notes'), findsOneWidget);
       // Twice, and deliberately: once in the header as who this channel is,
       // once on the row that opens the list. The header does not repeat the
@@ -253,12 +259,12 @@ void main() {
       final action = find.widgetWithText(TextButton, 'Delete channel');
       expect(tester.widget<TextButton>(action).onPressed, isNull);
 
-      await tester.enterText(find.byType(TextField), 'HouseOfTrad');
+      await tester.enterText(find.byType(TextField), 'PrivioNew');
       await tester.pumpAndSettle();
       expect(tester.widget<TextButton>(action).onPressed, isNull,
           reason: 'a near-miss was accepted');
 
-      await tester.enterText(find.byType(TextField), 'HouseOfTrading');
+      await tester.enterText(find.byType(TextField), 'PrivioNews');
       await tester.pumpAndSettle();
       expect(tester.widget<TextButton>(action).onPressed, isNotNull);
 
@@ -321,9 +327,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Public'), findsOneWidget);
-      // The section caption, which `SettingsSection` upper-cases.
-      expect(find.text('INVITE LINK'), findsOneWidget);
+      // The row, not the pill in the header that says the same in brief.
+      expect(find.widgetWithText(ChannelSettingsTile, 'Public'), findsOneWidget);
+      expect(find.text('Invite link'), findsOneWidget);
       expect(find.text('Ask me first'), findsOneWidget);
     });
 
@@ -343,6 +349,95 @@ void main() {
       expect(find.text('Show who posted'), findsOneWidget);
       // The welcome message used to be a text field inside an alert dialog.
       expect(find.byType(TextField), findsOneWidget);
+    });
+  });
+
+  group('what the phone in the screenshot showed', () {
+    /// A phone-sized surface with the text size turned up, as on the device
+    /// where the first version broke.
+    void phoneWithLargeText(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    }
+
+    testWidgets('a long description cannot squeeze the row title into a column',
+        (tester) async {
+      phoneWithLargeText(tester);
+      await open(
+        tester,
+        channel: channelFor(
+          role: 'owner',
+          permissions: ownerPermissions,
+          description: 'Official Privio Server News and Updates, every week, in full',
+        ),
+      );
+
+      // On the phone the title "Bild, Name und Beschreibung" was pressed into
+      // one letter per line by the description beside it. Under it, the title
+      // has the whole line: wider than it is tall, and wider than a few
+      // letters.
+      final title = tester.getSize(find.text('Picture, name and description'));
+      expect(title.width, greaterThan(title.height),
+          reason: 'the title is a column of letters again');
+      expect(title.width, greaterThan(150));
+
+      // The description sits under the title, not beside it.
+      final titleBox = tester.getRect(find.text('Picture, name and description'));
+      final summaryBox = tester.getRect(
+        find.text('Official Privio Server News and Updates, every week, in full'),
+      );
+      expect(summaryBox.top, greaterThanOrEqualTo(titleBox.bottom - 1));
+      expect(tester.takeException(), isNull, reason: 'something overflowed');
+    });
+
+    testWidgets('every row has its icon, and switch states read as On or Off',
+        (tester) async {
+      tallEnough(tester);
+      await open(
+        tester,
+        channel: channelFor(role: 'owner', permissions: ownerPermissions),
+      );
+
+      final tiles = tester.widgetList<ChannelSettingsTile>(find.byType(ChannelSettingsTile));
+      expect(tiles, isNotEmpty);
+      for (final tile in tiles) {
+        expect(
+          find.descendant(of: find.byWidget(tile), matching: find.byIcon(tile.icon)),
+          findsOneWidget,
+          reason: '${tile.title} has no icon',
+        );
+      }
+      // Comments, signature, direct messages and the welcome are switches
+      // further in; here each one says which way it is set.
+      expect(find.byType(ChannelStatusPill), findsNWidgets(4));
+    });
+
+    testWidgets('the audience is said in the reader s language', (tester) async {
+      final state = await stateWith(
+        FakeServer(),
+        channelFor(role: 'owner', permissions: ownerPermissions, memberCount: 1),
+      );
+      await tester.pumpWidget(
+        PrivioScope(
+          notifier: state,
+          child: MaterialApp(
+            theme: PrivioTheme.dark(),
+            locale: const Locale('de'),
+            localizationsDelegates: AppText.localizationsDelegates,
+            supportedLocales: AppText.supportedLocales,
+            home: ChannelSettingsScreen(channel: state.channels.mine.single),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // A German phone showed "1 subscriber" here.
+      expect(find.text('1 subscriber'), findsNothing);
+      expect(find.text('1 Abonnent'), findsWidgets);
+      expect(find.text('Channel-Profil'), findsOneWidget);
     });
   });
 }

@@ -399,22 +399,22 @@ class AppTextDe extends AppText {
   String get channelSettings => 'Kanaleinstellungen';
 
   @override
-  String get chSectionProfile => 'CHANNEL-PROFIL';
+  String get chSectionProfile => 'Channel-Profil';
 
   @override
-  String get chSectionAccess => 'ZUGANG & EINLADUNGEN';
+  String get chSectionAccess => 'Zugang & Einladungen';
 
   @override
-  String get chSectionTeam => 'TEAM & MITGLIEDER';
+  String get chSectionTeam => 'Team & Mitglieder';
 
   @override
-  String get chSectionPosts => 'BEITRÄGE & INTERAKTION';
+  String get chSectionPosts => 'Beiträge & Interaktion';
 
   @override
-  String get chSectionIntegrations => 'INTEGRATIONEN';
+  String get chSectionIntegrations => 'Integrationen';
 
   @override
-  String get chSectionDanger => 'DAS LÄSST SICH NICHT RÜCKGÄNGIG MACHEN';
+  String get chSectionDanger => 'Das lässt sich nicht rückgängig machen';
 
   @override
   String get chRowProfile => 'Bild, Name und Beschreibung';
@@ -4671,6 +4671,20 @@ class AppTextDe extends AppText {
 
   @override
   String get botChatNotStarted => 'Starte diesen Bot, bevor du ihm schreibst.';
+
+  @override
+  String get botPollBotSees =>
+      'Der Bot sieht, wer was geantwortet hat. Wie der Rest dieses Chats ist das nicht verschlüsselt.';
+
+  @override
+  String get botPollResultsHidden => 'Nur der Bot sieht die Ergebnisse.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'Die Ergebnisse erscheinen, sobald du geantwortet hast.';
+
+  @override
+  String get botPollClosedFailure => 'Diese Umfrage ist geschlossen.';
 
   @override
   String get botChatStop => 'Diesen Bot stoppen';

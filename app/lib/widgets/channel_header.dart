@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/channel.dart';
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import 'channel_avatar.dart';
 import 'verified_badge.dart';
@@ -25,6 +26,7 @@ class ChannelHeader extends StatelessWidget {
     this.imageBytes,
     this.trailing,
     this.showDescription = true,
+    this.card = false,
   });
 
   final ChannelInfo channel;
@@ -41,76 +43,133 @@ class ChannelHeader extends StatelessWidget {
   /// sentence twice on one screen. A widget test caught exactly that.
   final bool showDescription;
 
+  /// Drawn on its own raised card, for the settings screen where it heads a
+  /// page of cards. Elsewhere it sits on the background.
+  final bool card;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final text = AppText.of(context);
     final description = showDescription ? channel.description?.trim() : null;
 
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ChannelAvatar(channel: channel, imageBytes: imageBytes, size: 56),
+        const SizedBox(width: PrivioSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      channel.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (channel.verified) const VerifiedBadge(size: 16),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                // The description when there is one, the audience when there
+                // is not: one line either way, so the header is the same
+                // height on every channel and nothing below it moves.
+                //
+                // The audience through the translations. It was the model's
+                // own English "1 subscriber", which a German phone showed as
+                // exactly that.
+                (description?.isNotEmpty ?? false)
+                    ? description!
+                    : text.channelSubscribers(channel.memberCount),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
+              ),
+              // One second line, never two. The audience had a third line
+              // here and it collided with the Team section's own summary —
+              // the same count twice on one screen, which a test caught.
+              // Whoever wants the number has a row that is about it.
+              const SizedBox(height: PrivioSpacing.sm),
+              trailing == null ? _VisibilityPill(public: channel.isPublic) : trailing!,
+            ],
+          ),
+        ),
+      ],
+    );
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        PrivioSpacing.lg,
-        PrivioSpacing.md,
-        PrivioSpacing.lg,
-        PrivioSpacing.lg,
+      padding: card
+          ? const EdgeInsets.fromLTRB(
+              PrivioSpacing.gutter,
+              PrivioSpacing.sm,
+              PrivioSpacing.gutter,
+              0,
+            )
+          : const EdgeInsets.fromLTRB(
+              PrivioSpacing.lg,
+              PrivioSpacing.md,
+              PrivioSpacing.lg,
+              PrivioSpacing.lg,
+            ),
+      child: card
+          ? Container(
+              padding: const EdgeInsets.all(PrivioSpacing.lg),
+              decoration: BoxDecoration(
+                color: PrivioColors.surface,
+                borderRadius: const BorderRadius.all(Radius.circular(16)),
+                border: Border.all(color: PrivioColors.border),
+              ),
+              child: row,
+            )
+          : row,
+    );
+  }
+}
+
+/// Public or private, said in words with an icon — not a grey globe that only
+/// meant something to whoever already knew what it meant.
+class _VisibilityPill extends StatelessWidget {
+  const _VisibilityPill({required this.public});
+
+  final bool public;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final accents = context.accents;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: accents.surface,
+        borderRadius: const BorderRadius.all(PrivioRadius.pill),
+        border: Border.all(color: accents.dim),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ChannelAvatar(channel: channel, imageBytes: imageBytes, size: 56),
-          const SizedBox(width: PrivioSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        channel.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                    if (channel.verified) const VerifiedBadge(size: 16),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  // The description when there is one, the audience when there
-                  // is not: one line either way, so the header is the same
-                  // height on every channel and nothing below it moves.
-                  (description?.isNotEmpty ?? false)
-                      ? description!
-                      : channel.subscriberLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: PrivioColors.textSecondary),
-                ),
-                // One second line, never two. The audience had a third line
-                // here and it collided with the Team section's own summary —
-                // the same count twice on one screen, which a test caught.
-                // Whoever wants the number has a row that is about it.
-              ],
+          Icon(
+            public ? Icons.public_rounded : Icons.lock_outline_rounded,
+            size: 14,
+            color: accents.bright,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              public ? text.channelPublic : text.channelPrivate,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: accents.bright,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: PrivioSpacing.sm),
-            trailing!,
-          ] else if (channel.isPublic && (channel.handle?.isNotEmpty ?? false)) ...[
-            const SizedBox(width: PrivioSpacing.sm),
-            Semantics(
-              label: text.channelPublic,
-              child: const Icon(
-                Icons.public_rounded,
-                size: 18,
-                color: PrivioColors.textTertiary,
-              ),
-            ),
-          ],
         ],
       ),
     );

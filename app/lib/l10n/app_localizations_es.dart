@@ -401,22 +401,22 @@ class AppTextEs extends AppText {
   String get channelSettings => 'Ajustes del canal';
 
   @override
-  String get chSectionProfile => 'PERFIL DEL CANAL';
+  String get chSectionProfile => 'Perfil del canal';
 
   @override
-  String get chSectionAccess => 'ACCESO E INVITACIONES';
+  String get chSectionAccess => 'Acceso e invitaciones';
 
   @override
-  String get chSectionTeam => 'EQUIPO Y MIEMBROS';
+  String get chSectionTeam => 'Equipo y miembros';
 
   @override
-  String get chSectionPosts => 'PUBLICACIONES E INTERACCIÓN';
+  String get chSectionPosts => 'Publicaciones e interacción';
 
   @override
-  String get chSectionIntegrations => 'INTEGRACIONES';
+  String get chSectionIntegrations => 'Integraciones';
 
   @override
-  String get chSectionDanger => 'ESTO NO SE PUEDE DESHACER';
+  String get chSectionDanger => 'Esto no se puede deshacer';
 
   @override
   String get chRowProfile => 'Imagen, nombre y descripción';
@@ -4659,6 +4659,20 @@ class AppTextEs extends AppText {
 
   @override
   String get botChatNotStarted => 'Inicia este bot antes de escribirle.';
+
+  @override
+  String get botPollBotSees =>
+      'El bot ve quién respondió qué. Como el resto de este chat, no está cifrado.';
+
+  @override
+  String get botPollResultsHidden => 'Solo el bot ve los resultados.';
+
+  @override
+  String get botPollResultsAfterAnswer =>
+      'Los resultados aparecen cuando hayas respondido.';
+
+  @override
+  String get botPollClosedFailure => 'Esta encuesta está cerrada.';
 
   @override
   String get botChatStop => 'Detener este bot';

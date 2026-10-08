@@ -40,12 +40,12 @@ ChannelInfo channelFor({
   int memberCount = 34,
   bool muted = false,
   String? description,
-  String? handle = 'houseoftrading',
+  String? handle = 'privionews',
 }) =>
     ChannelInfo(
       id: 'channel-1',
       visibility: ChannelVisibility.public,
-      title: 'HouseOfTrading',
+      title: 'PrivioNews',
       handle: handle,
       description: description,
       memberCount: memberCount,
@@ -249,12 +249,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('HouseOfTrading'), findsOneWidget);
+      expect(find.text('PrivioNews'), findsOneWidget);
       expect(find.text('34 subscribers'), findsOneWidget);
       for (final action in ['livestream', 'mute', 'search', 'more']) {
         expect(find.text(action), findsOneWidget, reason: 'all four, equally sized');
       }
-      expect(find.textContaining('privio.channel/houseoftrading'), findsOneWidget);
+      expect(find.textContaining('privio.channel/privionews'), findsOneWidget);
       expect(find.text('Daily'), findsOneWidget);
       expect(find.text('Administrators'), findsOneWidget);
       expect(find.text('Subscribers'), findsOneWidget);
@@ -520,7 +520,7 @@ void main() {
       expect(find.byType(ChannelProfileScreen), findsNothing);
 
       // The title in the app bar, which is the whole header.
-      await tester.tap(find.text('HouseOfTrading').first);
+      await tester.tap(find.text('PrivioNews').first);
       await tester.pumpAndSettle();
 
       expect(

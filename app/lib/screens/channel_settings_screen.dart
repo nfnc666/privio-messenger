@@ -10,7 +10,7 @@ import '../services/channel_service.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/channel_header.dart';
 import '../widgets/privio_back_button.dart';
-import '../widgets/settings_row.dart';
+import '../widgets/channel_settings_tiles.dart';
 import 'channel_access_screen.dart';
 import 'channel_admins_screen.dart';
 import 'channel_posts_screen.dart';
@@ -30,8 +30,12 @@ import 'channel_subscribers_screen.dart';
 ///   question somebody opens this screen with, and every row answers it without
 ///   being opened — *Public · @handle*, *3 administrators*, *Signature on*.
 /// * **One accent, used for what is interactive.** Not a blue megaphone beside a
-///   red heart beside a purple hand: the accent is the person's own choice and
-///   means "this does something", so it cannot also mean six unrelated things.
+///   red heart beside a purple hand: every icon sits in a tile of the person's
+///   own accent and means "this does something", so it cannot also mean six
+///   unrelated things. Red is kept for what cannot be undone.
+/// * **The title owns its line.** The summary sits under it, never beside it, so
+///   a long description or a large text size cannot squeeze the title into a
+///   column one letter wide — which the first version did on a real phone.
 /// * **Order carries the weight.** No row is drawn larger than another to say it
 ///   matters more; the sections say that, and the dangerous ones sit last,
 ///   after a gap, under their own caption.
@@ -231,6 +235,7 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
                 padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
                 children: [
                   ChannelHeader(
+                    card: true,
                     channel: channel,
                     imageBytes: controller.avatarFor(channel),
                     // The audience, not the description: the description is
@@ -240,24 +245,25 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
                   ),
 
                   // --- Channel profile ---
-                  SettingsSection(
+                  ChannelSettingsGroup(
                     caption: text.chSectionProfile,
                     children: [
-                      SettingsRow(
-                        label: text.chRowProfile,
-                        value: (description?.isNotEmpty ?? false)
+                      ChannelSettingsTile(
+                        icon: Icons.badge_outlined,
+                        title: text.chRowProfile,
+                        summary: (description?.isNotEmpty ?? false)
                             ? description
                             : text.chSummaryNoDescription,
                         enabled: permissions.canEditChannel,
-                        onTap: permissions.canEditChannel
-                            ? () => unawaited(
-                                  _open(ChannelProfileEditScreen(channel: channel)),
-                                )
-                            : null,
+                        onTap: () => unawaited(
+                          _open(ChannelProfileEditScreen(channel: channel)),
+                        ),
                       ),
-                      SettingsRow(
-                        label: text.chRowLink,
-                        value: link ?? text.chSummaryNoLink,
+                      ChannelSettingsTile(
+                        icon: Icons.link_rounded,
+                        title: text.chRowLink,
+                        summary: link ?? text.chSummaryNoLink,
+                        summaryLines: 1,
                         onTap: link == null
                             ? null
                             : () => unawaited(_open(ChannelAccessScreen(channel: channel))),
@@ -266,27 +272,32 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
                   ),
 
                   // --- Access & invitations ---
-                  SettingsSection(
+                  ChannelSettingsGroup(
                     caption: text.chSectionAccess,
                     children: [
-                      SettingsRow(
-                        label: text.chRowVisibility,
-                        value: _visibilitySummary(text, channel),
+                      ChannelSettingsTile(
+                        icon: channel.isPublic
+                            ? Icons.public_rounded
+                            : Icons.lock_outline_rounded,
+                        title: text.chRowVisibility,
+                        summary: _visibilitySummary(text, channel),
                         onTap: () => unawaited(_open(ChannelAccessScreen(channel: channel))),
                       ),
                       if (permissions.canManageInvites)
-                        SettingsRow(
-                          label: text.chRowInvites,
-                          value: channel.invite.needsApproval
+                        ChannelSettingsTile(
+                          icon: Icons.person_add_alt_1_rounded,
+                          title: text.chRowInvites,
+                          summary: channel.invite.needsApproval
                               ? text.inviteNeedsApproval
                               : text.inviteOpenJoin,
                           onTap: () =>
                               unawaited(_open(ChannelAccessScreen(channel: channel))),
                         ),
                       if (permissions.canManageMembers && channel.invite.needsApproval)
-                        SettingsRow(
-                          label: text.chRowRequests,
-                          value: text.chSummaryRequests(
+                        ChannelSettingsTile(
+                          icon: Icons.how_to_reg_rounded,
+                          title: text.chRowRequests,
+                          summary: text.chSummaryRequests(
                             controller.knockingAt(channel.id).length,
                           ),
                           onTap: () =>
@@ -296,18 +307,20 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
                   ),
 
                   // --- Team & members ---
-                  SettingsSection(
+                  ChannelSettingsGroup(
                     caption: text.chSectionTeam,
                     children: [
-                      SettingsRow(
-                        label: text.chRowAdmins,
-                        value: text.chSummaryAdmins(controller.adminsOf(channel.id).length),
+                      ChannelSettingsTile(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: text.chRowAdmins,
+                        summary: text.chSummaryAdmins(controller.adminsOf(channel.id).length),
                         onTap: () =>
                             unawaited(_open(ChannelAdminsScreen(channel: channel))),
                       ),
-                      SettingsRow(
-                        label: text.chRowSubscribers,
-                        value: text.chSummarySubscribers(channel.memberCount),
+                      ChannelSettingsTile(
+                        icon: Icons.groups_rounded,
+                        title: text.chRowSubscribers,
+                        summary: text.chSummarySubscribers(channel.memberCount),
                         onTap: () =>
                             unawaited(_open(ChannelSubscribersScreen(channel: channel))),
                       ),
@@ -315,112 +328,114 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
                   ),
 
                   // --- Posts & interaction ---
-                  SettingsSection(
+                  ChannelSettingsGroup(
                     caption: text.chSectionPosts,
+                    footnote: permissions.canEditChannel ? null : text.chReadOnlyNote,
                     children: [
-                      SettingsRow(
-                        label: text.chRowReactions,
-                        value: text.chSummaryReactions(channel.reactionEmojis.length),
+                      ChannelSettingsTile(
+                        icon: Icons.add_reaction_outlined,
+                        title: text.chRowReactions,
+                        summary: text.chSummaryReactions(channel.reactionEmojis.length),
                         enabled: permissions.canEditChannel,
-                        onTap: permissions.canEditChannel
-                            ? () => Navigator.of(context).pop('reactions')
-                            : null,
+                        onTap: () => Navigator.of(context).pop('reactions'),
                       ),
-                      SettingsRow(
-                        label: text.chRowDiscussion,
-                        value: channel.commentsEnabled ? text.commonOn : text.commonOff,
+                      ChannelSettingsTile(
+                        icon: Icons.forum_outlined,
+                        title: text.chRowDiscussion,
+                        status: channel.commentsEnabled,
                         enabled: permissions.canEditChannel,
-                        onTap: permissions.canEditChannel
-                            ? () => unawaited(_open(ChannelPostsScreen(channel: channel)))
-                            : null,
+                        onTap: () => unawaited(_open(ChannelPostsScreen(channel: channel))),
                       ),
-                      SettingsRow(
-                        label: text.chRowSignature,
-                        value: channel.showSenderName ? text.commonOn : text.commonOff,
+                      ChannelSettingsTile(
+                        icon: Icons.draw_outlined,
+                        title: text.chRowSignature,
+                        status: channel.showSenderName,
                         enabled: permissions.canEditChannel,
-                        onTap: permissions.canEditChannel
-                            ? () => unawaited(_open(ChannelPostsScreen(channel: channel)))
-                            : null,
+                        onTap: () => unawaited(_open(ChannelPostsScreen(channel: channel))),
                       ),
-                      if (permissions.canEditChannel)
-                        SettingsRow(
-                          label: text.chRowDirect,
-                          value: channel.directMessagesEnabled
-                              ? text.commonOn
-                              : text.commonOff,
+                      if (permissions.canEditChannel) ...[
+                        ChannelSettingsTile(
+                          icon: Icons.chat_bubble_outline_rounded,
+                          title: text.chRowDirect,
+                          status: channel.directMessagesEnabled,
                           onTap: () =>
                               unawaited(_open(ChannelPostsScreen(channel: channel))),
                         ),
-                      if (permissions.canEditChannel)
-                        SettingsRow(
-                          label: text.chRowWelcome,
-                          value: channel.welcome.enabled ? text.commonOn : text.commonOff,
+                        ChannelSettingsTile(
+                          icon: Icons.waving_hand_outlined,
+                          title: text.chRowWelcome,
+                          status: channel.welcome.enabled,
                           onTap: () =>
                               unawaited(_open(ChannelPostsScreen(channel: channel))),
                         ),
-                      if (permissions.canEditChannel)
-                        SettingsRow(
-                          label: text.chRowAppearance,
-                          value: channel.appearance.accent == null &&
+                        ChannelSettingsTile(
+                          icon: Icons.palette_outlined,
+                          title: text.chRowAppearance,
+                          summary: channel.appearance.accent == null &&
                                   channel.appearance.background == null
                               ? text.commonDefault
                               : text.commonCustom,
                           onTap: () =>
                               unawaited(_open(ChannelPostsScreen(channel: channel))),
                         ),
-                      if (!permissions.canEditChannel)
-                        _Note(text.chReadOnlyNote),
+                      ],
                     ],
                   ),
 
                   // --- Integrations ---
-                  SettingsSection(
+                  ChannelSettingsGroup(
                     caption: text.chSectionIntegrations,
+                    footnote: text.chIntegrationsNote,
                     children: [
-                      SettingsRow(
-                        label: text.chRowLivestream,
-                        value: _livestreamSummary(text),
+                      ChannelSettingsTile(
+                        icon: Icons.sensors_rounded,
+                        title: text.chRowLivestream,
+                        summary: _livestreamSummary(text),
                         // The feed owns the livestream flow, which needs the
                         // player. This says what state it is in and sends you
                         // where it happens rather than starting a second one.
                         onTap: () => Navigator.of(context).pop('live'),
                       ),
                       if (permissions.canEditChannel)
-                        SettingsRow(
-                          label: text.chRowStatistics,
+                        ChannelSettingsTile(
+                          icon: Icons.insights_rounded,
+                          title: text.chRowStatistics,
                           onTap: () => Navigator.of(context).pop('stats'),
                         ),
-                      _Note(text.chIntegrationsNote),
                     ],
                   ),
 
                   // --- What cannot be undone ---
-                  const SizedBox(height: PrivioSpacing.xl),
-                  SettingsSection(
+                  const SizedBox(height: PrivioSpacing.lg),
+                  ChannelSettingsGroup(
                     caption: text.chSectionDanger,
+                    tone: ChannelTileTone.danger,
+                    footnote: text.chDangerNote,
                     children: [
                       if (channel.role == 'owner')
-                        SettingsRow(
-                          label: text.chRowTransfer,
-                          destructive: true,
+                        ChannelSettingsTile(
+                          icon: Icons.swap_horiz_rounded,
+                          title: text.chRowTransfer,
+                          tone: ChannelTileTone.danger,
                           enabled: !_busy,
                           onTap: () => unawaited(_transfer()),
                         ),
                       if (permissions.canDeleteChannel)
-                        SettingsRow(
-                          label: text.chRowDelete,
-                          destructive: true,
+                        ChannelSettingsTile(
+                          icon: Icons.delete_outline_rounded,
+                          title: text.chRowDelete,
+                          tone: ChannelTileTone.danger,
                           enabled: !_busy,
                           onTap: () => unawaited(_delete()),
                         ),
                       if (channel.isMember && channel.role != 'owner')
-                        SettingsRow(
-                          label: text.chRowLeave,
-                          destructive: true,
+                        ChannelSettingsTile(
+                          icon: Icons.logout_rounded,
+                          title: text.chRowLeave,
+                          tone: ChannelTileTone.danger,
                           enabled: !_busy,
                           onTap: () => unawaited(_leave()),
                         ),
-                      _Note(text.chDangerNote),
                     ],
                   ),
                 ],
@@ -436,32 +451,4 @@ class _ChannelSettingsScreenState extends State<ChannelSettingsScreen> {
       },
     );
   }
-}
-
-/// A paragraph under a section, in the secondary ink.
-///
-/// Not a row: it is not tappable and must not look as though it is. This is
-/// where a section says the thing a row cannot — why there is nothing to
-/// connect, or what "hand this on" actually does.
-class _Note extends StatelessWidget {
-  const _Note(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          PrivioSpacing.lg,
-          PrivioSpacing.sm,
-          PrivioSpacing.lg,
-          PrivioSpacing.md,
-        ),
-        child: Text(
-          text,
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: PrivioColors.textTertiary),
-        ),
-      );
 }
