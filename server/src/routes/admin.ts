@@ -18,6 +18,7 @@ import {
   revokeAllAdminSessions,
 } from '../services/admin_auth.js';
 import { audit, auditFailedLogin, readAuditLog } from '../services/admin_audit.js';
+import { collectStatus, type RuntimeFacts } from '../services/status.js';
 import * as licenses from '../services/licenses.js';
 import { canStoreSecrets, openSecret, sealSecret } from '../services/totp.js';
 import { hashSecret, verifySecret } from '../util/crypto.js';
@@ -64,7 +65,13 @@ function bearer(request: FastifyRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
-const adminRoutes: FastifyPluginAsync = async (app) => {
+/**
+ * Takes the runtime facts the status page needs and the configuration cannot
+ * answer: which push providers actually came up, which bus and which blob
+ * store this process is running, and the version it reports elsewhere. They
+ * are assembled in `app.ts`, where those objects are built.
+ */
+const adminRoutes = (facts: RuntimeFacts): FastifyPluginAsync => async (app) => {
   app.decorateRequest('admin', undefined);
 
   const requireAdmin = async (request: FastifyRequest) => {
@@ -254,6 +261,25 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   // ---------------------------------------------------------------------------
   // Dashboard
   // ---------------------------------------------------------------------------
+
+  /**
+   * What this deployment is made of, and which parts of it are working.
+   *
+   * Readable by every role, because "is the server all right" is not a
+   * privileged question among people who have already been let into the panel,
+   * and an operator who can see the queue depth but not why pushes are failing
+   * is being made to guess.
+   *
+   * It runs live checks — a database ping, a Redis ping, a write to the blob
+   * store — so it is deliberately not cached and deliberately not on the
+   * dashboard's hot path. See `services/status.ts` for why each subsystem
+   * reports four states rather than a boolean, and for the rule that nothing
+   * here returns a secret.
+   */
+  app.get('/v1/admin/status', guard, async (request) => {
+    actor(request);
+    return collectStatus(facts);
+  });
 
   app.get('/v1/admin/overview', guard, async (request) => {
     actor(request);

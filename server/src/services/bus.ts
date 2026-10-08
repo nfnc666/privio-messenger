@@ -45,6 +45,14 @@ export interface DeliveryBus {
   publish(wake: Wake): Promise<void>;
   subscribe(listener: (wake: Wake) => void): () => void;
   close(): Promise<void>;
+  /**
+   * What the operator panel shows for this bus, if it can say anything.
+   *
+   * Optional, so a stand-in bus in a test stays three methods long. A bus that
+   * does not implement it is reported as configured and nothing more, which is
+   * honest: the panel would rather say "no health of its own" than infer one.
+   */
+  health?(): Promise<{ ok: boolean; detail: string }>;
 }
 
 const CHANNEL = 'privio:wake';
@@ -64,6 +72,12 @@ export class InProcessBus implements DeliveryBus {
 
   async close(): Promise<void> {
     this.emitter.removeAllListeners();
+  }
+
+  async health(): Promise<{ ok: boolean; detail: string }> {
+    // Nothing can be wrong with it, and that is the point: there is no second
+    // process for it to be out of step with.
+    return { ok: true, detail: 'In-process bus. One node, nothing to reach.' };
   }
 }
 
@@ -117,6 +131,51 @@ export class RedisBus implements DeliveryBus {
     await this.local.close();
     this.publisher.disconnect();
     this.subscriber.disconnect();
+  }
+
+  /**
+   * Both halves, because they fail separately and mean different things.
+   *
+   * A dead publisher means this node's wake-ups reach nobody else; a dead
+   * subscriber means it stops hearing theirs, which is the quieter and worse
+   * failure — sockets here would only close at their next revalidation, with
+   * nothing saying why. Reporting one number for the pair would hide that.
+   *
+   * The ping is bounded. An ioredis client that is reconnecting queues
+   * commands by default, so an unreachable Redis would otherwise make this
+   * check hang for as long as the panel was willing to wait.
+   */
+  async health(): Promise<{ ok: boolean; detail: string }> {
+    const probe = async (client: Redis, which: string) => {
+      const timeout = new Promise<never>((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`${which} did not answer within 2s`)), 2_000);
+        timer.unref();
+      });
+      await Promise.race([client.ping(), timeout]);
+    };
+
+    const results = await Promise.allSettled([
+      probe(this.publisher, 'publisher'),
+      probe(this.subscriber, 'subscriber'),
+    ]);
+    const failed = (['publisher', 'subscriber'] as const).filter(
+      (_name, i) => results[i]!.status === 'rejected',
+    );
+
+    if (failed.length === 0) {
+      return { ok: true, detail: 'Publisher and subscriber both answering.' };
+    }
+    return {
+      ok: false,
+      detail:
+        failed.length === 2
+          ? 'Neither the publisher nor the subscriber is answering. Wake-ups are not crossing between nodes; devices fall back to polling.'
+          : `The ${failed[0]} is not answering. ${
+              failed[0] === 'subscriber'
+                ? 'This node is not hearing other nodes, so a session revoked elsewhere stays open here until its next revalidation.'
+                : 'This node is not reaching other nodes, so its wake-ups are not delivered.'
+            }`,
+    };
   }
 }
 

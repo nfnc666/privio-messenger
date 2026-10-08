@@ -168,7 +168,22 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // The operator API. Its own credential, its own session table, and nothing in
   // it that can read a message — see the header of `routes/admin.ts` for what
   // it deliberately cannot do.
-  await app.register(adminRoutes);
+  //
+  // It is handed the runtime facts its status page cannot read from the
+  // configuration: which push providers actually came up, and which bus and
+  // blob store this process ended up with. `pushConfigured` is empty when a
+  // sender was injected rather than built here, which is the honest answer —
+  // this process did not configure one and cannot vouch for what it can
+  // deliver.
+  await app.register(
+    adminRoutes({
+      version: VERSION,
+      pushConfigured: pushSetup?.configured ?? [],
+      bus: deps.bus,
+      storage,
+      pingDatabase: deps.pingDatabase,
+    }),
+  );
   await app.register(mediaRoutes(storage));
   await app.register(backupRoutes(storage));
   await app.register(websocketRoutes(delivery, deps.bus));

@@ -762,6 +762,140 @@ describe('admin moderation', () => {
   });
 });
 
+describe('admin status', () => {
+  let h: TestHarness;
+  let owner: Awaited<ReturnType<typeof registerAdmin>>;
+
+  before(async () => {
+    h = await createHarness();
+    owner = await registerAdmin(h.app, 'status_owner');
+  });
+  after(async () => {
+    await h.close();
+  });
+
+  it('reports every subsystem with a state and a sentence', async () => {
+    const response = await h.app.inject({
+      method: 'GET',
+      url: '/v1/admin/status',
+      headers: adminBearer(owner),
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    const body = response.json();
+
+    const ids = body.subsystems.map((s: { id: string }) => s.id);
+    for (const expected of [
+      'database',
+      'redis',
+      'storage',
+      'unifiedpush',
+      'apns',
+      'fcm',
+      'ice',
+      'livestreams',
+      'translation',
+      'licensing',
+      'totp',
+      'applinks',
+    ]) {
+      assert.ok(ids.includes(expected), `status should report ${expected}`);
+    }
+
+    for (const subsystem of body.subsystems) {
+      assert.ok(['ok', 'degraded', 'off', 'down'].includes(subsystem.state), subsystem.id);
+      // Every state has to come with something an operator can act on. A red
+      // light with no sentence is the thing this page exists not to be.
+      assert.ok(subsystem.detail.length > 10, `${subsystem.id} needs a detail`);
+    }
+
+    const database = body.subsystems.find((s: { id: string }) => s.id === 'database');
+    assert.equal(database.state, 'ok');
+    assert.ok(typeof database.latencyMs === 'number');
+    assert.equal(body.server.version, '0.1.0');
+  });
+
+  it('distinguishes "not configured" from "broken"', async () => {
+    const response = await h.app.inject({
+      method: 'GET',
+      url: '/v1/admin/status',
+      headers: adminBearer(owner),
+    });
+    const body = response.json();
+    const by = (id: string) => body.subsystems.find((s: { id: string }) => s.id === id);
+
+    // The test environment configures neither, and neither is a fault: a
+    // self-hosted server with no Apple account is correct, not broken.
+    assert.equal(by('apns').state, 'off');
+    assert.equal(by('livestreams').state, 'off');
+    // Redis unset is a real degradation rather than a preference — it is
+    // wrong the moment a second instance is started — so it is not 'off'.
+    assert.equal(by('redis').state, 'degraded');
+    // Nothing is down, so the headline is not either.
+    assert.notEqual(body.overall, 'down');
+  });
+
+  it('turns an unreachable database into a down, not a 500', async () => {
+    const broken = await createHarness({
+      pingDatabase: async () => {
+        throw new Error('connection refused');
+      },
+    });
+    try {
+      const admin = await registerAdmin(broken.app, 'status_probe');
+      const response = await broken.app.inject({
+        method: 'GET',
+        url: '/v1/admin/status',
+        headers: adminBearer(admin),
+      });
+      // The page still renders. A status page that 500s when something is
+      // wrong is a status page that is blank exactly when it is needed.
+      assert.equal(response.statusCode, 200, response.body);
+      const body = response.json();
+      const database = body.subsystems.find((s: { id: string }) => s.id === 'database');
+      assert.equal(database.state, 'down');
+      assert.match(database.detail, /connection refused/);
+      assert.equal(body.overall, 'down');
+    } finally {
+      await broken.close();
+    }
+  });
+
+  it('returns no secret of any kind', async () => {
+    const response = await h.app.inject({
+      method: 'GET',
+      url: '/v1/admin/status',
+      headers: adminBearer(owner),
+    });
+    const serialised = response.body;
+
+    // The values this deployment actually holds, so the check fails on a leak
+    // rather than on a guess about what a secret looks like.
+    for (const secret of [
+      process.env.LICENSE_HASH_SECRET,
+      process.env.LICENSE_ISSUER_TOKEN,
+      process.env.TOTP_SECRET_KEY,
+      process.env.DATABASE_URL,
+    ]) {
+      if (secret) assert.ok(!serialised.includes(secret), 'status leaked a configured secret');
+    }
+    for (const name of ['password', 'secret', 'token', 'apiKey', 'api_key', 'privateKey']) {
+      assert.ok(!serialised.includes(`"${name}"`), `status must not carry a ${name} field`);
+    }
+  });
+
+  it('is readable by a viewer', async () => {
+    const viewer = await registerAdmin(h.app, 'status_viewer', 'viewer');
+    const response = await h.app.inject({
+      method: 'GET',
+      url: '/v1/admin/status',
+      headers: adminBearer(viewer),
+    });
+    // "Is the server all right" is not a privileged question among people who
+    // have already been let into the panel.
+    assert.equal(response.statusCode, 200, response.body);
+  });
+});
+
 describe('admin audit log', () => {
   let h: TestHarness;
   let owner: Awaited<ReturnType<typeof registerAdmin>>;
