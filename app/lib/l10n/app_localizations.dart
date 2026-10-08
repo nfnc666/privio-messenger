@@ -688,37 +688,37 @@ abstract class AppText {
   /// No description provided for @chSectionProfile.
   ///
   /// In en, this message translates to:
-  /// **'CHANNEL PROFILE'**
+  /// **'Channel profile'**
   String get chSectionProfile;
 
   /// No description provided for @chSectionAccess.
   ///
   /// In en, this message translates to:
-  /// **'ACCESS & INVITATIONS'**
+  /// **'Access & invitations'**
   String get chSectionAccess;
 
   /// No description provided for @chSectionTeam.
   ///
   /// In en, this message translates to:
-  /// **'TEAM & MEMBERS'**
+  /// **'Team & members'**
   String get chSectionTeam;
 
   /// No description provided for @chSectionPosts.
   ///
   /// In en, this message translates to:
-  /// **'POSTS & INTERACTION'**
+  /// **'Posts & interaction'**
   String get chSectionPosts;
 
   /// No description provided for @chSectionIntegrations.
   ///
   /// In en, this message translates to:
-  /// **'INTEGRATIONS'**
+  /// **'Integrations'**
   String get chSectionIntegrations;
 
   /// No description provided for @chSectionDanger.
   ///
   /// In en, this message translates to:
-  /// **'THIS CANNOT BE UNDONE'**
+  /// **'This cannot be undone'**
   String get chSectionDanger;
 
   /// No description provided for @chRowProfile.

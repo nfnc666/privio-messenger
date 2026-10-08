@@ -93,11 +93,20 @@ class SettingsRow extends StatelessWidget {
               ),
             ),
             if (value != null)
-              Padding(
-                padding: const EdgeInsets.only(left: PrivioSpacing.sm),
-                child: Text(
-                  value!,
-                  style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
+              // Flexible, and at most half the row. Unbounded, a long value
+              // took the whole width and pressed the label into a column one
+              // letter wide — a channel description did exactly that on a
+              // phone with large text.
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: PrivioSpacing.sm),
+                  child: Text(
+                    value!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textSecondary),
+                  ),
                 ),
               ),
             if (trailing != null) trailing!,

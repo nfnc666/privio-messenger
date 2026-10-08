@@ -399,22 +399,22 @@ class AppTextEn extends AppText {
   String get channelSettings => 'Channel settings';
 
   @override
-  String get chSectionProfile => 'CHANNEL PROFILE';
+  String get chSectionProfile => 'Channel profile';
 
   @override
-  String get chSectionAccess => 'ACCESS & INVITATIONS';
+  String get chSectionAccess => 'Access & invitations';
 
   @override
-  String get chSectionTeam => 'TEAM & MEMBERS';
+  String get chSectionTeam => 'Team & members';
 
   @override
-  String get chSectionPosts => 'POSTS & INTERACTION';
+  String get chSectionPosts => 'Posts & interaction';
 
   @override
-  String get chSectionIntegrations => 'INTEGRATIONS';
+  String get chSectionIntegrations => 'Integrations';
 
   @override
-  String get chSectionDanger => 'THIS CANNOT BE UNDONE';
+  String get chSectionDanger => 'This cannot be undone';
 
   @override
   String get chRowProfile => 'Picture, name and description';

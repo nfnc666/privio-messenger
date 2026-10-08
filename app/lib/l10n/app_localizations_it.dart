@@ -400,22 +400,22 @@ class AppTextIt extends AppText {
   String get channelSettings => 'Impostazioni del canale';
 
   @override
-  String get chSectionProfile => 'PROFILO DEL CANALE';
+  String get chSectionProfile => 'Profilo del canale';
 
   @override
-  String get chSectionAccess => 'ACCESSO E INVITI';
+  String get chSectionAccess => 'Accesso e inviti';
 
   @override
-  String get chSectionTeam => 'TEAM E MEMBRI';
+  String get chSectionTeam => 'Team e membri';
 
   @override
-  String get chSectionPosts => 'POST E INTERAZIONE';
+  String get chSectionPosts => 'Post e interazione';
 
   @override
-  String get chSectionIntegrations => 'INTEGRAZIONI';
+  String get chSectionIntegrations => 'Integrazioni';
 
   @override
-  String get chSectionDanger => 'NON SI PUÒ ANNULLARE';
+  String get chSectionDanger => 'Non si può annullare';
 
   @override
   String get chRowProfile => 'Immagine, nome e descrizione';

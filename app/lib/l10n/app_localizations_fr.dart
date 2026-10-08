@@ -401,22 +401,22 @@ class AppTextFr extends AppText {
   String get channelSettings => 'Réglages du canal';
 
   @override
-  String get chSectionProfile => 'PROFIL DU CANAL';
+  String get chSectionProfile => 'Profil du canal';
 
   @override
-  String get chSectionAccess => 'ACCÈS ET INVITATIONS';
+  String get chSectionAccess => 'Accès et invitations';
 
   @override
-  String get chSectionTeam => 'ÉQUIPE ET MEMBRES';
+  String get chSectionTeam => 'Équipe et membres';
 
   @override
-  String get chSectionPosts => 'PUBLICATIONS ET INTERACTION';
+  String get chSectionPosts => 'Publications et interaction';
 
   @override
-  String get chSectionIntegrations => 'INTÉGRATIONS';
+  String get chSectionIntegrations => 'Intégrations';
 
   @override
-  String get chSectionDanger => 'CECI EST IRRÉVERSIBLE';
+  String get chSectionDanger => 'Ceci est irréversible';
 
   @override
   String get chRowProfile => 'Image, nom et description';

@@ -399,22 +399,22 @@ class AppTextDe extends AppText {
   String get channelSettings => 'Kanaleinstellungen';
 
   @override
-  String get chSectionProfile => 'CHANNEL-PROFIL';
+  String get chSectionProfile => 'Channel-Profil';
 
   @override
-  String get chSectionAccess => 'ZUGANG & EINLADUNGEN';
+  String get chSectionAccess => 'Zugang & Einladungen';
 
   @override
-  String get chSectionTeam => 'TEAM & MITGLIEDER';
+  String get chSectionTeam => 'Team & Mitglieder';
 
   @override
-  String get chSectionPosts => 'BEITRÄGE & INTERAKTION';
+  String get chSectionPosts => 'Beiträge & Interaktion';
 
   @override
-  String get chSectionIntegrations => 'INTEGRATIONEN';
+  String get chSectionIntegrations => 'Integrationen';
 
   @override
-  String get chSectionDanger => 'DAS LÄSST SICH NICHT RÜCKGÄNGIG MACHEN';
+  String get chSectionDanger => 'Das lässt sich nicht rückgängig machen';
 
   @override
   String get chRowProfile => 'Bild, Name und Beschreibung';
