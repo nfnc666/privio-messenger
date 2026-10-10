@@ -21,7 +21,7 @@ After this change, for a message sent sealed, the server learns:
 | Sender account and device | **yes, stored** | **no**, neither stored nor sent |
 | Content, attachment key | no | no |
 | Size (padded), time | yes | yes |
-| Sender IP address at send time | yes, logged with the request | seen on the connection, **not logged** for this route |
+| Sender IP address at send time | seen on the connection, not logged | seen on the connection, not logged, nor is the request at all |
 
 The sender's identity travels *inside* the encryption: the recipient's device
 opens the outer layer and finds a certificate, signed by this server, naming
@@ -146,8 +146,9 @@ the knowledge is:
 
 * **Recipient, time and padded size.** Delivery needs the first; the rest is
   inherent to a store-and-forward server.
-* **The sender's IP address on the connection**, as for any request. It is not
-  logged for this route, but a server operator recording traffic at the network
+* **The sender's IP address on the connection**, as for any request. No
+  request writes it to the log any more, and this route logs nothing at all,
+  but a server operator recording traffic at the network
   layer could correlate a sealed send with the same address's authenticated
   requests. Using a proxy (`docs/custom-proxy.md`) breaks that link.
 * **Group messages** are fanned out by the server per member, so group

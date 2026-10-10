@@ -96,7 +96,7 @@ screen — is not something a test asserts.
 | R1 | With the app open and the chat visible, sign the device out from another device: it stops receiving within a second and shows the signed-out state, not a spinner | — | | | | not run | |
 | R2 | The signed-out device does not silently delete anything: messages sent to it while it was being revoked are still delivered to the device that stays signed in | — | | | | not run | |
 | R3 | Revoke while a message is arriving (send several, revoke mid-flight): nothing partially arrives and nothing is lost | Timing is hard to hit by hand; repeat it a few times | | | | not run | |
-| R4 | Let a session expire (shorten `SESSION_TTL_DAYS` on a test server): the open socket closes on its own within `WS_REVALIDATE_MS` (default 60 s) | This is a *periodic* check; it is not instant by design | | | | not run | |
+| R4 | Let a session expire on a test server — a session now ends after `SESSION_TTL_DAYS` *without use*, so set that session's `expires_at` into the past rather than waiting: the open socket closes on its own within `WS_REVALIDATE_MS` (default 60 s) | This is a *periodic* check; it is not instant by design. Never on the production database | | | | not run | |
 | R5 | Stop Redis on a multi-instance deployment, then sign out: the socket still closes, within one revalidation interval rather than immediately, and the server logs `revocation broadcast failed` | Single-instance deployments have no Redis and no window | | | | not run | |
 | R6 | The app comes back cleanly after a revocation — signing in again works, history is intact | — | | | | not run | |
 
@@ -290,6 +290,19 @@ second device. Covered by `app/test/text_queue_test.dart`,
 | Wb5 | On the first screen pick Deutsch, create an account: the whole app is in German without visiting Settings | | | | | not run | |
 | Wb6 | Turn on Reduce motion (iOS) or Remove animations (Android): new messages, the welcome screen and the typing dots no longer move | | | | | not run | |
 
+## 6k. Less kept about when and from what
+
+The server keeps activity to the hour, no user agent, and no client address in
+its log (migration 044); a session ends after `SESSION_TTL_DAYS` without use.
+Covered by `server/test/metadata.test.ts` and `app/test/last_seen_test.dart`.
+What a test cannot show is a real phone over real days.
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Md1 | With a contact who shares last-seen and used Privio a few minutes ago: their row and their profile say "last seen within the last hour" — never "online", never minutes, never a time of day | | | | | not run | |
+| Md2 | Settings › Devices on a phone with a second signed-in device: the other device says "Active within the last hour", "Active 3 h ago" or similar, never minutes | | | | | not run | |
+| Md3 | Use Privio on one phone every day for a week after this server update: it stays signed in and nothing asks to sign in again | Needs the updated server deployed | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -377,11 +390,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6h Group picture and description | 6 | 0 | 0 | 0 | 6 |
 | 6i Renewing an invite link | 2 | 0 | 0 | 0 | 2 |
 | 6j Found in a browser walkthrough | 6 | 0 | 0 | 0 | 6 |
+| 6k Less kept about when and from what | 3 | 0 | 0 | 0 | 3 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **125** | **0** | **0** | **0** | **125** |
+| **Total** | **128** | **0** | **0** | **0** | **128** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

@@ -1,5 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import 'last_seen.dart';
+
+export 'last_seen.dart';
+
 /// What a member is allowed to do in a channel.
 @immutable
 class ChannelPermissions {
@@ -1067,25 +1071,11 @@ class ChannelMember {
 
   String get label => displayName?.isNotEmpty == true ? displayName! : username;
 
-  /// 'online', 'last seen 5 Sept', or empty where they do not share it.
+  /// How long ago they were last active, or unknown where they do not share it.
   ///
-  /// Empty rather than "last seen a long time ago": not knowing is not the same
-  /// as knowing it was long ago, and the row shows nothing instead of guessing.
-  /// How long ago they were seen, as a case the screen turns into words.
-  ///
-  /// The sentence used to be built here, in English, by a model that has no
-  /// way to know which of the app's five languages is on screen.
-  /// `l10n/channel_text.dart` turns this into the wording.
-  ChannelPresence presence({DateTime? now}) {
-    final seen = lastSeenAt;
-    if (seen == null) return const ChannelPresence.unknown();
-    final ago = (now ?? DateTime.now()).difference(seen);
-    if (ago.inMinutes < 2) return const ChannelPresence.online();
-    if (ago.inMinutes < 60) return ChannelPresence.minutes(ago.inMinutes);
-    if (ago.inHours < 24) return ChannelPresence.hours(ago.inHours);
-    if (ago.inDays < 7) return ChannelPresence.days(ago.inDays);
-    return ChannelPresence.on(seen);
-  }
+  /// To the hour, because that is what the server keeps.
+  /// `l10n/last_seen_text.dart` turns it into the reader's language.
+  LastSeen presence({DateTime? now}) => LastSeen.of(lastSeenAt, now: now);
 
   ChannelMember copyWith({String? role, ChannelPermissions? permissions}) => ChannelMember(
         id: id,
@@ -1160,33 +1150,3 @@ class StickerPackLink extends ChannelLinkTarget {
 
   final String code;
 }
-
-/// When somebody was last seen, so far as they let anyone see it.
-///
-/// A fact with a shape, not a sentence: the words differ per language and per
-/// reader, and this is produced by a model that knows neither.
-@immutable
-class ChannelPresence {
-  const ChannelPresence.unknown() : kind = ChannelPresenceKind.unknown, count = 0, at = null;
-  const ChannelPresence.online() : kind = ChannelPresenceKind.online, count = 0, at = null;
-  const ChannelPresence.minutes(this.count) : kind = ChannelPresenceKind.minutes, at = null;
-  const ChannelPresence.hours(this.count) : kind = ChannelPresenceKind.hours, at = null;
-  const ChannelPresence.days(this.count) : kind = ChannelPresenceKind.days, at = null;
-  const ChannelPresence.on(DateTime this.at) : kind = ChannelPresenceKind.onDate, count = 0;
-
-  final ChannelPresenceKind kind;
-  final int count;
-  final DateTime? at;
-
-  /// True when they share nothing. Not knowing is not the same as knowing it
-  /// was long ago, so the row shows nothing rather than a guess.
-  bool get isUnknown => kind == ChannelPresenceKind.unknown;
-  bool get isOnline => kind == ChannelPresenceKind.online;
-  bool get isMinutes => kind == ChannelPresenceKind.minutes;
-  bool get isHours => kind == ChannelPresenceKind.hours;
-  bool get isDays => kind == ChannelPresenceKind.days;
-}
-
-/// Public only because it names [ChannelPresence.kind]; nothing outside
-/// switches on it.
-enum ChannelPresenceKind { unknown, online, minutes, hours, days, onDate }

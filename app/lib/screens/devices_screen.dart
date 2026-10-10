@@ -4,6 +4,7 @@ import '../core/app_state.dart';
 import '../core/security_controller.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
+import '../l10n/last_seen_text.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -110,7 +111,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       SettingsRow(
                         icon: Icons.devices_other_rounded,
                         label: device.name,
-                        value: _lastSeen(text, device),
+                        value: deviceActivityText(text, device.lastSeenAt),
                         onTap: () => _confirmRevoke(security, device),
                       ),
                 ],
@@ -142,20 +143,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
         },
       ),
     );
-  }
-
-  /// Coarse on purpose. "Last active: 14:32" on a device you do not recognise
-  /// invites a precision this list cannot honestly offer — the server records
-  /// when it last spoke, not when someone last read anything.
-  static String _lastSeen(AppText text, LinkedDevice device) {
-    final at = device.lastSeenAt;
-    if (at == null) return text.devicesSignedIn;
-    final ago = DateTime.now().difference(at);
-    if (ago.inMinutes < 5) return text.devicesActiveNow;
-    if (ago.inHours < 1) return text.devicesActiveMinutes(ago.inMinutes);
-    if (ago.inDays < 1) return text.devicesActiveHours(ago.inHours);
-    if (ago.inDays == 1) return text.devicesActiveYesterday;
-    return text.devicesActiveDays(ago.inDays);
   }
 }
 

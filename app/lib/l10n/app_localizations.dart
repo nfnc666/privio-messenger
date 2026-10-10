@@ -1627,17 +1627,11 @@ abstract class AppText {
   /// **'Could not do that.'**
   String get subscribersCouldNotDoThat;
 
-  /// No description provided for @presenceOnline.
+  /// No description provided for @presenceWithinHour.
   ///
   /// In en, this message translates to:
-  /// **'online'**
-  String get presenceOnline;
-
-  /// No description provided for @presenceMinutesAgo.
-  ///
-  /// In en, this message translates to:
-  /// **'last seen {count, plural, =1{1 minute} other{{count} minutes}} ago'**
-  String presenceMinutesAgo(int count);
+  /// **'last seen within the last hour'**
+  String get presenceWithinHour;
 
   /// No description provided for @presenceHoursAgo.
   ///
@@ -2419,17 +2413,11 @@ abstract class AppText {
   /// **'Signed in'**
   String get devicesSignedIn;
 
-  /// No description provided for @devicesActiveNow.
+  /// No description provided for @devicesActiveWithinHour.
   ///
   /// In en, this message translates to:
-  /// **'Active now'**
-  String get devicesActiveNow;
-
-  /// No description provided for @devicesActiveMinutes.
-  ///
-  /// In en, this message translates to:
-  /// **'Active {count} min ago'**
-  String devicesActiveMinutes(int count);
+  /// **'Active within the last hour'**
+  String get devicesActiveWithinHour;
 
   /// No description provided for @devicesActiveHours.
   ///
@@ -3199,23 +3187,17 @@ abstract class AppText {
   /// **'@{username} · last seen {when}'**
   String contactsLastSeen(String username, String when);
 
-  /// No description provided for @contactsSeenJustNow.
+  /// No description provided for @contactsSeenWithinHour.
   ///
   /// In en, this message translates to:
-  /// **'just now'**
-  String get contactsSeenJustNow;
+  /// **'within the last hour'**
+  String get contactsSeenWithinHour;
 
-  /// No description provided for @contactsSeenMinutes.
+  /// No description provided for @contactsSeenHours.
   ///
   /// In en, this message translates to:
-  /// **'{count} min ago'**
-  String contactsSeenMinutes(int count);
-
-  /// No description provided for @contactsSeenAtTime.
-  ///
-  /// In en, this message translates to:
-  /// **'at {time}'**
-  String contactsSeenAtTime(String time);
+  /// **'{count} h ago'**
+  String contactsSeenHours(int count);
 
   /// No description provided for @contactsSeenDays.
   ///

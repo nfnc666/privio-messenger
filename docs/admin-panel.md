@@ -61,8 +61,8 @@ revoked separately; compromising one does not hand over the other.
   account's is. Enforced per row rather than globally, so the first operator can
   be created and then immediately enrol — which is impossible if the login
   refuses everyone without a factor they have no way to set up yet.
-- **Sessions**: `ADMIN_SESSION_TTL_MINUTES`, twelve hours by default, against a
-  year for an account session. A phone in a pocket staying signed in is the
+- **Sessions**: `ADMIN_SESSION_TTL_MINUTES`, twelve hours by default, against
+  ninety days without use for an account session. A phone in a pocket staying signed in is the
   feature; a browser tab on a shared workstation staying signed in is the
   incident.
 

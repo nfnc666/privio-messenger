@@ -6,6 +6,7 @@ import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
 import '../l10n/channel_text.dart';
+import '../l10n/last_seen_text.dart';
 import '../models/channel.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';

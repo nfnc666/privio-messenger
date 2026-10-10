@@ -34,21 +34,6 @@ String permissionDetail(AppText text, String key) => switch (key) {
       _ => '',
     };
 
-/// "online", "last seen 20 minutes ago", or nothing at all.
-///
-/// The date is formatted for the reader's locale rather than as dd.mm.yy: a
-/// date is one of the few things every language writes differently, and `intl`
-/// already knows how each of them does it.
-String presenceText(AppText text, ChannelPresence presence) {
-  if (presence.isUnknown) return '';
-  if (presence.isOnline) return text.presenceOnline;
-  if (presence.isMinutes) return text.presenceMinutesAgo(presence.count);
-  if (presence.isHours) return text.presenceHoursAgo(presence.count);
-  if (presence.isDays) return text.presenceDaysAgo(presence.count);
-  final on = presence.at!;
-  return text.presenceOnDate(formatDate(text, on));
-}
-
 /// A date, written the way the reader's language writes dates.
 ///
 /// Falls back to the locale-independent form if the locale's date symbols were

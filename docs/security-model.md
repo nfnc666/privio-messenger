@@ -831,7 +831,7 @@ session already exists, which no honest deployment does — so it is exercised i
 | Undelivered envelopes | 30 days, then purged |
 | Attachments | 30 days from upload, unconditionally |
 | Backups | One per account, replaced on each upload |
-| Sessions | 365 days, or until revoked |
+| Sessions | 90 days without use, or until revoked; each use moves the end out |
 | Deleted accounts | Tombstoned; all content deleted immediately, username freed |
 
 ### Deleting the account

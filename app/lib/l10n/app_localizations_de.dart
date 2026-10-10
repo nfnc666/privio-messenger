@@ -951,18 +951,7 @@ class AppTextDe extends AppText {
   String get subscribersCouldNotDoThat => 'Das ging nicht.';
 
   @override
-  String get presenceOnline => 'online';
-
-  @override
-  String presenceMinutesAgo(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count Minuten',
-      one: '1 Minute',
-    );
-    return 'zuletzt online vor $_temp0';
-  }
+  String get presenceWithinHour => 'zuletzt online in der letzten Stunde';
 
   @override
   String presenceHoursAgo(int count) {
@@ -1424,12 +1413,7 @@ class AppTextDe extends AppText {
   String get devicesSignedIn => 'Angemeldet';
 
   @override
-  String get devicesActiveNow => 'Gerade aktiv';
-
-  @override
-  String devicesActiveMinutes(int count) {
-    return 'Vor $count Min. aktiv';
-  }
+  String get devicesActiveWithinHour => 'In der letzten Stunde aktiv';
 
   @override
   String devicesActiveHours(int count) {
@@ -1894,16 +1878,11 @@ class AppTextDe extends AppText {
   }
 
   @override
-  String get contactsSeenJustNow => 'gerade eben';
+  String get contactsSeenWithinHour => 'in der letzten Stunde';
 
   @override
-  String contactsSeenMinutes(int count) {
-    return 'vor $count Min.';
-  }
-
-  @override
-  String contactsSeenAtTime(String time) {
-    return 'um $time';
+  String contactsSeenHours(int count) {
+    return 'vor $count Std.';
   }
 
   @override

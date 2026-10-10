@@ -1088,6 +1088,12 @@ someone has to audit.
 | Group membership | Contact names and aliases you set locally |
 | That a file was uploaded, and roughly how big | File names, types, or anything inside them |
 | Attachment lifetimes | Search queries — search never leaves the device |
+| When an account was last active, to the hour | The minute, or which app or browser you use |
+
+Your IP address reaches the server with every connection — that is how a
+connection works. Privio uses it in memory to rate-limit, and writes it neither
+to its log nor to its database. A proxy or hosting platform in front of the
+server keeps logs of its own; `docs/deployment.md` says how to switch that off.
 
 **Push notifications carry nothing.** They say "something arrived" and no more —
 not the sender, not a preview, not a count. The device wakes, connects and

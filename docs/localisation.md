@@ -26,7 +26,8 @@ case, and the screen says the words. That is why these exist:
 | `Failure` / `FailureKind` (`core/failure.dart`) | `l10n/failure_text.dart` |
 | `SystemNotice` / `NoticeKind` (`models/models.dart`) | `l10n/notice_text.dart` |
 | `ChatPreview`, `ChatStamp` (`models/models.dart`) | `l10n/chat_text.dart` |
-| `ChannelPresence`, permission keys, report reasons | `l10n/channel_text.dart` |
+| `LastSeen` (`models/last_seen.dart`) | `l10n/last_seen_text.dart` |
+| Permission keys, report reasons | `l10n/channel_text.dart` |
 | `PasscodeComplaint` (`core/passcode.dart`) | `l10n/passcode_text.dart` |
 | `NotificationWarning` (`services/wake_up.dart`) | `l10n/failure_text.dart` |
 

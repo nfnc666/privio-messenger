@@ -72,7 +72,6 @@ const READABLE: Record<string, string> = {
   'devices.push_provider': 'which service to wake',
   'devices.push_token': 'an address this server sends to; sealing it would break it',
   'devices.voip_token': 'the second address iOS needs, for the same reason',
-  'sessions.user_agent': 'shown beside the session in the device list',
 
   // Reactions. The one place in a channel where the server holds something a
   // member chose, and it is held knowingly: a count has to be counted
@@ -196,7 +195,7 @@ const READABLE: Record<string, string> = {
   'admin_users.password_hash': 'Argon2id digest',
   'admin_users.totp_secret': 'sealed under TOTP_SECRET_KEY before it gets here',
   'admin_users.role': 'owner, admin, support or viewer — enforced by the server',
-  'admin_sessions.user_agent': 'shown beside the session, as for an account session',
+  'admin_sessions.user_agent': 'an operator s own browser, shown beside their session for review',
 
   // The audit log. Every column is about an operator action and none of it may
   // come from user content — `services/admin_audit.ts` is the single writer and
@@ -273,6 +272,23 @@ describe('what the server can read', () => {
           AND (table_name LIKE 'bot%' OR column_name IN ('is_bot'))`,
     );
     assert.deepEqual(rows, []);
+  });
+
+  it('keeps no address or browser string for anybody but operators', async () => {
+    // Account sessions kept the user agent of every sign-in, and nothing read
+    // it; migration 044 dropped it. An address or a client string beside a
+    // person's account is a fingerprint and a location. Operators are the
+    // exception, knowingly: their sign-ins and actions are audited.
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT table_name || '.' || column_name AS name
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (data_type = 'inet' OR udt_name IN ('inet', 'cidr')
+               OR column_name ~ '(^|_)(ip|ips|address|addr|user_agent|useragent)($|_)')
+          AND table_name NOT IN ('admin_sessions', 'admin_audit_log')
+        ORDER BY 1`,
+    );
+    assert.deepEqual(rows.map((r) => r.name), []);
   });
 
   it('stores no session token or license key, only digests', async () => {

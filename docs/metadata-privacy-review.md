@@ -23,25 +23,28 @@ Classifications used:
 
 ## 1. IP addresses
 
-**Required (transient) · stored in logs · reducible**
+**Required (transient) · not stored · not logged**
 
 Every HTTP request and WebSocket connection arrives from an address, and the
 server sees it. `trustProxy` is on, so it is the client's address rather than
 the reverse proxy's.
 
-* Not in any table. There is no column anywhere in `server/migrations/` holding
-  an IP.
-* **In the application log.** `src/app.ts` serialises `remoteAddress:
-  request.ip` on every request, at `LOG_LEVEL` `info` by default. Anyone with
-  access to the logs can reconstruct which address connected, when, and to which
-  endpoint — including `/v1/keys/:username`, which is a lookup of a specific
-  person. **This is the single largest gap between what Privio promises about
-  content and what its operator can observe about behaviour.**
-* Used in memory for rate limiting.
+* Not in any table that concerns an account. A schema test
+  (`server/test/schema.test.ts`) refuses an address or user-agent column
+  anywhere but the two operator tables, `admin_sessions` and `admin_audit_log`,
+  where staff sign-ins and actions are audited on purpose.
+* **Not in the application log.** It was: `src/app.ts` serialised
+  `remoteAddress` on every request, so the log recorded which address looked up
+  whose keys, and when. The serialiser now writes method, path (with tokens
+  redacted) and host — no address and no user agent — and
+  `server/test/metadata.test.ts` reads the real log, including refused and
+  unknown requests, to keep it that way.
+* Used in memory for rate limiting, for the life of the request.
 
-**Reducible:** the log serialiser could drop `remoteAddress`, or hash it with a
-per-day server secret so rate-limit debugging still works and correlation across
-days does not. That is a small change and it is not made yet.
+**Outside Privio:** a reverse proxy or hosting platform in front of the server
+keeps an access log of its own, with addresses, unless it is told not to.
+`docs/deployment.md` says so where the proxy is set up. That log is the
+operator's to switch off; this server cannot.
 
 **Not hideable** by Privio alone — the network layer sees the address. Tor or the
 existing SOCKS5 proxy (`docs/custom-proxy.md`) is the only real answer, and that
@@ -49,15 +52,29 @@ moves the observation to the proxy operator rather than removing it.
 
 ## 2. Connection timestamps and presence
 
-**Required · stored · reducible**
+**Required · stored · reduced to the hour**
 
 * `accounts.last_seen_at` and `devices.last_seen_at` are written on activity.
   Who may *see* last-seen is a user setting; the server holds it regardless.
 * `sessions.last_used_at`, `created_at`, `expires_at`.
 * An open WebSocket is, by its nature, a statement that a device is online now.
 
-**Reducible:** `last_seen_at` could be rounded to the hour or the day for storage
-purposes. The current value is minute-accurate and is written on every request.
+**To the hour.** `last_seen_at` and `last_used_at` used to be written to the
+millisecond on every request — over weeks, a fine picture of when somebody is
+awake. They are now rounded down to the hour (UTC) and written at most once an
+hour (`services/sessions.ts`), and migration 044 rounded what was already
+stored, so the old precision did not outlive the change. `expires_at` is to the
+hour as well, because it is set from the last use and would otherwise give the
+moment away. The app says "last seen" by the hour to match, and no longer shows
+anybody as "online" — the server does not know that to the minute any more.
+
+`created_at` of an account, a device and a session is still exact. Each is one
+moment, not a pattern, and it is shown in the device list.
+
+**Sessions end when they stop being used.** A session lasts `SESSION_TTL_DAYS`
+(default 90) from its *last use*, and every use moves the end out. Before, it
+lasted a year from sign-in, used or not — a token left on a phone in a drawer
+worked for twelve months.
 
 ## 3. Push tokens
 
@@ -97,9 +114,17 @@ outright. Length leaks more than it looks: a one-word reply and a paragraph are
 distinguishable, and a photograph's size is close to a fingerprint of the
 photograph.
 
-Privio pads message payloads (`app/lib/crypto/padding.dart`) to bucket
-boundaries, which removes the fine-grained signal for text. **Media is not padded
-** — `byte_size` is the real length, and it is stored. That is a known gap.
+Privio pads every payload (`app/lib/crypto/padding.dart`) before it is sealed:
+message text, channel posts, and attachments (`app/lib/media/attachment.dart`).
+Up to 16 KiB, sizes round up to a power of two from 256 bytes, which removes the
+fine-grained signal for text. Above 16 KiB they round up to whole 16 KiB
+blocks.
+
+**That is coarse, not hidden.** `byte_size` is the padded length, and for a
+photo or a video it is still visible to within 16 KiB — enough to recognise a
+specific known file of a few megabytes that someone else also has. Coarser
+buckets for large files would cost bandwidth and storage; it is not done yet,
+and this section says so rather than calling media padded and leaving it there.
 
 ## 6. Sender and recipient routing
 
@@ -164,10 +189,12 @@ No call log is stored server-side. The call history on the device is local.
 
 `devices.name` (a name the user typed), `devices.platform` (`ios`/`android`/
 `desktop`/`web`), `registration_id`, `identity_key`. Public keys by design —
-X3DH needs them. `sessions.user_agent` is stored as sent.
+X3DH needs them.
 
-**Reducible:** `user_agent` is not used for anything the app needs and is a
-fingerprint. It could be dropped or coarsened.
+**No user agent.** `sessions.user_agent` held the app or browser string of every
+sign-in — model, system version, build — and nothing read it. Migration 044
+dropped the column and every value in it, and the request log no longer carries
+it either.
 
 ## 11. Phone number and contact discovery
 
@@ -210,15 +237,18 @@ screen. It is never shown to anybody but the owner.
 
 ## Summary of the honest gaps
 
-Five things on this page are worth acting on, in this order:
+Still open, in order:
 
-1. **IP addresses in the request log.** The cheapest real improvement available,
-   and currently the largest observation surface.
-2. **No sealed sender.** The server knows who talks to whom. Design work, not a
-   patch.
-3. **Media size is unpadded and stored.** Text is padded; attachments are not.
-4. **`sessions.user_agent`** is a stored fingerprint nothing needs.
-5. **`last_seen_at` precision** is finer than any feature requires.
+1. **No sealed sender.** The server knows who talks to whom. Design work, not a
+   patch; the server half exists (section 6).
+2. **Large attachments are padded only coarsely.** To within 16 KiB, which still
+   identifies a known file (section 5).
+3. **The proxy's own access log.** Outside this server, and the operator's to
+   switch off (section 1).
+
+Closed since the first version of this page: IP addresses in the request log,
+`sessions.user_agent`, minute-accurate `last_seen_at`, and sessions that
+outlived their use by a year.
 
 ## What must not be claimed
 

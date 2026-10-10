@@ -11,11 +11,21 @@ const schema = z.object({
   MEDIA_DIR: z.string().default('./.data/media'),
   /** Attachments are unconditionally deleted after this many days. */
   MEDIA_TTL_DAYS: z.coerce.number().int().positive().default(30),
-  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(365),
+  /**
+   * How long a session lasts **without being used**.
+   *
+   * Every use moves the end out again (`services/sessions.ts`), so a device in
+   * use stays signed in for as long as it is used. What this bounds is a token
+   * nobody uses any more — on a phone in a drawer, or copied off one — which
+   * stops working on its own after this many days. It used to be a year from
+   * sign-in, which signed out people who used Privio every day and left
+   * abandoned tokens working for a year.
+   */
+  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(90),
   /**
    * How long an operator stays signed in to the admin panel.
    *
-   * Hours, against a year for an account session, and the difference is
+   * Hours, against months for an account session, and the difference is
    * deliberate. A phone in a pocket staying signed in is the feature; a browser
    * tab on a shared workstation staying signed in is the incident — and an
    * operator session is the one credential that sees across accounts. Twelve

@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
-import '../l10n/channel_text.dart';
+import '../l10n/last_seen_text.dart';
+import '../models/last_seen.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
@@ -76,28 +77,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
   /// The username, and — only when the server was willing to say — when this
   /// person was last connected.
   ///
-  /// The server reports a moment, so this reports a moment. It does not say
+  /// To the hour, because that is all the server keeps. It does not say
   /// "online": that would be this app inferring a state from a timestamp and
   /// presenting the guess as a fact about somebody else.
   static String _subtitleFor(AppText text, Contact contact) {
-    final seen = contact.lastSeenAt;
-    if (seen == null) return '@${contact.username}';
-    return text.contactsLastSeen(contact.username, _when(text, seen));
-  }
-
-  static String _when(AppText text, DateTime at) {
-    final now = DateTime.now();
-    final difference = now.difference(at);
-    if (difference.inMinutes < 1) return text.contactsSeenJustNow;
-    if (difference.inMinutes < 60) return text.contactsSeenMinutes(difference.inMinutes);
-    final sameDay = at.year == now.year && at.month == now.month && at.day == now.day;
-    final time = '${at.hour.toString().padLeft(2, '0')}:'
-        '${at.minute.toString().padLeft(2, '0')}';
-    if (sameDay) return text.contactsSeenAtTime(time);
-    if (difference.inDays < 7) return text.contactsSeenDays(difference.inDays);
-    // Written the way the reader's language writes a date rather than always
-    // as dd.mm.yyyy, which is one language's habit.
-    return formatDate(text, at);
+    final seen = LastSeen.of(contact.lastSeenAt);
+    if (seen.isUnknown) return '@${contact.username}';
+    return text.contactsLastSeen(contact.username, seenWhen(text, seen));
   }
 
   @override
