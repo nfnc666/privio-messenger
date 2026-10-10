@@ -186,6 +186,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
   int _filter = 0;
   String _query = '';
 
+  /// The list comes in a row at a time when it first fills, and a chat that
+  /// starts later slides in at the top.
+  final _entrances = Entrances();
+
   /// Filtering and search both run on already-decrypted local data — no query
   /// ever reaches the server.
   List<ChatSummary> _visible(AppText text, List<ChatSummary> chats) {
@@ -313,6 +317,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       listenable: state.conversations,
       builder: (context, _) {
         final chats = _visible(AppText.of(context), state.conversations.chats);
+        _entrances.see(chats.map((chat) => chat.id));
 
         return Scaffold(
           appBar: AppBar(
@@ -379,7 +384,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
                               // notebook nobody has written in yet.
                               itemCount: chats.length + (_onlySaved(chats) ? 1 : 0),
                               itemBuilder: (context, index) => index < chats.length
-                                  ? _row(context, state, chats[index])
+                                  ? _entrances.wrap(
+                                      id: chats[index].id,
+                                      child: _row(context, state, chats[index]),
+                                    )
                                   : const Padding(
                                       padding: EdgeInsets.only(top: PrivioSpacing.xxxl),
                                       child: Appear(child: _EmptyChats()),

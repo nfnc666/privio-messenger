@@ -488,8 +488,8 @@ class _DeliveryTicks extends StatelessWidget {
       // A tick that changes is the message getting somewhere, so the new mark
       // grows in where the old one was rather than replacing it in a frame.
       AnimatedSwitcher(
-        duration: PrivioMotion.of(context, PrivioMotion.quick),
-        transitionBuilder: PrivioMotion.popIn,
+        duration: PrivioMotion.quick,
+        transitionBuilder: PrivioMotion.swap(context),
         child: KeyedSubtree(key: ValueKey(state), child: _mark(context)),
       );
 

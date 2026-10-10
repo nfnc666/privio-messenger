@@ -1368,7 +1368,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           // goes several times a minute, and a jump each time
                           // pulls the eye up from the conversation.
                           return AnimatedSwitcher(
-                            duration: PrivioMotion.of(context, PrivioMotion.quick),
+                            duration: PrivioMotion.quick,
                             layoutBuilder: (current, previous) => Stack(
                               alignment: Alignment.centerLeft,
                               children: [...previous, ?current],
@@ -1560,8 +1560,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       final drawn = _drawn ??= {
                         for (final m in messages) m.clientId ?? m.id,
                       };
+                      // In from its own side: what you sent from the right,
+                      // what arrived from the left, as the bubbles sit.
                       return Appear(
                         play: drawn.add(message.clientId ?? message.id),
+                        from: Offset(
+                          message.isMine ? PrivioMotion.travel : -PrivioMotion.travel,
+                          PrivioMotion.rise / 2,
+                        ),
+                        scale: 0.9,
                         child: MessageBubble(
                         message: message,
                         // In a one-to-one chat, a mention of the person you
@@ -2149,8 +2156,8 @@ class _TrailingAction extends StatelessWidget {
   /// rather than snapping, so the change is seen as the same place doing a
   /// new thing.
   Widget _swap(BuildContext context, String which, Widget child) => AnimatedSwitcher(
-        duration: PrivioMotion.of(context, PrivioMotion.quick),
-        transitionBuilder: PrivioMotion.popIn,
+        duration: PrivioMotion.quick,
+        transitionBuilder: PrivioMotion.swap(context),
         child: KeyedSubtree(key: ValueKey(which), child: child),
       );
 

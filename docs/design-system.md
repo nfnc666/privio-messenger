@@ -131,33 +131,48 @@ Tokens in `app/lib/theme/motion.dart`. Motion says one of three things —
 over before anybody waits for it. Nothing loops except what is live, and
 nothing is decoration.
 
+The first values (160 and 240 ms, 10 px) were too quiet: on a phone they read
+as no animation at all. `test/motion_test.dart` now holds them to being seen.
+
 | Token | Value | Used for |
 | --- | --- | --- |
-| `quick` | 160 ms | A control changing state: delivery ticks, the send/microphone button, the unread count, a tab, the chat header's second line |
-| `standard` | 240 ms | Something arriving: a message, an empty state |
-| `gentle` | 420 ms | The welcome screen's mark |
+| `quick` | 220 ms | A control changing state: delivery ticks, the send/microphone button, the unread count, the chat header's second line. Also the fade that replaces movement when motion is reduced |
+| `standard` | 340 ms | Something arriving: a message, a list row, an empty state, a tab, the chosen tab's icon |
+| `gentle` | 600 ms | The welcome screen's mark |
+| `stagger` | 45 ms | Between the rows of a list as it fills, at most eight steps |
 | `enter` | ease-out cubic | Everything that comes in decelerates |
-| `rise` | 10 px | How far something rises as it fades in |
+| `pop` | ease-out back | What pops overshoots a little and settles |
+| `rise` | 24 px | How far something rises as it fades in |
+| `travel` | 28 px | How far a message comes in from its own side |
 
 Where it is used:
 
-- **Messages** that arrive while a chat is open fade in as they rise
-  (`Appear`). Opening a chat does not animate its history.
+- **Messages** that arrive while a chat is open come in from their own side —
+  yours from the right, theirs from the left — growing from 90 % as they fade
+  in (`Appear`). Opening a chat does not animate its history.
+- **Chat list and contacts** fill a row at a time from the top the first time
+  they have rows (`Entrances`); after that only a new row — a chat that just
+  started — comes in. Scrolling and redrawing play nothing again, and a row
+  that was off screen when it arrived does not play when scrolled to.
 - **Send, microphone, send-recording** swap by growing in where the other
-  was (`PrivioMotion.popIn`). So do the **delivery ticks** and the **unread
+  was (`PrivioMotion.swap`). So do the **delivery ticks** and the **unread
   count** in the chat list.
 - **Typing**: three dots rise and fall in turn in place of the ellipsis
   (`TypingLabel`), and the header's second line crossfades as it comes and
   goes. A screen reader reads the sentence, not the dots.
-- **Welcome**: the mark, then the name, then the four promises, each 70 ms
-  after the last. Under a second in all.
-- **Tabs** fade up from the black behind them.
+- **Welcome**: the mark grows in, then the name, then the four promises, each
+  90 ms after the last. Under a second in all.
+- **Tabs** fade up from the black behind them as they rise into place, and the
+  chosen tab's icon pops.
 - Page transitions are the platform's own.
 
 **Reduce motion.** When the device asks for less motion ("Reduce motion" on
-iOS, "Remove animations" on Android), nothing moves: every duration is zero
-and the typing dots are the written sentence. `test/motion_test.dart` sets
-the device flag and checks each of these.
+iOS, "Remove animations" on Android), nothing moves, grows or waits for
+anything else: no rising, sliding, popping or stagger. What stays is a short
+fade (`quick`) where something arrives or changes — Apple's guidance for
+reduced motion is to replace movement with a dissolve, not to remove every
+transition. The typing dots are the written sentence. `test/motion_test.dart`
+sets the device flag and checks each of these.
 
 No animation library and no animation files: everything is Flutter's own
 widgets, so there is nothing to download and nothing that phones home.

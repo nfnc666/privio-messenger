@@ -118,14 +118,18 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ),
                       const Spacer(flex: 2),
-                      // The first thing anybody sees of Privio: the mark, the name,
-                      // then the promises one after another — read in the order they
-                      // arrive. Under a second in all, and still when the device asks
-                      // for less motion.
-                      const Appear(duration: PrivioMotion.gentle, child: PrivioMark(size: 72, glow: true)),
+                      // The first thing anybody sees of Privio: the mark grows in,
+                      // then the name, then the promises one after another — read in
+                      // the order they arrive. Under a second in all, and only a fade
+                      // when the device asks for less motion.
+                      const Appear(
+                        duration: PrivioMotion.gentle,
+                        scale: 0.7,
+                        child: PrivioMark(size: 72, glow: true),
+                      ),
                       const SizedBox(height: PrivioSpacing.xl),
                       Appear(
-                        delay: const Duration(milliseconds: 120),
+                        delay: const Duration(milliseconds: 150),
                         child: Column(
                           children: [
                             Text(text.welcomeTo, style: theme.textTheme.bodyMedium),
@@ -139,7 +143,7 @@ class WelcomeScreen extends StatelessWidget {
                       const SizedBox(height: PrivioSpacing.xxxl),
                       for (final (index, (icon, label)) in _promises(text).indexed)
                         Appear(
-                          delay: Duration(milliseconds: 240 + 70 * index),
+                          delay: Duration(milliseconds: 260 + 90 * index),
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: PrivioSpacing.lg),
                             child: Row(
