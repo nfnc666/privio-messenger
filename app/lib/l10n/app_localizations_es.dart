@@ -1916,6 +1916,11 @@ class AppTextEs extends AppText {
   String get contactsAddTitle => 'Añadir contacto';
 
   @override
+  String contactsAddUsername(String username) {
+    return 'Añadir a @$username';
+  }
+
+  @override
   String get contactsAddNote =>
       'Escribe su nombre de usuario exacto de Privio. No se sube nada de tu agenda, y nadie puede encontrarte curioseando.';
 

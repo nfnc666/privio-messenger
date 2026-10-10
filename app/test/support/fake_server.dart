@@ -36,6 +36,13 @@ class FakeServer {
   /// Idempotency keys the server has already seen, per sending device.
   final Map<String, int> seenKeys = {};
 
+  /// Devices waiting for a key, as the server keeps them: `group:<id>` or
+  /// `channel:<id>` to the ids of the devices that asked.
+  final Map<String, Set<String>> keyRequests = {};
+
+  /// Requests the server refused, so a test can say there were none.
+  final List<String> refused = [];
+
   FakeDevice register(
     String username,
     String accountId,
@@ -94,6 +101,51 @@ class FakeServer {
                 },
             ],
           });
+        }
+
+        if (method == 'GET' && path == '/v1/devices') {
+          final me = _deviceById(deviceId);
+          final account = accounts.values.firstWhere((a) => a.devices.contains(me));
+          return _json({
+            'devices': [
+              for (final device in account.devices)
+                {'id': device.deviceId, 'current': device.deviceId == deviceId},
+            ],
+          });
+        }
+
+        final keyRequest =
+            RegExp(r'^/v1/(groups|channels)/([^/]+)/key-requests(?:/([^/]+))?$').firstMatch(path);
+        if (keyRequest != null) {
+          final scope = keyRequest.group(1) == 'groups' ? 'group' : 'channel';
+          final waiting = keyRequests.putIfAbsent('$scope:${keyRequest.group(2)}', () => {});
+          final target = keyRequest.group(3);
+          if (method == 'POST' && target == null) {
+            waiting.add(deviceId);
+            return _json({'requested': true});
+          }
+          if (method == 'GET' && target == null) {
+            return _json({
+              'requests': [
+                for (final id in waiting)
+                  if (id != deviceId) {'deviceId': id, 'username': _usernameOf(id)},
+              ],
+            });
+          }
+          if (method == 'DELETE' && target != null) {
+            // The rule the real server enforces (`enforceOwnKeyRequestAck`):
+            // a request is cleared by the device that made it, and by nobody
+            // else, so no member can starve a new device of the key.
+            if (target != deviceId) {
+              refused.add('$method $path');
+              return _json(
+                {'error': 'key_request_not_owned', 'message': 'Not your request'},
+                status: 403,
+              );
+            }
+            waiting.remove(target);
+            return _json({'cleared': true});
+          }
         }
 
         if (method == 'GET' && path.endsWith('/devices')) {
@@ -342,6 +394,10 @@ class FakeServer {
   FakeDevice _deviceById(String deviceId) => accounts.values
       .expand((account) => account.devices)
       .firstWhere((device) => device.deviceId == deviceId);
+
+  String _usernameOf(String deviceId) => accounts.entries
+      .firstWhere((entry) => entry.value.devices.any((device) => device.deviceId == deviceId))
+      .key;
 
   String _accountIdOf(FakeDevice device) =>
       accounts.values.firstWhere((account) => account.devices.contains(device)).id;

@@ -1919,6 +1919,11 @@ class AppTextFr extends AppText {
   String get contactsAddTitle => 'Ajouter un contact';
 
   @override
+  String contactsAddUsername(String username) {
+    return 'Ajouter @$username';
+  }
+
+  @override
   String get contactsAddNote =>
       'Saisissez leur nom d\'utilisateur Privio exact. Rien n\'est envoyé depuis votre carnet d\'adresses, et personne ne peut vous trouver en parcourant une liste.';
 

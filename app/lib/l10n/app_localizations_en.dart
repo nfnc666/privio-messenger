@@ -1902,6 +1902,11 @@ class AppTextEn extends AppText {
   String get contactsAddTitle => 'Add contact';
 
   @override
+  String contactsAddUsername(String username) {
+    return 'Add @$username';
+  }
+
+  @override
   String get contactsAddNote =>
       'Enter their exact Privio username. Nothing is uploaded from your address book, and nobody can find you by browsing.';
 

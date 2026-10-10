@@ -521,6 +521,7 @@
   "contactsSeenDays": "il y a {count} j",
   "contactsCouldNotAdd": "Impossible d'ajouter cet utilisateur",
   "contactsAddTitle": "Ajouter un contact",
+  "contactsAddUsername": "Ajouter @{username}",
   "contactsAddNote": "Saisissez leur nom d'utilisateur Privio exact. Rien n'est envoyé depuis votre carnet d'adresses, et personne ne peut vous trouver en parcourant une liste.",
   "contactsUsernameHint": "nom d'utilisateur",
   "contactsEmptyTitle": "Pas encore de contacts",

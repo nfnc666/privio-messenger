@@ -521,6 +521,7 @@
   "contactsSeenDays": "hace {count} d",
   "contactsCouldNotAdd": "No se ha podido añadir a ese usuario",
   "contactsAddTitle": "Añadir contacto",
+  "contactsAddUsername": "Añadir a @{username}",
   "contactsAddNote": "Escribe su nombre de usuario exacto de Privio. No se sube nada de tu agenda, y nadie puede encontrarte curioseando.",
   "contactsUsernameHint": "nombre de usuario",
   "contactsEmptyTitle": "Todavía no hay contactos",

@@ -65,15 +65,20 @@ class RealtimeConnection {
   Duration _backoff = minimumBackoff;
   bool _closed = false;
 
-  Uri get _socketUrl {
-    final scheme = baseUrl.scheme == 'https' ? 'wss' : 'ws';
-    return baseUrl.replace(
-      scheme: scheme,
-      path: '/v1/ws',
-      query: '',
-      fragment: '',
-    );
-  }
+  /// Where the socket goes: the API's host, with no query and no fragment.
+  ///
+  /// Built from parts rather than with `baseUrl.replace(query: '', fragment:
+  /// '')`, which keeps an *empty* query and fragment — `ws://host/v1/ws?#`. A
+  /// native client sends that without complaint; a browser refuses any
+  /// WebSocket URL with a fragment, so the web app never had a live connection
+  /// and saw messages only when it next polled.
+  @visibleForTesting
+  Uri get socketUrl => Uri(
+        scheme: baseUrl.scheme == 'https' ? 'wss' : 'ws',
+        host: baseUrl.host,
+        port: baseUrl.hasPort ? baseUrl.port : null,
+        path: '/v1/ws',
+      );
 
   void start() {
     if (_closed) throw StateError('This connection was already closed');
@@ -83,17 +88,29 @@ class RealtimeConnection {
   void _open() {
     _reconnect?.cancel();
     try {
-      final channel = _connect?.call(_socketUrl) ?? _defaultConnect(_socketUrl, token);
+      final url = socketUrl;
+      final channel = _connect?.call(url) ?? _defaultConnect(url, token);
       _channel = channel;
-      unawaited(channel.ready.catchError((Object _) {}));
+      // Connected means the handshake finished, not that one was started.
+      // Resetting the backoff on the attempt rather than on the success made
+      // every client retry once a second, for as long as the server was down —
+      // exactly the stampede the doubling exists to prevent.
+      unawaited(
+        channel.ready.then(
+          (_) {
+            if (!identical(_channel, channel)) return;
+            _connected.value = true;
+            _backoff = minimumBackoff;
+          },
+          onError: (Object _) {},
+        ),
+      );
       _subscription = channel.stream.listen(
         _onFrame,
         onError: (Object _) => _dropAndRetry(),
         onDone: _dropAndRetry,
         cancelOnError: true,
       );
-      _connected.value = true;
-      _backoff = minimumBackoff;
       _heartbeat = Timer.periodic(heartbeatInterval, (_) => _send({'type': 'ping'}));
     } on Object {
       _dropAndRetry();

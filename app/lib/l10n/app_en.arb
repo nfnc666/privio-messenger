@@ -903,6 +903,14 @@
   },
   "contactsCouldNotAdd": "Could not add that user",
   "contactsAddTitle": "Add contact",
+  "contactsAddUsername": "Add @{username}",
+  "@contactsAddUsername": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "contactsAddNote": "Enter their exact Privio username. Nothing is uploaded from your address book, and nobody can find you by browsing.",
   "contactsUsernameHint": "username",
   "contactsEmptyTitle": "No contacts yet",

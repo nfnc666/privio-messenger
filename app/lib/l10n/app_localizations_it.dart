@@ -1921,6 +1921,11 @@ class AppTextIt extends AppText {
   String get contactsAddTitle => 'Aggiungi contatto';
 
   @override
+  String contactsAddUsername(String username) {
+    return 'Aggiungi @$username';
+  }
+
+  @override
   String get contactsAddNote =>
       'Inserisci il loro nome utente Privio esatto. Dalla tua rubrica non viene caricato niente, e nessuno può trovarti scorrendo un elenco.';
 

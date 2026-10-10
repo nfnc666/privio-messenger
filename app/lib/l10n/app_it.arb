@@ -521,6 +521,7 @@
   "contactsSeenDays": "{count} g fa",
   "contactsCouldNotAdd": "Non è stato possibile aggiungere quell'utente",
   "contactsAddTitle": "Aggiungi contatto",
+  "contactsAddUsername": "Aggiungi @{username}",
   "contactsAddNote": "Inserisci il loro nome utente Privio esatto. Dalla tua rubrica non viene caricato niente, e nessuno può trovarti scorrendo un elenco.",
   "contactsUsernameHint": "nome utente",
   "contactsEmptyTitle": "Ancora nessun contatto",

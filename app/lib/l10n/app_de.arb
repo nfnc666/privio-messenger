@@ -521,6 +521,7 @@
   "contactsSeenDays": "vor {count} T.",
   "contactsCouldNotAdd": "Diese Person ließ sich nicht hinzufügen",
   "contactsAddTitle": "Kontakt hinzufügen",
+  "contactsAddUsername": "@{username} hinzufügen",
   "contactsAddNote": "Gib den genauen Privio-Benutzernamen ein. Aus deinem Adressbuch wird nichts hochgeladen, und niemand kann dich durch Stöbern finden.",
   "contactsUsernameHint": "Benutzername",
   "contactsEmptyTitle": "Noch keine Kontakte",

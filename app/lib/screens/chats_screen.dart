@@ -403,6 +403,25 @@ class _ChatsScreenState extends State<ChatsScreen> {
 class _EmptyChats extends StatelessWidget {
   const _EmptyChats();
 
+  static Future<void> _addAndOpen(BuildContext context) async {
+    final username = await showAddContactSheet(context);
+    if (username == null || !context.mounted) return;
+    final state = PrivioScope.of(context);
+    final accountId = await state.conversations.openConversation(username);
+    if (accountId == null || !context.mounted) return;
+    final contact = state.conversations.contacts
+        .where((c) => c.username == username)
+        .firstOrNull;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(
+          accountId: accountId,
+          title: contact?.displayName ?? username,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -423,10 +442,12 @@ class _EmptyChats extends StatelessWidget {
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: PrivioSpacing.xl),
+            // The button says "add a contact", so it asks for one, and then
+            // opens the conversation the sentence above promised. It used to
+            // open the contact list, where the obvious next move — typing the
+            // name into the search — found nobody.
             FilledButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const ContactsScreen()),
-              ),
+              onPressed: () => unawaited(_addAndOpen(context)),
               child: Text(text.chatsAddContact),
             ),
           ],

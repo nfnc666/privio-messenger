@@ -3229,6 +3229,12 @@ abstract class AppText {
   /// **'Add contact'**
   String get contactsAddTitle;
 
+  /// No description provided for @contactsAddUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Add @{username}'**
+  String contactsAddUsername(String username);
+
   /// No description provided for @contactsAddNote.
   ///
   /// In en, this message translates to:

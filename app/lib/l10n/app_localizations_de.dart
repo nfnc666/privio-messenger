@@ -1914,6 +1914,11 @@ class AppTextDe extends AppText {
   String get contactsAddTitle => 'Kontakt hinzufügen';
 
   @override
+  String contactsAddUsername(String username) {
+    return '@$username hinzufügen';
+  }
+
+  @override
   String get contactsAddNote =>
       'Gib den genauen Privio-Benutzernamen ein. Aus deinem Adressbuch wird nichts hochgeladen, und niemand kann dich durch Stöbern finden.';
 

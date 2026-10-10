@@ -753,8 +753,10 @@ class ConversationController extends ChangeNotifier {
       );
       await refreshContacts();
       return true;
-    } on ApiException catch (failure) {
-      _failure = Failure.server(failure.message);
+    } on Object catch (failure) {
+      // Not only the server's refusals: a dropped connection used to escape
+      // from here and leave the sheet that asked waiting for ever.
+      _failure = Failure.of(failure, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -775,8 +777,8 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       detached(_loadAvatars());
       return conversation.id;
-    } on ApiException catch (failure) {
-      _failure = Failure.server(failure.message);
+    } on Object catch (failure) {
+      _failure = Failure.of(failure, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return null;
     }
@@ -2862,6 +2864,10 @@ class ConversationController extends ChangeNotifier {
       _fileSavedFromOtherDevice(incoming);
       return;
     }
+    // Whoever just sent something has stopped typing it. Left alone, "typing…"
+    // stayed under their name for up to [typingLifetime] after the message it
+    // announced was already on screen.
+    _services.store.setTyping(incoming.senderAccountId, null);
     if (payload.profileKey != null) {
       // Learning someone's profile key is what makes their picture openable.
       _services.store.upsertUser(
@@ -3149,15 +3155,26 @@ class ConversationController extends ChangeNotifier {
       // where the reader is already looking at it.
       await _services.channels
           .rememberKey(scopeId, epoch, Uint8List.fromList(base64Decode(key)));
+      _acknowledgeKey('channel', scopeId);
       return;
     }
     if (payload.keyScope == 'group') {
       _services.store.upsertGroup(
         GroupInfo(groupId: scopeId, role: 'member', groupKey: key),
       );
+      _acknowledgeKey('group', scopeId);
       unawaited(refreshGroups());
     }
   }
+
+  /// Clears this device's request for a key it now holds, so the members who
+  /// hold it stop sending it again. Best effort: if it fails, the next
+  /// delivery of the same key tries again.
+  void _acknowledgeKey(String scope, String scopeId) => unawaited(
+        _services.messaging
+            .acknowledgeKey(scope: scope, scopeId: scopeId)
+            .catchError((Object _) {}),
+      );
 
   /// Files a message that arrived through a group.
   ///
@@ -3168,10 +3185,15 @@ class ConversationController extends ChangeNotifier {
       await refreshGroups();
       _services.store.upsertGroup(GroupInfo(groupId: groupId, role: 'member'));
     }
-    if (incoming.payload.groupKey != null) {
+    final carriedKey = incoming.payload.groupKey;
+    if (carriedKey != null) {
+      // A key learned from a message answers this device's request as surely
+      // as a delivery does — but only the first time, not on every message.
+      final known = groupInfo(groupId)?.groupKey;
       _services.store.upsertGroup(
-        GroupInfo(groupId: groupId, role: 'member', groupKey: incoming.payload.groupKey),
+        GroupInfo(groupId: groupId, role: 'member', groupKey: carriedKey),
       );
+      if (known != carriedKey) _acknowledgeKey('group', groupId);
       unawaited(refreshGroups());
     }
 

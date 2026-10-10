@@ -880,6 +880,34 @@ class MessagingService {
   /// speak.
   Future<void> requestGroupKey(String groupId) => _api.requestGroupKey(groupId);
 
+  /// This device's id on the server, learned once from the device list.
+  String? _ownDeviceId;
+
+  /// Tells the server this device has the key it was waiting for.
+  ///
+  /// Only the waiting device may do this: the server refuses anybody else,
+  /// because a member who could clear another device's request could starve
+  /// it of the key for good. Key holders used to try after delivering, were
+  /// refused every time, and so delivered the same key again on every pass.
+  Future<void> acknowledgeKey({required String scope, required String scopeId}) async {
+    final deviceId = _ownDeviceId ??= await _findOwnDeviceId();
+    if (deviceId == null) return;
+    if (scope == 'group') {
+      await _api.clearGroupKeyRequest(scopeId, deviceId);
+    } else if (scope == 'channel') {
+      await _api.clearChannelKeyRequest(scopeId, deviceId);
+    }
+  }
+
+  Future<String?> _findOwnDeviceId() async {
+    final response = await _api.devices();
+    for (final raw in response['devices'] as List<dynamic>? ?? const []) {
+      final device = raw as Map<String, dynamic>;
+      if (device['current'] == true) return device['id'] as String?;
+    }
+    return null;
+  }
+
   Future<int> deliverGroupKeys(String groupId, String base64Key) async {
     final response = await _api.groupKeyRequests(groupId);
     final requests = [
@@ -904,9 +932,8 @@ class MessagingService {
           scopeId: groupId,
           base64Key: base64Key,
         );
-        for (final deviceId in entry.value) {
-          await _api.clearGroupKeyRequest(groupId, deviceId);
-        }
+        // The request is the receiver's to clear, once the key has arrived —
+        // see [acknowledgeKey].
         served++;
       } on Object {
         // Retried on the next refresh rather than blocking the others.
