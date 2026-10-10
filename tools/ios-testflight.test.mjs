@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 
 const workflow = readFileSync(new URL('../.github/workflows/ios-testflight.yml', import.meta.url), 'utf8');
+
+test('native framework metadata is corrected before building and checked before upload', () => {
+  const configure = workflow.indexOf('--configure "$FLUTTER_ROOT"');
+  assert.ok(configure > 0 && configure < workflow.indexOf('- run: flutter pub get'));
+  const verify = workflow.indexOf('tools/ios_native_assets.py --verify');
+  assert.ok(verify > 0 && verify < workflow.indexOf('- name: Upload to TestFlight'));
+  execFileSync('python3', [new URL('./test_ios_native_assets.py', import.meta.url).pathname], { stdio: 'pipe' });
+});
 
 /**
  * The upload step, and the reason it has a clock on it.
