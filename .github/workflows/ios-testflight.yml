@@ -231,6 +231,15 @@ jobs:
       - run: flutter pub get
         working-directory: app
 
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      # TestFlight compiles it from scratch: nothing a previous run cached ships.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: aarch64-apple-ios
+          cache: "false"
+
       # Not a build: this writes `Generated.xcconfig` — the dart-defines, the
       # version and the build number — and runs CocoaPods. The archive below is
       # what compiles, through the Runner target's own Flutter build phase, so

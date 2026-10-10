@@ -1,0 +1,51 @@
+name: Build libsignal from source
+description: >-
+  Compiles Signal's libsignal (through the vendored Dart binding) for the given
+  Rust targets, from the pinned sources in app/third_party/libsignal_dart/rust.
+  Never downloads a native binary — see docs/sealed-sender.md and
+  app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+
+inputs:
+  targets:
+    description: Space-separated Rust target triples, or "host".
+    required: true
+  cache:
+    description: >-
+      "true" to reuse compiled dependencies between runs. Release and TestFlight
+      builds pass "false" and compile everything from scratch, so what ships is
+      never something a previous run left behind.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # libsignal's protocol crate generates its message types with prost-build,
+    # which needs protoc. From the runner's own package manager, not a
+    # third-party action.
+    - name: Install protoc (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+
+    - name: Install protoc (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew list protobuf >/dev/null 2>&1 || brew install protobuf
+
+    - name: Cache compiled dependencies
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+          app/third_party/libsignal_dart/rust/target
+        key: libsignal-${{ runner.os }}-${{ inputs.targets }}-${{ hashFiles('app/third_party/libsignal_dart/rust/Cargo.lock', 'app/third_party/libsignal_dart/rust/Cargo.toml', 'app/third_party/libsignal_dart/rust/rust-toolchain.toml', 'app/third_party/libsignal_dart/rust/src/**') }}
+
+    - name: Compile libsignal
+      shell: bash
+      # The job's default working directory does not apply inside a composite
+      # action, so the path is spelled out from the workspace.
+      run: '"${{ github.workspace }}/app/scripts/build_libsignal.sh" ${{ inputs.targets }}'

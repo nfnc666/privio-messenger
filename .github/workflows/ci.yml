@@ -89,6 +89,14 @@ jobs:
 
       - run: flutter pub get
 
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      # `flutter test` runs that hook too, for this machine.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: host
+
       - name: Analyze
         run: flutter analyze
 

@@ -1,0 +1,6 @@
+# Pinned so that what CI compiles is what was reviewed and tested: the toolchain
+# is part of the build, and an unpinned one changes under a lock file that does
+# not. 1.94.1 is the version this binding was built and tested with for Privio.
+[toolchain]
+channel = "1.94.1"
+profile = "minimal"

@@ -1,7 +1,8 @@
 # Sealed sender
 
-**Status:** design accepted. Server side implemented (this change). Client side
-not yet, see "Phases" below. Until the client ships, no message is sealed and
+**Status:** design accepted. Server side implemented. The native library is
+vendored and built from source (phase 2). The app does not seal anything yet,
+see "Phases" below. Until it does, no message is sealed and
 `docs/metadata-privacy-review.md` §6 stays true as written.
 
 ## The gap this closes
@@ -161,8 +162,15 @@ the knowledge is:
 
 1. **Server** (this change): keys and certificates, access keys, the sealed
    route, sealed envelopes on the drain, wipe clears the access key. Tested.
-2. **Native library from source:** vendor the Dart binding, CI builds libsignal
-   for Android and iOS from the pinned tag, no downloads.
+2. **Native library from source** (done): the Dart binding is vendored in
+   `app/third_party/libsignal_dart` with its provenance and review written down
+   in `PRIVIO_VENDORING.md`; its download hook is replaced by one that only
+   accepts a library compiled by `app/scripts/build_libsignal.sh` and fails the
+   build otherwise; every workflow that builds or tests the app compiles
+   libsignal first (`.github/actions/build-libsignal`), release and TestFlight
+   builds without a cache. `app/test/sealed_sender_library_test.dart` seals a
+   message from the app's existing Signal sessions and opens it again through
+   that library, on every CI run.
 3. **App:** fetch and cache the certificate, pin the trust root, derive and
    upload the access key, seal one-to-one messages when the recipient's access
    key is known, fall back to unsealed when not, open sealed envelopes, drop

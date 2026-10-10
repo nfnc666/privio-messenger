@@ -1307,7 +1307,20 @@ curl http://localhost:8080/health
 
 ### App
 
-Requirements: Flutter 3.22+.
+Requirements: Flutter 3.22+, and for any build or test run a Rust toolchain
+(`rustup`; the version is pinned) and `protoc`. Signal's libsignal, which sealed
+sender is built on, is compiled from source here and **never downloaded** —
+`app/third_party/libsignal_dart/PRIVIO_VENDORING.md` says why. Once per machine
+and target:
+
+```bash
+app/scripts/build_libsignal.sh host                    # tests on this computer
+app/scripts/build_libsignal.sh aarch64-linux-android \
+  armv7-linux-androideabi x86_64-linux-android          # Android (needs the NDK)
+app/scripts/build_libsignal.sh aarch64-apple-ios       # an iPhone (on a Mac)
+```
+
+A build without it stops and prints the command it needs.
 
 ```bash
 cd app

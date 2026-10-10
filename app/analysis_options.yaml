@@ -1,6 +1,9 @@
 analyzer:
   exclude:
     - build/**
+    # Vendored, reviewed third-party code, checked by its own upstream rather
+    # than by these lints. See third_party/libsignal_dart/PRIVIO_VENDORING.md.
+    - third_party/**
     - android/**
     - ios/**
     - web/**
