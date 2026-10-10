@@ -272,6 +272,24 @@ Covered by `app/test/group_profile_test.dart`.
 | Gi1 | As an admin, open the group's invite link and press **Renew**: a new link appears, the old link no longer opens the group, and nobody in the group is affected | | | | | not run | |
 | Gi2 | As a member, open the same dialog: the link is there and there is **no** Renew button | | | | | not run | |
 
+## 6j. Found by using the app in a browser
+
+Each of these was found by walking the web build with several accounts, fixed,
+and covered by an automated test. What a browser cannot show is the phone: the
+operating system's reduce-motion switch, a real network dropping, a real
+second device. Covered by `app/test/text_queue_test.dart`,
+`call_address_test.dart`, `ratchet_order_test.dart`, `device_list_test.dart`,
+`welcome_language_test.dart` and `motion_test.dart`.
+
+| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Wb1 | Turn on flight mode, write a message: it shows a cloud mark, no red banner. Turn flight mode off: it goes out by itself within seconds | | | | | not run | |
+| Wb2 | Call a contact whose display name differs from their username: their phone rings, and the call screen shows the display name | | | | | not run | |
+| Wb3 | Write quickly back and forth for several minutes, both typing at once: no "could not be read" notice and no "too many requests" on either side | | | | | not run | |
+| Wb4 | Sign in on a second phone, then have somebody write to you: both phones receive the message | | | | | not run | |
+| Wb5 | On the first screen pick Deutsch, create an account: the whole app is in German without visiting Settings | | | | | not run | |
+| Wb6 | Turn on Reduce motion (iOS) or Remove animations (Android): new messages, the welcome screen and the typing dots no longer move | | | | | not run | |
+
 ## 7. App states
 
 The table in `docs/notifications.md` says what each state is *supposed* to do.
@@ -358,11 +376,12 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6g Tapping an @name | 6 | 0 | 0 | 0 | 6 |
 | 6h Group picture and description | 6 | 0 | 0 | 0 | 6 |
 | 6i Renewing an invite link | 2 | 0 | 0 | 0 | 2 |
+| 6j Found in a browser walkthrough | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **119** | **0** | **0** | **0** | **119** |
+| **Total** | **125** | **0** | **0** | **0** | **125** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary
