@@ -129,8 +129,8 @@ class ChatListRow extends StatelessWidget {
                 // The count pops when it changes, so a new message in a chat
                 // further down the list is noticed without reading every row.
                 AnimatedSwitcher(
-                  duration: PrivioMotion.of(context, PrivioMotion.quick),
-                  transitionBuilder: PrivioMotion.popIn,
+                  duration: PrivioMotion.quick,
+                  transitionBuilder: PrivioMotion.swap(context),
                   child: hasUnread
                       ? Container(
                           key: ValueKey(chat.unreadCount),

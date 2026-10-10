@@ -27,6 +27,10 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   String _query = '';
 
+  /// The list comes in a row at a time when it first fills, and somebody
+  /// added later arrives on their own.
+  final _entrances = Entrances();
+
   /// Which tab was showing when this screen last looked.
   int _lastSeenTab = _contactsTab;
   static const int _contactsTab = 3;
@@ -97,6 +101,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       listenable: state.conversations,
       builder: (context, _) {
         final contacts = _visible(state.conversations.contacts);
+        _entrances.see(contacts.map((contact) => contact.id));
 
         return Scaffold(
           appBar: AppBar(
@@ -140,29 +145,32 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         itemCount: contacts.length,
                         itemBuilder: (context, index) {
                           final contact = contacts[index];
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: PrivioSpacing.gutter,
-                              vertical: PrivioSpacing.xs,
+                          return _entrances.wrap(
+                            id: contact.id,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: PrivioSpacing.gutter,
+                                vertical: PrivioSpacing.xs,
+                              ),
+                              leading: PrivioAvatar(
+                                label: contact.displayName,
+                                seed: contact.avatarSeed,
+                                imageBytes: contact.avatarBytes,
+                              ),
+                              title: Text(
+                                contact.displayName,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              subtitle: Text(
+                                _subtitleFor(AppText.of(context), contact),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right_rounded,
+                                color: PrivioColors.textTertiary,
+                              ),
+                              onTap: () => _openChat(contact),
                             ),
-                            leading: PrivioAvatar(
-                              label: contact.displayName,
-                              seed: contact.avatarSeed,
-                              imageBytes: contact.avatarBytes,
-                            ),
-                            title: Text(
-                              contact.displayName,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            subtitle: Text(
-                              _subtitleFor(AppText.of(context), contact),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            trailing: const Icon(
-                              Icons.chevron_right_rounded,
-                              color: PrivioColors.textTertiary,
-                            ),
-                            onTap: () => _openChat(contact),
                           );
                         },
                       ),

@@ -75,16 +75,22 @@ class NavShell extends StatefulWidget {
 class _NavShellState extends State<NavShell> with SingleTickerProviderStateMixin {
   int _index = 0;
 
-  /// A tab arrives by fading up from the black behind it, quickly. A cut
-  /// between two lists that look alike reads as nothing having happened.
+  /// A tab arrives by fading up from the black behind it as it rises into
+  /// place. A cut between two lists that look alike reads as nothing having
+  /// happened.
   late final AnimationController _arrive = AnimationController(
     vsync: this,
-    duration: PrivioMotion.quick,
+    duration: PrivioMotion.standard,
     value: 1,
+  );
+  late final CurvedAnimation _arriving = CurvedAnimation(
+    parent: _arrive,
+    curve: PrivioMotion.enter,
   );
 
   @override
   void dispose() {
+    _arriving.dispose();
     _arrive.dispose();
     super.dispose();
   }
@@ -96,10 +102,21 @@ class _NavShellState extends State<NavShell> with SingleTickerProviderStateMixin
 
     return Scaffold(
       body: FadeTransition(
-        opacity: CurvedAnimation(parent: _arrive, curve: PrivioMotion.enter),
-        child: IndexedStack(
-          index: _index,
-          children: [for (final destination in destinations) destination.builder(context)],
+        opacity: _arriving,
+        child: AnimatedBuilder(
+          animation: _arriving,
+          builder: (context, child) => Transform.translate(
+            // With motion reduced the fade stays and the rise goes.
+            offset: Offset(
+              0,
+              PrivioMotion.reduced(context) ? 0 : (1 - _arriving.value) * PrivioMotion.rise,
+            ),
+            child: child,
+          ),
+          child: IndexedStack(
+            index: _index,
+            children: [for (final destination in destinations) destination.builder(context)],
+          ),
         ),
       ),
       bottomNavigationBar: DecoratedBox(
@@ -109,8 +126,10 @@ class _NavShellState extends State<NavShell> with SingleTickerProviderStateMixin
         child: BottomNavigationBar(
           currentIndex: _index,
           onTap: (index) {
-            if (index != _index && !PrivioMotion.reduced(context)) {
-              _arrive.forward(from: 0.2);
+            if (index != _index) {
+              _arrive.duration =
+                  PrivioMotion.reduced(context) ? PrivioMotion.quick : PrivioMotion.standard;
+              _arrive.forward(from: 0);
             }
             setState(() => _index = index);
             // Told rather than inferred, so a screen the stack is keeping
@@ -121,12 +140,33 @@ class _NavShellState extends State<NavShell> with SingleTickerProviderStateMixin
             for (final destination in destinations)
               BottomNavigationBarItem(
                 icon: Icon(destination.icon),
-                activeIcon: Icon(destination.activeIcon),
+                // Pops as it is chosen, so the eye goes to where it is now.
+                activeIcon: _Chosen(child: Icon(destination.activeIcon)),
                 label: destination.label(text),
               ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// An icon that grows into place as its tab is chosen — or simply is there,
+/// when the device asks for less motion.
+class _Chosen extends StatelessWidget {
+  const _Chosen({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (PrivioMotion.reduced(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.6, end: 1),
+      duration: PrivioMotion.standard,
+      curve: PrivioMotion.pop,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: child,
     );
   }
 }
