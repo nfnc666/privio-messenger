@@ -1272,10 +1272,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _call(AppState state, CallMedia media) => state.services.calls.place(
-        CallParty(accountId: widget.accountId, username: widget.title),
-        media: media,
-      );
+  /// Calls the person this chat is with — by their username, which is what
+  /// a call is addressed to, and never by the title on screen.
+  Future<void> _call(AppState state, CallMedia media) async {
+    final user = state.services.store.conversationWith(widget.accountId)?.user;
+    if (user == null) return;
+    await state.services.calls.place(
+      CallParty(accountId: widget.accountId, username: user.username, displayName: user.displayName),
+      media: media,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -141,7 +141,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
   Future<void> _call(ContactProfile profile, CallMedia media) async {
     if (!_controller!.active || _controller!.busy || profile.isBlocked) return;
     await PrivioScope.of(context).services.calls.place(
-      CallParty(accountId: profile.id, username: profile.username), media: media,
+      CallParty(
+        accountId: profile.id,
+        username: profile.username,
+        displayName: profile.displayName,
+      ),
+      media: media,
     );
   }
 
