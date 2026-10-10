@@ -1221,6 +1221,10 @@ class AppTextEn extends AppText {
   String get textSizeLarger => 'Larger';
 
   @override
+  String get notificationsWebNote =>
+      'In a browser, Privio has no push notifications. Messages arrive while this tab is open, and otherwise the next time you open it. Nothing is sent to wake it, so nobody else learns when you have mail either.';
+
+  @override
   String get notificationsPushNote =>
       'A push carries no content — only a wake-up. The message is fetched and decrypted on this device, so nobody in the middle, including whoever runs the service that woke it, sees who wrote to you.';
 
@@ -4233,6 +4237,9 @@ class AppTextEn extends AppText {
       'Paste the link or the code somebody sent you.';
 
   @override
+  String get stickersLinkLabel => 'Link or code';
+
+  @override
   String get stickersOpen => 'Open';
 
   @override
@@ -4354,7 +4361,7 @@ class AppTextEn extends AppText {
 
   @override
   String get failureContactsPermissionDenied =>
-      'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.';
+      'Privio has no access to your contacts. You can still add people by their Privio ID or an invite link.';
 
   @override
   String get channelVerifiedTooltip => 'Official Privio channel';
@@ -4367,7 +4374,7 @@ class AppTextEn extends AppText {
 
   @override
   String get phoneFieldExplain =>
-      'Link your phone number so contacts can find you. You can use PRIVIO without a phone number too.';
+      'Link your phone number so contacts can find you. You can use Privio without a phone number too.';
 
   @override
   String get phoneCountryCode => 'Country code';
@@ -4418,14 +4425,14 @@ class AppTextEn extends AppText {
 
   @override
   String get phoneDiscoverableExplain =>
-      'Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your PRIVIO account.';
+      'Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your Privio account.';
 
   @override
   String get phoneContactSync => 'Sync device contacts';
 
   @override
   String get phoneContactSyncExplain =>
-      'Off unless you switch it on. PRIVIO reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a PRIVIO account. Names, notes and the address book itself are never sent and never stored on the server.';
+      'Off unless you switch it on. Privio reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a Privio account. Names, notes and the address book itself are never sent and never stored on the server.';
 
   @override
   String get phoneSyncNow => 'Match contacts now';
@@ -4438,7 +4445,7 @@ class AppTextEn extends AppText {
       other: 'Found $count people.',
       one: 'Found 1 person.',
       zero:
-          'Nobody from your contacts is on PRIVIO, or nobody has switched on being found.',
+          'Nobody from your contacts is on Privio, or nobody has switched on being found.',
     );
     return '$_temp0';
   }

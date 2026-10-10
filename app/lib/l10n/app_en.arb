@@ -515,6 +515,7 @@
   "textSizeMedium": "Medium",
   "textSizeLarge": "Large",
   "textSizeLarger": "Larger",
+  "notificationsWebNote": "In a browser, Privio has no push notifications. Messages arrive while this tab is open, and otherwise the next time you open it. Nothing is sent to wake it, so nobody else learns when you have mail either.",
   "notificationsPushNote": "A push carries no content — only a wake-up. The message is fetched and decrypted on this device, so nobody in the middle, including whoever runs the service that woke it, sees who wrote to you.",
   "notificationsPhoneNote": "Sound, vibration, the light and whether anything shows on the lock screen belong to your phone's own settings for Privio, not to this screen.",
   "notificationsDelivery": "Delivery",
@@ -2032,6 +2033,7 @@
   "stickersPreviewTitle": "Sticker pack",
   "stickersOpenLinkTitle": "Open a pack link",
   "stickersOpenLinkHint": "Paste the link or the code somebody sent you.",
+  "stickersLinkLabel": "Link or code",
   "stickersOpen": "Open",
   "stickersKindSticker": "Stickers",
   "stickersKindEmoji": "Custom emoji",
@@ -2077,11 +2079,11 @@
   "@failureMentionUnknownUser": {
     "description": "Shown when an @username in a message cannot be resolved to an account."
   },
-  "failureContactsPermissionDenied": "Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.",
+  "failureContactsPermissionDenied": "Privio has no access to your contacts. You can still add people by their Privio ID or an invite link.",
   "channelVerifiedTooltip": "Official Privio channel",
   "phoneFieldLabel": "Phone number (optional)",
   "phoneFieldHint": "Phone number (optional)",
-  "phoneFieldExplain": "Link your phone number so contacts can find you. You can use PRIVIO without a phone number too.",
+  "phoneFieldExplain": "Link your phone number so contacts can find you. You can use Privio without a phone number too.",
   "phoneCountryCode": "Country code",
   "phoneVerifyTitle": "Confirm your number",
   "phoneVerifySent": "We sent a code to {hint}.",
@@ -2110,11 +2112,11 @@
   "phoneRemove": "Remove number",
   "phoneRemoveExplain": "The number and the link the server keeps for finding you are both deleted. Your chats are untouched.",
   "phoneDiscoverable": "Be found by my phone number",
-  "phoneDiscoverableExplain": "Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your PRIVIO account.",
+  "phoneDiscoverableExplain": "Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your Privio account.",
   "phoneContactSync": "Sync device contacts",
-  "phoneContactSyncExplain": "Off unless you switch it on. PRIVIO reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a PRIVIO account. Names, notes and the address book itself are never sent and never stored on the server.",
+  "phoneContactSyncExplain": "Off unless you switch it on. Privio reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a Privio account. Names, notes and the address book itself are never sent and never stored on the server.",
   "phoneSyncNow": "Match contacts now",
-  "phoneSyncFound": "{count, plural, =0{Nobody from your contacts is on PRIVIO, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}",
+  "phoneSyncFound": "{count, plural, =0{Nobody from your contacts is on Privio, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}",
   "@phoneSyncFound": {
     "placeholders": {
       "count": {

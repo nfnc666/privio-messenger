@@ -1076,7 +1076,7 @@ class AppTextIt extends AppText {
 
   @override
   String get livestreamNotSetUpBody =>
-      'Una diretta ha bisogno di un server multimediale: una persona invia il video e tutte le altre lo ricevono, cosa che non si può fare da dispositivo a dispositivo come in una chiamata.\n\nQuesto server PRIVIO non ne ha nessuno configurato, quindi non c\'è ancora niente a cui unirsi. Chi lo gestisce può configurarne uno.';
+      'Una diretta ha bisogno di un server multimediale: una persona invia il video e tutte le altre lo ricevono, cosa che non si può fare da dispositivo a dispositivo come in una chiamata.\n\nQuesto server Privio non ne ha nessuno configurato, quindi non c\'è ancora niente a cui unirsi. Chi lo gestisce può configurarne uno.';
 
   @override
   String get livestreamYouAreLive => 'Sei in diretta';
@@ -1086,11 +1086,11 @@ class AppTextIt extends AppText {
 
   @override
   String get livestreamPublisherBody =>
-      'La stanza è aperta e il tuo dispositivo ha un token per trasmettere. PRIVIO non trasporta ancora il video vero e proprio — lo fa il server multimediale — quindi da questa schermata non viene inviato niente.\n\nTerminala quando hai finito.';
+      'La stanza è aperta e il tuo dispositivo ha un token per trasmettere. Privio non trasporta ancora il video vero e proprio — lo fa il server multimediale — quindi da questa schermata non viene inviato niente.\n\nTerminala quando hai finito.';
 
   @override
   String get livestreamViewerBody =>
-      'È in corso una diretta e questo dispositivo ha un token per guardarla. PRIVIO non può ancora mostrare il video.';
+      'È in corso una diretta e questo dispositivo ha un token per guardarla. Privio non può ancora mostrare il video.';
 
   @override
   String get livestreamEndIt => 'Terminala';
@@ -1111,12 +1111,12 @@ class AppTextIt extends AppText {
 
   @override
   String visibilityPublicBody(String handle) {
-    return 'Chiunque può trovarlo per nome e leggere i suoi post. Il suo nome utente è @$handle.\n\nPRIVIO non può rendere privato un canale pubblico a posteriori: il suo nome e la sua descrizione sono stati leggibili, e disdire questo non è qualcosa che un\'app possa fare.';
+    return 'Chiunque può trovarlo per nome e leggere i suoi post. Il suo nome utente è @$handle.\n\nPrivio non può rendere privato un canale pubblico a posteriori: il suo nome e la sua descrizione sono stati leggibili, e disdire questo non è qualcosa che un\'app possa fare.';
   }
 
   @override
   String get visibilityPrivateBody =>
-      'Non è elencato, non è ricercabile e si raggiunge solo tramite il suo link di invito. Il suo nome è cifrato con la chiave del canale.\n\nRenderlo pubblico pubblicherebbe quel nome, e questa non è una decisione che PRIVIO prende per te: crea invece un canale pubblico.';
+      'Non è elencato, non è ricercabile e si raggiunge solo tramite il suo link di invito. Il suo nome è cifrato con la chiave del canale.\n\nRenderlo pubblico pubblicherebbe quel nome, e questa non è una decisione che Privio prende per te: crea invece un canale pubblico.';
 
   @override
   String get discussionBody =>
@@ -1229,6 +1229,10 @@ class AppTextIt extends AppText {
 
   @override
   String get textSizeLarger => 'Più grande';
+
+  @override
+  String get notificationsWebNote =>
+      'In un browser, Privio non ha notifiche push. I messaggi arrivano finché questa scheda è aperta, altrimenti alla prossima apertura. Non viene inviato nulla per risvegliarla, quindi nessun altro sa quando ricevi posta.';
 
   @override
   String get notificationsPushNote =>
@@ -4282,6 +4286,9 @@ class AppTextIt extends AppText {
       'Incolla il link o il codice che ti hanno mandato.';
 
   @override
+  String get stickersLinkLabel => 'Link o codice';
+
+  @override
   String get stickersOpen => 'Apri';
 
   @override
@@ -4354,11 +4361,11 @@ class AppTextIt extends AppText {
 
   @override
   String get failurePhoneInvalid =>
-      'Questo non è un numero di telefono che PRIVIO può usare. Indica il prefisso del paese, ad esempio +39.';
+      'Questo non è un numero di telefono che Privio può usare. Indica il prefisso del paese, ad esempio +39.';
 
   @override
   String get failurePhoneSmsUnavailable =>
-      'Questo server non può ancora inviare SMS, quindi qui non è possibile verificare un numero. Puoi continuare a usare PRIVIO senza.';
+      'Questo server non può ancora inviare SMS, quindi qui non è possibile verificare un numero. Puoi continuare a usare Privio senza.';
 
   @override
   String get failurePhoneDiscoveryUnavailable =>
@@ -4377,7 +4384,7 @@ class AppTextIt extends AppText {
 
   @override
   String get failurePhoneTooManySends =>
-      'PRIVIO ha inviato questo codice tutte le volte che lo fa. Riprova più tardi.';
+      'Privio ha inviato questo codice tutte le volte che lo fa. Riprova più tardi.';
 
   @override
   String get failurePhoneResendTooSoon =>
@@ -4396,7 +4403,7 @@ class AppTextIt extends AppText {
 
   @override
   String get failurePhoneLookupBudgetSpent =>
-      'Oggi PRIVIO ha confrontato per questo account tutti i numeri che confronta. Riprova domani.';
+      'Oggi Privio ha confrontato per questo account tutti i numeri che confronta. Riprova domani.';
 
   @override
   String get failureMentionUnknownUser =>
@@ -4404,10 +4411,10 @@ class AppTextIt extends AppText {
 
   @override
   String get failureContactsPermissionDenied =>
-      'PRIVIO non ha accesso ai tuoi contatti. Puoi comunque aggiungere persone con il loro PRIVIO ID o un link di invito.';
+      'Privio non ha accesso ai tuoi contatti. Puoi comunque aggiungere persone con il loro Privio ID o un link di invito.';
 
   @override
-  String get channelVerifiedTooltip => 'Canale ufficiale PRIVIO';
+  String get channelVerifiedTooltip => 'Canale ufficiale Privio';
 
   @override
   String get phoneFieldLabel => 'Numero di telefono (facoltativo)';
@@ -4417,7 +4424,7 @@ class AppTextIt extends AppText {
 
   @override
   String get phoneFieldExplain =>
-      'Collega il tuo numero di telefono così i contatti possono trovarti. Puoi usare PRIVIO anche senza numero di telefono.';
+      'Collega il tuo numero di telefono così i contatti possono trovarti. Puoi usare Privio anche senza numero di telefono.';
 
   @override
   String get phoneCountryCode => 'Prefisso del paese';
@@ -4468,14 +4475,14 @@ class AppTextIt extends AppText {
 
   @override
   String get phoneDiscoverableExplain =>
-      'Disattivato finché non lo attivi. Quando è attivo, chi ha il tuo numero in rubrica vede il tuo account PRIVIO.';
+      'Disattivato finché non lo attivi. Quando è attivo, chi ha il tuo numero in rubrica vede il tuo account Privio.';
 
   @override
   String get phoneContactSync => 'Sincronizza i contatti del dispositivo';
 
   @override
   String get phoneContactSyncExplain =>
-      'Disattivato finché non lo attivi. PRIVIO legge i numeri di telefono dei tuoi contatti, trasforma ciascuno in un valore illeggibile su questo dispositivo e chiede al server quali appartengono a un account PRIVIO. I nomi, le note e la rubrica stessa non vengono mai inviati né conservati sul server.';
+      'Disattivato finché non lo attivi. Privio legge i numeri di telefono dei tuoi contatti, trasforma ciascuno in un valore illeggibile su questo dispositivo e chiede al server quali appartengono a un account Privio. I nomi, le note e la rubrica stessa non vengono mai inviati né conservati sul server.';
 
   @override
   String get phoneSyncNow => 'Confronta i contatti adesso';
@@ -4488,7 +4495,7 @@ class AppTextIt extends AppText {
       other: '$count persone trovate.',
       one: '1 persona trovata.',
       zero:
-          'Nessuno dei tuoi contatti è su PRIVIO, oppure nessuno ha attivato la ricerca.',
+          'Nessuno dei tuoi contatti è su Privio, oppure nessuno ha attivato la ricerca.',
     );
     return '$_temp0';
   }

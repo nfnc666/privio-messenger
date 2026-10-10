@@ -2089,6 +2089,12 @@ abstract class AppText {
   /// **'Larger'**
   String get textSizeLarger;
 
+  /// No description provided for @notificationsWebNote.
+  ///
+  /// In en, this message translates to:
+  /// **'In a browser, Privio has no push notifications. Messages arrive while this tab is open, and otherwise the next time you open it. Nothing is sent to wake it, so nobody else learns when you have mail either.'**
+  String get notificationsWebNote;
+
   /// No description provided for @notificationsPushNote.
   ///
   /// In en, this message translates to:
@@ -7231,6 +7237,12 @@ abstract class AppText {
   /// **'Paste the link or the code somebody sent you.'**
   String get stickersOpenLinkHint;
 
+  /// No description provided for @stickersLinkLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Link or code'**
+  String get stickersLinkLabel;
+
   /// No description provided for @stickersOpen.
   ///
   /// In en, this message translates to:
@@ -7444,7 +7456,7 @@ abstract class AppText {
   /// No description provided for @failureContactsPermissionDenied.
   ///
   /// In en, this message translates to:
-  /// **'Privio has no access to your contacts. You can still add people by their PRIVIO ID or an invite link.'**
+  /// **'Privio has no access to your contacts. You can still add people by their Privio ID or an invite link.'**
   String get failureContactsPermissionDenied;
 
   /// No description provided for @channelVerifiedTooltip.
@@ -7468,7 +7480,7 @@ abstract class AppText {
   /// No description provided for @phoneFieldExplain.
   ///
   /// In en, this message translates to:
-  /// **'Link your phone number so contacts can find you. You can use PRIVIO without a phone number too.'**
+  /// **'Link your phone number so contacts can find you. You can use Privio without a phone number too.'**
   String get phoneFieldExplain;
 
   /// No description provided for @phoneCountryCode.
@@ -7558,7 +7570,7 @@ abstract class AppText {
   /// No description provided for @phoneDiscoverableExplain.
   ///
   /// In en, this message translates to:
-  /// **'Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your PRIVIO account.'**
+  /// **'Off unless you switch it on. When it is on, somebody who has your number in their contacts sees your Privio account.'**
   String get phoneDiscoverableExplain;
 
   /// No description provided for @phoneContactSync.
@@ -7570,7 +7582,7 @@ abstract class AppText {
   /// No description provided for @phoneContactSyncExplain.
   ///
   /// In en, this message translates to:
-  /// **'Off unless you switch it on. PRIVIO reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a PRIVIO account. Names, notes and the address book itself are never sent and never stored on the server.'**
+  /// **'Off unless you switch it on. Privio reads the phone numbers in your contacts, turns each one into an unreadable value on this device, and asks the server which of them belong to a Privio account. Names, notes and the address book itself are never sent and never stored on the server.'**
   String get phoneContactSyncExplain;
 
   /// No description provided for @phoneSyncNow.
@@ -7582,7 +7594,7 @@ abstract class AppText {
   /// No description provided for @phoneSyncFound.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{Nobody from your contacts is on PRIVIO, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}'**
+  /// **'{count, plural, =0{Nobody from your contacts is on Privio, or nobody has switched on being found.} =1{Found 1 person.} other{Found {count} people.}}'**
   String phoneSyncFound(int count);
 
   /// No description provided for @phoneImportedRemove.

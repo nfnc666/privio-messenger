@@ -231,10 +231,14 @@ class WakeUpController extends ChangeNotifier {
   NotificationPermission get permission => _permission;
 
   /// True for the builds that may use a push service at all.
-  bool get isOffered => _edition.pushProvider != null;
+  bool get isOffered => provider != null;
 
   /// Which service this build would register with, if any.
-  String? get provider => _edition.pushProvider;
+  ///
+  /// None in a browser, whatever the edition: a web build made as the App
+  /// Store edition believed it had Apple's push, offered the Android
+  /// distributor switch, and said iOS had issued no token.
+  String? get provider => kIsWeb ? null : _edition.pushProvider;
 
   /// True where the operating system runs the push service itself, so there is
   /// no choice to put in front of the user and nothing to install.

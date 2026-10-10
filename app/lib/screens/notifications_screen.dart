@@ -78,6 +78,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 onTap: _openSettings,
               ),
             ]),
+          ] else if (kIsWeb) ...[
+            Padding(
+              padding: const EdgeInsets.all(PrivioSpacing.xxl),
+              child: Text(text.notificationsWebNote,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
           ] else ...[
             if (wakeUp.isOffered)
               ListenableBuilder(

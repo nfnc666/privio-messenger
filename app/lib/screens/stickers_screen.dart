@@ -75,6 +75,10 @@ class _StickersScreenState extends State<StickersScreen> {
       title: text.stickersOpenLinkTitle,
       confirm: text.stickersOpen,
       hint: text.stickersOpenLinkHint,
+      // A link, not a name: it was labelled "Name" and counted to 64, both
+      // borrowed from the dialog that names a pack.
+      label: text.stickersLinkLabel,
+      maxLength: null,
     );
     if (entered == null || !mounted) return;
 
@@ -235,6 +239,8 @@ Future<String?> _askForName(
   required String confirm,
   String? hint,
   String? initial,
+  String? label,
+  int? maxLength = 64,
 }) async {
   final text = AppText.of(context);
   final field = TextEditingController(text: initial ?? '');
@@ -246,9 +252,9 @@ Future<String?> _askForName(
         content: TextField(
           controller: field,
           autofocus: true,
-          maxLength: 64,
+          maxLength: maxLength,
           decoration: InputDecoration(
-            labelText: text.stickersNameLabel,
+            labelText: label ?? text.stickersNameLabel,
             hintText: hint ?? text.stickersNameHint,
           ),
           onSubmitted: (value) => Navigator.of(context).pop(value),

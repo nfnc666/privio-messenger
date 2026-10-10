@@ -72,6 +72,10 @@ class SettingsRow extends StatelessWidget {
               const SizedBox(width: PrivioSpacing.md),
             ],
             Expanded(
+              // The label before the value: three parts to its two. At equal
+              // halves, "Telefonnummer hinzufügen" beside "Keine Nummer
+              // verknüpft" broke into "Telefonnumm" and "er" at large text.
+              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -93,11 +97,12 @@ class SettingsRow extends StatelessWidget {
               ),
             ),
             if (value != null)
-              // Flexible, and at most half the row. Unbounded, a long value
-              // took the whole width and pressed the label into a column one
-              // letter wide — a channel description did exactly that on a
+              // Flexible, and at most two fifths of the row. Unbounded, a long
+              // value took the whole width and pressed the label into a column
+              // one letter wide — a channel description did exactly that on a
               // phone with large text.
               Flexible(
+                flex: 2,
                 child: Padding(
                   padding: const EdgeInsets.only(left: PrivioSpacing.sm),
                   child: Text(

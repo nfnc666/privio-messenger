@@ -1228,6 +1228,10 @@ class AppTextDe extends AppText {
   String get textSizeLarger => 'Größer';
 
   @override
+  String get notificationsWebNote =>
+      'Im Browser hat Privio keine Push-Benachrichtigungen. Nachrichten kommen an, solange dieser Tab offen ist, und sonst beim nächsten Öffnen. Es wird nichts gesendet, um ihn zu wecken – so erfährt auch niemand sonst, wann du Post bekommst.';
+
+  @override
   String get notificationsPushNote =>
       'Eine Push-Nachricht trägt keinen Inhalt — nur ein Wecksignal. Die Nachricht wird auf diesem Gerät geholt und entschlüsselt, niemand dazwischen sieht also, wer dir geschrieben hat, auch nicht der Betreiber des Dienstes, der geweckt hat.';
 
@@ -4013,7 +4017,7 @@ class AppTextDe extends AppText {
   String get accentYellow => 'Gelb';
 
   @override
-  String get accentPrivioDefault => 'PRIVIO-Standard';
+  String get accentPrivioDefault => 'Privio-Standard';
 
   @override
   String get appearanceAccentReset => 'Auf Standard zurücksetzen';
@@ -4275,6 +4279,9 @@ class AppTextDe extends AppText {
       'Füge den Link oder den Code ein, den dir jemand geschickt hat.';
 
   @override
+  String get stickersLinkLabel => 'Link oder Code';
+
+  @override
   String get stickersOpen => 'Öffnen';
 
   @override
@@ -4346,11 +4353,11 @@ class AppTextDe extends AppText {
 
   @override
   String get failurePhoneInvalid =>
-      'Das ist keine Telefonnummer, die PRIVIO verwenden kann. Gib die Ländervorwahl an, zum Beispiel +49.';
+      'Das ist keine Telefonnummer, die Privio verwenden kann. Gib die Ländervorwahl an, zum Beispiel +49.';
 
   @override
   String get failurePhoneSmsUnavailable =>
-      'Dieser Server kann noch keine SMS senden, eine Nummer lässt sich hier also nicht bestätigen. Du kannst PRIVIO weiterhin ohne Nummer nutzen.';
+      'Dieser Server kann noch keine SMS senden, eine Nummer lässt sich hier also nicht bestätigen. Du kannst Privio weiterhin ohne Nummer nutzen.';
 
   @override
   String get failurePhoneDiscoveryUnavailable =>
@@ -4369,7 +4376,7 @@ class AppTextDe extends AppText {
 
   @override
   String get failurePhoneTooManySends =>
-      'PRIVIO hat diesen Code so oft gesendet, wie es das tut. Versuch es später noch einmal.';
+      'Privio hat diesen Code so oft gesendet, wie es das tut. Versuch es später noch einmal.';
 
   @override
   String get failurePhoneResendTooSoon =>
@@ -4388,7 +4395,7 @@ class AppTextDe extends AppText {
 
   @override
   String get failurePhoneLookupBudgetSpent =>
-      'PRIVIO hat heute für dieses Konto so viele Nummern abgeglichen, wie es das tut. Versuch es morgen wieder.';
+      'Privio hat heute für dieses Konto so viele Nummern abgeglichen, wie es das tut. Versuch es morgen wieder.';
 
   @override
   String get failureMentionUnknownUser =>
@@ -4396,10 +4403,10 @@ class AppTextDe extends AppText {
 
   @override
   String get failureContactsPermissionDenied =>
-      'PRIVIO hat keinen Zugriff auf deine Kontakte. Du kannst Leute weiterhin über ihre PRIVIO-ID oder einen Einladungslink hinzufügen.';
+      'Privio hat keinen Zugriff auf deine Kontakte. Du kannst Leute weiterhin über ihre Privio-ID oder einen Einladungslink hinzufügen.';
 
   @override
-  String get channelVerifiedTooltip => 'Offizieller PRIVIO-Kanal';
+  String get channelVerifiedTooltip => 'Offizieller Privio-Kanal';
 
   @override
   String get phoneFieldLabel => 'Telefonnummer (optional)';
@@ -4409,7 +4416,7 @@ class AppTextDe extends AppText {
 
   @override
   String get phoneFieldExplain =>
-      'Verknüpfe deine Telefonnummer, damit Kontakte dich finden können. Du kannst PRIVIO auch ohne Telefonnummer nutzen.';
+      'Verknüpfe deine Telefonnummer, damit Kontakte dich finden können. Du kannst Privio auch ohne Telefonnummer nutzen.';
 
   @override
   String get phoneCountryCode => 'Ländervorwahl';
@@ -4460,14 +4467,14 @@ class AppTextDe extends AppText {
 
   @override
   String get phoneDiscoverableExplain =>
-      'Aus, solange du es nicht einschaltest. Wenn es an ist, sieht jemand mit deiner Nummer im Adressbuch dein PRIVIO-Konto.';
+      'Aus, solange du es nicht einschaltest. Wenn es an ist, sieht jemand mit deiner Nummer im Adressbuch dein Privio-Konto.';
 
   @override
   String get phoneContactSync => 'Gerätekontakte synchronisieren';
 
   @override
   String get phoneContactSyncExplain =>
-      'Aus, solange du es nicht einschaltest. PRIVIO liest die Telefonnummern aus deinen Kontakten, wandelt jede auf diesem Gerät in einen unlesbaren Wert um und fragt den Server, welche davon zu einem PRIVIO-Konto gehören. Namen, Notizen und das Adressbuch selbst werden nie gesendet und nie auf dem Server gespeichert.';
+      'Aus, solange du es nicht einschaltest. Privio liest die Telefonnummern aus deinen Kontakten, wandelt jede auf diesem Gerät in einen unlesbaren Wert um und fragt den Server, welche davon zu einem Privio-Konto gehören. Namen, Notizen und das Adressbuch selbst werden nie gesendet und nie auf dem Server gespeichert.';
 
   @override
   String get phoneSyncNow => 'Kontakte jetzt abgleichen';
@@ -4480,7 +4487,7 @@ class AppTextDe extends AppText {
       other: '$count Personen gefunden.',
       one: '1 Person gefunden.',
       zero:
-          'Niemand aus deinen Kontakten ist bei PRIVIO, oder niemand hat das Auffinden eingeschaltet.',
+          'Niemand aus deinen Kontakten ist bei Privio, oder niemand hat das Auffinden eingeschaltet.',
     );
     return '$_temp0';
   }
@@ -4523,24 +4530,24 @@ class AppTextDe extends AppText {
 
   @override
   String get photoNoCamera =>
-      'Auf diesem Gerät gibt es keine Kamera, die PRIVIO öffnen kann.';
+      'Auf diesem Gerät gibt es keine Kamera, die Privio öffnen kann.';
 
   @override
-  String get photoCameraRefused => 'PRIVIO darf die Kamera nicht verwenden';
+  String get photoCameraRefused => 'Privio darf die Kamera nicht verwenden';
 
   @override
-  String get photoLibraryRefused => 'PRIVIO darf deine Fotos nicht öffnen';
+  String get photoLibraryRefused => 'Privio darf deine Fotos nicht öffnen';
 
   @override
   String get photoAllowInSettings =>
-      'Das System fragt nur einmal. In den Systemeinstellungen kannst du es auf der Seite von PRIVIO erlauben.';
+      'Das System fragt nur einmal. In den Systemeinstellungen kannst du es auf der Seite von Privio erlauben.';
 
   @override
   String get photoOpenSettings => 'Einstellungen öffnen';
 
   @override
   String get photoSettingsFailed =>
-      'Die Einstellungen liessen sich nicht öffnen. Öffne sie selbst und erlaube es für PRIVIO.';
+      'Die Einstellungen liessen sich nicht öffnen. Öffne sie selbst und erlaube es für Privio.';
 
   @override
   String photoFailed(String detail) {
@@ -4548,7 +4555,7 @@ class AppTextDe extends AppText {
   }
 
   @override
-  String get photoNoneReadable => 'PRIVIO konnte keines dieser Bilder lesen.';
+  String get photoNoneReadable => 'Privio konnte keines dieser Bilder lesen.';
 
   @override
   String photoSomeLeftOut(int count) {
@@ -4580,7 +4587,7 @@ class AppTextDe extends AppText {
 
   @override
   String get securityActivityNote =>
-      'Diese Liste liegt nur auf diesem Telefon, verschlüsselt mit demselben Schlüssel wie deine Nachrichten. Die Server von PRIVIO führen kein Aktivitätsprotokoll — das heisst auch: Was ein anderes deiner Geräte gesehen hat, steht dort und nicht hier.';
+      'Diese Liste liegt nur auf diesem Telefon, verschlüsselt mit demselben Schlüssel wie deine Nachrichten. Die Server von Privio führen kein Aktivitätsprotokoll — das heisst auch: Was ein anderes deiner Geräte gesehen hat, steht dort und nicht hier.';
 
   @override
   String get securityActivityNothingSensitive =>
@@ -4660,7 +4667,7 @@ class AppTextDe extends AppText {
 
   @override
   String get safetyScanNoCamera =>
-      'PRIVIO kann die Kamera nicht öffnen. Vergleicht stattdessen die Ziffern.';
+      'Privio kann die Kamera nicht öffnen. Vergleicht stattdessen die Ziffern.';
 
   @override
   String get safetyScanFailed =>
@@ -4765,7 +4772,7 @@ class AppTextDe extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'Der Inhalt ist verschlüsselt; dass eine Nachricht von dir an jemanden ging und wann, ist es nicht. Der Server von PRIVIO sieht das, weil er sie zustellen muss.';
+      'Der Inhalt ist verschlüsselt; dass eine Nachricht von dir an jemanden ging und wann, ist es nicht. Der Server von Privio sieht das, weil er sie zustellen muss.';
 
   @override
   String get privacyOverview => 'Übersicht';
@@ -4785,15 +4792,15 @@ class AppTextDe extends AppText {
 
   @override
   String get contactMatchNobody =>
-      'Aus deinem Adressbuch ist noch niemand bei PRIVIO, oder die Betreffenden haben „Über Rufnummer auffindbar“ nicht eingeschaltet.';
+      'Aus deinem Adressbuch ist noch niemand bei Privio, oder die Betreffenden haben „Über Rufnummer auffindbar“ nicht eingeschaltet.';
 
   @override
   String contactMatchFound(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count Kontakte bei PRIVIO',
-      one: '1 Kontakt bei PRIVIO',
+      other: '$count Kontakte bei Privio',
+      one: '1 Kontakt bei Privio',
     );
     return '$_temp0';
   }
@@ -4804,7 +4811,7 @@ class AppTextDe extends AppText {
 
   @override
   String get contactMatchUnsupported =>
-      'Diese Fassung kann das Adressbuch nicht lesen. Über PRIVIO-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen.';
+      'Diese Fassung kann das Adressbuch nicht lesen. Über Privio-ID, Einladungslink oder QR-Code kannst du weiterhin jemanden hinzufügen.';
 
   @override
   String get savedTitle => 'Gespeichert';
@@ -4823,7 +4830,7 @@ class AppTextDe extends AppText {
 
   @override
   String get savedEmptyBody =>
-      'Notizen, Bilder, Dateien und Sprachnachrichten für dich allein. Niemand sonst sieht das — auch der PRIVIO-Server nicht, der nur hält, was deine eigenen Geräte versiegelt haben.';
+      'Notizen, Bilder, Dateien und Sprachnachrichten für dich allein. Niemand sonst sieht das — auch der Privio-Server nicht, der nur hält, was deine eigenen Geräte versiegelt haben.';
 
   @override
   String get savedComposerHint => 'Notiz schreiben …';
