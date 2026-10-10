@@ -29,6 +29,11 @@ RUN npm --workspace server run build
 # directory is created unconditionally so the run stage copies the same two
 # paths whether or not npm decided a nested install was necessary.
 RUN npm ci --omit=dev && mkdir -p /app/server/node_modules
+# Signal's libsignal binding ships native builds for six platforms; this image
+# only ever loads one of the two Linux ones. The other four are ~100 MB the
+# server never opens. Both Linux architectures stay, so an arm64 host works.
+RUN rm -rf node_modules/@signalapp/libsignal-client/prebuilds/darwin-* \
+           node_modules/@signalapp/libsignal-client/prebuilds/win32-*
 
 # --- run ---------------------------------------------------------------------
 FROM node:22-slim AS run

@@ -1,0 +1,73 @@
+name: libsignal
+description: "Dart wrapper for libsignal. Signal Protocol implementation for end-to-end encryption, sealed sender, group messaging, and secure cryptographic operations."
+
+version: 7.4.1
+# Vendored into Privio; never published from here. See PRIVIO_VENDORING.md.
+publish_to: none
+license: AGPL-3.0
+repository: https://github.com/djx-y-z/libsignal_dart
+homepage: https://github.com/djx-y-z/libsignal_dart
+issue_tracker: https://github.com/djx-y-z/libsignal_dart/issues
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  # One version, written as a range. `frb_generated.dart` records the codegen
+  # version and the runtime asserts it equals its own with `==`, so anything a
+  # range admits except this exact version throws on init. `>=X.Y.Z <X.Y.Z+1`
+  # admits only X.Y.Z — but unlike the bare `X.Y.Z` form it does not trip pub's
+  # "should allow more than one version" warning, and `dart pub publish` exits
+  # 65 on any warning, which would make the package unreleasable. The caret is
+  # stripped rather than trusted absent, so this, FRB_CODEGEN_VERSION and the
+  # `=` pin in Cargo.toml stay in step whatever `frb_version` is answered with.
+  flutter_rust_bridge: ">=2.13.0 <2.13.1"
+  # Build hooks for automatic native library download. Left on the caret
+  # deliberately: these define the protocol hook/build.dart implements, and the
+  # SDK is the other half of it — capping them below what the pinned Flutter
+  # expects breaks the hook at a consumer's build, which is worse than the drift.
+  # Majors (hooks 2.x, code_assets 2.x) are a deliberate migration, not a bump.
+  hooks: ^1.0.0
+  code_assets: ^1.0.0
+
+dev_dependencies:
+  # Capped to one minor line, not because 6.1 is bad but because
+  # `make analyze ARGS="--fatal-infos"` makes every newly-added info-level lint
+  # a build failure, pubspec.lock is not committed, and CI re-resolves on every
+  # run — so a minor published upstream reddens main with nobody having changed
+  # a line. Within the range, patches still arrive. The bump then comes as a
+  # Dependabot pull request the matrix actually evaluates, which is the review
+  # this deserves; move the window there once it is green — both bounds by one
+  # minor, not just the upper one, which would delete the cap this comment
+  # exists to explain.
+  #
+  # Expect to do that by hand. `versioning-strategy: increase-if-necessary`
+  # (.github/dependabot.yml) leaves a constraint alone only while it still
+  # admits the new version; once the new minor is outside the cap, Dependabot
+  # writes its own idiomatic form, which is a caret. Measured: with the
+  # strategy already active, the 6.0 → 6.1 pull request proposed `^6.1.0` and
+  # regenerated it a day later still as a caret. So a capped pin at its ceiling
+  # always comes back uncapped, and narrowing it again is the reviewer's job.
+  lints: ">=6.1.0 <6.2.0"
+  test: ^1.24.0
+  coverage: ^1.15.0
+  # Required by flutter_rust_bridge_codegen. Feeds codegen rather than the
+  # runtime, so a change here shows up as a diff in the committed bindings and
+  # not as a failing assert — the update workflow's `bindings=changed` tripwire
+  # is what surfaces it.
+  ffigen: ^20.1.1
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
+  web:
+
+topics:
+  - rust
+  - flutter-rust-bridge
+  - signal
+  - cryptography
+  - encryption

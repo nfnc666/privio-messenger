@@ -191,6 +191,7 @@ each exists, is in `server/src/config.ts`.
 | `APNS_ENVIRONMENT` | **production** | a TestFlight build needs `sandbox` |
 | `FCM_PROJECT_ID` / `_CLIENT_EMAIL` / `_PRIVATE_KEY` | unset | all three together or none |
 | `LIVEKIT_URL` / `_API_KEY` / `_API_SECRET` | unset | a media server for channel livestreams; all three together or none |
+| `SEALED_SENDER_TRUST_ROOT` / `_SERVER_CERTIFICATE` / `_SERVER_KEY` | unset = **sealed sender off** | the keys for messages whose sender the server does not learn; all three together or none. `_SERVER_KEY` is a secret. See below |
 
 **Channel livestreams are off until `LIVEKIT_*` is set**, and the app says so
 rather than offering a control that does nothing. A livestream is the one thing
@@ -242,6 +243,33 @@ guessed origin is never served `cache-control: public`** — so a proxy in front
 cannot be made to hand a poisoned page to other people. Setting `PUBLIC_WEB_URL`
 removes the guess and restores the 60-second public caching for public channel
 pages.
+
+### `SEALED_SENDER_*`
+
+Sealed sender lets a message reach its recipient without this server learning
+who sent it (`docs/sealed-sender.md`). It needs three values, generated once on
+a machine you trust, **not** on the server and not in a browser:
+
+```bash
+npm --workspace server run sealed-sender:keys -- --out ./sealed-sender-keys
+```
+
+That prints the two **public** values — set them as `SEALED_SENDER_TRUST_ROOT`
+and `SEALED_SENDER_SERVER_CERTIFICATE` — and writes two private keys to files
+readable only by you. Put the contents of `server.key` into
+`SEALED_SENDER_SERVER_KEY` as a **secret** of the deployment. Then move
+`trust-root.key` **off that machine** and keep it offline: it is only needed to
+issue a new server certificate if the server key is ever replaced, and keeping
+it away from the server is what makes such a replacement possible without new
+app builds.
+
+Unset, sealed sender is off: its routes answer `503 sealed_sender_unavailable`
+and the app sends the way it always has. A mismatched set — a server key the
+certificate does not name, or a certificate the trust root did not sign — stops
+the server at start-up instead of issuing certificates no app could verify.
+
+Migration **042** has to have run; the server applies it on start like every
+other migration.
 
 ### `MEDIA_QUOTA_BYTES`
 

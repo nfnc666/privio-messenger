@@ -57,6 +57,13 @@ jobs:
 
       - run: flutter pub get
 
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
       # A flavour is not optional: `android/app/build.gradle.kts` declares the
       # `distribution` dimension with `libre` and `play`, and a build without
       # one is refused. The edition has to be passed alongside it, because the
@@ -129,6 +136,13 @@ jobs:
           cache: true
 
       - run: flutter pub get
+
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: aarch64-apple-ios
 
       # No `--flavor`: the Xcode project has one scheme, `Runner`. The Android
       # flavours have no counterpart here, and asking for one fails.

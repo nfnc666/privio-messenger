@@ -57,6 +57,15 @@ jobs:
 
       - run: flutter pub get
 
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      # A release compiles it from scratch: nothing a previous run cached ships.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cache: "false"
+
       - name: Build APK
         run: >-
           flutter build apk --release
@@ -87,6 +96,15 @@ jobs:
           cache: true
 
       - run: flutter pub get
+
+      # Signal's libsignal, compiled here from the pinned sources. The
+      # vendored binding's build hook refuses to build without it and never
+      # downloads one. See app/third_party/libsignal_dart/PRIVIO_VENDORING.md.
+      # A release compiles it from scratch: nothing a previous run cached ships.
+      - uses: ./.github/actions/build-libsignal
+        with:
+          targets: aarch64-apple-ios
+          cache: "false"
 
       # `appstore`, explicitly. A release build refuses an unknown edition, but
       # a wrong one would still ship: `libre` here would put the licence-key

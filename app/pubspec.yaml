@@ -58,6 +58,12 @@ dependencies:
   # the decode is testable end to end because it is ordinary Dart.
   zxing2: ^0.2.4
   libsignal_protocol_dart: ^0.8.2
+  # Signal's own libsignal, for sealed sender only — see docs/sealed-sender.md.
+  # Vendored and built from source by app/scripts/build_libsignal.sh; its build
+  # hook never downloads a binary. third_party/libsignal_dart/PRIVIO_VENDORING.md
+  # says where it came from and what was reviewed.
+  libsignal:
+    path: third_party/libsignal_dart
   cryptography: ^2.9.0
   # 12, not 11. Eleven applies its own Kotlin Gradle Plugin, which stopped
   # producing its Android classes once Flutter moved to built-in Kotlin, and the

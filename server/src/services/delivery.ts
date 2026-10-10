@@ -11,12 +11,15 @@ export type EnvelopeType =
   | 'typing'
   | 'key_change'
   | 'group_update'
-  | 'call_signal';
+  | 'call_signal'
+  /** Sender named only inside the ciphertext; see docs/sealed-sender.md. */
+  | 'sealed';
 
 export interface OutgoingEnvelope {
   recipientDeviceId: string;
-  senderAccountId: string;
-  senderDeviceId: string;
+  /** Null for a sealed envelope, and only then — migration 042 enforces it. */
+  senderAccountId: string | null;
+  senderDeviceId: string | null;
   groupId?: string | null;
   type: EnvelopeType;
   content: Buffer;
