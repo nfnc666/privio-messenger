@@ -238,15 +238,25 @@ class CallService extends ChangeNotifier {
       return;
     }
 
-    await _send(
-      party.username,
-      CallSignal(
-        callId: call.id,
-        action: CallAction.offer,
-        media: media,
-        sdp: offer,
-      ),
-    );
+    try {
+      await _send(
+        party.username,
+        CallSignal(
+          callId: call.id,
+          action: CallAction.offer,
+          media: media,
+          sdp: offer,
+        ),
+      );
+    } on Object catch (error) {
+      // The offer never left, so nothing is ringing anywhere. It used to stay
+      // "dialling" with the microphone open while the error escaped to
+      // nobody; now the call ends here, says why, and frees the microphone.
+      await _finish(CallEnding.failed, tell: null);
+      _failure = Failure.of(error, FailureKind.unreachableCheckConnection);
+      notifyListeners();
+      return;
+    }
     _startRingTimeout();
   }
 

@@ -17,7 +17,6 @@ import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
 import '../services/realtime_connection.dart';
-import '../models/group_bot.dart';
 import '../models/models.dart';
 import '../models/security_event.dart';
 import 'api_client.dart';
@@ -55,6 +54,15 @@ class ConversationController extends ChangeNotifier {
   /// Everything in here is already sealed, so the queue can be written to the
   /// encrypted archive without a plaintext recording ever reaching storage.
   final List<PendingSend> _outbox = [];
+
+  /// Text messages that could not reach the server, by client id, each with
+  /// the conversation it belongs to.
+  ///
+  /// Nothing about them needs keeping beyond the message itself: the history
+  /// already holds the words, sealed at rest, and a resend builds the same
+  /// payload with the same client id, so the server recognises a second
+  /// attempt rather than delivering twice. Rebuilt from the history on start.
+  final Map<String, String> _unsentTexts = {};
 
   /// Whether this account sends read receipts and typing notices.
   ///
@@ -382,6 +390,19 @@ class ConversationController extends ChangeNotifier {
     _outbox
       ..clear()
       ..addAll(contents.outbox);
+    // Text that was waiting for the network when the app stopped — or was on
+    // its way and never heard back — waits again, and goes with the queue.
+    _unsentTexts.clear();
+    for (final conversation in _services.store.conversations()) {
+      for (final message in conversation.messages) {
+        final clientId = message.clientId;
+        if (clientId == null || !message.isMine || message.kind != MessageKind.text) continue;
+        if (message.state == DeliveryState.queued || message.state == DeliveryState.sending) {
+          if (_outbox.any((pending) => pending.clientId == clientId)) continue;
+          _unsentTexts[clientId] = conversation.id;
+        }
+      }
+    }
     // A message queued before the app was killed is still owed to somebody.
     _services.store.pruneExpired(DateTime.now());
     _noteCappedTimers();
@@ -472,7 +493,9 @@ class ConversationController extends ChangeNotifier {
   /// Opens the realtime socket and starts the fallback poll. Safe to call more
   /// than once.
   void start({String? token}) {
-    _poller ??= Timer.periodic(fallbackPollInterval, (_) => drain());
+    // A poll that cannot reach the server is expected while offline; it is
+    // tried again on the next tick, and must not surface as an uncaught error.
+    _poller ??= Timer.periodic(fallbackPollInterval, (_) => unawaited(_quietDrain()));
     // Often enough that a 30-second timer is roughly honoured on screen, cheap
     // enough to be invisible: it walks a list already in memory.
     _expirySweep ??= Timer.periodic(expirySweepInterval, (_) => pruneExpired());
@@ -481,9 +504,11 @@ class ConversationController extends ChangeNotifier {
     _typingSweep ??= Timer.periodic(typingInterval, (_) => _fadeTyping());
     if (token != null) _openRealtime(token);
     pruneExpired();
-    unawaited(drain());
+    unawaited(_quietDrain());
     detached(flushOutbox());
   }
+
+  Future<void> _quietDrain() => drain().then((_) {}, onError: (Object _) {});
 
   void _openRealtime(String token) {
     if (_realtime != null) return;
@@ -493,6 +518,11 @@ class ConversationController extends ChangeNotifier {
     );
     _realtime = realtime;
     _realtimeEnvelopes = realtime.envelopes.listen(_onPushedEnvelopes);
+    // Back online: what was waiting goes now, rather than at the next poll —
+    // up to two minutes later, with "waiting" on screen the whole time.
+    realtime.connected.addListener(() {
+      if (realtime.connected.value) detached(flushOutbox());
+    });
     // Nothing to read: somebody is waiting for a key. Answering on the poll
     // instead would leave them looking at a group they cannot name for it.
     _realtimeKeyRequests = realtime.keyRequests.listen((_) {
@@ -754,8 +784,10 @@ class ConversationController extends ChangeNotifier {
       );
       await refreshContacts();
       return true;
-    } on ApiException catch (failure) {
-      _failure = Failure.server(failure.message);
+    } on Object catch (failure) {
+      // Not only the server's refusals: a dropped connection used to escape
+      // from here and leave the sheet that asked waiting for ever.
+      _failure = Failure.of(failure, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -776,8 +808,8 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
       detached(_loadAvatars());
       return conversation.id;
-    } on ApiException catch (failure) {
-      _failure = Failure.server(failure.message);
+    } on Object catch (failure) {
+      _failure = Failure.of(failure, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return null;
     }
@@ -797,7 +829,6 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null || text.trim().isEmpty) return;
 
     final clientId = _newClientId();
-    final timer = _effectiveTimer(conversation);
     final body = text.trim();
     _services.store.append(
       conversationId,
@@ -824,24 +855,58 @@ class ConversationController extends ChangeNotifier {
     );
     notifyListeners();
 
-    final payload = MessagePayload.text(
-      body,
-      customEmoji: customEmoji,
-      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
-      expiresInSeconds: timer?.inSeconds,
-      // Carried so a retry — this one's or the transport's — is recognisable as
-      // the same message rather than delivered twice.
-      clientId: clientId,
-      replyToId: replyTo?.clientId,
-      replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
-      // From the recipient's point of view: a reply to their own message should
-      // quote them by name, not tell them "You" wrote it.
-      replySender: replyTo == null
-          ? null
-          : replyTo.isMine
-              ? null
-              : 'You',
-    );
+    await _sendText(conversationId, clientId);
+    notifyListeners();
+  }
+
+  /// The payload for one of this device's text messages, built from the
+  /// message itself so a resend is the same message as the first attempt.
+  MessagePayload _textPayload(Conversation conversation, Message message, Duration? timer) =>
+      MessagePayload.text(
+        message.body,
+        customEmoji: message.customEmoji,
+        groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+        expiresInSeconds: timer?.inSeconds,
+        // Carried so a retry — this one's or the transport's — is recognisable
+        // as the same message rather than delivered twice.
+        clientId: message.clientId,
+        replyToId: message.replyToId,
+        replyPreview: message.replyPreview,
+        // From the recipient's point of view: a reply to their own message
+        // should quote them by name, not tell them "You" wrote it. Stored from
+        // this side, where a reply to one's own message is "You".
+        replySender: message.replyToId == null
+            ? null
+            : message.replySender == 'You'
+                ? null
+                : 'You',
+      );
+
+  /// A failure worth trying again by itself: the network, or a server that
+  /// is down or busy. A refusal — no licence, a changed key, a bad request —
+  /// would only be refused again.
+  static bool _isTransient(Object failure) => switch (failure) {
+        ApiException(:final statusCode) => statusCode >= 500 || statusCode == 429,
+        IdentityChangedException() => false,
+        _ => true,
+      };
+
+  /// Sends one of this device's text messages, or queues it.
+  ///
+  /// Returns false when it could not reach the server and is waiting for
+  /// another try. Without a connection a message used to go straight to
+  /// "could not be sent", with no way to send it again but typing it again;
+  /// it now waits, marked as waiting, and goes when the server is back.
+  Future<bool> _sendText(String conversationId, String clientId) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    final message =
+        conversation?.messages.where((m) => m.clientId == clientId).firstOrNull;
+    if (conversation == null || message == null) {
+      _unsentTexts.remove(clientId);
+      return true;
+    }
+    final timer = _effectiveTimer(conversation);
+    final payload = _textPayload(conversation, message, timer);
 
     try {
       if (conversation.isGroup) {
@@ -849,17 +914,20 @@ class ConversationController extends ChangeNotifier {
       } else {
         await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
+      _unsentTexts.remove(clientId);
       _markSent(conversationId, clientId, timer);
       _failure = null;
       _persist();
-      // Only after the message actually went. A bot receiving a copy of
-      // something that failed to send would be a bot that saw a message the
-      // group never did.
-      if (conversation.isGroup) {
-        unawaited(_handToBots(conversationId, body, clientId, replyTo: replyTo));
-      }
+      return true;
     } on Object catch (failure) {
+      if (_isTransient(failure)) {
+        _unsentTexts[clientId] = conversationId;
+        _services.store.updateState(conversationId, clientId, DeliveryState.queued);
+        _persist();
+        return false;
+      }
       // Leaving it at `sending` would be a lie. Mark it and say why.
+      _unsentTexts.remove(clientId);
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
       _noteIdentityChange(failure);
       _failure = switch (failure) {
@@ -872,165 +940,28 @@ class ConversationController extends ChangeNotifier {
         ApiException(:final message) => Failure.server(message),
         _ => const Failure(FailureKind.couldNotSendMessage),
       };
-    }
-    notifyListeners();
-  }
-
-  /// The bots in a group, as the server last listed them.
-  ///
-  /// Per group and per account, like every other cache here. Refreshed when a
-  /// group screen opens and after any change to the list, not on every send —
-  /// a device that asked before each message would turn one send into two
-  /// requests.
-  final Map<String, List<GroupBot>> _groupBots = {};
-
-  List<GroupBot> botsIn(String groupId) => _groupBots[groupId] ?? const [];
-
-  /// Reads which bots are in a group and what they may do.
-  Future<List<GroupBot>> refreshGroupBots(String groupId) async {
-    final account = accountId;
-    try {
-      final response = await _services.api.groupBots(groupId);
-      if (accountId != account) return const [];
-      final listed = [
-        for (final raw in response['bots'] as List<dynamic>? ?? const [])
-          GroupBot.fromJson(raw as Map<String, dynamic>),
-      ];
-      _groupBots[groupId] = listed;
-      notifyListeners();
-      return listed;
-    } on Object {
-      // A list that will not load is a group drawn without its bots, not an
-      // error in front of a conversation. Nothing is forwarded in that state,
-      // which is the safe direction: a bot receives less, never more.
-      return _groupBots[groupId] ?? const [];
-    }
-  }
-
-  /// Looks a bot up by its exact username, for an admin about to add one.
-  ///
-  /// The ordinary profile route: a bot is an account, and there is no bot
-  /// directory to browse — which is deliberate, since a browsable list of
-  /// every bot on a deployment is a list of every operator on it.
-  Future<GroupBot?> lookupBot(String username) async {
-    try {
-      final json = await _services.api.lookup(username.toLowerCase());
-      if (json['isBot'] != true) {
-        _failure = const Failure(FailureKind.botNotFound);
-        notifyListeners();
-        return null;
-      }
-      return GroupBot(
-        botId: json['id'] as String,
-        username: json['username'] as String,
-        displayName: json['displayName'] as String?,
-      );
-    } on ApiException catch (failure) {
-      _failure = failure.statusCode == 404 || failure.statusCode == 400
-          ? const Failure(FailureKind.botNotFound)
-          : Failure.server(failure.message);
-      notifyListeners();
-      return null;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
-      notifyListeners();
-      return null;
-    }
-  }
-
-  /// Adds a bot to a group. It arrives with no rights; see the server routes.
-  Future<bool> addGroupBot(String groupId, String botId) =>
-      _changeGroupBots(() => _services.api.addGroupBot(groupId, botId), groupId);
-
-  /// Grants or withdraws **one** right. One at a time, on purpose: a call that
-  /// set several would be a call somebody uses to set all of them.
-  Future<bool> setGroupBotRight(
-    String groupId,
-    String botId,
-    String right,
-    bool value,
-  ) =>
-      _changeGroupBots(
-        () => _services.api.setGroupBotRights(groupId, botId, {right: value}),
-        groupId,
-      );
-
-  Future<bool> removeGroupBot(String groupId, String botId) =>
-      _changeGroupBots(() => _services.api.removeGroupBot(groupId, botId), groupId);
-
-  /// Runs a change and files the list the server answered with.
-  ///
-  /// The server's answer rather than a guess about what the change did: a
-  /// device that predicted the new rights would eventually draw a switch that
-  /// is on while the server has it off.
-  Future<bool> _changeGroupBots(
-    Future<Map<String, dynamic>> Function() change,
-    String groupId,
-  ) async {
-    final account = accountId;
-    try {
-      final response = await change();
-      if (accountId != account) return false;
-      _groupBots[groupId] = [
-        for (final raw in response['bots'] as List<dynamic>? ?? const [])
-          GroupBot.fromJson(raw as Map<String, dynamic>),
-      ];
-      _failure = null;
-      notifyListeners();
+      _persist();
       return true;
-    } on ApiException catch (failure) {
-      _failure = failure.code == 'not_an_admin'
-          ? const Failure(FailureKind.insufficientPermission)
-          : Failure.server(failure.message);
-      notifyListeners();
-      return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
-      notifyListeners();
-      return false;
     }
   }
 
-  /// Hands a just-sent group message to the bots it was addressed to.
-  ///
-  /// **This device is the only one that can.** A group message is Signal
-  /// ciphertext addressed to member devices; the server holds no key that
-  /// opens one, so it cannot forward to a bot even if it wanted to. The
-  /// filtering therefore happens here, with the plaintext, before anything is
-  /// handed over — which is what makes it a cryptographic restriction rather
-  /// than a server's promise to look away.
-  ///
-  /// What goes is the text of this one message and nothing else. No history,
-  /// no other conversation, and nothing at all for a bot the message was not
-  /// addressed to.
-  Future<void> _handToBots(
-    String groupId,
-    String body,
-    String clientId, {
-    Message? replyTo,
-  }) async {
-    final present = _groupBots[groupId];
-    if (present == null || present.isEmpty) return;
-
-    for (final bot in present) {
-      final repliesToBot = replyTo != null && replyTo.senderAccountId == bot.botId;
-      if (!addressesBot(bot, body, repliesToBot: repliesToBot)) continue;
-      try {
-        await _services.api.sendToBot(
-          bot.botId,
-          body,
-          groupId: groupId,
-          // The same id the message carries in the group, so a retry of the
-          // send is a retry here too rather than a second delivery.
-          clientId: clientId,
-        );
-      } on Object {
-        // A bot that could not be reached is a bot that did not get this
-        // message. It is not a reason to tell somebody their message to the
-        // group failed, because it did not.
-      }
+  /// Sends the text messages that were waiting, oldest first, stopping at the
+  /// first that still cannot reach the server — the rest would fail the same
+  /// way.
+  Future<void> _sendWaitingTexts() async {
+    for (final MapEntry(key: clientId, value: conversationId) in [..._unsentTexts.entries]) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.sending);
+      notifyListeners();
+      if (!await _sendText(conversationId, clientId)) break;
     }
   }
+
+  /// One of this device's own text messages that did not go out.
+  bool _isUnsentText(Message message) =>
+      message.isMine &&
+      message.kind == MessageKind.text &&
+      message.clientId != null &&
+      (message.state == DeliveryState.failed || message.state == DeliveryState.queued);
 
   // --- Groups ---------------------------------------------------------------
 
@@ -2163,7 +2094,11 @@ class ConversationController extends ChangeNotifier {
   /// the queue entry with it — a bubble removed on its own leaves the message
   /// to arrive later from a queue the person thought they had emptied.
   bool isQueued(String clientId) =>
-      _outbox.any((pending) => pending.clientId == clientId);
+      _outbox.any((pending) => pending.clientId == clientId) ||
+      _unsentTexts.containsKey(clientId) ||
+      _services.store
+          .conversations()
+          .any((c) => c.messages.any((m) => m.clientId == clientId && _isUnsentText(m)));
 
   /// Seals [recording] and puts it on the wire, or in the queue if that fails.
   ///
@@ -2314,19 +2249,41 @@ class ConversationController extends ChangeNotifier {
   /// Retries one message the user asked to retry.
   Future<void> retry(String clientId) async {
     final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
-    if (index == -1) return;
+    if (index == -1) {
+      // A text message: one waiting for the network, or one the server
+      // refused and the person wants to try again.
+      final conversationId = _unsentTexts[clientId] ?? _conversationOfUnsentText(clientId);
+      if (conversationId == null) return;
+      _unsentTexts[clientId] = conversationId;
+      _services.store.updateState(conversationId, clientId, DeliveryState.sending);
+      notifyListeners();
+      await _sendText(conversationId, clientId);
+      notifyListeners();
+      return;
+    }
     _setVoiceState(_outbox[index].conversationId, clientId, DeliveryState.sending);
     notifyListeners();
     await flushOutbox();
   }
 
+  String? _conversationOfUnsentText(String clientId) {
+    for (final conversation in _services.store.conversations()) {
+      if (conversation.messages.any((m) => m.clientId == clientId && _isUnsentText(m))) {
+        return conversation.id;
+      }
+    }
+    return null;
+  }
+
   /// Drops a queued message the user gave up on, bubble and all.
   void discard(String clientId) {
     final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
-    if (index == -1) return;
-    final pending = _outbox.removeAt(index);
+    final conversationId = index != -1
+        ? _outbox.removeAt(index).conversationId
+        : _unsentTexts.remove(clientId) ?? _conversationOfUnsentText(clientId);
+    if (conversationId == null) return;
     _services.store
-        .conversationWith(pending.conversationId)
+        .conversationWith(conversationId)
         ?.messages
         .removeWhere((message) => message.id == clientId);
     _persist();
@@ -2355,7 +2312,8 @@ class ConversationController extends ChangeNotifier {
       do {
         _flushAgain = false;
         await _drainQueue();
-      } while (_flushAgain && _outbox.isNotEmpty);
+        await _sendWaitingTexts();
+      } while (_flushAgain && (_outbox.isNotEmpty || _unsentTexts.isNotEmpty));
     } finally {
       _flushing = null;
       _persist();
@@ -3025,6 +2983,10 @@ class ConversationController extends ChangeNotifier {
       _fileSavedFromOtherDevice(incoming);
       return;
     }
+    // Whoever just sent something has stopped typing it. Left alone, "typing…"
+    // stayed under their name for up to [typingLifetime] after the message it
+    // announced was already on screen.
+    _services.store.setTyping(incoming.senderAccountId, null);
     if (payload.profileKey != null) {
       // Learning someone's profile key is what makes their picture openable.
       _services.store.upsertUser(
@@ -3312,15 +3274,26 @@ class ConversationController extends ChangeNotifier {
       // where the reader is already looking at it.
       await _services.channels
           .rememberKey(scopeId, epoch, Uint8List.fromList(base64Decode(key)));
+      _acknowledgeKey('channel', scopeId);
       return;
     }
     if (payload.keyScope == 'group') {
       _services.store.upsertGroup(
         GroupInfo(groupId: scopeId, role: 'member', groupKey: key),
       );
+      _acknowledgeKey('group', scopeId);
       unawaited(refreshGroups());
     }
   }
+
+  /// Clears this device's request for a key it now holds, so the members who
+  /// hold it stop sending it again. Best effort: if it fails, the next
+  /// delivery of the same key tries again.
+  void _acknowledgeKey(String scope, String scopeId) => unawaited(
+        _services.messaging
+            .acknowledgeKey(scope: scope, scopeId: scopeId)
+            .catchError((Object _) {}),
+      );
 
   /// Files a message that arrived through a group.
   ///
@@ -3331,10 +3304,15 @@ class ConversationController extends ChangeNotifier {
       await refreshGroups();
       _services.store.upsertGroup(GroupInfo(groupId: groupId, role: 'member'));
     }
-    if (incoming.payload.groupKey != null) {
+    final carriedKey = incoming.payload.groupKey;
+    if (carriedKey != null) {
+      // A key learned from a message answers this device's request as surely
+      // as a delivery does — but only the first time, not on every message.
+      final known = groupInfo(groupId)?.groupKey;
       _services.store.upsertGroup(
-        GroupInfo(groupId: groupId, role: 'member', groupKey: incoming.payload.groupKey),
+        GroupInfo(groupId: groupId, role: 'member', groupKey: carriedKey),
       );
+      if (known != carriedKey) _acknowledgeKey('group', groupId);
       unawaited(refreshGroups());
     }
 

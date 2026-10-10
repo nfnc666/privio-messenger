@@ -15,7 +15,12 @@ class PrivioBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, semanticLabel: 'Back'),
+        // Flutter's own word for it, in the reader's language. It was 'Back'
+        // in every language, which a screen reader then read out in German.
+        icon: Icon(
+          Icons.arrow_back_rounded,
+          semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
+        ),
         onPressed: () => Navigator.maybePop(context),
       );
 }

@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/notice_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'custom_emoji_text.dart';
 import 'photo_viewer.dart';
@@ -304,20 +305,26 @@ class _AttachmentView extends StatelessWidget {
         if (!attachment.isImage) {
           return _FileRow(attachment: attachment);
         }
-        return GestureDetector(
-          // A picture in a bubble is a thumbnail; a tap is how anybody expects
-          // to see the whole of it. The viewer is handed the bytes that are
-          // already decrypted here, so opening it fetches nothing and writes
-          // nothing.
-          onTap: () => PhotoViewer.open(context, bytes: bytes, name: attachment.fileName),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              // A file that claims to be an image but is not must not take the
-              // bubble down with it.
-              errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+        // Said as "Photo" to a screen reader, which otherwise had nothing for
+        // it but the time underneath.
+        return Semantics(
+          button: true,
+          label: AppText.of(context).chatsPreviewPhoto,
+          child: GestureDetector(
+            // A picture in a bubble is a thumbnail; a tap is how anybody expects
+            // to see the whole of it. The viewer is handed the bytes that are
+            // already decrypted here, so opening it fetches nothing and writes
+            // nothing.
+            onTap: () => PhotoViewer.open(context, bytes: bytes, name: attachment.fileName),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
+              child: Image.memory(
+                bytes,
+                fit: BoxFit.cover,
+                // A file that claims to be an image but is not must not take the
+                // bubble down with it.
+                errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+              ),
             ),
           ),
         );
@@ -477,7 +484,16 @@ class _DeliveryTicks extends StatelessWidget {
   final DeliveryState state;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      // A tick that changes is the message getting somewhere, so the new mark
+      // grows in where the old one was rather than replacing it in a frame.
+      AnimatedSwitcher(
+        duration: PrivioMotion.of(context, PrivioMotion.quick),
+        transitionBuilder: PrivioMotion.popIn,
+        child: KeyedSubtree(key: ValueKey(state), child: _mark(context)),
+      );
+
+  Widget _mark(BuildContext context) {
     // Queued and failed are their own marks. A message waiting for a network
     // must not look like one that is on its way, and one that gave up must not
     // look like either.

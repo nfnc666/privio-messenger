@@ -201,7 +201,9 @@ void main() {
       await controller.send('account-bob', 'ging nicht raus');
 
       final failed = store.conversationWith('account-bob')!.messages.last;
-      expect(failed.state, DeliveryState.failed);
+      // A 503 is the server being away, so the message waits to go again
+      // rather than failing for good; either way it has not been delivered.
+      expect(failed.state, DeliveryState.queued);
       expect(failed.expiresAt, isNull);
       expect(
         store.pruneExpired(DateTime.now().add(const Duration(hours: 1))),

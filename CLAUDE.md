@@ -23,9 +23,10 @@ Daraus folgt bei jeder Funktion:
   lesbare Spalte ohne Begründung, und das bleibt so.
 * **Keine Pflicht zu Telefonnummer oder E-Mail.** Ein Konto ist ein
   Benutzername.
-* **Ausnahmen sind sichtbar, nie still.** Bot-Chats sind derzeit Klartext auf
-  dem Server; die App sagt das vor der ersten Nachricht und auf jeder
-  Bot-Umfrage. Jede künftige Ausnahme wird genauso offen gekennzeichnet.
+* **Keine Klartext-Ausnahmen.** Bots wurden entfernt (Migration 043), weil
+  Bot-Chats die einzige Stelle waren, an der der Server Nachrichten lesen
+  konnte. Eine neue Funktion, die das bräuchte, kommt nicht hinein. Sollte es
+  je eine Ausnahme geben, sagt die App es sichtbar vor der ersten Nachricht.
 * **Löschen heißt löschen.** Kontolöschung und Duress-Wipe entfernen alles, was
   der Server über die Person hält.
 
@@ -38,8 +39,6 @@ Stand dieser Datei, Details in `docs/metadata-privacy-review.md`:
   sind da (`docs/sealed-sender.md`); es fehlt die App-Seite. Bis dahin wird
   nichts als versiegelt beworben.
 * **Keine „Einmal ansehen“-Nachrichten.**
-* **Bots sind nicht Ende-zu-Ende-verschlüsselt.** Ein E2E-Bot-SDK ist entworfen,
-  aber nicht gebaut (`docs/bots.md`); erst danach können Bots in Kanälen posten.
 
 ## Feste Regeln
 

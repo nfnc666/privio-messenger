@@ -39,8 +39,7 @@ decides that, never the client.
 | Route | Notes |
 | --- | --- |
 | `DELETE /v1/accounts/me/avatar` | |
-| `DELETE /v1/bots/:id` | owner only |
-| `DELETE /v1/bots/:id/token` | revokes every live token for the bot |
+| `DELETE /v1/accounts/me/unidentified-access` | sealed sender: stop accepting sealed messages |
 | `DELETE /v1/sticker-packs/:id` | owner only; soft, so messages already sent still resolve |
 | `DELETE /v1/sticker-packs/:id/install` | |
 | `DELETE /v1/sticker-packs/:id/items/:itemId` | owner only |
@@ -73,6 +72,8 @@ decides that, never the client.
 | `GET /v1/backup` | |
 | `GET /v1/blocks` | |
 | `GET /v1/calls/ice` | |
+| `GET /v1/certificate/delivery` | session **and** licence; a 24-hour sender certificate for this device and the identity key the server holds for it. See `sealed-sender.md` |
+| `GET /v1/certificate/trust-root` | public; the key every sender certificate chains to. `503 sealed_sender_unavailable` when not configured |
 | `GET /v1/channels/:id/key-epochs/current` | |
 | `GET /v1/channels/:id/key-requests` | |
 | `GET /v1/channels/:id/members` | `?limit&cursor&q&role=admins`; `complete: false` means staff-and-self, not the audience |
@@ -99,9 +100,6 @@ decides that, never the client.
 | `GET /v1/licenses/me` | |
 | `GET /v1/media/:id` | |
 | `GET /v1/messages` | |
-| `GET /v1/bot/me` | **bot token**, not a session |
-| `GET /v1/bot/updates` | **bot token**; long poll, each update delivered once |
-| `GET /v1/bots` | the caller's own bots |
 | `GET /v1/sticker-packs` | owned and installed |
 | `GET /v1/sticker-packs/by-code/:code` | preview before installing |
 | `GET /v1/sticker-packs/:id` | owner, installer, or a live `?code=` |
@@ -109,7 +107,6 @@ decides that, never the client.
 | `GET /v1/users/:username` | |
 | `GET /v1/users/id/:accountId` | |
 | `GET /v1/ws` | |
-| `PATCH /v1/bots/:id` | owner only |
 | `PATCH /v1/sticker-packs/:id` | owner only |
 | `PATCH /v1/sticker-packs/:id/items/:itemId` | owner only |
 | `PATCH /v1/accounts/me` | `privacy.profileStatus` is `everyone`\|`contacts`\|`nobody`, separate from `lastSeen` |
@@ -120,6 +117,7 @@ decides that, never the client.
 | `POST /v1/accounts` | |
 | `POST /v1/accounts/me/duress-code` | |
 | `DELETE /v1/accounts/me/duress-code` | |
+| `POST /v1/messages/sealed` | **no session** — one is refused with `do_not_identify`; `Unidentified-Access-Key` header; not logged; one `401 unidentified_access_denied` for every refusal |
 | `PUT /v1/accounts/me/password` | |
 | `DELETE /v1/accounts/me/totp` | |
 | `POST /v1/accounts/me/totp/enable` | |
@@ -137,6 +135,7 @@ decides that, never the client.
 | `POST /v1/channels/:id/owner` | `{accountId, currentPassword}` — the password, not the session |
 | `POST /v1/channels/:id/report` | `{reason}` from a fixed set; never free text |
 | `POST /v1/channels/:id/members` | direct-add; answers `{added, invite}` — only where their own `whoCanAddMeToGroups` allows it |
+| `PUT /v1/accounts/me/unidentified-access` | `{accessKey}`, 16 bytes derived from the profile key; stored to compare, never returned |
 | `PUT /v1/channels/:id/read` | `{postId}`; only ever moves forward, so a stale device cannot un-read |
 | `PUT /v1/channels/:id/mute` | per account, not per device; `{until}` or nothing for no end |
 | `DELETE /v1/channels/:id/mute` | |
@@ -159,10 +158,6 @@ decides that, never the client.
 | `POST /v1/messages/group/:groupId` | `{expiresInSeconds}` bounds how long an undelivered envelope is kept |
 | `POST /v1/messages` | same; clamped to 30 days, and it is a retention hint, not the chat's timer |
 | `POST /v1/sessions/revoke-all` | |
-| `POST /v1/bot/send` | **bot token**; refused with `not_contacted` until the person wrote first |
-| `POST /v1/botcreator/say` | one turn with the assistant; never returns a token in the text |
-| `POST /v1/bots` | creates a bot account; reserved usernames refused |
-| `POST /v1/bots/:id/token` | issues a token and **revokes the previous one**; shown once |
 | `POST /v1/sticker-packs` | |
 | `POST /v1/sticker-packs/:id/install` | needs a live share code, or an existing install |
 | `POST /v1/sticker-packs/:id/items` | the upload must be the caller's own, of kind `sticker` |

@@ -9,6 +9,7 @@ import '../l10n/channel_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/search_field.dart';
@@ -122,7 +123,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
             title: Text(AppText.of(context).contactsTitle),
           ),
           floatingActionButton: FloatingActionButton(
-            onPressed: () => _showAddContact(context),
+            onPressed: () => unawaited(showAddContactSheet(context)),
+            // A round icon with no words on it is the one thing a screen
+            // reader cannot guess; this is also the long-press label.
+            tooltip: AppText.of(context).contactsAddTitle,
             backgroundColor: context.accents.accent,
             foregroundColor: PrivioColors.background,
             child: const Icon(Icons.person_add_alt_1_rounded),
@@ -135,7 +139,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
               Expanded(
                 child: contacts.isEmpty
-                    ? const _EmptyContacts()
+                    ? (_query.trim().isEmpty
+                        ? Appear(
+                            child: _EmptyContacts(
+                              onAdd: () => unawaited(showAddContactSheet(context)),
+                            ),
+                          )
+                        : _NoMatch(
+                            query: _query,
+                            onAdd: (username) =>
+                                unawaited(showAddContactSheet(context, initial: username)),
+                          ))
                     : ListView.builder(
                         itemCount: contacts.length,
                         itemBuilder: (context, index) {
@@ -173,112 +187,148 @@ class _ContactsScreenState extends State<ContactsScreen> {
       },
     );
   }
+}
 
-  /// Contacts are added by exact username: there is no directory to browse and
-  /// no address book to upload.
-  void _showAddContact(BuildContext context) {
-    final controller = TextEditingController();
-    final state = PrivioScope.of(context);
+/// Usernames are what [usernamePattern] allows, and nothing else is worth
+/// sending to the server as one.
+final RegExp usernamePattern = RegExp(r'^[a-z0-9_.]{3,32}$');
 
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: PrivioColors.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: PrivioRadius.card),
-      ),
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) {
-          var busy = false;
-          var failure = '';
+/// What somebody typed, as the username it means: no `@`, no spaces, lower case.
+String normaliseUsername(String typed) {
+  var name = typed.trim().toLowerCase();
+  while (name.startsWith('@')) {
+    name = name.substring(1).trimLeft();
+  }
+  return name;
+}
 
-          Future<void> add() async {
-            final username = controller.text.trim().toLowerCase();
-            if (username.isEmpty) return;
-            setSheetState(() => busy = true);
-            final ok = await state.conversations.addContact(username);
-            if (!sheetContext.mounted) return;
-            if (ok) {
-              Navigator.of(sheetContext).pop();
-            } else {
-              setSheetState(() {
-                busy = false;
-                failure = state.conversations.failure?.words(AppText.of(sheetContext)) ??
-                    AppText.of(sheetContext).contactsCouldNotAdd;
-              });
-            }
+/// Asks for a username and adds that person as a contact.
+///
+/// Contacts are added by exact username: there is no directory to browse and
+/// no address book to upload. Returns the username that was added, or null
+/// when nothing was — so a caller that wanted a conversation can open one.
+///
+/// The sheet's own state lives here, outside the builder. Declared inside it,
+/// every rebuild reset it: the refusal was never shown and the button never
+/// stopped accepting presses while a request was out.
+Future<String?> showAddContactSheet(BuildContext context, {String initial = ''}) {
+  final controller = TextEditingController(text: initial);
+  final state = PrivioScope.of(context);
+  var busy = false;
+  var failure = '';
+
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: PrivioColors.surface,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: PrivioRadius.card),
+    ),
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheetState) {
+        final text = AppText.of(sheetContext);
+
+        Future<void> add() async {
+          if (busy) return;
+          final username = normaliseUsername(controller.text);
+          if (username.isEmpty) return;
+          if (!usernamePattern.hasMatch(username)) {
+            setSheetState(() => failure = text.contactsCouldNotAdd);
+            return;
           }
+          setSheetState(() {
+            busy = true;
+            failure = '';
+          });
+          final ok = await state.conversations.addContact(username);
+          if (!sheetContext.mounted) return;
+          if (ok) {
+            Navigator.of(sheetContext).pop(username);
+          } else {
+            setSheetState(() {
+              busy = false;
+              failure = state.conversations.failure?.words(text) ?? text.contactsCouldNotAdd;
+            });
+          }
+        }
 
-          return Padding(
-            padding: EdgeInsets.only(
-              left: PrivioSpacing.xxl,
-              right: PrivioSpacing.xxl,
-              top: PrivioSpacing.xxl,
-              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + PrivioSpacing.xxl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        return Padding(
+          padding: EdgeInsets.only(
+            left: PrivioSpacing.xxl,
+            right: PrivioSpacing.xxl,
+            top: PrivioSpacing.xxl,
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + PrivioSpacing.xxl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                text.contactsAddTitle,
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: PrivioSpacing.sm),
+              Text(
+                text.contactsAddNote,
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: PrivioSpacing.xl),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => add(),
+                onChanged: (_) {
+                  if (failure.isNotEmpty) setSheetState(() => failure = '');
+                },
+                decoration: InputDecoration(
+                  hintText: text.contactsUsernameHint,
+                  prefixText: '@ ',
+                ),
+              ),
+              if (failure.isNotEmpty) ...[
+                const SizedBox(height: PrivioSpacing.md),
                 Text(
-                  AppText.of(sheetContext).contactsAddTitle,
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
-                ),
-                const SizedBox(height: PrivioSpacing.sm),
-                Text(
-                  AppText.of(sheetContext).contactsAddNote,
-                  style: Theme.of(sheetContext).textTheme.bodySmall,
-                ),
-                const SizedBox(height: PrivioSpacing.xl),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  autocorrect: false,
-                  onSubmitted: (_) => add(),
-                  decoration: InputDecoration(
-                    hintText: AppText.of(sheetContext).contactsUsernameHint,
-                    prefixText: '@ ',
-                  ),
-                ),
-                if (failure.isNotEmpty) ...[
-                  const SizedBox(height: PrivioSpacing.md),
-                  Text(
-                    failure,
-                    style: Theme.of(sheetContext)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: PrivioColors.danger),
-                  ),
-                ],
-                const SizedBox(height: PrivioSpacing.lg),
-                FilledButton(
-                  onPressed: busy ? null : add,
-                  child: busy
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: PrivioColors.background,
-                          ),
-                        )
-                      : Text(AppText.of(sheetContext).commonAdd),
+                  failure,
+                  style: Theme.of(sheetContext)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: PrivioColors.danger),
                 ),
               ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+              const SizedBox(height: PrivioSpacing.lg),
+              FilledButton(
+                onPressed: busy ? null : add,
+                child: busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: PrivioColors.background,
+                        ),
+                      )
+                    : Text(text.commonAdd),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
 
 class _EmptyContacts extends StatelessWidget {
-  const _EmptyContacts();
+  const _EmptyContacts({required this.onAdd});
+
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final text = AppText.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
@@ -287,13 +337,56 @@ class _EmptyContacts extends StatelessWidget {
           children: [
             const Icon(Icons.people_outline_rounded, size: 40, color: PrivioColors.textTertiary),
             const SizedBox(height: PrivioSpacing.md),
-            Text(AppText.of(context).contactsEmptyTitle, style: theme.textTheme.titleMedium),
+            Text(text.contactsEmptyTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: PrivioSpacing.xs),
             Text(
-              AppText.of(context).contactsEmptyBody,
+              text.contactsEmptyBody,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
+            const SizedBox(height: PrivioSpacing.xl),
+            FilledButton(onPressed: onAdd, child: Text(text.contactsAddTitle)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A search that found nobody among the contacts.
+///
+/// "No contacts yet" was wrong here — there may be many — and a search box is
+/// where people type the name of somebody they want to add. When what they
+/// typed could be a username, adding it is one press away.
+class _NoMatch extends StatelessWidget {
+  const _NoMatch({required this.query, required this.onAdd});
+
+  final String query;
+  final ValueChanged<String> onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    final username = normaliseUsername(query);
+    final addable = usernamePattern.hasMatch(username);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.xxxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off_rounded, size: 40, color: PrivioColors.textTertiary),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(text.searchNoResults, style: theme.textTheme.titleMedium),
+            if (addable) ...[
+              const SizedBox(height: PrivioSpacing.xl),
+              FilledButton.icon(
+                onPressed: () => onAdd(username),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: Text(text.contactsAddUsername(username)),
+              ),
+            ],
           ],
         ),
       ),

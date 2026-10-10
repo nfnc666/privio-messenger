@@ -36,6 +36,25 @@ class FakeServer {
   /// Idempotency keys the server has already seen, per sending device.
   final Map<String, int> seenKeys = {};
 
+  /// Devices waiting for a key, as the server keeps them: `group:<id>` or
+  /// `channel:<id>` to the ids of the devices that asked.
+  final Map<String, Set<String>> keyRequests = {};
+
+  /// Requests the server refused, so a test can say there were none.
+  final List<String> refused = [];
+
+  /// How many times each account's prekey bundles were fetched. Each fetch
+  /// consumes one of that account's one-time prekeys on the real server.
+  final Map<String, int> bundleFetches = {};
+
+  /// No server at all: every request fails the way a dropped connection does,
+  /// before anything reaches the server.
+  bool offline = false;
+
+  /// When set, a send is refused with this error code and a 403, the way the
+  /// real server refuses an unlicensed account.
+  String? refuseSendsWith;
+
   FakeDevice register(
     String username,
     String accountId,
@@ -58,6 +77,7 @@ class FakeServer {
   }
 
   http.Client clientFor(String deviceId) => MockClient((request) async {
+        if (offline) throw http.ClientException('Connection refused', request.url);
         final path = request.url.path;
         final method = request.method;
 
@@ -94,6 +114,51 @@ class FakeServer {
                 },
             ],
           });
+        }
+
+        if (method == 'GET' && path == '/v1/devices') {
+          final me = _deviceById(deviceId);
+          final account = accounts.values.firstWhere((a) => a.devices.contains(me));
+          return _json({
+            'devices': [
+              for (final device in account.devices)
+                {'id': device.deviceId, 'current': device.deviceId == deviceId},
+            ],
+          });
+        }
+
+        final keyRequest =
+            RegExp(r'^/v1/(groups|channels)/([^/]+)/key-requests(?:/([^/]+))?$').firstMatch(path);
+        if (keyRequest != null) {
+          final scope = keyRequest.group(1) == 'groups' ? 'group' : 'channel';
+          final waiting = keyRequests.putIfAbsent('$scope:${keyRequest.group(2)}', () => {});
+          final target = keyRequest.group(3);
+          if (method == 'POST' && target == null) {
+            waiting.add(deviceId);
+            return _json({'requested': true});
+          }
+          if (method == 'GET' && target == null) {
+            return _json({
+              'requests': [
+                for (final id in waiting)
+                  if (id != deviceId) {'deviceId': id, 'username': _usernameOf(id)},
+              ],
+            });
+          }
+          if (method == 'DELETE' && target != null) {
+            // The rule the real server enforces (`enforceOwnKeyRequestAck`):
+            // a request is cleared by the device that made it, and by nobody
+            // else, so no member can starve a new device of the key.
+            if (target != deviceId) {
+              refused.add('$method $path');
+              return _json(
+                {'error': 'key_request_not_owned', 'message': 'Not your request'},
+                status: 403,
+              );
+            }
+            waiting.remove(target);
+            return _json({'cleared': true});
+          }
         }
 
         if (method == 'GET' && path.endsWith('/devices')) {
@@ -199,6 +264,7 @@ class FakeServer {
 
         if (method == 'GET' && path.startsWith('/v1/keys/')) {
           final username = path.split('/').last;
+          bundleFetches[username] = (bundleFetches[username] ?? 0) + 1;
           final account = accounts[username]!;
           // Asking for your own account means "my other devices", as the real
           // server answers it: a device never needs a session with itself, and
@@ -221,6 +287,10 @@ class FakeServer {
             'username': username,
             'devices': bundles,
           });
+        }
+
+        if (method == 'POST' && path == '/v1/messages' && refuseSendsWith != null) {
+          return _json({'error': refuseSendsWith, 'message': 'Refused'}, status: 403);
         }
 
         if (method == 'POST' && path == '/v1/messages') {
@@ -342,6 +412,10 @@ class FakeServer {
   FakeDevice _deviceById(String deviceId) => accounts.values
       .expand((account) => account.devices)
       .firstWhere((device) => device.deviceId == deviceId);
+
+  String _usernameOf(String deviceId) => accounts.entries
+      .firstWhere((entry) => entry.value.devices.any((device) => device.deviceId == deviceId))
+      .key;
 
   String _accountIdOf(FakeDevice device) =>
       accounts.values.firstWhere((account) => account.devices.contains(device)).id;

@@ -686,9 +686,8 @@ class ChannelService {
             keyEpoch: epoch,
           );
         }
-        for (final deviceId in entry.value) {
-          await _api.clearChannelKeyRequest(channelId, deviceId);
-        }
+        // The request is the receiver's to clear, once the key has arrived:
+        // the server refuses anybody else. See `MessagingService.acknowledgeKey`.
         served++;
       } on Object {
         // One unreachable member must not hold up the rest; the request stays

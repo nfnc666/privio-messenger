@@ -118,9 +118,9 @@ export interface EndpointPolicy {
   /**
    * The error code to refuse with.
    *
-   * Defaults to the push one, because that was the first caller. A bot
-   * webhook says `invalid_webhook`, so an operator reading the failure is not
-   * told their push configuration is wrong when it is their webhook URL.
+   * Defaults to the push one, because push is the caller. Another caller names
+   * its own, so that whoever reads the failure is pointed at the setting that
+   * is actually wrong.
    */
   code?: string;
 }

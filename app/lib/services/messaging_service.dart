@@ -213,6 +213,7 @@ class MessagingService {
         return 0;
       }
       if (error.code != 'device_mismatch') rethrow;
+      _knownDevices.remove(username);
       result = await _sealAndSend(
         username, encoded, idempotencyKey: key, expiresInSeconds: bound,
       );
@@ -477,12 +478,7 @@ class MessagingService {
     String? idempotencyKey,
     int? expiresInSeconds,
   }) async {
-    final response = await _api.preKeyBundles(username);
-    final accountId = response['accountId'] as String;
-    final devices = [
-      for (final device in response['devices'] as List<dynamic>)
-        DeviceBundle.fromJson(device as Map<String, dynamic>),
-    ];
+    final (:accountId, :devices) = await _devicesFor(username);
 
     final sealed = await _crypto.sealForDevices(
       accountId: accountId,
@@ -512,8 +508,73 @@ class MessagingService {
   /// own name before every message is a request the server does not need.
   String? _selfUsername;
 
-  // ignore: use_setters_to_change_properties
-  void identifyAs(String? username) => _selfUsername = username;
+  void identifyAs(String? username) {
+    // What this device knew about other accounts' devices belongs to the
+    // account that learned it.
+    if (username != _selfUsername) _knownDevices.clear();
+    _selfUsername = username;
+  }
+
+  /// Each account's devices as the server last listed them, by username.
+  ///
+  /// A direct send used to fetch the recipient's prekey bundles every time —
+  /// every message, every typing notice, every receipt, and again for the
+  /// copy to this account's own devices. The server allows sixty such fetches
+  /// an hour and **each one consumes one of the recipient's one-time
+  /// prekeys**. A lively conversation hit the limit within the hour, sends
+  /// started failing with "too many requests", and the other person's prekeys
+  /// were used up for nothing, leaving new sessions with them on the weaker
+  /// signed-prekey-only handshake. Group sends already avoided it.
+  ///
+  /// Now a list is fetched when there is none, or when a session with one of
+  /// its devices is missing. The server checks every send against the real
+  /// device list and answers `device_mismatch` when this one is out of date,
+  /// which drops it and fetches again — so nothing goes to a stale list.
+  final Map<String, _KnownDevices> _knownDevices = {};
+
+  /// How long "this account has no other devices" is believed. Signing in on
+  /// a second phone adds one, and with nothing to send to there is no send
+  /// for the server to correct; so the answer is asked for again after this.
+  static const Duration noOtherDevicesFor = Duration(minutes: 10);
+
+  Future<({String accountId, List<DeviceBundle> devices})> _devicesFor(String username) async {
+    final known = _knownDevices[username];
+    if (known != null) {
+      if (known.devices.isEmpty) {
+        if (DateTime.now().difference(known.fetchedAt) < noOtherDevicesFor) {
+          throw ApiException(404, 'no_devices', 'User has no active devices');
+        }
+      } else if (await _hasSessionsWithAll(known)) {
+        return (accountId: known.accountId, devices: known.devices);
+      }
+    }
+    final Map<String, dynamic> response;
+    try {
+      response = await _api.preKeyBundles(username);
+    } on ApiException catch (error) {
+      if (error.code == 'no_devices' && username == _selfUsername) {
+        _knownDevices[username] = _KnownDevices('', const [], DateTime.now());
+      }
+      rethrow;
+    }
+    final fetched = _KnownDevices(
+      response['accountId'] as String,
+      [
+        for (final device in response['devices'] as List<dynamic>)
+          DeviceBundle.fromJson(device as Map<String, dynamic>),
+      ],
+      DateTime.now(),
+    );
+    _knownDevices[username] = fetched;
+    return (accountId: fetched.accountId, devices: fetched.devices);
+  }
+
+  Future<bool> _hasSessionsWithAll(_KnownDevices known) async {
+    for (final device in known.devices) {
+      if (!await _crypto.hasSessionWith(known.accountId, device.deviceIndex)) return false;
+    }
+    return true;
+  }
 
   /// Sends a copy of what was just sent to this account's own other devices.
   ///
@@ -880,6 +941,34 @@ class MessagingService {
   /// speak.
   Future<void> requestGroupKey(String groupId) => _api.requestGroupKey(groupId);
 
+  /// This device's id on the server, learned once from the device list.
+  String? _ownDeviceId;
+
+  /// Tells the server this device has the key it was waiting for.
+  ///
+  /// Only the waiting device may do this: the server refuses anybody else,
+  /// because a member who could clear another device's request could starve
+  /// it of the key for good. Key holders used to try after delivering, were
+  /// refused every time, and so delivered the same key again on every pass.
+  Future<void> acknowledgeKey({required String scope, required String scopeId}) async {
+    final deviceId = _ownDeviceId ??= await _findOwnDeviceId();
+    if (deviceId == null) return;
+    if (scope == 'group') {
+      await _api.clearGroupKeyRequest(scopeId, deviceId);
+    } else if (scope == 'channel') {
+      await _api.clearChannelKeyRequest(scopeId, deviceId);
+    }
+  }
+
+  Future<String?> _findOwnDeviceId() async {
+    final response = await _api.devices();
+    for (final raw in response['devices'] as List<dynamic>? ?? const []) {
+      final device = raw as Map<String, dynamic>;
+      if (device['current'] == true) return device['id'] as String?;
+    }
+    return null;
+  }
+
   Future<int> deliverGroupKeys(String groupId, String base64Key) async {
     final response = await _api.groupKeyRequests(groupId);
     final requests = [
@@ -904,9 +993,8 @@ class MessagingService {
           scopeId: groupId,
           base64Key: base64Key,
         );
-        for (final deviceId in entry.value) {
-          await _api.clearGroupKeyRequest(groupId, deviceId);
-        }
+        // The request is the receiver's to clear, once the key has arrived —
+        // see [acknowledgeKey].
         served++;
       } on Object {
         // Retried on the next refresh rather than blocking the others.
@@ -1086,4 +1174,13 @@ class MessagingService {
     await _api.uploadPreKeys(keys);
     return remaining + keys.length;
   }
+}
+
+/// What [MessagingService] remembers about one account's devices.
+class _KnownDevices {
+  _KnownDevices(this.accountId, this.devices, this.fetchedAt);
+
+  final String accountId;
+  final List<DeviceBundle> devices;
+  final DateTime fetchedAt;
 }

@@ -263,73 +263,32 @@ picker is the part no widget test reaches. See
 | G5 | Rename the group afterwards: the picture and the description are still there | | | | | not run | |
 | G6 | Join by a link on a fresh device: the picture is drawn **before** the group key arrives, while the name and description are still blank | This is the whole reason the picture is not sealed | | | | not run | |
 
-## 6i. A bot in a group
+## 6i. Renewing a group's invite link
 
-Covered by `app/test/group_bots_test.dart` and
-`server/test/bots_in_groups.test.ts`; none of it has been on a phone, and the
-rows below need a bot that is actually running somewhere. See
-[`bots.md`](bots.md#bots-in-groups).
+Covered by `app/test/group_profile_test.dart`.
 
 | # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| B1 | Add a bot as an admin: the disclosure names what it can read, and after adding it has **no** rights — every switch is off | Needs a bot with a token and a poller running | | | | not run | |
-| B2 | A member opens the same screen: they see the bot and its rights, and cannot change any of them | | | | | not run | |
-| B3 | With **Send messages** on, write `/help` in the group: the bot receives it and answers; write an ordinary sentence: it receives nothing (check the bot's own log) | The bot's log is the evidence; the app cannot show what was not sent | | | | not run | |
-| B4 | Turn on **Receive all new messages**: the second dialog appears, and afterwards every new message reaches the bot — but nothing from before | | | | | not run | |
-| B5 | Remove the bot: the next message reaches it no more, and the removal dialog says what cannot be undone | | | | | not run | |
-| B6 | Two bots in one group: `/help@one` reaches only that one, a bare `/help` reaches both | | | | | not run | |
+| Gi1 | As an admin, open the group's invite link and press **Renew**: a new link appears, the old link no longer opens the group, and nobody in the group is affected | | | | | not run | |
+| Gi2 | As a member, open the same dialog: the link is there and there is **no** Renew button | | | | | not run | |
 
-## 6j. Talking to a bot
+## 6j. Found by using the app in a browser
 
-Covered by `app/test/bot_chat_test.dart`, `app/test/bot_chat_screen_test.dart`
-and `server/test/bot_buttons.test.ts`; none of it has been on a phone. The rows
-need a bot that is actually running — `bot-sdk/examples/greeter.py` is enough
-and answers all of this. See [`bot-api.md`](bot-api.md).
+Each of these was found by walking the web build with several accounts, fixed,
+and covered by an automated test. What a browser cannot show is the phone: the
+operating system's reduce-motion switch, a real network dropping, a real
+second device. Covered by `app/test/text_queue_test.dart`,
+`call_address_test.dart`, `ratchet_order_test.dart`, `device_list_test.dart`,
+`welcome_language_test.dart` and `motion_test.dart`.
 
 | # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Bc1 | Settings → Bots → *Open a bot*, type the exact `@username`: the chat opens with the BOT label, the description, and a **Start** button. **No text field** | | | | | not run | |
-| Bc2 | A name with one letter missing, and the name of a person: both say nothing was found, and nothing opens | | | | | not run | |
-| Bc3 | Press **Start**: the "not end-to-end encrypted" dialog appears *first*; dismissing it sends `/start` and the bot answers | | | | | not run | |
-| Bc4 | The command menu (the icon left of the field) lists exactly what the bot published, and tapping one sends it | | | | | not run | |
-| Bc5 | Send `/menu`: two buttons appear under the bot's message. Press one: the bot answers, the button shows as pressed and cannot be pressed again | | | | | not run | |
-| Bc6 | Press the *other* button on the same message: it still works — one press per button, not one per message | | | | | not run | |
-| Bc7 | **Stop** the bot from the menu: the confirmation says what happens, and afterwards the bot's next send is refused (check the bot's log) | The bot's log is the evidence | | | | not run | |
-| Bc8 | Write to it again: it starts over and answers | | | | | not run | |
-| Bc9 | Open a bot's profile from a group member list: *Message* opens the **bot chat**, not an encrypted chat, and there are no call buttons | | | | | not run | |
-| Bc10 | Switch accounts with a bot chat open: the other account's chat with the same bot is empty until it starts the bot itself | | | | | not run | |
-
-## 6k. A bot moderating, and the invite link
-
-Covered by `server/test/bot_moderation.test.ts` and
-`app/test/group_profile_test.dart`. See
-[`bots.md`](bots.md#what-each-right-actually-does).
-
-| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Bm1 | In a group's bot screen, **Delete messages** is shown *disabled*, with the sentence saying only the author can delete for everyone | Not a defect: see bots.md | | | | not run | |
-| Bm2 | Grant **Restrict members**: the bot can list the members and remove an ordinary one, and that person's app notices they are out | | | | | not run | |
-| Bm3 | The bot tries to remove an admin and itself: both refused (`cannot_remove_admin`, `not_itself`) | The bot's log is the evidence | | | | not run | |
-| Bm4 | Withdraw the right: the bot's *next* removal is refused | | | | | not run | |
-| Bm5 | As an admin, open the group's invite link and press **Renew**: a new link appears, the old link no longer opens the group, and nobody in the group is affected | | | | | not run | |
-| Bm6 | As a member, open the same dialog: the link is there and there is **no** Renew button | | | | | not run | |
-| Bm7 | Grant **Manage invites** and let the bot renew the link: the app shows the new one after a refresh | | | | | not run | |
-
-## 6l. A webhook instead of polling
-
-Covered by `server/test/bot_webhooks.test.ts` and the receiver in
-`bot-sdk/examples/webhook_receiver.py`. **The one thing no test here could
-cover**: a delivery to a real public HTTPS URL. The guard refuses every address
-a test container can listen on, which is correct — so this is the section that
-needs a real host. See [`bot-api.md` §5](bot-api.md#5-webhooks).
-
-| # | Test and expected result | Known platform limit | Build / commit | Device | OS | Result | Evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Bw1 | Register a webhook on a real public HTTPS URL: the secret is shown once, and `GET /v1/bot/webhook` never shows it again | Needs a host with a valid certificate | | | | not run | |
-| Bw2 | Write to the bot from a phone: the delivery arrives at the receiver and `verify()` accepts it | | | | | not run | |
-| Bw3 | Change one byte of the body in the receiver before verifying: it is refused | | | | | not run | |
-| Bw4 | Stop the receiver, send three messages, start it again: the hook backs off and recovers, and `GET /v1/bot/webhook` shows the failures. **The messages sent while it was down are gone** — that is documented behaviour, not a bug | | | | | not run | |
-| Bw5 | Register `https://10.0.0.5/hook` and `http://your-host/hook`: both refused with `invalid_webhook` | | | | | not run | |
+| Wb1 | Turn on flight mode, write a message: it shows a cloud mark, no red banner. Turn flight mode off: it goes out by itself within seconds | | | | | not run | |
+| Wb2 | Call a contact whose display name differs from their username: their phone rings, and the call screen shows the display name | | | | | not run | |
+| Wb3 | Write quickly back and forth for several minutes, both typing at once: no "could not be read" notice and no "too many requests" on either side | | | | | not run | |
+| Wb4 | Sign in on a second phone, then have somebody write to you: both phones receive the message | | | | | not run | |
+| Wb5 | On the first screen pick Deutsch, create an account: the whole app is in German without visiting Settings | | | | | not run | |
+| Wb6 | Turn on Reduce motion (iOS) or Remove animations (Android): new messages, the welcome screen and the typing dots no longer move | | | | | not run | |
 
 ## 7. App states
 
@@ -416,15 +375,13 @@ scope that was not tested, and belong in the release notes as exactly that.
 | 6f Accent on the loading screen | 6 | 0 | 0 | 0 | 6 |
 | 6g Tapping an @name | 6 | 0 | 0 | 0 | 6 |
 | 6h Group picture and description | 6 | 0 | 0 | 0 | 6 |
-| 6i A bot in a group | 6 | 0 | 0 | 0 | 6 |
-| 6j Talking to a bot | 10 | 0 | 0 | 0 | 10 |
-| 6k Moderating and the invite link | 7 | 0 | 0 | 0 | 7 |
-| 6l A webhook | 5 | 0 | 0 | 0 | 5 |
+| 6i Renewing an invite link | 2 | 0 | 0 | 0 | 2 |
+| 6j Found in a browser walkthrough | 6 | 0 | 0 | 0 | 6 |
 | 7 App states | 7 | 0 | 0 | 0 | 7 |
 | 8 Connectivity | 6 | 0 | 0 | 0 | 6 |
 | 9 Push | 8 | 0 | 0 | 0 | 8 |
 | 10 Calls | 3 | 0 | 0 | 0 | 3 |
-| **Total** | **145** | **0** | **0** | **0** | **145** |
+| **Total** | **125** | **0** | **0** | **0** | **125** |
 
 The four sections between 6 and 7 were missing from this table until the timer
 rows were added — 34 rows of scope that the total silently left out. A summary

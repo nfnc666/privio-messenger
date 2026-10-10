@@ -24,14 +24,27 @@ enum CallState {
 
 /// The other person, as far as a call needs to know them.
 class CallParty {
-  const CallParty({required this.accountId, required this.username});
+  const CallParty({required this.accountId, required this.username, this.displayName});
 
   final String accountId;
 
-  /// What to send to, and what to show. One field because Privio has one name
-  /// per account and no separate display name to get out of step with it.
+  /// What the call is sent to: the account's username, and nothing else.
+  ///
+  /// This used to be what was shown as well, from when an account had one
+  /// name. Accounts have display names now, and a chat handed its title —
+  /// the display name — in here: every call to somebody whose display name
+  /// was not their username asked the server for the keys of "Bob Test",
+  /// was refused, and never rang.
   final String username;
 
+  /// What the person is called on screen, when they have chosen a name.
+  final String? displayName;
+
+  /// What a call screen shows.
+  String get label => displayName ?? username;
+
+  // Who is being called is the account and its username; the display name is
+  // only how it is shown, and does not make two parties different.
   @override
   bool operator ==(Object other) =>
       other is CallParty && other.accountId == accountId && other.username == username;

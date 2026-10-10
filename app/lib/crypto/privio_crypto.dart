@@ -298,11 +298,33 @@ class PrivioCrypto {
   /// is that the *next* message works, instead of every message from that
   /// device failing forever.
   Future<void> resetSession(String accountId, int deviceIndex) =>
-      _store.deleteSession(_address(accountId, deviceIndex));
+      _oneAtATime(() => _store.deleteSession(_address(accountId, deviceIndex)));
+
+  /// The end of the line of session operations, which run one at a time.
+  Future<void> _ratchet = Future<void>.value();
+
+  /// Runs [work] after every session operation already started, never beside
+  /// one.
+  ///
+  /// A session is read, advanced and written back, with awaits in between.
+  /// Two of those at once — a typing notice and the message after it, or a
+  /// send while a read receipt is being opened — both read the same state,
+  /// and the second write throws away the first: two messages go out under
+  /// the same key, or a step of the ratchet is lost, and the other side says
+  /// a message "could not be read". Seen between two accounts in a browser.
+  /// Opening, sealing, starting and resetting a session all take their turn.
+  Future<T> _oneAtATime<T>(Future<T> Function() work) {
+    final result = _ratchet.then((_) => work());
+    _ratchet = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
 
   /// Opens a session from a server-issued prekey bundle. Safe to call when a
   /// session already exists — it is a no-op then.
-  Future<void> ensureSession(String accountId, DeviceBundle bundle) async {
+  Future<void> ensureSession(String accountId, DeviceBundle bundle) =>
+      _oneAtATime(() => _ensureSession(accountId, bundle));
+
+  Future<void> _ensureSession(String accountId, DeviceBundle bundle) async {
     final address = _address(accountId, bundle.deviceIndex);
     if (await _store.containsSession(address)) return;
     final builder = SessionBuilder.fromSignalStore(_store, address);
@@ -315,6 +337,23 @@ class PrivioCrypto {
 
   /// Seals [plaintext] for one device. The session must already exist.
   Future<SealedCopy> seal({
+    required String accountId,
+    required String deviceId,
+    required int deviceIndex,
+    required int registrationId,
+    required String plaintext,
+  }) =>
+      _oneAtATime(
+        () => _seal(
+          accountId: accountId,
+          deviceId: deviceId,
+          deviceIndex: deviceIndex,
+          registrationId: registrationId,
+          plaintext: plaintext,
+        ),
+      );
+
+  Future<SealedCopy> _seal({
     required String accountId,
     required String deviceId,
     required int deviceIndex,
@@ -372,6 +411,21 @@ class PrivioCrypto {
   /// identity key is what the session actually authenticated. Anything that
   /// has to be sure who it is talking to — a call — needs the second one.
   Future<OpenedEnvelope> openEnvelope({
+    required String senderAccountId,
+    required int senderDeviceIndex,
+    required String type,
+    required String content,
+  }) =>
+      _oneAtATime(
+        () => _openEnvelope(
+          senderAccountId: senderAccountId,
+          senderDeviceIndex: senderDeviceIndex,
+          type: type,
+          content: content,
+        ),
+      );
+
+  Future<OpenedEnvelope> _openEnvelope({
     required String senderAccountId,
     required int senderDeviceIndex,
     required String type,

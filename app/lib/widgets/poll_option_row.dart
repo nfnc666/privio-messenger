@@ -6,9 +6,8 @@ import '../theme/privio_colors.dart';
 /// One answer of a poll: a tick, the words, and — once results show — a bar
 /// and a count.
 ///
-/// Shared by channel polls and bot polls, so the two are answered the same way
-/// and look like the same kind of thing. What differs between them is who can
-/// read the question and who sees the tally, and each card says that itself.
+/// The row a channel poll is answered with, kept as its own widget so that a
+/// poll anywhere else in the app is answered the same way.
 class PollOptionRow extends StatelessWidget {
   const PollOptionRow({
     super.key,

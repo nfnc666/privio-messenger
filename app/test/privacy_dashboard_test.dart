@@ -246,17 +246,18 @@ void main() {
     expect(find.text('Direct'), findsOneWidget);
   });
 
-  testWidgets('the bot exception is on the screen, not in a footnote', (tester) async {
+  testWidgets('messages carry no exception: bots, the one there was, are gone',
+      (tester) async {
     final server = _Server();
     final state = await _signedIn(tester, server);
 
     await tester.pumpWidget(_dashboardOver(state));
     await _settle(tester);
 
-    expect(
-      find.textContaining('not end-to-end encrypted'),
-      findsOneWidget,
-      reason: 'the one place Privio can read a body must not be hidden here',
-    );
+    // Bot conversations were the one place the server could read a body, and
+    // this row used to say so. With bots removed it must not keep claiming an
+    // exception that no longer exists — nor lose the claim it does make.
+    expect(find.textContaining('not end-to-end encrypted'), findsNothing);
+    expect(find.text('Messages'), findsOneWidget);
   });
 }

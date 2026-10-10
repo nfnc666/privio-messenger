@@ -181,9 +181,10 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // confirm the list to anybody probing it; more to the point, the person
     // trying to sign up needs a different name either way.
     //
-    // The table holds names that are not accounts yet, which is the whole
-    // reason it exists: @botcreator is a real account and would collide on its
-    // own, but @support and the rest have to be held empty.
+    // The table holds names that are not accounts, which is the whole reason it
+    // exists: @support and the rest have to be held empty. @botcreator stays on
+    // it after bots were removed (migration 043), so nobody can take the name
+    // and be mistaken for the assistant that once had it.
     const { rowCount: reserved } = await pool.query(
       'SELECT 1 FROM reserved_usernames WHERE username = $1',
       [body.username],

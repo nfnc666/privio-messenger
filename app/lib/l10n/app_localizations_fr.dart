@@ -543,7 +543,7 @@ class AppTextFr extends AppText {
 
   @override
   String get chIntegrationsNote =>
-      'Un bot ne peut pas encore publier dans un canal, il n\'y a donc rien à connecter ici. Le direct est la seule intégration de ce canal.';
+      'Le direct est la seule intégration de ce canal. Privio n\'a pas de bots : seuls les admins autorisés à publier peuvent publier ici.';
 
   @override
   String get chDangerNote =>
@@ -1076,7 +1076,7 @@ class AppTextFr extends AppText {
 
   @override
   String get livestreamNotSetUpBody =>
-      'Un direct a besoin d\'un serveur média : une personne envoie la vidéo et toutes les autres la reçoivent, ce qui ne peut pas se faire d\'appareil à appareil comme pour un appel.\n\nCe serveur PRIVIO n\'en a aucun de configuré : il n\'y a donc encore rien à rejoindre. La personne qui l\'administre peut en mettre un en place.';
+      'Un direct a besoin d\'un serveur média : une personne envoie la vidéo et toutes les autres la reçoivent, ce qui ne peut pas se faire d\'appareil à appareil comme pour un appel.\n\nCe serveur Privio n\'en a aucun de configuré : il n\'y a donc encore rien à rejoindre. La personne qui l\'administre peut en mettre un en place.';
 
   @override
   String get livestreamYouAreLive => 'Vous êtes en direct';
@@ -1086,11 +1086,11 @@ class AppTextFr extends AppText {
 
   @override
   String get livestreamPublisherBody =>
-      'La salle est ouverte et votre appareil dispose d\'un jeton pour y diffuser. PRIVIO ne transporte pas encore la vidéo elle-même — c\'est le serveur média qui le fait — donc rien n\'est envoyé depuis cet écran.\n\nTerminez-le quand vous avez fini.';
+      'La salle est ouverte et votre appareil dispose d\'un jeton pour y diffuser. Privio ne transporte pas encore la vidéo elle-même — c\'est le serveur média qui le fait — donc rien n\'est envoyé depuis cet écran.\n\nTerminez-le quand vous avez fini.';
 
   @override
   String get livestreamViewerBody =>
-      'Un direct est en cours et cet appareil dispose d\'un jeton pour le regarder. PRIVIO ne peut pas encore afficher la vidéo.';
+      'Un direct est en cours et cet appareil dispose d\'un jeton pour le regarder. Privio ne peut pas encore afficher la vidéo.';
 
   @override
   String get livestreamEndIt => 'Y mettre fin';
@@ -1109,12 +1109,12 @@ class AppTextFr extends AppText {
 
   @override
   String visibilityPublicBody(String handle) {
-    return 'N\'importe qui peut le trouver par son nom et lire ses publications. Son identifiant est @$handle.\n\nPRIVIO ne peut pas rendre privé un canal public après coup : son nom et sa description ont été lisibles, et une application ne peut pas défaire cela.';
+    return 'N\'importe qui peut le trouver par son nom et lire ses publications. Son identifiant est @$handle.\n\nPrivio ne peut pas rendre privé un canal public après coup : son nom et sa description ont été lisibles, et une application ne peut pas défaire cela.';
   }
 
   @override
   String get visibilityPrivateBody =>
-      'Il n\'est pas répertorié, pas trouvable par la recherche, et accessible uniquement par son lien d\'invitation. Son nom est chiffré avec la clé du canal.\n\nLe rendre public publierait ce nom, et ce n\'est pas une décision que PRIVIO prend à votre place — créez plutôt un canal public.';
+      'Il n\'est pas répertorié, pas trouvable par la recherche, et accessible uniquement par son lien d\'invitation. Son nom est chiffré avec la clé du canal.\n\nLe rendre public publierait ce nom, et ce n\'est pas une décision que Privio prend à votre place — créez plutôt un canal public.';
 
   @override
   String get discussionBody =>
@@ -1228,6 +1228,10 @@ class AppTextFr extends AppText {
 
   @override
   String get textSizeLarger => 'Très grande';
+
+  @override
+  String get notificationsWebNote =>
+      'Dans un navigateur, Privio n\'a pas de notifications push. Les messages arrivent tant que cet onglet est ouvert, sinon à la prochaine ouverture. Rien n\'est envoyé pour le réveiller, donc personne d\'autre ne sait quand vous recevez du courrier.';
 
   @override
   String get notificationsPushNote =>
@@ -1919,6 +1923,11 @@ class AppTextFr extends AppText {
   String get contactsAddTitle => 'Ajouter un contact';
 
   @override
+  String contactsAddUsername(String username) {
+    return 'Ajouter @$username';
+  }
+
+  @override
   String get contactsAddNote =>
       'Saisissez leur nom d\'utilisateur Privio exact. Rien n\'est envoyé depuis votre carnet d\'adresses, et personne ne peut vous trouver en parcourant une liste.';
 
@@ -1998,107 +2007,6 @@ class AppTextFr extends AppText {
   @override
   String get groupDescriptionFailed =>
       'La description n’a pas pu être enregistrée.';
-
-  @override
-  String get groupBotsTitle => 'Bots dans ce groupe';
-
-  @override
-  String get groupBotsIntro =>
-      'Les bots sont des comptes automatisés gérés par quelqu’un hors de ce groupe. Ils ne reçoivent que ce qui leur est remis délibérément.';
-
-  @override
-  String get groupBotsNone => 'Il n’y a aucun bot dans ce groupe.';
-
-  @override
-  String get groupBotsAddTitle => 'Ajouter un bot';
-
-  @override
-  String get groupBotsAddHint =>
-      'Saisissez le @nom exact du bot. Il n’existe volontairement aucun annuaire de tous les bots.';
-
-  @override
-  String get groupBotsNotFound => 'Ce bot n’existe pas.';
-
-  @override
-  String get groupBotsCouldNotAdd => 'Le bot n’a pas pu être ajouté.';
-
-  @override
-  String get groupBotsCouldNotChange =>
-      'La modification n’a pas pu être enregistrée.';
-
-  @override
-  String get groupBotsMaySend => 'Envoyer des messages';
-
-  @override
-  String get groupBotsMayModerate => 'Supprimer des messages';
-
-  @override
-  String get groupBotsModerateUnavailable =>
-      'Impossible dans PRIVIO : seul l\'auteur d\'un message peut le supprimer pour tout le monde. Un bot n\'a pas la clé du groupe, il ne peut donc pas supprimer le message de quelqu\'un d\'autre.';
-
-  @override
-  String get groupBotsMayRestrict => 'Restreindre des membres';
-
-  @override
-  String get groupBotsMayInvite => 'Gérer les invitations';
-
-  @override
-  String get groupBotsReadAll => 'Recevoir tous les nouveaux messages';
-
-  @override
-  String get groupBotsReadsAddressed =>
-      'Ne reçoit que les commandes, mentions et réponses qui lui sont adressées';
-
-  @override
-  String get groupBotsReadsEverything =>
-      'Reçoit chaque nouveau message de ce groupe';
-
-  @override
-  String get groupBotsReadAllTitle => 'Remettre tous les messages ?';
-
-  @override
-  String groupBotsReadAllBody(String name) {
-    return 'Dès lors, l’appareil de chaque membre remettra chaque nouveau message à « $name », et pas seulement ceux qui lui sont adressés. L’exploitant du bot peut les lire. Les messages antérieurs ne sont pas concernés.';
-  }
-
-  @override
-  String get groupBotsReadAllConfirm => 'Tout remettre';
-
-  @override
-  String groupBotsRemoveTitle(String name) {
-    return 'Retirer « $name » ?';
-  }
-
-  @override
-  String get groupBotsRemoveBody =>
-      'Plus rien ne lui sera remis. Ce qu’il a déjà reçu se trouve sur le serveur de son exploitant et ne peut pas être supprimé d’ici.';
-
-  @override
-  String get groupBotsRemoveAction => 'Retirer le bot';
-
-  @override
-  String groupBotsDisclosureTitle(String name) {
-    return 'Ce que « $name » peut lire';
-  }
-
-  @override
-  String get groupBotsDisclosureReads =>
-      'Il reçoit les commandes, les mentions de lui et les réponses à ses messages — en clair, sur le serveur de son exploitant.';
-
-  @override
-  String get groupBotsDisclosureNotReads =>
-      'Il ne reçoit rien d’autre. Il ne détient aucune clé de ce groupe : les appareils des membres lui remettent des messages isolés, rien de plus. Il ne reçoit jamais les messages antérieurs à son arrivée.';
-
-  @override
-  String get groupBotsDisclosureNoRights =>
-      'Il commence sans aucun droit. Chacun se donne ensuite séparément.';
-
-  @override
-  String get groupBotsDisclosureOperator =>
-      'L’exploitant de ce bot peut lire le contenu que vous partagez avec lui.';
-
-  @override
-  String get groupBotsDisclosureAdd => 'Compris, ajouter';
 
   @override
   String get groupRename => 'Renommer le groupe';
@@ -2460,6 +2368,12 @@ class AppTextFr extends AppText {
   @override
   String get authUsernameRule =>
       '3 à 32 caractères : a–z, 0–9, point ou tiret bas';
+
+  @override
+  String get authShowPassword => 'Afficher le mot de passe';
+
+  @override
+  String get authHidePassword => 'Masquer le mot de passe';
 
   @override
   String get authPasswordRule =>
@@ -4363,6 +4277,9 @@ class AppTextFr extends AppText {
       'Collez le lien ou le code que l’on vous a envoyé.';
 
   @override
+  String get stickersLinkLabel => 'Lien ou code';
+
+  @override
   String get stickersOpen => 'Ouvrir';
 
   @override
@@ -4435,11 +4352,11 @@ class AppTextFr extends AppText {
 
   @override
   String get failurePhoneInvalid =>
-      'Ce n’est pas un numéro de téléphone que PRIVIO peut utiliser. Indiquez l’indicatif du pays, par exemple +33.';
+      'Ce n’est pas un numéro de téléphone que Privio peut utiliser. Indiquez l’indicatif du pays, par exemple +33.';
 
   @override
   String get failurePhoneSmsUnavailable =>
-      'Ce serveur ne peut pas encore envoyer de SMS, un numéro ne peut donc pas être vérifié ici. Vous pouvez continuer à utiliser PRIVIO sans numéro.';
+      'Ce serveur ne peut pas encore envoyer de SMS, un numéro ne peut donc pas être vérifié ici. Vous pouvez continuer à utiliser Privio sans numéro.';
 
   @override
   String get failurePhoneDiscoveryUnavailable =>
@@ -4458,7 +4375,7 @@ class AppTextFr extends AppText {
 
   @override
   String get failurePhoneTooManySends =>
-      'PRIVIO a envoyé ce code autant de fois qu’il le fait. Réessayez plus tard.';
+      'Privio a envoyé ce code autant de fois qu’il le fait. Réessayez plus tard.';
 
   @override
   String get failurePhoneResendTooSoon =>
@@ -4476,7 +4393,7 @@ class AppTextFr extends AppText {
 
   @override
   String get failurePhoneLookupBudgetSpent =>
-      'PRIVIO a comparé aujourd’hui autant de numéros qu’il le fait pour ce compte. Réessayez demain.';
+      'Privio a comparé aujourd’hui autant de numéros qu’il le fait pour ce compte. Réessayez demain.';
 
   @override
   String get failureMentionUnknownUser =>
@@ -4484,10 +4401,10 @@ class AppTextFr extends AppText {
 
   @override
   String get failureContactsPermissionDenied =>
-      'PRIVIO n’a pas accès à vos contacts. Vous pouvez toujours ajouter des personnes via leur identifiant PRIVIO ou un lien d’invitation.';
+      'Privio n’a pas accès à vos contacts. Vous pouvez toujours ajouter des personnes via leur identifiant Privio ou un lien d’invitation.';
 
   @override
-  String get channelVerifiedTooltip => 'Canal officiel PRIVIO';
+  String get channelVerifiedTooltip => 'Canal officiel Privio';
 
   @override
   String get phoneFieldLabel => 'Numéro de téléphone (facultatif)';
@@ -4497,7 +4414,7 @@ class AppTextFr extends AppText {
 
   @override
   String get phoneFieldExplain =>
-      'Associez votre numéro de téléphone pour que vos contacts puissent vous trouver. Vous pouvez aussi utiliser PRIVIO sans numéro de téléphone.';
+      'Associez votre numéro de téléphone pour que vos contacts puissent vous trouver. Vous pouvez aussi utiliser Privio sans numéro de téléphone.';
 
   @override
   String get phoneCountryCode => 'Indicatif du pays';
@@ -4548,14 +4465,14 @@ class AppTextFr extends AppText {
 
   @override
   String get phoneDiscoverableExplain =>
-      'Désactivé tant que vous ne l’activez pas. Une fois activé, une personne ayant votre numéro dans ses contacts voit votre compte PRIVIO.';
+      'Désactivé tant que vous ne l’activez pas. Une fois activé, une personne ayant votre numéro dans ses contacts voit votre compte Privio.';
 
   @override
   String get phoneContactSync => 'Synchroniser les contacts de l’appareil';
 
   @override
   String get phoneContactSyncExplain =>
-      'Désactivé tant que vous ne l’activez pas. PRIVIO lit les numéros de téléphone de vos contacts, transforme chacun en une valeur illisible sur cet appareil, puis demande au serveur lesquels correspondent à un compte PRIVIO. Les noms, les notes et le carnet d’adresses lui-même ne sont jamais envoyés ni conservés sur le serveur.';
+      'Désactivé tant que vous ne l’activez pas. Privio lit les numéros de téléphone de vos contacts, transforme chacun en une valeur illisible sur cet appareil, puis demande au serveur lesquels correspondent à un compte Privio. Les noms, les notes et le carnet d’adresses lui-même ne sont jamais envoyés ni conservés sur le serveur.';
 
   @override
   String get phoneSyncNow => 'Comparer les contacts maintenant';
@@ -4568,7 +4485,7 @@ class AppTextFr extends AppText {
       other: '$count personnes trouvées.',
       one: '1 personne trouvée.',
       zero:
-          'Personne de vos contacts n’est sur PRIVIO, ou personne n’a activé la recherche.',
+          'Personne de vos contacts n’est sur Privio, ou personne n’a activé la recherche.',
     );
     return '$_temp0';
   }
@@ -4582,172 +4499,6 @@ class AppTextFr extends AppText {
 
   @override
   String get phoneNotLinkedYet => 'Aucun numéro associé';
-
-  @override
-  String get settingsBots => 'Bots';
-
-  @override
-  String get botsTitle => 'Mes bots';
-
-  @override
-  String get botsEmptyTitle => 'Aucun bot pour l’instant';
-
-  @override
-  String get botsEmptyBody =>
-      'Un bot est un compte que vous pilotez via une API HTTP. Créez-en un et @botcreator vous guidera.';
-
-  @override
-  String get botsCreate => 'Créer un bot';
-
-  @override
-  String get botsNameLabel => 'Nom';
-
-  @override
-  String get botsUsernameLabel => 'Nom d’utilisateur';
-
-  @override
-  String get botsDescriptionLabel => 'Description';
-
-  @override
-  String get botsCommandsLabel => 'Commandes';
-
-  @override
-  String get botsCommandsHint => 'Un par ligne : commande — ce qu’elle fait';
-
-  @override
-  String get botsDisable => 'Désactiver ce bot';
-
-  @override
-  String get botsDisabled => 'Désactivé';
-
-  @override
-  String get botsDelete => 'Supprimer le bot';
-
-  @override
-  String botsDeleteConfirm(String username) {
-    return 'Supprimer @$username ?';
-  }
-
-  @override
-  String get botsToken => 'Jeton d’API';
-
-  @override
-  String get botsTokenNew => 'Créer un nouveau jeton';
-
-  @override
-  String get botsTokenRevoke => 'Révoquer les jetons';
-
-  @override
-  String get botsTokenOnce =>
-      'Ce jeton n’est affiché que cette fois. Il est stocké sous forme d’empreinte et ne peut plus être lu. Un nouveau jeton remplace l’ancien.';
-
-  @override
-  String get botsTokenCopy => 'Copier le jeton';
-
-  @override
-  String get botsTokenCopied => 'Jeton copié';
-
-  @override
-  String get botsTokenDone => 'Je l’ai enregistré';
-
-  @override
-  String get botsBadge => 'BOT';
-
-  @override
-  String get botsNotEncrypted =>
-      'Une conversation avec un bot n’est pas chiffrée de bout en bout. La personne qui gère le bot peut lire ce que vous lui envoyez, et ce serveur aussi. Vos autres conversations, groupes et canaux ne changent pas.';
-
-  @override
-  String get botsUnderstood => 'J’ai compris';
-
-  @override
-  String get botChatStart => 'Démarrer';
-
-  @override
-  String get botChatStartHint =>
-      'Ce bot ne peut pas vous écrire avant que vous le démarriez.';
-
-  @override
-  String get botChatNotStarted => 'Démarrez ce bot avant de lui écrire.';
-
-  @override
-  String get botPollBotSees =>
-      'Le bot voit qui a répondu quoi. Comme le reste de cette conversation, ce n’est pas chiffré.';
-
-  @override
-  String get botPollResultsHidden => 'Seul le bot voit les résultats.';
-
-  @override
-  String get botPollResultsAfterAnswer =>
-      'Les résultats s’affichent une fois que vous avez répondu.';
-
-  @override
-  String get botPollClosedFailure => 'Ce sondage est clos.';
-
-  @override
-  String get botChatStop => 'Arrêter ce bot';
-
-  @override
-  String get botChatStopped =>
-      'Vous avez arrêté ce bot. Écrivez-lui à nouveau pour le redémarrer.';
-
-  @override
-  String botChatStopConfirm(String username) {
-    return 'Arrêter @$username ?';
-  }
-
-  @override
-  String get botChatStopExplain =>
-      'Il ne pourra plus vous écrire et plus rien ne lui parviendra. Vos messages précédents restent où ils sont.';
-
-  @override
-  String get botChatBlock => 'Bloquer ce bot';
-
-  @override
-  String get botChatHint => 'Message';
-
-  @override
-  String get botChatCommands => 'Commandes';
-
-  @override
-  String get botChatCommandsEmpty =>
-      'Ce bot ne publie aucune liste de commandes.';
-
-  @override
-  String get botChatNoDescription => 'Ce bot n\'a pas de description.';
-
-  @override
-  String get botChatOperator =>
-      'Un compte automatisé. La personne qui le gère peut lire ce que vous lui envoyez.';
-
-  @override
-  String get botChatEmpty =>
-      'Rien pour l\'instant. Dites bonjour ou choisissez une commande.';
-
-  @override
-  String get botChatFileGone => 'Ce fichier n\'est plus sur le serveur.';
-
-  @override
-  String get botChatImageBroken =>
-      'Cette image n\'a pas pu être affichée. Ouvrez-la comme fichier.';
-
-  @override
-  String get botChatButtonPressed => 'Appuyé';
-
-  @override
-  String get botChatOpenTitle => 'Ouvrir un bot';
-
-  @override
-  String get botChatOpenHint => 'Le @nom exact du bot';
-
-  @override
-  String get botChatOpen => 'Ouvrir';
-
-  @override
-  String get botcreatorTitle => 'Bot Creator';
-
-  @override
-  String get botcreatorHint => 'Tapez une commande, ou /help';
 
   @override
   String get composerCamera => 'Appareil photo';
@@ -4957,10 +4708,6 @@ class AppTextFr extends AppText {
 
   @override
   String get privacyDashboardEndToEnd => 'De bout en bout';
-
-  @override
-  String get privacyDashboardBotsExcepted =>
-      'Les conversations avec les bots font exception : elles ne sont pas chiffrées de bout en bout';
 
   @override
   String get privacyDashboardVerifiedCallsOnly =>

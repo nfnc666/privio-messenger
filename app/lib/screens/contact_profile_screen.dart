@@ -16,8 +16,6 @@ import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/photo_viewer.dart';
 import '../widgets/privio_back_button.dart';
-import 'bot_chat_screen.dart';
-import 'bots_screen.dart';
 import 'chat_screen.dart';
 
 class ContactProfileScreen extends StatefulWidget {
@@ -124,15 +122,6 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
   void _message(ContactProfile profile) {
     final controller = _controller!;
     if (!controller.active || controller.busy || profile.isBlocked) return;
-    // A bot is not reachable on the encrypted path — it holds no Signal keys,
-    // and a message sealed for it would be a message nobody can open. It gets
-    // its own screen, which says so before the first line is typed.
-    if (profile.isBot) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
-        builder: (_) => BotChatScreen(botId: profile.id),
-      ));
-      return;
-    }
     if (widget.returnToChat) {
       Navigator.of(context).pop();
       return;
@@ -152,7 +141,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
   Future<void> _call(ContactProfile profile, CallMedia media) async {
     if (!_controller!.active || _controller!.busy || profile.isBlocked) return;
     await PrivioScope.of(context).services.calls.place(
-      CallParty(accountId: profile.id, username: profile.username), media: media,
+      CallParty(
+        accountId: profile.id,
+        username: profile.username,
+        displayName: profile.displayName,
+      ),
+      media: media,
     );
   }
 
@@ -202,16 +196,8 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
         const SizedBox(height: PrivioSpacing.lg),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Flexible(child: Text(profile.displayName, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall)),
-          // The label goes beside the name wherever a name is drawn. Somebody
-          // reading a profile is deciding whether to talk to it, and whether it
-          // is a person is the first thing that decides that.
-          if (profile.isBot) const BotBadge(),
         ],),
         Text('@${profile.username}', textAlign: TextAlign.center),
-        if (profile.isBot) Padding(
-          padding: const EdgeInsets.only(top: PrivioSpacing.sm),
-          child: Text(text.botChatOperator, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-        ),
         const SizedBox(height: PrivioSpacing.md),
         SelectableText('PRIVIO-ID: ${profile.id}', textAlign: TextAlign.center),
         if (profile.status.isSet) Padding(
@@ -229,9 +215,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
             onPressed: controller.busy || profile.isBlocked ? null : () => _message(profile),
             child: Text(text.contactProfileMessage),
           ),
-          // No call buttons for a bot: there is nothing at the other end that
-          // could answer, and a button that cannot work is worse than none.
-          if (!profile.isBlocked && !profile.isBot) ...[
+          if (!profile.isBlocked) ...[
             ListTile(leading: const Icon(Icons.call_outlined), title: Text(text.chatVoiceCall), onTap: controller.busy ? null : () => _call(profile, CallMedia.audio)),
             ListTile(leading: const Icon(Icons.videocam_outlined), title: Text(text.chatVideoCall), onTap: controller.busy ? null : () => _call(profile, CallMedia.video)),
           ],

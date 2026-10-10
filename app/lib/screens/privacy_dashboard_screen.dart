@@ -24,9 +24,8 @@ import '../widgets/settings_row.dart';
 ///
 /// Two rows state architecture rather than settings — messages and calls are
 /// end-to-end encrypted because of how Privio is built, not because of a switch.
-/// Both carry the exception rather than a clean tick: bot conversations are not
-/// encrypted (`docs/bots.md`), and a call is only as good as the safety number
-/// behind it.
+/// Messages have no exception since bots were removed; a call carries one,
+/// because a call is only as good as the safety number behind it.
 class PrivacyDashboardScreen extends StatefulWidget {
   const PrivacyDashboardScreen({super.key});
 
@@ -111,9 +110,6 @@ class _PrivacyDashboardScreenState extends State<PrivacyDashboardScreen> {
                   label: text.privacyDashboardMessages,
                   value: text.privacyDashboardEndToEnd,
                   tone: _Tone.good,
-                  // Not a clean tick. The one exception is real and is on the
-                  // row rather than in a footnote nobody reads.
-                  subtitle: text.privacyDashboardBotsExcepted,
                 ),
                 _Row(
                   label: text.privacyDashboardCalls,

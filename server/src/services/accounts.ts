@@ -22,8 +22,6 @@ export interface AccountRow {
   status_updated_at: Date | null;
   created_at: Date;
   last_seen_at: Date;
-  /// Set by migration 029. What draws the **BOT** label.
-  is_bot?: boolean;
 }
 
 export interface PrivacySettings {
@@ -78,16 +76,6 @@ export async function wipeAccount(accountId: string, storage: BlobStorage): Prom
     await client.query('DELETE FROM contacts WHERE account_id = $1 OR contact_account_id = $1', [accountId]);
     await client.query('DELETE FROM account_phone_notes WHERE account_id = $1', [accountId]);
     await client.query('DELETE FROM group_members WHERE account_id = $1', [accountId]);
-    // Conversations with bots. Plaintext on this server by design (migration
-    // 029), which is exactly why they must not outlive the account: the wipe
-    // promises the content is gone, and a bot chat is content. What the bot's
-    // operator already received is theirs and out of reach either way; the copy
-    // here is not. The licence for the bot to write goes with it, and the
-    // account's presses and poll answers, which are its choices.
-    await client.query('DELETE FROM bot_messages WHERE account_id = $1', [accountId]);
-    await client.query('DELETE FROM bot_button_presses WHERE account_id = $1', [accountId]);
-    await client.query('DELETE FROM bot_poll_votes WHERE account_id = $1', [accountId]);
-    await client.query('DELETE FROM bot_contacts WHERE account_id = $1', [accountId]);
     const { rows: backups } = await client.query<{ storage_key: string }>(
       'DELETE FROM backups WHERE account_id = $1 RETURNING storage_key',
       [accountId],
@@ -161,12 +149,5 @@ export function publicProfile(account: AccountRow) {
     // A pointer to ciphertext. Without the owner's profile key it opens nothing.
     avatarMediaId: account.avatar_media_id,
     avatarUpdatedAt: account.avatar_updated_at?.toISOString() ?? null,
-    // Whether this account is operated by a program rather than a person.
-    //
-    // Part of the public profile rather than a separate lookup, because every
-    // screen that draws a name has to draw the **BOT** label beside it — and a
-    // label that needs a second request is a label that is sometimes missing.
-    // It discloses nothing: a bot is meant to be recognisable as one.
-    isBot: account.is_bot === true,
   };
 }

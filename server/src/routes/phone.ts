@@ -354,7 +354,6 @@ export function phoneRoutes(sms: SmsSender): FastifyPluginAsync {
               AND p.discovery_hash = ANY($1::bytea[])
               AND a.deleted_at IS NULL
               AND a.id <> $2
-              AND NOT a.is_bot
               -- Somebody who blocked you does not turn up in your contacts.
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b

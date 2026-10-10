@@ -21,11 +21,28 @@ class PlatformIncomingLinks implements IncomingLinks {
   @override
   Future<String?> initial() async {
     try {
-      return (await _links.getInitialLink())?.toString();
+      return launchLink(await _links.getInitialLink());
     } on Object {
       // A platform that has no answer is not a reason to fail start-up.
       return null;
     }
+  }
+
+  /// The link the app was launched by, or null when it was simply opened.
+  ///
+  /// In a browser the "initial link" is the page's own address, on every load
+  /// and not only when an invitation was followed. Passed on as a link, the
+  /// web app greeted every start with "That does not look like a Privio
+  /// channel link". The page itself — no path, or just `index.html` — is the
+  /// app being opened, and says nothing.
+  static String? launchLink(Uri? uri) {
+    if (uri == null) return null;
+    final web = uri.scheme == 'http' || uri.scheme == 'https';
+    final path = uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    if (web && (path.isEmpty || (path.length == 1 && path.single == 'index.html'))) {
+      return null;
+    }
+    return uri.toString();
   }
 
   @override

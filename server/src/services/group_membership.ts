@@ -4,10 +4,9 @@ import { ApiError } from '../util/errors.js';
 /**
  * Who is in a group, and whether they may act as an admin.
  *
- * Lifted out of `routes/groups.ts` when a second file needed it — the bot
- * routes, which manage a group's bots and must refuse a member exactly as the
- * group routes refuse one. Two copies of a membership check is how a rule ends
- * up enforced on one route and forgotten on the next.
+ * Its own module so that any route acting inside a group refuses a non-member
+ * exactly as the group routes do. Two copies of a membership check is how a
+ * rule ends up enforced on one route and forgotten on the next.
  *
  * It throws rather than returning a boolean, deliberately: a caller that
  * forgets to look at a returned `false` has written a route with no permission

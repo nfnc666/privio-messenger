@@ -57,7 +57,13 @@ class PrivioServices {
           ice: ice,
           lookUp: (accountId) async {
             final known = store.conversationWith(accountId)?.user;
-            return known == null ? null : CallParty(accountId: accountId, username: known.username);
+            return known == null
+                ? null
+                : CallParty(
+                    accountId: accountId,
+                    username: known.username,
+                    displayName: known.displayName,
+                  );
           },
           // What the user has made of that account's safety number. Read from
           // the same place the chat header reads it, so a call and a chat never
