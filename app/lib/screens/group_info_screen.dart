@@ -489,6 +489,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                         ),
                         trailing: admin && member.accountId != state.accountId
                             ? IconButton(
+                                tooltip: text.commonRemove,
                                 icon: const Icon(
                                   Icons.person_remove_outlined,
                                   color: PrivioColors.textTertiary,

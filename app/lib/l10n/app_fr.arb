@@ -657,6 +657,8 @@
   "authCreateNote": "Choisissez un nom d'utilisateur. Pas de numéro de téléphone, pas d'e-mail — rien qui relie ce compte à quoi que ce soit d'autre.",
   "authSignInNote": "Connectez-vous avec votre nom d'utilisateur et votre mot de passe.",
   "authUsernameRule": "3 à 32 caractères : a–z, 0–9, point ou tiret bas",
+  "authShowPassword": "Afficher le mot de passe",
+  "authHidePassword": "Masquer le mot de passe",
   "authPasswordRule": "Au moins 10 caractères — celui-ci protège tout",
   "authPasswordRequired": "Saisissez votre mot de passe",
   "authTotpHint": "code à deux facteurs",

@@ -223,6 +223,7 @@ class _ChannelThreadScreenState extends State<ChannelThreadScreen> {
                       IconButton.filled(
                         onPressed:
                             widget.channel.hasCurrentKey && !_sending ? _send : null,
+                        tooltip: AppText.of(context).chatSend,
                         style: IconButton.styleFrom(backgroundColor: context.accents.accent),
                         icon: _sending
                             ? const SizedBox(

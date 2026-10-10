@@ -1457,6 +1457,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: PrivioSpacing.sm),
             IconButton.filled(
               onPressed: enabled && !sending ? onSend : null,
+              tooltip: AppText.of(context).feedPublishNow,
               style: IconButton.styleFrom(backgroundColor: context.accents.accent),
               icon: sending
                   ? const SizedBox(

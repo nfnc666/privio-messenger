@@ -4045,6 +4045,18 @@ abstract class AppText {
   /// **'3–32 characters: a–z, 0–9, dot or underscore'**
   String get authUsernameRule;
 
+  /// No description provided for @authShowPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get authShowPassword;
+
+  /// No description provided for @authHidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get authHidePassword;
+
   /// No description provided for @authPasswordRule.
   ///
   /// In en, this message translates to:

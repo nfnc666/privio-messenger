@@ -2360,6 +2360,12 @@ class AppTextDe extends AppText {
       '3–32 Zeichen: a–z, 0–9, Punkt oder Unterstrich';
 
   @override
+  String get authShowPassword => 'Passwort anzeigen';
+
+  @override
+  String get authHidePassword => 'Passwort verbergen';
+
+  @override
   String get authPasswordRule => 'Mindestens 10 Zeichen — dieses schützt alles';
 
   @override

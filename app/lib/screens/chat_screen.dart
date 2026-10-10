@@ -2142,33 +2142,39 @@ class _TrailingAction extends StatelessWidget {
         }
 
         final recording = stage != VoiceComposerStage.idle;
-        return GestureDetector(
-          key: const Key('voice-hold'),
-          onLongPressStart: (_) => unawaited(onHoldStart()),
-          onLongPressMoveUpdate: (details) => onHoldUpdate(details.offsetFromOrigin.dx),
-          onLongPressEnd: (_) => unawaited(onHoldEnd()),
-          // A tap is a common mis-hold, and starting a recording nobody meant
-          // to start is worse than saying what the gesture is.
-          onTap: recording
-              ? null
-              : () => ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(AppText.of(context).chatHoldToRecord),
-                      duration: const Duration(seconds: 2),
+        // A bare gesture has nothing for a screen reader to say; this says
+        // what the circle is and how it works.
+        return Semantics(
+          button: true,
+          label: AppText.of(context).chatHoldToRecord,
+          child: GestureDetector(
+            key: const Key('voice-hold'),
+            onLongPressStart: (_) => unawaited(onHoldStart()),
+            onLongPressMoveUpdate: (details) => onHoldUpdate(details.offsetFromOrigin.dx),
+            onLongPressEnd: (_) => unawaited(onHoldEnd()),
+            // A tap is a common mis-hold, and starting a recording nobody meant
+            // to start is worse than saying what the gesture is.
+            onTap: recording
+                ? null
+                : () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(AppText.of(context).chatHoldToRecord),
+                        duration: const Duration(seconds: 2),
+                      ),
                     ),
-                  ),
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: recording ? context.accents.accent : PrivioColors.surfaceRaised,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.mic_rounded,
-              size: 20,
-              color: recording ? PrivioColors.background : PrivioColors.textSecondary,
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: recording ? context.accents.accent : PrivioColors.surfaceRaised,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.mic_rounded,
+                size: 20,
+                color: recording ? PrivioColors.background : PrivioColors.textSecondary,
+              ),
             ),
           ),
         );

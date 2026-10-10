@@ -2370,6 +2370,12 @@ class AppTextIt extends AppText {
       'Da 3 a 32 caratteri: a-z, 0-9, punto o trattino basso';
 
   @override
+  String get authShowPassword => 'Mostra password';
+
+  @override
+  String get authHidePassword => 'Nascondi password';
+
+  @override
   String get authPasswordRule => 'Almeno 10 caratteri: questa protegge tutto';
 
   @override

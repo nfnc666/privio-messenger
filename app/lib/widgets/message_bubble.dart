@@ -304,20 +304,26 @@ class _AttachmentView extends StatelessWidget {
         if (!attachment.isImage) {
           return _FileRow(attachment: attachment);
         }
-        return GestureDetector(
-          // A picture in a bubble is a thumbnail; a tap is how anybody expects
-          // to see the whole of it. The viewer is handed the bytes that are
-          // already decrypted here, so opening it fetches nothing and writes
-          // nothing.
-          onTap: () => PhotoViewer.open(context, bytes: bytes, name: attachment.fileName),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              // A file that claims to be an image but is not must not take the
-              // bubble down with it.
-              errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+        // Said as "Photo" to a screen reader, which otherwise had nothing for
+        // it but the time underneath.
+        return Semantics(
+          button: true,
+          label: AppText.of(context).chatsPreviewPhoto,
+          child: GestureDetector(
+            // A picture in a bubble is a thumbnail; a tap is how anybody expects
+            // to see the whole of it. The viewer is handed the bytes that are
+            // already decrypted here, so opening it fetches nothing and writes
+            // nothing.
+            onTap: () => PhotoViewer.open(context, bytes: bytes, name: attachment.fileName),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(12)),
+              child: Image.memory(
+                bytes,
+                fit: BoxFit.cover,
+                // A file that claims to be an image but is not must not take the
+                // bubble down with it.
+                errorBuilder: (_, __, ___) => _FileRow(attachment: attachment, failed: true),
+              ),
             ),
           ),
         );

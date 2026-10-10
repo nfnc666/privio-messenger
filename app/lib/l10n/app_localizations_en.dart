@@ -2345,6 +2345,12 @@ class AppTextEn extends AppText {
   String get authUsernameRule => '3–32 characters: a–z, 0–9, dot or underscore';
 
   @override
+  String get authShowPassword => 'Show password';
+
+  @override
+  String get authHidePassword => 'Hide password';
+
+  @override
   String get authPasswordRule =>
       'At least 10 characters — this one protects everything';
 

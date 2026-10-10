@@ -2366,6 +2366,12 @@ class AppTextFr extends AppText {
       '3 à 32 caractères : a–z, 0–9, point ou tiret bas';
 
   @override
+  String get authShowPassword => 'Afficher le mot de passe';
+
+  @override
+  String get authHidePassword => 'Masquer le mot de passe';
+
+  @override
   String get authPasswordRule =>
       'Au moins 10 caractères — celui-ci protège tout';
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privio/core/deep_links.dart';
 import 'package:privio/models/channel.dart';
+import 'package:privio/services/incoming_links.dart';
 
 /// A link source a test can push through.
 class FakeLinks implements IncomingLinks {
@@ -127,5 +128,40 @@ void main() {
     await links.start();
     expect(links.pending, isNull);
     expect(links.unreadable, isFalse);
+  });
+
+  test("the web page's own address is the app being opened, not a link", () {
+    // A browser reports the page as the launch link on every load. Treated as
+    // one, every start of the web app said "That does not look like a Privio
+    // channel link" — seen when the app was used in a browser.
+    for (final page in [
+      'http://localhost:8090/',
+      'https://web.privio.example',
+      'https://web.privio.example/#/',
+      'https://web.privio.example/index.html',
+    ]) {
+      expect(PlatformIncomingLinks.launchLink(Uri.parse(page)), isNull, reason: page);
+    }
+    expect(PlatformIncomingLinks.launchLink(null), isNull);
+
+    // A real invitation still comes through, on the web and as a custom scheme.
+    for (final link in [
+      'https://privio.example/c/abc123',
+      'https://privio.example/+abc123',
+      'privio://open/+abc123',
+    ]) {
+      expect(PlatformIncomingLinks.launchLink(Uri.parse(link)), link);
+    }
+  });
+
+  test('a launch from the page itself leaves nothing to report', () async {
+    final links = DeepLinkController(
+      source: FakeLinks(
+        launchedWith: PlatformIncomingLinks.launchLink(Uri.parse('http://localhost:8090/')),
+      ),
+    );
+    await links.start();
+    expect(links.unreadable, isFalse);
+    expect(links.pending, isNull);
   });
 }

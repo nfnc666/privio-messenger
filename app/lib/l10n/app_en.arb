@@ -1129,6 +1129,8 @@
   "authCreateNote": "Pick a username. No phone number, no email — nothing to link this account to anything else.",
   "authSignInNote": "Sign in with your username and password.",
   "authUsernameRule": "3–32 characters: a–z, 0–9, dot or underscore",
+  "authShowPassword": "Show password",
+  "authHidePassword": "Hide password",
   "authPasswordRule": "At least 10 characters — this one protects everything",
   "authPasswordRequired": "Enter your password",
   "authTotpHint": "two-factor code",

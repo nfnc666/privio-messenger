@@ -657,6 +657,8 @@
   "authCreateNote": "Wähle einen Benutzernamen. Keine Telefonnummer, keine E-Mail — nichts, was dieses Konto mit etwas anderem verbindet.",
   "authSignInNote": "Melde dich mit Benutzername und Passwort an.",
   "authUsernameRule": "3–32 Zeichen: a–z, 0–9, Punkt oder Unterstrich",
+  "authShowPassword": "Passwort anzeigen",
+  "authHidePassword": "Passwort verbergen",
   "authPasswordRule": "Mindestens 10 Zeichen — dieses schützt alles",
   "authPasswordRequired": "Gib dein Passwort ein",
   "authTotpHint": "Zwei-Faktor-Code",
