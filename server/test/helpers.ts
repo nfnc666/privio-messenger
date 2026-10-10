@@ -34,6 +34,7 @@ export async function createHarness(
     bus?: DeliveryBus;
     pingDatabase?: () => Promise<void>;
     sealedSender?: SealedSenderKeys | null;
+    logStream?: { write(line: string): void };
   } = {},
 ): Promise<TestHarness> {
   await migrate();
@@ -47,6 +48,7 @@ export async function createHarness(
     push: overrides.push ?? push,
     storage,
     pingDatabase: overrides.pingDatabase,
+    logStream: overrides.logStream,
     ...('sealedSender' in overrides ? { sealedSender: overrides.sealedSender } : {}),
   });
   await app.ready();

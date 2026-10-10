@@ -170,7 +170,7 @@ each exists, is in `server/src/config.ts`.
 | `MEDIA_DIR` | **./.data/media** | where sealed attachments are written |
 | `MEDIA_TTL_DAYS` | **30** | attachments are deleted after this, unconditionally |
 | `ENVELOPE_TTL_DAYS` | **30** | undelivered envelopes are purged after this |
-| `SESSION_TTL_DAYS` | **365** | a session older than this stops working |
+| `SESSION_TTL_DAYS` | **90** | a session not used for this long stops working; each use moves its end out again |
 | `WS_REVALIDATE_MS` | **60000** | worst-case delay between "session revoked" and "socket closed" |
 | `MAX_ENVELOPE_BYTES` | **65536** | per-message ciphertext limit |
 | `MEDIA_QUOTA_BYTES` | **2 GiB** | how much media *one account* may hold at once |
@@ -332,6 +332,12 @@ Notes that are easy to get wrong:
 * **Terminate TLS in front of it.** The server speaks plain HTTP; put nginx,
   Caddy or the platform's own proxy ahead of it. It already trusts
   `X-Forwarded-For` for rate limiting, so the proxy must set it.
+* **The proxy keeps its own log.** Privio's request log carries no client
+  address and no user agent; nginx and Caddy write both into an access log by
+  default, and a hosting platform's edge may too. Turn the access log off, or
+  leave the address out of its format — otherwise the promise in
+  `docs/metadata-privacy-review.md` holds for Privio and not for the server
+  people actually reach.
 * **The volume must be the one `MEDIA_DIR` names.** The image defaults it to
   `/data/media`.
 * **Migrations run at start-up, inside the process.** There is no separate

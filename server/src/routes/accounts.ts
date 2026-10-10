@@ -215,7 +215,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // reason somebody cannot finish signing up.
     await official.ensureSubscribed(result.accountId).catch(() => {});
 
-    const session = await createSession(result.accountId, result.deviceId, request.headers['user-agent']);
+    const session = await createSession(result.accountId, result.deviceId);
     reply.code(201);
     return {
       accountId: result.accountId,
@@ -269,7 +269,7 @@ const accountRoutes = (storage: BlobStorage, bus: DeliveryBus): FastifyPluginAsy
     // not find it back after a re-login, which is the whole point.
     await official.ensureSubscribed(account.id).catch(() => {});
 
-    const session = await createSession(account.id, device.deviceId, request.headers['user-agent']);
+    const session = await createSession(account.id, device.deviceId);
     return {
       accountId: account.id,
       deviceId: device.deviceId,

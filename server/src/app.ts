@@ -53,6 +53,11 @@ export interface AppDependencies {
    * sealed sender off, so a test can see what a server without it answers.
    */
   sealedSender?: SealedSenderKeys | null;
+  /**
+   * Where the log goes. Absent means standard output; a test passes its own so
+   * it can read exactly what an operator would.
+   */
+  logStream?: { write(line: string): void };
 }
 
 /** Reported by `GET /health`. */
@@ -72,15 +77,21 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
         // token has to ride in the query string. It must not then be copied into
         // the logs, where it would outlive the request and grant whoever reads
         // them a working session.
+        //
+        // No client address either, and no user agent. With them, the log was
+        // a record of which address looked up which person's keys, and when —
+        // the largest thing an operator could see about behaviour
+        // (`docs/metadata-privacy-review.md`, section 1). Rate limiting still
+        // reads the address, in memory, for the life of the request.
         req(request) {
           return {
             method: request.method,
             url: redactSecrets(request.url),
             host: request.headers.host,
-            remoteAddress: request.ip,
           };
         },
       },
+      ...(deps.logStream ? { stream: deps.logStream } : {}),
     },
     // Client IPs matter for rate limiting; trust the reverse proxy in front.
     trustProxy: true,

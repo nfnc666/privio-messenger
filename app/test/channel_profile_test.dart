@@ -9,7 +9,7 @@ import 'package:privio/core/app_state.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/l10n/app_localizations.dart';
-import 'package:privio/l10n/channel_text.dart';
+import 'package:privio/l10n/last_seen_text.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/data/message_store.dart';
@@ -227,8 +227,9 @@ void main() {
             ).presence(now: now),
           );
 
-      expect(at(const Duration(seconds: 30)), 'online');
-      expect(at(const Duration(minutes: 20)), 'last seen 20 minutes ago');
+      // To the hour, as the server keeps it: never "online", never minutes.
+      expect(at(const Duration(seconds: 30)), 'last seen within the last hour');
+      expect(at(const Duration(minutes: 20)), 'last seen within the last hour');
       expect(at(const Duration(hours: 5)), 'last seen 5 hours ago');
       expect(at(const Duration(days: 3)), 'last seen 3 days ago');
       expect(at(const Duration(days: 40)), startsWith('last seen '));

@@ -389,15 +389,7 @@
   "subscribersRemoveFromChannel": "Remove from the channel",
   "subscribersRemoveDetail": "The channel moves to a new key, so they cannot read what comes next",
   "subscribersCouldNotDoThat": "Could not do that.",
-  "presenceOnline": "online",
-  "presenceMinutesAgo": "last seen {count, plural, =1{1 minute} other{{count} minutes}} ago",
-  "@presenceMinutesAgo": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "presenceWithinHour": "last seen within the last hour",
   "presenceHoursAgo": "last seen {count, plural, =1{1 hour} other{{count} hours}} ago",
   "@presenceHoursAgo": {
     "placeholders": {
@@ -587,15 +579,7 @@
   "devicesNone": "None",
   "devicesOnlyThisOne": "Only this one",
   "devicesSignedIn": "Signed in",
-  "devicesActiveNow": "Active now",
-  "devicesActiveMinutes": "Active {count} min ago",
-  "@devicesActiveMinutes": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "devicesActiveWithinHour": "Active within the last hour",
   "devicesActiveHours": "Active {count} h ago",
   "@devicesActiveHours": {
     "placeholders": {
@@ -877,20 +861,12 @@
       }
     }
   },
-  "contactsSeenJustNow": "just now",
-  "contactsSeenMinutes": "{count} min ago",
-  "@contactsSeenMinutes": {
+  "contactsSeenWithinHour": "within the last hour",
+  "contactsSeenHours": "{count} h ago",
+  "@contactsSeenHours": {
     "placeholders": {
       "count": {
         "type": "int"
-      }
-    }
-  },
-  "contactsSeenAtTime": "at {time}",
-  "@contactsSeenAtTime": {
-    "placeholders": {
-      "time": {
-        "type": "String"
       }
     }
   },

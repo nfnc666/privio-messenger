@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/app_state.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
-import '../l10n/channel_text.dart';
+import '../l10n/last_seen_text.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../theme/accent.dart';
@@ -478,8 +478,7 @@ class _MemberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final words = AppText.of(context);
-    final state = member.presence();
-    final presence = presenceText(words, state);
+    final presence = presenceText(words, member.presence());
     return ListTile(
       onTap: onTap,
       leading: PrivioAvatar(label: member.label, size: 40),
@@ -495,11 +494,7 @@ class _MemberRow extends StatelessWidget {
               ? null
               : Text(
                   presence,
-                  style: TextStyle(
-                    color: state.isOnline
-                        ? context.accents.accent
-                        : PrivioColors.textSecondary,
-                  ),
+                  style: const TextStyle(color: PrivioColors.textSecondary),
                 ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

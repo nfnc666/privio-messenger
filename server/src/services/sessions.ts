@@ -15,19 +15,24 @@ export interface IssuedSession {
   sessionId: string;
 }
 
-export async function createSession(
-  accountId: string,
-  deviceId: string,
-  userAgent?: string,
-): Promise<IssuedSession> {
+/**
+ * Issues a session for a device.
+ *
+ * No user agent, no address: nothing about the client is kept beyond the
+ * device it belongs to (migration 044). Times are to the hour — see
+ * `resolveSession` for why — and the session ends after `SESSION_TTL_DAYS`
+ * without use, not that long after it was issued.
+ */
+export async function createSession(accountId: string, deviceId: string): Promise<IssuedSession> {
   const token = generateToken();
-  const expiresAt = new Date(Date.now() + config.SESSION_TTL_DAYS * 86_400_000);
-  const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO sessions (account_id, device_id, token_hash, user_agent, expires_at)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [accountId, deviceId, tokenHash(token), userAgent ?? null, expiresAt],
+  const { rows } = await pool.query<{ id: string; expires_at: Date }>(
+    `INSERT INTO sessions (account_id, device_id, token_hash, last_used_at, expires_at)
+     VALUES ($1, $2, $3, date_trunc('hour', now(), 'UTC'),
+             date_trunc('hour', now(), 'UTC') + make_interval(days => $4))
+     RETURNING id, expires_at`,
+    [accountId, deviceId, tokenHash(token), config.SESSION_TTL_DAYS],
   );
-  return { token, expiresAt, sessionId: rows[0]!.id };
+  return { token, expiresAt: rows[0]!.expires_at, sessionId: rows[0]!.id };
 }
 
 /** Resolves a bearer token to an auth context, or null when it is invalid, expired or revoked. */
@@ -63,10 +68,34 @@ export async function resolveSession(token: string): Promise<AuthContext | null>
   // order anything else takes. That is a stronger guarantee than agreeing on
   // an order, which would bind every future writer to a rule nothing enforces.
   // The cost is three round trips on a path that nothing waits for.
+  //
+  // To the hour, and written at most once an hour. Exact to the millisecond on
+  // every request, these columns were a timeline of when somebody is awake
+  // (`docs/metadata-privacy-review.md`, section 2); nothing Privio shows needs
+  // more than the hour. The `<` makes the rest of the hour a no-op, which is
+  // also most of the writes this path used to make.
+  //
+  // Each use moves the session's end out to `SESSION_TTL_DAYS` from now, so a
+  // phone in daily use stays signed in, and a token left on a device nobody
+  // opens any more stops working on its own. `expires_at` is to the hour as
+  // well: to the millisecond, it would give away the very moment of last use
+  // that `last_used_at` no longer does.
+  const hour = "date_trunc('hour', now(), 'UTC')";
   void (async () => {
-    await pool.query('UPDATE sessions SET last_used_at = now() WHERE id = $1', [row.id]);
-    await pool.query('UPDATE devices SET last_seen_at = now() WHERE id = $1', [row.device_id]);
-    await pool.query('UPDATE accounts SET last_seen_at = now() WHERE id = $1', [row.account_id]);
+    await pool.query(
+      `UPDATE sessions
+          SET last_used_at = ${hour}, expires_at = ${hour} + make_interval(days => $2)
+        WHERE id = $1 AND last_used_at < ${hour}`,
+      [row.id, config.SESSION_TTL_DAYS],
+    );
+    await pool.query(
+      `UPDATE devices SET last_seen_at = ${hour} WHERE id = $1 AND last_seen_at < ${hour}`,
+      [row.device_id],
+    );
+    await pool.query(
+      `UPDATE accounts SET last_seen_at = ${hour} WHERE id = $1 AND last_seen_at < ${hour}`,
+      [row.account_id],
+    );
   })().catch(() => {});
 
   return {

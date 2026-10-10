@@ -11,6 +11,8 @@ import '../core/api_client.dart';
 import '../core/contact_profile_controller.dart';
 import '../data/message_store.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/last_seen_text.dart';
+import '../models/last_seen.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
@@ -187,7 +189,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
         TextButton(onPressed: controller.load, child: Text(text.commonRetry)),
       ],),);
     } else {
-      final seen = profile.lastSeenAt?.toLocal();
+      final seen = LastSeen.of(profile.lastSeenAt?.toLocal());
       body = ListView(padding: const EdgeInsets.all(PrivioSpacing.gutter), children: [
         Center(child: InkWell(
           onTap: _avatar == null ? null : () => PhotoViewer.open(context, bytes: _avatar!, name: profile.displayName),
@@ -204,9 +206,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> with Widget
           padding: const EdgeInsets.all(PrivioSpacing.md),
           child: Text([profile.status.emoji, profile.status.text].whereType<String>().join(' '), textAlign: TextAlign.center),
         ),
-        if (seen != null) Text(text.contactsLastSeen(profile.username,
-          '${MaterialLocalizations.of(context).formatMediumDate(seen)} ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(seen))}',
-        ), textAlign: TextAlign.center,),
+        // To the hour, as the server keeps it — not a date and a minute that
+        // would claim a precision nobody has any more.
+        if (!seen.isUnknown) Text(
+          text.contactsLastSeen(profile.username, seenWhen(text, seen)),
+          textAlign: TextAlign.center,
+        ),
         if (!own) ...[
           const SizedBox(height: PrivioSpacing.lg),
           if (profile.isBlocked) Text(text.chatBlocked(profile.displayName), textAlign: TextAlign.center),
