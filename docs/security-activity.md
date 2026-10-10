@@ -93,9 +93,10 @@ open when they are worried. `privacy_dashboard_test.dart` pins this; hardcoding
 the two-factor row turns two of its tests red.
 
 Two rows state architecture rather than settings — messages and calls are
-end-to-end encrypted because of how Privio is built. Both carry their exception
-on the row rather than in a footnote: **bot conversations are not end-to-end
-encrypted**, and a call is only as good as the safety number behind it.
+end-to-end encrypted because of how Privio is built. Messages have no exception
+since bots were removed (migration 043), and the screen no longer claims one;
+the call row carries its own, because a call is only as good as the safety
+number behind it.
 
 The note at the foot of the screen says the thing the rest of the screen could
 be read as denying: content is encrypted, but the fact that a message went from

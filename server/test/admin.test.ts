@@ -356,21 +356,17 @@ describe('admin lookups', () => {
     assert.equal(body.signups.at(-1).accounts, 3);
   });
 
-  it('counts people, and counts bots separately', async () => {
-    // @botcreator is a row in `accounts` — that is how it holds a username and
-    // a chat — and it exists on every server from the first boot. Counted among
-    // the accounts it would put a 1 on the dashboard of a server with no users,
-    // and add one to every figure after that. So the totals above are people,
-    // and this is where the bots are.
+  it('counts people only: there are no bots to set apart any more', async () => {
+    // Bots were removed (migration 043). @botcreator is no longer created on
+    // boot, so the overview has nothing to count separately and an empty
+    // server reads as empty.
     const response = await h.app.inject({
       method: 'GET',
       url: '/v1/admin/overview',
       headers: adminBearer(owner),
     });
-    const body = response.json();
-    assert.ok(body.accounts.bots >= 1, 'the assistant is a bot and should be counted as one');
+    assert.equal('bots' in response.json().accounts, false);
 
-    // And it is not in the list of accounts an operator searches.
     const list = await h.app.inject({
       method: 'GET',
       url: '/v1/admin/accounts?q=botcreator',

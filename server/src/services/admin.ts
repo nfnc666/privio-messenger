@@ -18,17 +18,8 @@ import { pool } from '../db/pool.js';
  */
 
 export interface Overview {
-  /**
-   * People.
-   *
-   * Bots are rows in `accounts` too — that is how a bot gets a username, a
-   * picture and a chat — but an operator asking "how many accounts" is asking
-   * how many *people*, and counting @botcreator among them would inflate every
-   * figure on the dashboard by one on a server with no users at all. So the
-   * counts below exclude them and [bots] says how many there are, which is the
-   * number an operator would actually want next to it.
-   */
-  accounts: { total: number; active30d: number; new7d: number; deleted: number; bots: number };
+  /** People: every account is one. */
+  accounts: { total: number; active30d: number; new7d: number; deleted: number };
   devices: { total: number; ios: number; android: number; desktop: number; web: number };
   channels: { total: number; publicChannels: number; suspended: number };
   licenses: { active: number; revoked: number; unredeemed: number };
@@ -49,13 +40,12 @@ export interface Overview {
 export async function overview(): Promise<Overview> {
   const { rows } = await pool.query(`
     SELECT
-      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL AND NOT is_bot)          AS accounts_total,
-      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL AND NOT is_bot
+      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL)                         AS accounts_total,
+      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL
          AND last_seen_at > now() - interval '30 days')                                AS accounts_active,
-      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL AND NOT is_bot
+      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL
          AND created_at > now() - interval '7 days')                                   AS accounts_new,
-      (SELECT count(*) FROM accounts WHERE deleted_at IS NOT NULL AND NOT is_bot)      AS accounts_deleted,
-      (SELECT count(*) FROM accounts WHERE deleted_at IS NULL AND is_bot)              AS accounts_bots,
+      (SELECT count(*) FROM accounts WHERE deleted_at IS NOT NULL)                     AS accounts_deleted,
       (SELECT count(*) FROM devices WHERE revoked_at IS NULL)                          AS devices_total,
       (SELECT count(*) FROM devices WHERE revoked_at IS NULL AND platform = 'ios')     AS devices_ios,
       (SELECT count(*) FROM devices WHERE revoked_at IS NULL AND platform = 'android') AS devices_android,
@@ -81,7 +71,6 @@ export async function overview(): Promise<Overview> {
       active30d: n(r.accounts_active),
       new7d: n(r.accounts_new),
       deleted: n(r.accounts_deleted),
-      bots: n(r.accounts_bots),
     },
     devices: {
       total: n(r.devices_total),
@@ -121,7 +110,7 @@ export async function signupSeries(days: number): Promise<{ day: string; account
             date_trunc('day', now()),
             interval '1 day') AS d(day)
      LEFT JOIN accounts a
-       ON date_trunc('day', a.created_at) = d.day AND NOT a.is_bot
+       ON date_trunc('day', a.created_at) = d.day
      GROUP BY d.day
      ORDER BY d.day`,
     [days],
@@ -157,12 +146,8 @@ export async function findAccounts(query: {
   includeDeleted: boolean;
 }): Promise<{ accounts: AccountSummary[]; total: number }> {
   const params = [query.q?.trim().toLowerCase() || null, query.includeDeleted];
-  // `NOT is_bot` for the same reason as the counts: this list is people. A bot
-  // is reached through its owner, whose account is in this list, and a system
-  // account like @botcreator has no owner to reach it through at all.
   const where = `($1::text IS NULL OR a.username LIKE $1 || '%')
-                 AND ($2::boolean OR a.deleted_at IS NULL)
-                 AND NOT a.is_bot`;
+                 AND ($2::boolean OR a.deleted_at IS NULL)`;
 
   const [page, count] = await Promise.all([
     pool.query(

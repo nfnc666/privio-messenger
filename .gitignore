@@ -21,6 +21,6 @@ app/**/GeneratedPluginRegistrant.*
 
 .DS_Store
 
-# Python bytecode from the bot SDK and its examples.
+# Python bytecode from the scripts in app/scripts and tools.
 __pycache__/
 *.pyc

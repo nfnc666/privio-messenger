@@ -25,8 +25,6 @@ import '../models/security_event.dart';
 import 'security_controller.dart';
 import 'security_event_controller.dart';
 import 'screen_shield_controller.dart';
-import 'bot_chat_controller.dart';
-import 'bot_controller.dart';
 import 'phone_controller.dart';
 import 'sticker_controller.dart';
 import 'profile_name_controller.dart';
@@ -116,8 +114,6 @@ class AppState extends ChangeNotifier {
   StickerController? _stickers;
   SecurityEventController? _securityEvents;
   PhoneController? _phone;
-  BotController? _bots;
-  BotChatController? _botChat;
   WakeUpController? _wakeUp;
 
   /// Channel links that arrived from outside the app.
@@ -319,14 +315,6 @@ class AppState extends ChangeNotifier {
 
   /// The optional phone number, its two consents, and contact matching.
   PhoneController get phone => _phone ??= PhoneController(services.api);
-
-  /// The bots this account owns, and the conversation with @botcreator.
-  BotController get bots => _bots ??= BotController(services.api);
-
-  /// One conversation with one bot somebody else runs. Holds a single bot at a
-  /// time on purpose: two bots' messages in one controller would be two
-  /// operators' messages in one list.
-  BotChatController get botChat => _botChat ??= BotChatController(services.api);
 
   /// What has happened to this account's security, kept on this device only.
   ///
@@ -916,10 +904,6 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
-    _bots?.dispose();
-    _bots = null;
-    _botChat?.dispose();
-    _botChat = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -1045,10 +1029,6 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
-    _bots?.dispose();
-    _bots = null;
-    _botChat?.dispose();
-    _botChat = null;
     _pushWake?.stop();
     _wakeUp?.dispose();
     _wakeUp = null;
@@ -1129,10 +1109,6 @@ class AppState extends ChangeNotifier {
     _securityEvents = null;
     _phone?.dispose();
     _phone = null;
-    _bots?.dispose();
-    _bots = null;
-    _botChat?.dispose();
-    _botChat = null;
     _screenLockSet = false;
     _passcodeKind = null;
     _disguise = null;

@@ -72,9 +72,9 @@ where the rest of the dangerous things are, behind a confirmation that asks for
 the channel's name. The API call is the one that was already there.
 
 Nothing else was added. In particular there is **no bot row under
-Integrations**: a bot cannot post to a channel yet — see
-[`bot-api.md` §9](bot-api.md#9-what-is-not-built-yet) — and a row that led
-nowhere would be exactly the kind of decoration this redesign removes.
+Integrations**: Privio has no bots (they were removed in migration 043), and a
+row that led nowhere would be exactly the kind of decoration this redesign
+removes.
 
 ## Second pass: what a real phone showed
 

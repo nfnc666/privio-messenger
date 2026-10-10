@@ -139,70 +139,10 @@ const READABLE: Record<string, string> = {
   // button in a picker, and it travels in the pack, not in a message.
   'sticker_items.emoji': 'the fallback character an item stands for, part of the pack s own description',
 
-  // Bots. Everything below is readable **on purpose and only for bots**, and
-  // the reason is one the feature cannot avoid: a bot is a program on somebody
-  // else's server reached over HTTP. It holds no Signal keys, so for it to
-  // receive a sealed message this server would have to hold its identity key
-  // and open the envelope for it — the one capability the whole design exists
-  // to deny itself.
-  //
-  // The choice made instead of weakening that: bot conversations do not join
-  // the encrypted path at all. They live here, in their own table, they never
-  // touch `envelopes`, a test asserts that they never start to, and the app
-  // says so in plain words before the first message to a bot is sent. What is
-  // readable is exactly a bot chat and nothing else. See docs/bots.md.
-  'bot_messages.body': 'a bot chat is not end-to-end encrypted, knowingly; see docs/bots.md',
-  'bot_messages.scope': 'direct, group or channel — which delivery rule applies',
-  'bot_messages.author': 'user or bot, which decides whether it is delivered to the operator',
-  // Not content: an id the sending device made up so that a retry after a
-  // dropped connection is answered instead of delivered twice. The server
-  // compares it and learns nothing from it, exactly as with
-  // `sent_message_keys.idempotency_key` on the encrypted path.
-  'bot_messages.client_id': 'the sender s own id for the message, so a retry is not a second message',
-  // The bot's own public description and its command menu, both written by its
-  // owner to be shown to everybody who opens the chat.
-  'bots.description': 'the bot s public description, shown to anyone who opens it',
-  'bots.commands': 'the command menu the owner publishes',
-  // A webhook URL the server itself has to fetch, so it cannot be sealed: the
-  // delivery loop reads it, and the guard in `util/outbound.ts` has to resolve
-  // it again before every request. The owner chose it and it is shown back only
-  // to the bot holding the token. The row's *secret* is bytea, which is the
-  // part that must not be readable.
-  // Buttons and presses. All three are the bot's own words and ids rather than
-  // anybody's message: the label is written by the operator to be shown to
-  // whoever opens the chat, and the id is the operator's own token for an
-  // action. The server has to read them because it is the thing that checks a
-  // press names a button the message actually carries — a check it could not
-  // make on ciphertext. The message body beside them is readable for the reason
-  // the whole bot path is, which migration 029 states.
-  'bot_messages.buttons': 'the labels the bot published and the ids it chose, checked on a press',
-  'bot_messages.kind': 'whether the row is a message or a press, which decides how it is delivered',
-  'bot_button_presses.button_id': 'which button, so the same one cannot be pressed twice',
-  // A picture or a file a bot sent. The bytes are not sealed either — the whole
-  // bot path is plaintext, which migration 029 argues and 040 repeats where the
-  // columns are defined. These two are what the *app* needs to draw the message
-  // before the bytes arrive, and they outlive the blob on purpose: after the
-  // sweeper takes it, the kind and the name are what say "this file is gone"
-  // instead of the message silently losing its attachment.
-  'bot_messages.media_kind': 'image or file, so the app knows what to draw',
-  'bot_messages.file_name': 'the name the bot gave it, shown and saved under',
-  // A poll a bot asks. Readable for the reason the whole bot path is — the bot
-  // wrote the question in the clear and is told every answer — and because the
-  // server is the thing that checks an answer is one the poll offers, which it
-  // could not do on ciphertext. A channel poll is the sealed counterpart: there
-  // the server holds the shape only. Migration 041 says so where these live.
-  'bot_polls.question': 'a bot s own question, plaintext like the bot chat it is sent in',
-  'bot_polls.options': 'the answers the bot offers, checked on every vote',
-  'bot_webhooks.url': 'the server fetches it, so it cannot be sealed; the signing secret is bytea',
-  'bot_webhooks.last_error': 'why the last delivery failed, truncated, shown back to the bot — never a header',
   // Names nobody may register, and why. Not user data: this table is the
   // policy, and it is readable because the server enforces it.
   'reserved_usernames.username': 'the policy the server enforces, not user data',
   'reserved_usernames.reason': 'why the name is held, for whoever reads the table next',
-  // How far a conversation with @botcreator has got: `{"at":"awaitingUsername",
-  // "name":"..."}`. It holds the half-finished answers to the assistant's own
-  // questions — a bot's name — and nothing a person said to another person.
-  'botcreator_state.step': 'the assistant s own state machine, not a conversation between people',
 
   // Which channel carries the verification badge, and who said so.
   //
@@ -321,15 +261,25 @@ describe('what the server can read', () => {
     }
   });
 
+  it('holds nothing of the removed bots', async () => {
+    // Bots were removed with everything they stored (migration 043): their
+    // conversations were the one place this server could read what people
+    // wrote. A table or a column of theirs reappearing would be that coming
+    // back without anybody deciding it should.
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT table_name || COALESCE('.' || column_name, '') AS name
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (table_name LIKE 'bot%' OR column_name IN ('is_bot'))`,
+    );
+    assert.deepEqual(rows, []);
+  });
+
   it('stores no session token or license key, only digests', async () => {
     for (const [table, column] of [
       ['sessions', 'token_hash'],
       ['licenses', 'key_hash'],
       ['media_objects', 'download_token_hash'],
-      // A bot API token is a credential like any other, so it is held the same
-      // way. Listing it here rather than arguing for it in READABLE is the
-      // point: the type is checked, not the note beside it.
-      ['bot_tokens', 'token_hash'],
     ]) {
       const { rows } = await pool.query<{ data_type: string }>(
         `SELECT data_type FROM information_schema.columns

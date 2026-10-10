@@ -18,8 +18,8 @@ import {
 
 const MAX_MEMBERS = 512;
 
-/// Shared with the bot routes, which manage a group's bots and must refuse a
-/// member exactly as these routes do. See `services/group_membership.ts`.
+/// The one membership check, shared so it cannot drift between routes. See
+/// `services/group_membership.ts`.
 const requireMembership = requireGroupMembership;
 
 async function membersOf(groupId: string) {

@@ -200,10 +200,11 @@ screen. It is never shown to anybody but the owner.
   sees size and time.
 * Media: `media_objects` holds an owner, a size and an expiry. Contents are
   sealed, and the media token is stored only as a hash.
-* Licences, sticker packs, bots: rows exist and are visible. **Bot conversations
-  are not end-to-end encrypted at all** and their message bodies are stored in
-  `bot_messages` in the clear — this is stated in `docs/bots.md` and on screen,
-  and it is the one place in Privio where the server can read a message body.
+* Licences, sticker packs: rows exist and are visible.
+* Bots were **removed** (migration 043). Their conversations were the one place
+  in Privio where the server could read a message body; that table, everything
+  else bots stored, and the bot accounts are gone, and a schema test refuses
+  their return.
 
 ---
 
@@ -223,7 +224,6 @@ Five things on this page are worth acting on, in this order:
 
 * That Privio hides who is talking to whom. It does not.
 * That contact discovery is anonymous. It is a keyed hash with a lookup budget.
-* That bot chats are encrypted. They are not.
 * That metadata is "minimal" without pointing at this page.
 
 Anything on this list that changes should change this document in the same pull

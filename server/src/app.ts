@@ -25,8 +25,6 @@ import { phoneRoutes } from './routes/phone.js';
 import * as officialChannel from './services/official_channel.js';
 import { smsSenderFrom } from './services/sms.js';
 import stickerRoutes from './routes/stickers.js';
-import botRoutes from './routes/bots.js';
-import { ensureAssistant } from './services/botcreator.js';
 import { backupRoutes } from './routes/backup.js';
 import { websocketRoutes } from './routes/ws.js';
 import { inviteWebRoutes } from './routes/invite_web.js';
@@ -185,10 +183,6 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // `verified: false` until it is filled, and the one channel that must never
   // be answered that way is the official one.
   await officialChannel.refresh();
-  await app.register(botRoutes(storage));
-  // The assistant has to exist before anybody can write to it, and it is
-  // ensured rather than assumed — see `ensureAssistant`.
-  await ensureAssistant();
   await app.register(messageRoutes(delivery));
   // Loaded once, before the first request, and checked: a mismatched set stops
   // the server here rather than issuing certificates no app can verify.
