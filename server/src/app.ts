@@ -3,7 +3,8 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
 import { config, rateLimitFactor } from './config.js';
-import authPlugin from './plugins/auth.js';
+import authPlugin, { bearerToken } from './plugins/auth.js';
+import { resolveSession } from './services/sessions.js';
 import accountRoutes from './routes/accounts.js';
 import contactRoutes from './routes/contacts.js';
 import accountPhoneRoutes from './routes/account_phone.js';
@@ -147,7 +148,28 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     max: 300 * rateLimitFactor,
     timeWindow: '1 minute',
     // Authenticated clients are limited per device, anonymous ones per address.
-    keyGenerator: (request) => request.auth?.deviceId ?? request.ip,
+    //
+    // The limiter runs on the request, before any route's own authentication,
+    // so `request.auth` was never set here and every client was limited by
+    // address. Everybody behind one address — a mobile carrier's NAT, an
+    // office — shared one budget, and one of them could spend it for all. The
+    // session is resolved here instead. A token that resolves to nothing is
+    // limited by address, exactly as before, so made-up tokens buy nothing.
+    keyGenerator: async (request) => {
+      if (!request.auth) {
+        const token = bearerToken(request);
+        if (token) {
+          try {
+            const context = await resolveSession(token);
+            if (context) request.auth = context;
+          } catch {
+            // The limiter is not the place to fail a request; the route's own
+            // authentication will, and until then this is an address.
+          }
+        }
+      }
+      return request.auth?.deviceId ?? request.ip;
+    },
   });
   // Browsers only. An empty allowlist means no origin is permitted, which is
   // the right default for a server whose clients are native apps.
