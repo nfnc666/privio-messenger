@@ -62,6 +62,17 @@ class LocaleController extends ChangeNotifier {
   /// Whose preference is loaded. Null before sign-in, which is English.
   String? _accountId;
 
+  /// A language somebody picked on the welcome screen, before there was an
+  /// account to keep it.
+  ///
+  /// The sign-in screens start in English, for the reason above. But a person
+  /// who chose German there and then created an account was handed an English
+  /// app and had to find the setting again. A choice made on this screen is
+  /// that person's own, so it becomes the language of the account they create
+  /// — and only of an account with no language of its own: somebody signing
+  /// back in to an account that already has one gets theirs.
+  AppLanguage? _chosenBeforeSignIn;
+
   AppLanguage get language => _language;
   Locale get locale => _language.locale;
   String? get accountId => _accountId;
@@ -72,15 +83,24 @@ class LocaleController extends ChangeNotifier {
   /// account's language on screen while this one's is being fetched — which is
   /// exactly the kind of leak between accounts this app has had to fix before.
   Future<void> load(String accountId) async {
+    final chosen = _chosenBeforeSignIn;
+    _chosenBeforeSignIn = null;
     _accountId = accountId;
-    _language = AppLanguage.fallback;
+    // The choice just made on this screen stays on screen while the account's
+    // own is read; anything else resets to English first, so a slow read
+    // cannot show the previous account's language.
+    _language = chosen ?? AppLanguage.fallback;
     notifyListeners();
 
     final stored = await _store.readLanguage(accountId);
     final found = AppLanguage.forCode(stored);
-    // Nothing stored is not an error: it is a new account, and a new account
-    // starts in English.
-    if (found != null && found != _language) {
+    if (found == null) {
+      // Nothing stored is a new account. It starts in the language chosen on
+      // the welcome screen, if one was, and otherwise in English.
+      if (chosen != null) await _store.writeLanguage(accountId, chosen.code);
+      return;
+    }
+    if (found != _language) {
       _language = found;
       notifyListeners();
     }
@@ -98,10 +118,13 @@ class LocaleController extends ChangeNotifier {
     notifyListeners();
 
     final account = _accountId;
-    // Before sign-in there is nowhere to put it, and the choice lasts as long
-    // as the screen does. That is the honest behaviour: a preference with no
-    // account to belong to cannot survive one.
-    if (account != null) await _store.writeLanguage(account, language.code);
+    // Before sign-in there is nowhere to put it yet. It is held for the
+    // account about to be created on this screen — see [_chosenBeforeSignIn].
+    if (account == null) {
+      _chosenBeforeSignIn = language;
+      return;
+    }
+    await _store.writeLanguage(account, language.code);
   }
 
   /// Back to English, for a signed-out app.
@@ -118,6 +141,7 @@ class LocaleController extends ChangeNotifier {
   /// anyway — [AppState] and this are listened to together.
   void signedOut({bool notify = true}) {
     _accountId = null;
+    _chosenBeforeSignIn = null;
     if (_language == AppLanguage.fallback) return;
     _language = AppLanguage.fallback;
     if (notify) notifyListeners();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
@@ -299,6 +301,7 @@ class _StageRouter extends StatelessWidget {
           // before there is anywhere to put the history. The backup screen is
           // where the recovery key goes in, and this says so on the way.
           onImportBackup: () => _openAuth(context, AuthMode.signIn, restoring: true),
+          onLanguageChosen: (language) => unawaited(state.locale.choose(language)),
         ),
         // A disguise replaces the lock screen; it does not sit in front of
         // it. Two screens to get past would be two screens to ask about.
