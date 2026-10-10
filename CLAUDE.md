@@ -33,8 +33,10 @@ Daraus folgt bei jeder Funktion:
 
 Stand dieser Datei, Details in `docs/metadata-privacy-review.md`:
 
-* **Kein Sealed Sender.** Der Server weiß, wer mit wem schreibt. Das ist die
-  wichtigste offene Metadaten-Lücke.
+* **Kein Sealed Sender in der App.** Der Server weiß noch, wer mit wem
+  schreibt. Die Server-Seite ist gebaut (`docs/sealed-sender.md`); es fehlen
+  die nativ aus dem Quellcode gebaute libsignal-Bibliothek und die App-Seite.
+  Bis dahin wird nichts als versiegelt beworben.
 * **Keine „Einmal ansehen“-Nachrichten.**
 * **Bots sind nicht Ende-zu-Ende-verschlüsselt.** Ein E2E-Bot-SDK ist entworfen,
   aber nicht gebaut (`docs/bots.md`); erst danach können Bots in Kanälen posten.

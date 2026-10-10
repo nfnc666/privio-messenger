@@ -8,6 +8,7 @@ import { pool } from '../src/db/pool.js';
 import { InProcessBus, type DeliveryBus } from '../src/services/bus.js';
 import { LoggingPushSender, type PushSender } from '../src/services/push.js';
 import { LocalFileStorage } from '../src/services/storage.js';
+import type { SealedSenderKeys } from '../src/services/sealed_sender.js';
 import { deviceRegistrationSchema } from '../src/services/devices.js';
 import { type AdminRole, createAdminUser } from '../src/services/admin_auth.js';
 
@@ -28,7 +29,12 @@ let counter = 0;
 
 /** Boots the API against the test database with an in-process bus and temp storage. */
 export async function createHarness(
-  overrides: { push?: PushSender; bus?: DeliveryBus; pingDatabase?: () => Promise<void> } = {},
+  overrides: {
+    push?: PushSender;
+    bus?: DeliveryBus;
+    pingDatabase?: () => Promise<void>;
+    sealedSender?: SealedSenderKeys | null;
+  } = {},
 ): Promise<TestHarness> {
   await migrate();
   await truncateAll();
@@ -36,7 +42,13 @@ export async function createHarness(
   const bus = overrides.bus ?? new InProcessBus();
   const push = new LoggingPushSender();
   const storage = new LocalFileStorage(dir);
-  const app = await buildApp({ bus, push: overrides.push ?? push, storage, pingDatabase: overrides.pingDatabase });
+  const app = await buildApp({
+    bus,
+    push: overrides.push ?? push,
+    storage,
+    pingDatabase: overrides.pingDatabase,
+    ...('sealedSender' in overrides ? { sealedSender: overrides.sealedSender } : {}),
+  });
   await app.ready();
   return {
     app,

@@ -103,7 +103,10 @@ export async function wipeAccount(accountId: string, storage: BlobStorage): Prom
            -- The status goes too. It is the one thing on this row the account
            -- published *to other people*, so a wipe that left it would leave a
            -- line about somebody still readable by everyone it was shared with.
-           status_text = NULL, status_emoji = NULL, status_expires_at = NULL, status_updated_at = NULL
+           status_text = NULL, status_emoji = NULL, status_expires_at = NULL, status_updated_at = NULL,
+           -- Whoever held this account's profile key could otherwise go on
+           -- filling a wiped account's queue with sealed messages.
+           unidentified_access_key = NULL
        WHERE id = $1`,
       [accountId],
     );

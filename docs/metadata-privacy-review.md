@@ -117,6 +117,12 @@ it happened, between whom, and when, is not.
 doing so would need delivery tokens, a different abuse-control story, and a
 review. It should not be claimed until it exists.
 
+**Status:** the server half now exists (`docs/sealed-sender.md`): sender
+certificates, access keys derived from the profile key, and an unauthenticated,
+unlogged route that stores envelopes with no sender columns at all. **The app
+does not seal anything yet**, so every message still travels as described
+above, and this section stays true until the client phase ships.
+
 ## 7. Group membership
 
 **Required · stored**

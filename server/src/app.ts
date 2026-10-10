@@ -10,6 +10,8 @@ import accountPhoneRoutes from './routes/account_phone.js';
 import callRoutes from './routes/calls.js';
 import deviceRoutes from './routes/devices.js';
 import { messageRoutes } from './routes/messages.js';
+import { sealedSenderRoutes } from './routes/sealed_sender.js';
+import { loadSealedSenderKeys, type SealedSenderKeys } from './services/sealed_sender.js';
 import groupRoutes from './routes/groups.js';
 import channelRoutes from './routes/channels.js';
 import {
@@ -47,6 +49,11 @@ export interface AppDependencies {
    * test in the process.
    */
   pingDatabase?: () => Promise<void>;
+  /**
+   * Sealed sender keys. Absent means "from the environment"; `null` switches
+   * sealed sender off, so a test can see what a server without it answers.
+   */
+  sealedSender?: SealedSenderKeys | null;
 }
 
 /** Reported by `GET /health`. */
@@ -183,6 +190,11 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   // ensured rather than assumed — see `ensureAssistant`.
   await ensureAssistant();
   await app.register(messageRoutes(delivery));
+  // Loaded once, before the first request, and checked: a mismatched set stops
+  // the server here rather than issuing certificates no app can verify.
+  const sealedKeys =
+    deps.sealedSender === undefined ? loadSealedSenderKeys(config, app.log) : deps.sealedSender;
+  await app.register(sealedSenderRoutes(delivery, sealedKeys));
   await app.register(groupRoutes(deps.bus));
   await app.register(channelRoutes(deps.bus, channelNotifier));
   await app.register(licenseRoutes);

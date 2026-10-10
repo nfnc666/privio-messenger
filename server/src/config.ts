@@ -215,6 +215,22 @@ const schema = z.object({
   UNIFIEDPUSH_ALLOWED_HOSTS: z.string().default(''),
 
   /**
+   * Sealed sender, see docs/sealed-sender.md. All three or none.
+   *
+   * The trust root and the server certificate are public: the app pins the
+   * first, and the second is the trust root's signature over the server key.
+   * The server key is a **secret** — it signs every sender certificate — and
+   * like every secret here it is read from the environment and never logged.
+   * `npm --workspace server run sealed-sender:keys` generates the set.
+   *
+   * Unset in production means sealed sender is off and the app sends the way
+   * it always has. Tests and development generate a throwaway set.
+   */
+  SEALED_SENDER_TRUST_ROOT: z.string().optional(),
+  SEALED_SENDER_SERVER_CERTIFICATE: z.string().optional(),
+  SEALED_SENDER_SERVER_KEY: z.string().optional(),
+
+  /**
    * Apple Push Notification service. All four or none.
    *
    * `APNS_KEY_P8` is the contents of the `.p8` file from the developer portal,
@@ -272,6 +288,23 @@ const schema = z.object({
       path: ['LIVEKIT_URL'],
       message:
         'Livestreams need LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET together, or none of them',
+    });
+  }
+  // The same rule for sealed sender: a server key without its certificate, or
+  // a certificate without the trust root it is checked against, would issue
+  // certificates no app can verify — every sealed message would be dropped
+  // on arrival, silently, which is worse than not offering it.
+  const sealed = [
+    env.SEALED_SENDER_TRUST_ROOT,
+    env.SEALED_SENDER_SERVER_CERTIFICATE,
+    env.SEALED_SENDER_SERVER_KEY,
+  ];
+  if (sealed.some(Boolean) && !sealed.every(Boolean)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['SEALED_SENDER_SERVER_KEY'],
+      message:
+        'SEALED_SENDER_TRUST_ROOT, SEALED_SENDER_SERVER_CERTIFICATE and SEALED_SENDER_SERVER_KEY go together: set all three or none',
     });
   }
   // Half-configured is worse than unconfigured: it looks like it works.
