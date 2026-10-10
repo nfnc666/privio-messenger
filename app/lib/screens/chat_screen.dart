@@ -35,12 +35,15 @@ import '../data/message_store.dart';
 import '../widgets/mention_suggestions_bar.dart';
 import '../widgets/voice_composer.dart';
 import '../theme/accent.dart';
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/scrub_notice.dart';
 import '../widgets/search_field.dart';
 import '../widgets/sticker_picker.dart';
+import '../widgets/typing_label.dart';
 
 /// One conversation. Everything shown here was decrypted on this device, and
 /// everything typed here is sealed before it leaves it.
@@ -70,6 +73,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   /// The message the next send replies to, or null.
   Message? _replyingTo;
+
+  /// Every message this screen has drawn, so only the ones that arrive while
+  /// it is open move in. Filled with the whole history on the first build: a
+  /// conversation opening is not forty messages arriving at once.
+  Set<String>? _drawn;
 
   final TextEditingController _composer = TextEditingController();
 
@@ -1333,22 +1341,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium,
                         ),
-                        Text(
-                          _isSaved(state)
-                              ? text.savedChatSubtitle
-                              : state.conversations.isTyping(widget.accountId)
-                                  ? text.chatTyping
-                                  : widget.isGroup
-                                      ? _groupSubtitle(state)
-                                      : _encryptionSubtitle(state),
-                          style: theme.textTheme.labelSmall?.copyWith(
+                        Builder(builder: (context) {
+                          final typing = !_isSaved(state) &&
+                              state.conversations.isTyping(widget.accountId);
+                          final style = theme.textTheme.labelSmall?.copyWith(
                             color: state.conversations.hasIdentityChange(widget.accountId) ||
                                     state.conversations.hasKeyChangeAlert(widget.accountId) ||
                                     _verification == VerificationState.changed
                                 ? PrivioColors.warning
                                 : context.accents.accent,
-                          ),
-                        ),
+                          );
+                          final line = _isSaved(state)
+                              ? text.savedChatSubtitle
+                              : typing
+                                  ? text.chatTyping
+                                  : widget.isGroup
+                                      ? _groupSubtitle(state)
+                                      : _encryptionSubtitle(state);
+                          // One line fades into the next — "typing" comes and
+                          // goes several times a minute, and a jump each time
+                          // pulls the eye up from the conversation.
+                          return AnimatedSwitcher(
+                            duration: PrivioMotion.of(context, PrivioMotion.quick),
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [...previous, ?current],
+                            ),
+                            child: typing
+                                ? TypingLabel(line, key: const ValueKey('typing'), style: style)
+                                : Text(line, key: ValueKey(line), style: style),
+                          );
+                        }),
                       ],
                     ),
                   ),
@@ -1528,7 +1551,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     itemBuilder: (context, index) {
                       if (index == 0) return const EncryptionNotice();
                       final message = messages[index - 1];
-                      return MessageBubble(
+                      final drawn = _drawn ??= {
+                        for (final m in messages) m.clientId ?? m.id,
+                      };
+                      return Appear(
+                        play: drawn.add(message.clientId ?? message.id),
+                        child: MessageBubble(
                         message: message,
                         // In a one-to-one chat, a mention of the person you
                         // are talking to comes back here rather than opening
@@ -1563,6 +1591,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             : () => unawaited(_openContactProfile(
                                   (message.isMine ? state.accountId : message.senderAccountId)!,
                                 )),
+                        ),
                       );
                     },
                   ),
@@ -2110,10 +2139,19 @@ class _TrailingAction extends StatelessWidget {
   final void Function(double dx) onHoldUpdate;
   final Future<void> Function() onHoldEnd;
 
+  /// The button swaps — microphone, send, send the recording — by growing in
+  /// rather than snapping, so the change is seen as the same place doing a
+  /// new thing.
+  Widget _swap(BuildContext context, String which, Widget child) => AnimatedSwitcher(
+        duration: PrivioMotion.of(context, PrivioMotion.quick),
+        transitionBuilder: PrivioMotion.popIn,
+        child: KeyedSubtree(key: ValueKey(which), child: child),
+      );
+
   @override
   Widget build(BuildContext context) {
     if (stage == VoiceComposerStage.preview) {
-      return IconButton.filled(
+      return _swap(context, 'voice-send', IconButton.filled(
         key: const Key('voice-send'),
         onPressed: onSendVoice,
         style: IconButton.styleFrom(
@@ -2122,7 +2160,7 @@ class _TrailingAction extends StatelessWidget {
         ),
         icon: const Icon(Icons.send_rounded, size: 20),
         tooltip: AppText.of(context).chatSend,
-      );
+      ));
     }
 
     return ValueListenableBuilder<TextEditingValue>(
@@ -2130,7 +2168,7 @@ class _TrailingAction extends StatelessWidget {
       builder: (context, value, _) {
         final hasText = value.text.trim().isNotEmpty;
         if (hasText && stage == VoiceComposerStage.idle) {
-          return IconButton.filled(
+          return _swap(context, 'send', IconButton.filled(
             onPressed: onSend,
             style: IconButton.styleFrom(
               backgroundColor: context.accents.accent,
@@ -2138,13 +2176,13 @@ class _TrailingAction extends StatelessWidget {
             ),
             icon: const Icon(Icons.send_rounded, size: 20),
             tooltip: AppText.of(context).chatSend,
-          );
+          ));
         }
 
         final recording = stage != VoiceComposerStage.idle;
         // A bare gesture has nothing for a screen reader to say; this says
         // what the circle is and how it works.
-        return Semantics(
+        return _swap(context, 'microphone', Semantics(
           button: true,
           label: AppText.of(context).chatHoldToRecord,
           child: GestureDetector(
@@ -2177,7 +2215,7 @@ class _TrailingAction extends StatelessWidget {
               ),
             ),
           ),
-        );
+        ));
       },
     );
   }

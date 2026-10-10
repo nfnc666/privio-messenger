@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/notice_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'custom_emoji_text.dart';
 import 'photo_viewer.dart';
@@ -483,7 +484,16 @@ class _DeliveryTicks extends StatelessWidget {
   final DeliveryState state;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      // A tick that changes is the message getting somewhere, so the new mark
+      // grows in where the old one was rather than replacing it in a frame.
+      AnimatedSwitcher(
+        duration: PrivioMotion.of(context, PrivioMotion.quick),
+        transitionBuilder: PrivioMotion.popIn,
+        child: KeyedSubtree(key: ValueKey(state), child: _mark(context)),
+      );
+
+  Widget _mark(BuildContext context) {
     // Queued and failed are their own marks. A message waiting for a network
     // must not look like one that is on its way, and one that gave up must not
     // look like either.

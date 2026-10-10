@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/chat_text.dart';
 import '../theme/accent.dart';
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'avatar.dart';
 
@@ -125,24 +126,30 @@ class ChatListRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                if (hasUnread)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: context.accents.accent,
-                      borderRadius: const BorderRadius.all(PrivioRadius.pill),
-                    ),
-                    child: Text(
-                      '${chat.unreadCount}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: PrivioColors.background,
-                      ),
-                    ),
-                  )
-                else
-                  const SizedBox(height: 17),
+                // The count pops when it changes, so a new message in a chat
+                // further down the list is noticed without reading every row.
+                AnimatedSwitcher(
+                  duration: PrivioMotion.of(context, PrivioMotion.quick),
+                  transitionBuilder: PrivioMotion.popIn,
+                  child: hasUnread
+                      ? Container(
+                          key: ValueKey(chat.unreadCount),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: context.accents.accent,
+                            borderRadius: const BorderRadius.all(PrivioRadius.pill),
+                          ),
+                          child: Text(
+                            '${chat.unreadCount}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: PrivioColors.background,
+                            ),
+                          ),
+                        )
+                      : const SizedBox(key: ValueKey(0), height: 17),
+                ),
               ],
             ),
           ],

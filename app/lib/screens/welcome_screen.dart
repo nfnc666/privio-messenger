@@ -3,8 +3,10 @@ import '../network/proxy_controller.dart';
 import 'proxy_screen.dart';
 
 import '../theme/accent.dart';
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/appear.dart';
 import '../widgets/web_storage_notice.dart';
 import '../widgets/privio_logo.dart';
 
@@ -50,23 +52,37 @@ class WelcomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              const PrivioMark(size: 72, glow: true),
+              // The first thing anybody sees of Privio: the mark, the name,
+              // then the promises one after another — read in the order they
+              // arrive. Under a second in all, and still when the device asks
+              // for less motion.
+              const Appear(duration: PrivioMotion.gentle, child: PrivioMark(size: 72, glow: true)),
               const SizedBox(height: PrivioSpacing.xl),
-              Text(text.welcomeTo, style: theme.textTheme.bodyMedium),
-              Text(
-                'Privio',
-                style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+              Appear(
+                delay: const Duration(milliseconds: 120),
+                child: Column(
+                  children: [
+                    Text(text.welcomeTo, style: theme.textTheme.bodyMedium),
+                    Text(
+                      'Privio',
+                      style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: PrivioSpacing.xxxl),
-              for (final (icon, label) in _promises(text))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: PrivioSpacing.lg),
-                  child: Row(
-                    children: [
-                      Icon(icon, size: 18, color: context.accents.accent),
-                      const SizedBox(width: PrivioSpacing.md),
-                      Text(label, style: theme.textTheme.bodyMedium),
-                    ],
+              for (final (index, (icon, label)) in _promises(text).indexed)
+                Appear(
+                  delay: Duration(milliseconds: 240 + 70 * index),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: PrivioSpacing.lg),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 18, color: context.accents.accent),
+                        const SizedBox(width: PrivioSpacing.md),
+                        Text(label, style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
                   ),
                 ),
               // The call to action sits just under the promises rather than at

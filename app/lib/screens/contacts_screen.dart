@@ -9,6 +9,7 @@ import '../l10n/channel_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/search_field.dart';
@@ -139,7 +140,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
               Expanded(
                 child: contacts.isEmpty
                     ? (_query.trim().isEmpty
-                        ? _EmptyContacts(onAdd: () => unawaited(showAddContactSheet(context)))
+                        ? Appear(
+                            child: _EmptyContacts(
+                              onAdd: () => unawaited(showAddContactSheet(context)),
+                            ),
+                          )
                         : _NoMatch(
                             query: _query,
                             onAdd: (username) =>

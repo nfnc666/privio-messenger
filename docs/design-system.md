@@ -124,6 +124,44 @@ cannot do.
 - Elevation is expressed as surface lightness, not shadow. The only glow in the
   product is the accent bloom behind the splash and loading marks.
 
+## Motion
+
+Tokens in `app/lib/theme/motion.dart`. Motion says one of three things —
+*this just arrived*, *this changed*, *you are somewhere else now* — and is
+over before anybody waits for it. Nothing loops except what is live, and
+nothing is decoration.
+
+| Token | Value | Used for |
+| --- | --- | --- |
+| `quick` | 160 ms | A control changing state: delivery ticks, the send/microphone button, the unread count, a tab, the chat header's second line |
+| `standard` | 240 ms | Something arriving: a message, an empty state |
+| `gentle` | 420 ms | The welcome screen's mark |
+| `enter` | ease-out cubic | Everything that comes in decelerates |
+| `rise` | 10 px | How far something rises as it fades in |
+
+Where it is used:
+
+- **Messages** that arrive while a chat is open fade in as they rise
+  (`Appear`). Opening a chat does not animate its history.
+- **Send, microphone, send-recording** swap by growing in where the other
+  was (`PrivioMotion.popIn`). So do the **delivery ticks** and the **unread
+  count** in the chat list.
+- **Typing**: three dots rise and fall in turn in place of the ellipsis
+  (`TypingLabel`), and the header's second line crossfades as it comes and
+  goes. A screen reader reads the sentence, not the dots.
+- **Welcome**: the mark, then the name, then the four promises, each 70 ms
+  after the last. Under a second in all.
+- **Tabs** fade up from the black behind them.
+- Page transitions are the platform's own.
+
+**Reduce motion.** When the device asks for less motion ("Reduce motion" on
+iOS, "Remove animations" on Android), nothing moves: every duration is zero
+and the typing dots are the written sentence. `test/motion_test.dart` sets
+the device flag and checks each of these.
+
+No animation library and no animation files: everything is Flutter's own
+widgets, so there is nothing to download and nothing that phones home.
+
 ## Screen inventory
 
 Numbers match the mockup sheet. The two rows without a number are not on it:

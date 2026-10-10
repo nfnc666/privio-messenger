@@ -204,7 +204,10 @@ void main() {
       () => server.connections >= 2,
       reason: 'never reconnected',
     );
-    expect(connection.connected.value, isTrue);
+    // Connected means the handshake finished, which the client learns a
+    // moment after the server has counted the connection — so this waits for
+    // it rather than reading it in the same instant.
+    await waitUntil(() => connection.connected.value, reason: 'never said it was back');
   });
 
   test('a rejected token stops it retrying', () async {

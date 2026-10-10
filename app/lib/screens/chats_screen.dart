@@ -10,6 +10,7 @@ import '../l10n/chat_text.dart';
 import '../models/models.dart';
 import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
+import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/chat_list_row.dart';
 import '../widgets/search_field.dart';
@@ -381,7 +382,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                   ? _row(context, state, chats[index])
                                   : const Padding(
                                       padding: EdgeInsets.only(top: PrivioSpacing.xxxl),
-                                      child: _EmptyChats(),
+                                      child: Appear(child: _EmptyChats()),
                                     ),
                             ),
                           ))

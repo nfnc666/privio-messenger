@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'account_screen.dart';
 import 'calls_screen.dart';
@@ -71,8 +72,22 @@ class NavShell extends StatefulWidget {
   State<NavShell> createState() => _NavShellState();
 }
 
-class _NavShellState extends State<NavShell> {
+class _NavShellState extends State<NavShell> with SingleTickerProviderStateMixin {
   int _index = 0;
+
+  /// A tab arrives by fading up from the black behind it, quickly. A cut
+  /// between two lists that look alike reads as nothing having happened.
+  late final AnimationController _arrive = AnimationController(
+    vsync: this,
+    duration: PrivioMotion.quick,
+    value: 1,
+  );
+
+  @override
+  void dispose() {
+    _arrive.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,9 +95,12 @@ class _NavShellState extends State<NavShell> {
     final text = AppText.of(context);
 
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: [for (final destination in destinations) destination.builder(context)],
+      body: FadeTransition(
+        opacity: CurvedAnimation(parent: _arrive, curve: PrivioMotion.enter),
+        child: IndexedStack(
+          index: _index,
+          children: [for (final destination in destinations) destination.builder(context)],
+        ),
       ),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
@@ -91,6 +109,9 @@ class _NavShellState extends State<NavShell> {
         child: BottomNavigationBar(
           currentIndex: _index,
           onTap: (index) {
+            if (index != _index && !PrivioMotion.reduced(context)) {
+              _arrive.forward(from: 0.2);
+            }
             setState(() => _index = index);
             // Told rather than inferred, so a screen the stack is keeping
             // alive can refresh what it read on the way in.
