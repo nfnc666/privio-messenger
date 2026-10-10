@@ -43,6 +43,10 @@ class FakeServer {
   /// Requests the server refused, so a test can say there were none.
   final List<String> refused = [];
 
+  /// How many times each account's prekey bundles were fetched. Each fetch
+  /// consumes one of that account's one-time prekeys on the real server.
+  final Map<String, int> bundleFetches = {};
+
   /// No server at all: every request fails the way a dropped connection does,
   /// before anything reaches the server.
   bool offline = false;
@@ -260,6 +264,7 @@ class FakeServer {
 
         if (method == 'GET' && path.startsWith('/v1/keys/')) {
           final username = path.split('/').last;
+          bundleFetches[username] = (bundleFetches[username] ?? 0) + 1;
           final account = accounts[username]!;
           // Asking for your own account means "my other devices", as the real
           // server answers it: a device never needs a session with itself, and
