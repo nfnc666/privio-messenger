@@ -150,6 +150,12 @@ jobs:
           channel: stable
           cache: true
 
+      # Flutter 3.47.1 hardcodes iOS 13 in native dylib framework plists even
+      # when the dylib was linked for iOS 15 (ITMS-90208 in build 63).
+      # Correct the packager before any Flutter build or code signing.
+      - name: Align native asset framework metadata with iOS 15
+        run: python3 tools/ios_native_assets.py --configure "$FLUTTER_ROOT"
+
       # The API key is written straight from the secret to a file that only the
       # runner user can read, and never passed on a command line, echoed, or
       # committed anywhere. `~/private_keys` is one of the three directories
@@ -400,6 +406,9 @@ jobs:
 
       - name: Verify exported alternate icons
         run: python3 tools/check_ios_icons.py "$RUNNER_TEMP"/ipa/*.ipa
+
+      - name: Verify libsignal deployment version in the exported IPA
+        run: python3 tools/ios_native_assets.py --verify "$RUNNER_TEMP"/ipa/*.ipa
 
       - name: Keep the .ipa
         uses: actions/upload-artifact@v4
