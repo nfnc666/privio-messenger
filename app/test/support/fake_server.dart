@@ -43,6 +43,14 @@ class FakeServer {
   /// Requests the server refused, so a test can say there were none.
   final List<String> refused = [];
 
+  /// No server at all: every request fails the way a dropped connection does,
+  /// before anything reaches the server.
+  bool offline = false;
+
+  /// When set, a send is refused with this error code and a 403, the way the
+  /// real server refuses an unlicensed account.
+  String? refuseSendsWith;
+
   FakeDevice register(
     String username,
     String accountId,
@@ -65,6 +73,7 @@ class FakeServer {
   }
 
   http.Client clientFor(String deviceId) => MockClient((request) async {
+        if (offline) throw http.ClientException('Connection refused', request.url);
         final path = request.url.path;
         final method = request.method;
 
@@ -273,6 +282,10 @@ class FakeServer {
             'username': username,
             'devices': bundles,
           });
+        }
+
+        if (method == 'POST' && path == '/v1/messages' && refuseSendsWith != null) {
+          return _json({'error': refuseSendsWith, 'message': 'Refused'}, status: 403);
         }
 
         if (method == 'POST' && path == '/v1/messages') {

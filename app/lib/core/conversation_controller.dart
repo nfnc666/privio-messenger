@@ -55,6 +55,15 @@ class ConversationController extends ChangeNotifier {
   /// encrypted archive without a plaintext recording ever reaching storage.
   final List<PendingSend> _outbox = [];
 
+  /// Text messages that could not reach the server, by client id, each with
+  /// the conversation it belongs to.
+  ///
+  /// Nothing about them needs keeping beyond the message itself: the history
+  /// already holds the words, sealed at rest, and a resend builds the same
+  /// payload with the same client id, so the server recognises a second
+  /// attempt rather than delivering twice. Rebuilt from the history on start.
+  final Map<String, String> _unsentTexts = {};
+
   /// Whether this account sends read receipts and typing notices.
   ///
   /// Reciprocal, the way people expect: someone who does not send read
@@ -381,6 +390,19 @@ class ConversationController extends ChangeNotifier {
     _outbox
       ..clear()
       ..addAll(contents.outbox);
+    // Text that was waiting for the network when the app stopped — or was on
+    // its way and never heard back — waits again, and goes with the queue.
+    _unsentTexts.clear();
+    for (final conversation in _services.store.conversations()) {
+      for (final message in conversation.messages) {
+        final clientId = message.clientId;
+        if (clientId == null || !message.isMine || message.kind != MessageKind.text) continue;
+        if (message.state == DeliveryState.queued || message.state == DeliveryState.sending) {
+          if (_outbox.any((pending) => pending.clientId == clientId)) continue;
+          _unsentTexts[clientId] = conversation.id;
+        }
+      }
+    }
     // A message queued before the app was killed is still owed to somebody.
     _services.store.pruneExpired(DateTime.now());
     _noteCappedTimers();
@@ -471,7 +493,9 @@ class ConversationController extends ChangeNotifier {
   /// Opens the realtime socket and starts the fallback poll. Safe to call more
   /// than once.
   void start({String? token}) {
-    _poller ??= Timer.periodic(fallbackPollInterval, (_) => drain());
+    // A poll that cannot reach the server is expected while offline; it is
+    // tried again on the next tick, and must not surface as an uncaught error.
+    _poller ??= Timer.periodic(fallbackPollInterval, (_) => unawaited(_quietDrain()));
     // Often enough that a 30-second timer is roughly honoured on screen, cheap
     // enough to be invisible: it walks a list already in memory.
     _expirySweep ??= Timer.periodic(expirySweepInterval, (_) => pruneExpired());
@@ -480,9 +504,11 @@ class ConversationController extends ChangeNotifier {
     _typingSweep ??= Timer.periodic(typingInterval, (_) => _fadeTyping());
     if (token != null) _openRealtime(token);
     pruneExpired();
-    unawaited(drain());
+    unawaited(_quietDrain());
     detached(flushOutbox());
   }
+
+  Future<void> _quietDrain() => drain().then((_) {}, onError: (Object _) {});
 
   void _openRealtime(String token) {
     if (_realtime != null) return;
@@ -492,6 +518,11 @@ class ConversationController extends ChangeNotifier {
     );
     _realtime = realtime;
     _realtimeEnvelopes = realtime.envelopes.listen(_onPushedEnvelopes);
+    // Back online: what was waiting goes now, rather than at the next poll —
+    // up to two minutes later, with "waiting" on screen the whole time.
+    realtime.connected.addListener(() {
+      if (realtime.connected.value) detached(flushOutbox());
+    });
     // Nothing to read: somebody is waiting for a key. Answering on the poll
     // instead would leave them looking at a group they cannot name for it.
     _realtimeKeyRequests = realtime.keyRequests.listen((_) {
@@ -798,7 +829,6 @@ class ConversationController extends ChangeNotifier {
     if (conversation == null || text.trim().isEmpty) return;
 
     final clientId = _newClientId();
-    final timer = _effectiveTimer(conversation);
     final body = text.trim();
     _services.store.append(
       conversationId,
@@ -825,24 +855,58 @@ class ConversationController extends ChangeNotifier {
     );
     notifyListeners();
 
-    final payload = MessagePayload.text(
-      body,
-      customEmoji: customEmoji,
-      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
-      expiresInSeconds: timer?.inSeconds,
-      // Carried so a retry — this one's or the transport's — is recognisable as
-      // the same message rather than delivered twice.
-      clientId: clientId,
-      replyToId: replyTo?.clientId,
-      replyPreview: replyTo == null ? null : previewOfMessage(replyTo),
-      // From the recipient's point of view: a reply to their own message should
-      // quote them by name, not tell them "You" wrote it.
-      replySender: replyTo == null
-          ? null
-          : replyTo.isMine
-              ? null
-              : 'You',
-    );
+    await _sendText(conversationId, clientId);
+    notifyListeners();
+  }
+
+  /// The payload for one of this device's text messages, built from the
+  /// message itself so a resend is the same message as the first attempt.
+  MessagePayload _textPayload(Conversation conversation, Message message, Duration? timer) =>
+      MessagePayload.text(
+        message.body,
+        customEmoji: message.customEmoji,
+        groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+        expiresInSeconds: timer?.inSeconds,
+        // Carried so a retry — this one's or the transport's — is recognisable
+        // as the same message rather than delivered twice.
+        clientId: message.clientId,
+        replyToId: message.replyToId,
+        replyPreview: message.replyPreview,
+        // From the recipient's point of view: a reply to their own message
+        // should quote them by name, not tell them "You" wrote it. Stored from
+        // this side, where a reply to one's own message is "You".
+        replySender: message.replyToId == null
+            ? null
+            : message.replySender == 'You'
+                ? null
+                : 'You',
+      );
+
+  /// A failure worth trying again by itself: the network, or a server that
+  /// is down or busy. A refusal — no licence, a changed key, a bad request —
+  /// would only be refused again.
+  static bool _isTransient(Object failure) => switch (failure) {
+        ApiException(:final statusCode) => statusCode >= 500 || statusCode == 429,
+        IdentityChangedException() => false,
+        _ => true,
+      };
+
+  /// Sends one of this device's text messages, or queues it.
+  ///
+  /// Returns false when it could not reach the server and is waiting for
+  /// another try. Without a connection a message used to go straight to
+  /// "could not be sent", with no way to send it again but typing it again;
+  /// it now waits, marked as waiting, and goes when the server is back.
+  Future<bool> _sendText(String conversationId, String clientId) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    final message =
+        conversation?.messages.where((m) => m.clientId == clientId).firstOrNull;
+    if (conversation == null || message == null) {
+      _unsentTexts.remove(clientId);
+      return true;
+    }
+    final timer = _effectiveTimer(conversation);
+    final payload = _textPayload(conversation, message, timer);
 
     try {
       if (conversation.isGroup) {
@@ -850,11 +914,20 @@ class ConversationController extends ChangeNotifier {
       } else {
         await _services.messaging.sendPayload(conversation.user!.username, payload);
       }
+      _unsentTexts.remove(clientId);
       _markSent(conversationId, clientId, timer);
       _failure = null;
       _persist();
+      return true;
     } on Object catch (failure) {
+      if (_isTransient(failure)) {
+        _unsentTexts[clientId] = conversationId;
+        _services.store.updateState(conversationId, clientId, DeliveryState.queued);
+        _persist();
+        return false;
+      }
       // Leaving it at `sending` would be a lie. Mark it and say why.
+      _unsentTexts.remove(clientId);
       _services.store.updateState(conversationId, clientId, DeliveryState.failed);
       _noteIdentityChange(failure);
       _failure = switch (failure) {
@@ -867,9 +940,28 @@ class ConversationController extends ChangeNotifier {
         ApiException(:final message) => Failure.server(message),
         _ => const Failure(FailureKind.couldNotSendMessage),
       };
+      _persist();
+      return true;
     }
-    notifyListeners();
   }
+
+  /// Sends the text messages that were waiting, oldest first, stopping at the
+  /// first that still cannot reach the server — the rest would fail the same
+  /// way.
+  Future<void> _sendWaitingTexts() async {
+    for (final MapEntry(key: clientId, value: conversationId) in [..._unsentTexts.entries]) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.sending);
+      notifyListeners();
+      if (!await _sendText(conversationId, clientId)) break;
+    }
+  }
+
+  /// One of this device's own text messages that did not go out.
+  bool _isUnsentText(Message message) =>
+      message.isMine &&
+      message.kind == MessageKind.text &&
+      message.clientId != null &&
+      (message.state == DeliveryState.failed || message.state == DeliveryState.queued);
 
   // --- Groups ---------------------------------------------------------------
 
@@ -2002,7 +2094,11 @@ class ConversationController extends ChangeNotifier {
   /// the queue entry with it — a bubble removed on its own leaves the message
   /// to arrive later from a queue the person thought they had emptied.
   bool isQueued(String clientId) =>
-      _outbox.any((pending) => pending.clientId == clientId);
+      _outbox.any((pending) => pending.clientId == clientId) ||
+      _unsentTexts.containsKey(clientId) ||
+      _services.store
+          .conversations()
+          .any((c) => c.messages.any((m) => m.clientId == clientId && _isUnsentText(m)));
 
   /// Seals [recording] and puts it on the wire, or in the queue if that fails.
   ///
@@ -2153,19 +2249,41 @@ class ConversationController extends ChangeNotifier {
   /// Retries one message the user asked to retry.
   Future<void> retry(String clientId) async {
     final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
-    if (index == -1) return;
+    if (index == -1) {
+      // A text message: one waiting for the network, or one the server
+      // refused and the person wants to try again.
+      final conversationId = _unsentTexts[clientId] ?? _conversationOfUnsentText(clientId);
+      if (conversationId == null) return;
+      _unsentTexts[clientId] = conversationId;
+      _services.store.updateState(conversationId, clientId, DeliveryState.sending);
+      notifyListeners();
+      await _sendText(conversationId, clientId);
+      notifyListeners();
+      return;
+    }
     _setVoiceState(_outbox[index].conversationId, clientId, DeliveryState.sending);
     notifyListeners();
     await flushOutbox();
   }
 
+  String? _conversationOfUnsentText(String clientId) {
+    for (final conversation in _services.store.conversations()) {
+      if (conversation.messages.any((m) => m.clientId == clientId && _isUnsentText(m))) {
+        return conversation.id;
+      }
+    }
+    return null;
+  }
+
   /// Drops a queued message the user gave up on, bubble and all.
   void discard(String clientId) {
     final index = _outbox.indexWhere((pending) => pending.clientId == clientId);
-    if (index == -1) return;
-    final pending = _outbox.removeAt(index);
+    final conversationId = index != -1
+        ? _outbox.removeAt(index).conversationId
+        : _unsentTexts.remove(clientId) ?? _conversationOfUnsentText(clientId);
+    if (conversationId == null) return;
     _services.store
-        .conversationWith(pending.conversationId)
+        .conversationWith(conversationId)
         ?.messages
         .removeWhere((message) => message.id == clientId);
     _persist();
@@ -2194,7 +2312,8 @@ class ConversationController extends ChangeNotifier {
       do {
         _flushAgain = false;
         await _drainQueue();
-      } while (_flushAgain && _outbox.isNotEmpty);
+        await _sendWaitingTexts();
+      } while (_flushAgain && (_outbox.isNotEmpty || _unsentTexts.isNotEmpty));
     } finally {
       _flushing = null;
       _persist();
