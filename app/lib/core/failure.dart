@@ -11,6 +11,10 @@ import 'api_client.dart';
 enum FailureKind {
   // Reaching the server.
   unreachable,
+
+  /// The server answered through its host's error page: it is down, and the
+  /// connection is not the problem. See [ServerUnavailableException].
+  serverUnavailable,
   unreachableCheckConnection,
   unreachableTryAgain,
   couldNotSave,
@@ -208,8 +212,19 @@ class Failure {
   /// Anything thrown, as a failure: a server sentence when the server sent one,
   /// and [otherwise] for everything else (a socket that never answered, a
   /// decode that failed).
-  factory Failure.of(Object error, FailureKind otherwise) =>
-      error is ApiException ? Failure.server(error.message) : Failure(otherwise);
+  factory Failure.of(Object error, FailureKind otherwise) => switch (error) {
+        ApiException() => Failure.server(error.message),
+        ServerUnavailableException() => const Failure(FailureKind.serverUnavailable),
+        _ => Failure(otherwise),
+      };
+
+  /// A request that got no answer from Privio: the server being down when
+  /// that is what happened, and [otherwise] — usually the connection — when
+  /// nothing came back at all.
+  factory Failure.reaching(Object error, FailureKind otherwise) =>
+      error is ServerUnavailableException
+          ? const Failure(FailureKind.serverUnavailable)
+          : Failure(otherwise);
 
   final FailureKind kind;
 

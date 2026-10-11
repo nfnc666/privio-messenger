@@ -76,9 +76,9 @@ class ProfileNameController extends ChangeNotifier {
     } on ApiException catch (failure) {
       if (!_stillOn(accountId)) return;
       _failure = Failure.server(failure.message);
-    } on Object {
+    } on Object catch (error) {
       if (!_stillOn(accountId)) return;
-      _failure = const Failure(FailureKind.unreachable);
+      _failure = Failure.reaching(error, FailureKind.unreachable);
     }
     notifyListeners();
   }

@@ -3295,11 +3295,11 @@ abstract class AppText {
   /// **'Add some contacts first — a group needs people in it.'**
   String get groupAddContactsFirst;
 
-  /// No description provided for @groupInfoCouldNotRead.
+  /// No description provided for @groupInfoMembersNotLoaded.
   ///
   /// In en, this message translates to:
-  /// **'Could not read who is in this group.'**
-  String get groupInfoCouldNotRead;
+  /// **'The member list could not be loaded.'**
+  String get groupInfoMembersNotLoaded;
 
   /// No description provided for @groupAdminOnly.
   ///
@@ -6246,6 +6246,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Could not reach Privio.'**
   String get failureUnreachable;
+
+  /// No description provided for @failureServerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The Privio server is having a problem right now. It is not your connection — please try again later.'**
+  String get failureServerUnavailable;
 
   /// No description provided for @failureUnreachableCheckConnection.
   ///

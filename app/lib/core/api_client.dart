@@ -20,6 +20,20 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode, $code): $message';
 }
 
+/// The server is down behind a platform that is up.
+///
+/// The network reached the host, and the host answered with its own error
+/// page — the server process behind it is not running, or cannot reach its
+/// database. Not an [ApiException]: there is no answer from Privio in it.
+class ServerUnavailableException implements Exception {
+  const ServerUnavailableException(this.statusCode);
+
+  final int statusCode;
+
+  @override
+  String toString() => 'ServerUnavailableException($statusCode)';
+}
+
 /// A reply that belongs to a session which has since ended.
 ///
 /// Thrown rather than returned, and thrown from the transport rather than
@@ -110,9 +124,20 @@ class PrivioApiClient {
       baseUrl.replace(path: path, queryParameters: query);
 
   Future<Map<String, dynamic>> _decode(http.Response response) async {
-    final body = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> body;
+    try {
+      body = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+    } on FormatException {
+      // Not this server's answer: a hosting platform's own error page, which
+      // is what comes back while the server behind it is down. Said as such,
+      // so the screen does not send somebody off to check a connection that
+      // is fine. Below 500 it is something else in the way — a captive
+      // portal's login page — and stays a failure to reach Privio.
+      if (response.statusCode >= 500) throw ServerUnavailableException(response.statusCode);
+      rethrow;
+    }
     if (response.statusCode >= 400) {
       throw ApiException(
         response.statusCode,

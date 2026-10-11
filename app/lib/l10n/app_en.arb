@@ -907,7 +907,7 @@
     }
   },
   "groupAddContactsFirst": "Add some contacts first — a group needs people in it.",
-  "groupInfoCouldNotRead": "Could not read who is in this group.",
+  "groupInfoMembersNotLoaded": "The member list could not be loaded.",
   "groupAdminOnly": "Only an admin can change this",
   "groupPictureChoose": "Choose a picture",
   "@groupPictureChoose": {
@@ -1752,6 +1752,7 @@
   "reportOther": "Something else",
   "feedReactionLimit": "Reactions",
   "failureUnreachable": "Could not reach Privio.",
+  "failureServerUnavailable": "The Privio server is having a problem right now. It is not your connection — please try again later.",
   "failureUnreachableCheckConnection": "Could not reach Privio. Check your connection.",
   "failureUnreachableTryAgain": "Could not reach Privio. Check your connection and try again.",
   "failureCouldNotSave": "Could not save that. Check your connection.",

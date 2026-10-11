@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/failure.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
@@ -36,9 +37,9 @@ class GroupInfoScreen extends StatefulWidget {
 
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   List<GroupMember>? _members;
-  /// Whether the member list could be read. A flag, not a sentence: the
-  /// sentence belongs to whoever is reading the screen.
-  bool _loadFailed = false;
+  /// Why the member list could not be loaded, or null when it was. A case,
+  /// not a sentence: the sentence belongs to whoever is reading the screen.
+  Failure? _loadFailure;
   bool _loading = true;
 
   @override
@@ -57,15 +58,16 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       if (!mounted) return;
       setState(() {
         _members = members;
-        _loadFailed = false;
+        _loadFailure = null;
         _loading = false;
       });
-    } on Object {
+    } on Object catch (error) {
       if (!mounted) return;
       // The list is the server's answer, so no answer means no list — not an
-      // empty one, which would read as a group with nobody in it.
+      // empty one, which would read as a group with nobody in it. And the
+      // reason is said: a server that is down is not the reader's connection.
       setState(() {
-        _loadFailed = true;
+        _loadFailure = Failure.of(error, FailureKind.unreachableCheckConnection);
         _loading = false;
       });
     }
@@ -461,57 +463,78 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                   ),
                 ],
                 const SizedBox(height: PrivioSpacing.xxl),
-                if (_loadFailed)
+                if (_loadFailure case final failure?)
+                  // What did not load, why, and a way to try again — in place
+                  // of a member count, which would be a count of nothing.
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
-                    child: Text(
-                      text.groupInfoCouldNotRead,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: PrivioColors.danger),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          text.groupInfoMembersNotLoaded,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: PrivioColors.danger),
+                        ),
+                        const SizedBox(height: PrivioSpacing.xs),
+                        Text(
+                          failure.words(text),
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: PrivioColors.textSecondary),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _loading = true);
+                            unawaited(_load());
+                          },
+                          child: Text(text.commonRetry),
+                        ),
+                      ],
                     ),
-                  ),
-                SettingsSection(
-                  caption: text.channelMembers(members.length),
-                  children: [
-                    for (final member in members)
-                      ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: PrivioSpacing.gutter,
-                        ),
-                        leading: PrivioAvatar(
-                          label: member.label,
-                          seed: member.accountId.hashCode.abs(),
-                        ),
-                        title: Text(member.label, style: theme.textTheme.titleSmall),
-                        subtitle: Text(
-                          _memberLine(text, member, mine: member.accountId == state.accountId),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        trailing: admin && member.accountId != state.accountId
-                            ? IconButton(
-                                tooltip: text.commonRemove,
-                                icon: const Icon(
-                                  Icons.person_remove_outlined,
-                                  color: PrivioColors.textTertiary,
+                  )
+                else
+                  SettingsSection(
+                    caption: text.channelMembers(members.length),
+                    children: [
+                      for (final member in members)
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: PrivioSpacing.gutter,
+                          ),
+                          leading: PrivioAvatar(
+                            label: member.label,
+                            seed: member.accountId.hashCode.abs(),
+                          ),
+                          title: Text(member.label, style: theme.textTheme.titleSmall),
+                          subtitle: Text(
+                            _memberLine(text, member, mine: member.accountId == state.accountId),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          trailing: admin && member.accountId != state.accountId
+                              ? IconButton(
+                                  tooltip: text.commonRemove,
+                                  icon: const Icon(
+                                    Icons.person_remove_outlined,
+                                    color: PrivioColors.textTertiary,
+                                  ),
+                                  onPressed: () => unawaited(_confirmRemove(state, member)),
+                                )
+                              : null,
+                          // The other way into a member's profile, for somebody
+                          // who came here to find out who is in the group rather
+                          // than arriving at a message they wanted to trace.
+                          onTap: () => unawaited(
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ContactProfileScreen(
+                                  accountId: member.accountId,
                                 ),
-                                onPressed: () => unawaited(_confirmRemove(state, member)),
-                              )
-                            : null,
-                        // The other way into a member's profile, for somebody
-                        // who came here to find out who is in the group rather
-                        // than arriving at a message they wanted to trace.
-                        onTap: () => unawaited(
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => ContactProfileScreen(
-                                accountId: member.accountId,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: PrivioSpacing.xl),
                 SettingsSection(
                   children: [

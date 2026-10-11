@@ -73,9 +73,12 @@ class MentionResolver {
       return const MentionUnavailable(FailureKind.unreachableCheckConnection);
     } on StaleSessionException {
       return const MentionUnavailable(FailureKind.unreachableCheckConnection);
-    } on Object {
-      // No connection, a dead socket, a reply that would not parse.
-      return const MentionUnavailable(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      // No connection, a dead socket, a reply that would not parse — or the
+      // server down behind its host, which is not the connection's fault.
+      return MentionUnavailable(
+        Failure.reaching(error, FailureKind.unreachableCheckConnection).kind,
+      );
     }
   }
 }

@@ -185,8 +185,8 @@ class SecurityController extends ChangeNotifier {
       await loadBlocks();
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
     }
     notifyListeners();
   }
@@ -246,8 +246,8 @@ class SecurityController extends ChangeNotifier {
     } on ApiException catch (failure) {
       _failure = _explain(failure);
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -268,8 +268,8 @@ class SecurityController extends ChangeNotifier {
     } on ApiException catch (failure) {
       _failure = _explain(failure);
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -293,8 +293,8 @@ class SecurityController extends ChangeNotifier {
     } on ApiException catch (failure) {
       _failure = _explain(failure);
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -318,8 +318,8 @@ class SecurityController extends ChangeNotifier {
     } on ApiException catch (failure) {
       _failure = _explain(failure);
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       return false;
     } finally {
       _busy = false;
@@ -353,8 +353,8 @@ class SecurityController extends ChangeNotifier {
       await _noticeDeviceChanges();
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
     }
     notifyListeners();
   }
@@ -369,8 +369,8 @@ class SecurityController extends ChangeNotifier {
       _failure = _explain(failure);
       notifyListeners();
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       notifyListeners();
       return false;
     }
@@ -394,8 +394,8 @@ class SecurityController extends ChangeNotifier {
       _failure = null;
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
-    } on Object {
-      _failure = const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachable);
     }
     notifyListeners();
   }

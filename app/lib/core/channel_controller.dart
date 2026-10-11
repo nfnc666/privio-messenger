@@ -691,8 +691,8 @@ class ChannelController extends ChangeNotifier {
       _failure = _explain(failure);
       notifyListeners();
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -911,8 +911,8 @@ class ChannelController extends ChangeNotifier {
       _failure = _explain(failure);
       notifyListeners();
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return false;
     }
@@ -1041,8 +1041,8 @@ class ChannelController extends ChangeNotifier {
     } on ChannelKeyPending catch (pending) {
       _failure = pending.failure;
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _loading = false;

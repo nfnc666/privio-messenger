@@ -392,8 +392,8 @@ class WakeUpController extends ChangeNotifier {
       // The server did not take it, so nothing should think it did.
       await _distributor.unregister();
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableTryAgain);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableTryAgain);
       return false;
     } finally {
       _busy = false;

@@ -1932,7 +1932,8 @@ class AppTextEn extends AppText {
       'Add some contacts first — a group needs people in it.';
 
   @override
-  String get groupInfoCouldNotRead => 'Could not read who is in this group.';
+  String get groupInfoMembersNotLoaded =>
+      'The member list could not be loaded.';
 
   @override
   String get groupAdminOnly => 'Only an admin can change this';
@@ -3623,6 +3624,10 @@ class AppTextEn extends AppText {
 
   @override
   String get failureUnreachable => 'Could not reach Privio.';
+
+  @override
+  String get failureServerUnavailable =>
+      'The Privio server is having a problem right now. It is not your connection — please try again later.';
 
   @override
   String get failureUnreachableCheckConnection =>
