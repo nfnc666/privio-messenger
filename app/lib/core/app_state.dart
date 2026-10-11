@@ -509,8 +509,8 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (failure) {
       _authFailure = _explain(failure);
       return false;
-    } on Object {
-      _authFailure = const Failure(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      _authFailure = Failure.reaching(error, FailureKind.unreachableCheckConnection);
       return false;
     } finally {
       _busy = false;
@@ -1007,8 +1007,8 @@ class AppState extends ChangeNotifier {
       await services.api.deleteAccount(currentPassword);
     } on ApiException catch (failure) {
       return Failure.server(failure.message);
-    } on Object {
-      return const Failure(FailureKind.unreachable);
+    } on Object catch (error) {
+      return Failure.reaching(error, FailureKind.unreachable);
     }
 
     _conversations?.stop();

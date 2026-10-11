@@ -152,20 +152,26 @@ class SettingsSection extends StatelessWidget {
               style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 0.8),
             ),
           ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
-          decoration: const BoxDecoration(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
+          // A Material rather than a coloured box: a row's tap ripple is
+          // painted on the nearest Material, and under a coloured box it was
+          // painted behind the box — every row in every section gave no
+          // feedback at all when tapped.
+          child: Material(
             color: PrivioColors.surface,
-            borderRadius: BorderRadius.all(PrivioRadius.card),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const Divider(indent: PrivioSpacing.lg),
-                children[i],
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(PrivioRadius.card),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (i > 0) const Divider(indent: PrivioSpacing.lg),
+                  children[i],
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],

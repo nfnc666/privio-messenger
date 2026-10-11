@@ -1215,8 +1215,8 @@ class ConversationController extends ChangeNotifier {
           : Failure.server(failure.message);
       notifyListeners();
       return null;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableCheckConnection);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableCheckConnection);
       notifyListeners();
       return null;
     }

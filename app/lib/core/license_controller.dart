@@ -211,8 +211,8 @@ class LicenseController extends ChangeNotifier {
         await _store?.writePendingLicenseKey(null);
       }
       return false;
-    } on Object {
-      _failure = const Failure(FailureKind.unreachableTryAgain);
+    } on Object catch (error) {
+      _failure = Failure.reaching(error, FailureKind.unreachableTryAgain);
       return false;
     } finally {
       _busy = false;

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/widgets/settings_row.dart';
 
@@ -62,5 +63,26 @@ void main() {
     )..layout();
     expect(word.width, lessThanOrEqualTo(column), reason: 'the word was broken');
     word.dispose();
+  });
+
+  testWidgets('a tapped row shows that it was tapped, on its own section', (tester) async {
+    // The section used to be a coloured box, and a row's ripple is painted on
+    // the nearest Material — which was the screen behind the box. Every row in
+    // every section gave no feedback at all.
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PrivioTheme.dark(),
+        home: Scaffold(
+          body: SettingsSection(
+            children: [SettingsRow(icon: Icons.lock_outline, label: 'Sperrcode', onTap: () {})],
+          ),
+        ),
+      ),
+    );
+
+    final row = find.byType(InkWell).first;
+    final surface = find.ancestor(of: row, matching: find.byType(Material)).first;
+    expect(tester.widget<Material>(surface).color, PrivioColors.surface,
+        reason: 'the ripple is painted on the section, not behind it');
   });
 }

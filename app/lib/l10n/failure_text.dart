@@ -13,6 +13,7 @@ extension FailureText on Failure {
   String words(AppText text) => switch (kind) {
         FailureKind.proxyCallsBlocked => text.proxyCallsBlocked,
         FailureKind.unreachable => text.failureUnreachable,
+        FailureKind.serverUnavailable => text.failureServerUnavailable,
         FailureKind.statusNotSaved => text.accountStatusCouldNotSave,
         FailureKind.savedDisappearingRefused => text.savedDisappearingRefused,
         FailureKind.savedNothingToSave => text.savedNothingToSave,

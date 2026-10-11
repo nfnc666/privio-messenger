@@ -336,9 +336,9 @@ class PhoneController extends ChangeNotifier {
       if (!_stillOn(account)) return null;
       _failure = _refusalOf(error) ?? Failure.server(error.message);
       return null;
-    } on Object {
+    } on Object catch (error) {
       if (!_stillOn(account)) return null;
-      _failure = const Failure(FailureKind.unreachable);
+      _failure = Failure.reaching(error, FailureKind.unreachable);
       return null;
     } finally {
       if (_stillOn(account)) {
