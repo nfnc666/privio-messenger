@@ -228,6 +228,16 @@ class MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // Before the time and never hidden: a line that changed after
+                // somebody read it has to say so where they look for when it
+                // was written.
+                if (message.isEdited) ...[
+                  Text(
+                    AppText.of(context).bubbleEdited,
+                    style: theme.textTheme.labelSmall,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Text(
                   _formatTime(message.sentAt),
                   style: theme.textTheme.labelSmall,

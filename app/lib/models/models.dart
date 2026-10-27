@@ -377,6 +377,7 @@ class Message {
     this.customEmoji,
     this.reactionStickers = const {},
     this.pinned = false,
+    this.editedAt,
   });
 
   final String id;
@@ -484,6 +485,17 @@ class Message {
   /// the caller happened to be holding.
   final bool pinned;
 
+  /// When the sender last corrected this message, if they did.
+  ///
+  /// Shown next to the time as "edited", and never hidden: a line that changed
+  /// after somebody read it has to say so, or a correction becomes a way to
+  /// make the other person doubt what they saw. Only the newest text is kept —
+  /// keeping the old one on this device would be keeping what the sender took
+  /// back.
+  final DateTime? editedAt;
+
+  bool get isEdited => editedAt != null;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -491,6 +503,10 @@ class Message {
   bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
 
   Message copyWith({
+    /// A corrected text, from an edit. Drops the custom-emoji overlay with it:
+    /// its spans point into the old text and would no longer fit the new one.
+    String? body,
+    DateTime? editedAt,
     DeliveryState? state,
     Attachment? attachment,
     DateTime? expiresAt,
@@ -508,7 +524,7 @@ class Message {
   }) =>
       Message(
         id: id,
-        body: body,
+        body: body ?? this.body,
         sentAt: sentAt,
         isMine: isMine,
         kind: kind,
@@ -528,8 +544,9 @@ class Message {
         reactionStickers: reactionStickers ?? this.reactionStickers,
         notice: notice,
         sticker: sticker,
-        customEmoji: customEmoji,
+        customEmoji: body != null ? null : customEmoji,
         pinned: pinned ?? this.pinned,
+        editedAt: editedAt ?? this.editedAt,
       );
 }
 

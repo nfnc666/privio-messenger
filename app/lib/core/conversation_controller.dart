@@ -1668,6 +1668,92 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Correcting a message ------------------------------------------------
+
+  /// Replaces the text of a message this account sent, here and on every
+  /// device that has it.
+  ///
+  /// Only for an ordinary text message that has already gone out: what is
+  /// still queued can simply be discarded and written again, and a file, a
+  /// voice note or a sticker has no text an edit could honestly stand in for.
+  ///
+  /// Changed here first and the correction sent after, for the same reason as
+  /// [deleteForEveryone]: a failed send leaves the sender looking at the new
+  /// text and is told that the other side still has the old one, rather than
+  /// the other way round.
+  Future<void> editMessage(String conversationId, Message target, String body) async {
+    final clientId = target.clientId;
+    final text = body.trim();
+    if (!target.isMine || clientId == null || target.kind != MessageKind.text) return;
+    if (text.isEmpty || text == target.body || isQueued(clientId)) return;
+
+    final changed = _services.store.editMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      body: text,
+      editedAt: DateTime.now(),
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+
+    final payload = MessagePayload.edit(editTo: clientId, body: text);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object catch (failure) {
+      _noteIdentityChange(failure);
+      _failure = const Failure(FailureKind.editedHereOnly);
+      notifyListeners();
+    }
+  }
+
+  /// Applies a correction somebody sent.
+  ///
+  /// The same rule as a deletion, checked on the way in because a modified
+  /// client would not check it on the way out: a correction may only change a
+  /// message its own sender wrote — and from this account's own other devices,
+  /// only this account's own. An empty correction is refused rather than read
+  /// as a deletion; taking a message back has its own payload and its own
+  /// tombstone, and an edit that blanked a line would be a deletion that
+  /// leaves no trace of having been one.
+  void _applyEdit(
+    String conversationId,
+    MessagePayload payload, {
+    required String byAccountId,
+    required bool fromOwnDevice,
+  }) {
+    final clientId = payload.editTo;
+    final body = payload.body.trim();
+    if (clientId == null || clientId.isEmpty || body.isEmpty) return;
+    final target = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.clientId == clientId)
+        .firstOrNull;
+    if (target == null) return;
+    if (fromOwnDevice) {
+      if (!target.isMine) return;
+    } else {
+      if (target.isMine) return;
+      if (target.senderAccountId != null && target.senderAccountId != byAccountId) return;
+    }
+    final changed = _services.store.editMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      body: body,
+      editedAt: DateTime.now(),
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+  }
+
   /// Drops the decrypted bytes of a deleted message's file.
   ///
   /// The archive is sealed and the ciphertext on the server expires on its own,
@@ -2934,6 +3020,15 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
+    if (incoming.payload.isEdit) {
+      _applyEdit(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: incoming.senderAccountId == accountId,
+      );
+      return;
+    }
     if (incoming.payload.isReaction) {
       _applyReaction(
         incoming.groupId ?? incoming.senderAccountId,
@@ -3068,6 +3163,17 @@ class ConversationController extends ChangeNotifier {
     // on the laptop deletes it nowhere that matters.
     if (payload.isDeletion) {
       _applyDeletion(
+        sync.conversationId,
+        payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: true,
+      );
+      return;
+    }
+    // A correction made on another of this account's devices, for the same
+    // reason: the phone and the laptop must not show two versions of one line.
+    if (payload.isEdit) {
+      _applyEdit(
         sync.conversationId,
         payload,
         byAccountId: incoming.senderAccountId,

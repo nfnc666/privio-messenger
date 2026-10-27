@@ -1671,6 +1671,9 @@ class AppTextDe extends AppText {
   String get bubbleMessageDeleted => 'Diese Nachricht wurde gelöscht';
 
   @override
+  String get bubbleEdited => 'bearbeitet';
+
+  @override
   String get bubbleCouldNotOpen => 'Konnte nicht geöffnet werden';
 
   @override
@@ -1865,6 +1868,15 @@ class AppTextDe extends AppText {
 
   @override
   String get chatCancelReply => 'Antwort verwerfen';
+
+  @override
+  String get chatEditMessage => 'Bearbeiten';
+
+  @override
+  String get chatEditingMessage => 'Nachricht bearbeiten';
+
+  @override
+  String get chatCancelEdit => 'Bearbeiten abbrechen';
 
   @override
   String get contactsTitle => 'Kontakte';
@@ -3720,6 +3732,10 @@ class AppTextDe extends AppText {
   @override
   String get failureDeletedHereOnly =>
       'Hier gelöscht. Die Anfrage, sie dort zu löschen, ging nicht raus.';
+
+  @override
+  String get failureEditedHereOnly =>
+      'Hier geändert. Die Korrektur ging nicht raus, dort steht noch der alte Text.';
 
   @override
   String get failureCouldNotCreateGroup =>

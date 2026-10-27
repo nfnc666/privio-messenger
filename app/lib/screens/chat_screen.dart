@@ -74,6 +74,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// The message the next send replies to, or null.
   Message? _replyingTo;
 
+  /// The message whose text is being corrected, while the composer holds it.
+  /// Never set together with [_replyingTo]: a correction is not a reply.
+  Message? _editing;
+
   /// Every message this screen has drawn, so only the ones that arrive while
   /// it is open move in. Filled with the whole history on the first build: a
   /// conversation opening is not forty messages arriving at once.
@@ -298,6 +302,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final raw = _composer.text;
     final text = raw.trim();
     if (text.isEmpty) return;
+    final editing = _editing;
+    if (editing != null) {
+      _composer.clear();
+      setState(() {
+        _editing = null;
+        _pendingEmoji.clear();
+      });
+      await PrivioScope.of(context).conversations.editMessage(widget.accountId, editing, text);
+      return;
+    }
     final replyTo = _replyingTo;
 
     // The body is trimmed, so every span shifts left by whatever the leading
@@ -508,6 +522,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: Text(text.commonReply),
                 onTap: () => Navigator.of(sheetContext).pop('reply'),
               ),
+            // Correcting a line this account wrote. Only plain text that has
+            // already gone out, and not in Saved, whose entries are notes rather
+            // than something somebody else has read.
+            if (message.isMine &&
+                message.kind == MessageKind.text &&
+                !queued &&
+                clientId != null &&
+                !_isSaved(state))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(text.chatEditMessage),
+                onTap: () => Navigator.of(sheetContext).pop('edit'),
+              ),
             if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -558,7 +585,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
     if (action == 'reply') {
-      setState(() => _replyingTo = message);
+      setState(() {
+        _replyingTo = message;
+        _editing = null;
+      });
+      return;
+    }
+    if (action == 'edit') {
+      _composer.value = TextEditingValue(
+        text: message.body,
+        selection: TextSelection.collapsed(offset: message.body.length),
+      );
+      setState(() {
+        _editing = message;
+        _replyingTo = null;
+        _pendingEmoji.clear();
+      });
       return;
     }
     if (action == 'copy') {
@@ -1624,6 +1666,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   message: _replyingTo!,
                   onCancel: () => setState(() => _replyingTo = null),
                 ),
+              if (_editing != null)
+                _ReplyBar(
+                  message: _editing!,
+                  editing: true,
+                  onCancel: () {
+                    _composer.clear();
+                    setState(() => _editing = null);
+                  },
+                ),
               if (state.conversations.failure != null)
                 _ErrorBanner(
                   message: state.conversations.failure!.words(text),
@@ -2235,11 +2286,15 @@ class _TrailingAction extends StatelessWidget {
 }
 
 /// The strip above the composer while a reply is being written.
+///
+/// The same strip, with [editing], while a message is being corrected: it shows
+/// the text as it stands now, so the person can see what they are changing.
 class _ReplyBar extends StatelessWidget {
-  const _ReplyBar({required this.message, required this.onCancel});
+  const _ReplyBar({required this.message, required this.onCancel, this.editing = false});
 
   final Message message;
   final VoidCallback onCancel;
+  final bool editing;
 
   @override
   Widget build(BuildContext context) {
@@ -2267,6 +2322,7 @@ class _ReplyBar extends StatelessWidget {
               children: [
                 Text(
                   switch ((message.isMine, message.senderName)) {
+                    _ when editing => AppText.of(context).chatEditingMessage,
                     (true, _) => AppText.of(context).chatReplyingToYourself,
                     // In a group the quote is meaningless without the name;
                     // in a 1:1 chat the header already says who.
@@ -2290,7 +2346,9 @@ class _ReplyBar extends StatelessWidget {
           IconButton(
             onPressed: onCancel,
             icon: const Icon(Icons.close_rounded, size: 20),
-            tooltip: AppText.of(context).chatCancelReply,
+            tooltip: editing
+                ? AppText.of(context).chatCancelEdit
+                : AppText.of(context).chatCancelReply,
           ),
         ],
       ),

@@ -1678,6 +1678,9 @@ class AppTextIt extends AppText {
   String get bubbleMessageDeleted => 'Questo messaggio è stato eliminato';
 
   @override
+  String get bubbleEdited => 'modificato';
+
+  @override
   String get bubbleCouldNotOpen => 'Non è stato possibile aprire';
 
   @override
@@ -1871,6 +1874,15 @@ class AppTextIt extends AppText {
 
   @override
   String get chatCancelReply => 'Annulla la risposta';
+
+  @override
+  String get chatEditMessage => 'Modifica';
+
+  @override
+  String get chatEditingMessage => 'Modifica del messaggio';
+
+  @override
+  String get chatCancelEdit => 'Annulla la modifica';
 
   @override
   String get contactsTitle => 'Contatti';
@@ -3733,6 +3745,10 @@ class AppTextIt extends AppText {
   @override
   String get failureDeletedHereOnly =>
       'Eliminato qui. La richiesta di eliminarlo dall\'altra parte non è partita.';
+
+  @override
+  String get failureEditedHereOnly =>
+      'Modificato qui. La correzione non è partita, dall\'altra parte resta il testo precedente.';
 
   @override
   String get failureCouldNotCreateGroup => 'Impossibile creare il gruppo';

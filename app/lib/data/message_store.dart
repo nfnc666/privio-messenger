@@ -348,6 +348,19 @@ abstract interface class MessageStore {
     required bool tombstone,
   });
 
+  /// Replaces the text of a message with a correction its sender made.
+  ///
+  /// Only an ordinary text message can be corrected — a file, a voice note, a
+  /// sticker or a tombstone has nothing that an edit could honestly replace.
+  /// Returns whether anything changed: an edit to a message this device does
+  /// not have, or one that says what is already there, is not a change.
+  bool editMessage({
+    required String conversationId,
+    required String clientId,
+    required String body,
+    required DateTime editedAt,
+  });
+
   /// Drops every message whose timer has run out.
   ///
   /// Returns the messages that went, rather than a count: the caller has to be
@@ -556,6 +569,23 @@ class InMemoryMessageStore implements MessageStore {
       senderName: message.senderName,
       clientId: message.clientId,
     );
+    return true;
+  }
+
+  @override
+  bool editMessage({
+    required String conversationId,
+    required String clientId,
+    required String body,
+    required DateTime editedAt,
+  }) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return false;
+    final index = conversation.messages.indexWhere((m) => m.clientId == clientId);
+    if (index == -1) return false;
+    final message = conversation.messages[index];
+    if (message.kind != MessageKind.text || message.body == body) return false;
+    conversation.messages[index] = message.copyWith(body: body, editedAt: editedAt);
     return true;
   }
 

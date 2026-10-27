@@ -404,6 +404,8 @@ abstract final class ArchiveCodec {
                   // Without this a pinned note comes back unpinned after a
                   // restart, which is the one thing pinning promises not to do.
                   if (message.pinned) 'pinned': true,
+                  if (message.editedAt != null)
+                    'editedAt': message.editedAt!.toIso8601String(),
                   if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
@@ -526,6 +528,9 @@ abstract final class ArchiveCodec {
             replyPreview: message['replyPreview'] as String?,
             replySender: message['replySender'] as String?,
             pinned: message['pinned'] as bool? ?? false,
+            editedAt: message['editedAt'] == null
+                ? null
+                : DateTime.parse(message['editedAt'] as String),
             notice: SystemNotice.fromJson(message['notice'] as Map<String, dynamic>?),
             reactions: (message['reactions'] as Map<String, dynamic>? ?? const {})
                 .map((key, value) => MapEntry(key, value as String)),

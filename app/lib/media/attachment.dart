@@ -238,6 +238,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         mediaToken = null,
         sync = null,
@@ -278,6 +279,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -307,6 +309,7 @@ class MessagePayload {
     this.stickerMediaId,
   })  : body = '',
         deleteTo = null,
+        editTo = null,
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -384,6 +387,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         sync = null,
         call = null,
@@ -403,6 +407,53 @@ class MessagePayload {
   /// screen that offers this says so rather than implying an undo.
   const MessagePayload.deletion(String this.deleteTo)
       : body = '',
+        editTo = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
+
+  /// A correction to a message the sender wrote: [editTo] names it, [body] is
+  /// the whole new text.
+  ///
+  /// Control, never conversation, like a deletion: it changes a line that is
+  /// already in the transcript rather than adding one, and the receiving device
+  /// decides whether it is allowed to. The new text travels sealed exactly like
+  /// the original did, so the server learns that something was sent and
+  /// nothing about what changed. A reply that quoted the old text keeps its
+  /// own copy — a correction cannot reach into what somebody already answered.
+  const MessagePayload.edit({required String this.editTo, required this.body})
+      : deleteTo = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -473,6 +524,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -512,6 +564,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -551,6 +604,7 @@ class MessagePayload {
         receiptKind = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -594,6 +648,7 @@ class MessagePayload {
         reactionTo = null,
         reactionEmoji = null,
         deleteTo = null,
+        editTo = null,
         sync = null,
         call = null,
         sessionReset = false,
@@ -635,6 +690,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -676,6 +732,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -732,6 +789,7 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -783,6 +841,12 @@ class MessagePayload {
     }
     if (json['t'] == 'delete') {
       return MessagePayload.deletion(json['dt'] as String? ?? '');
+    }
+    if (json['t'] == 'edit') {
+      return MessagePayload.edit(
+        editTo: json['et'] as String? ?? '',
+        body: json['b'] as String? ?? '',
+      );
     }
     if (json['t'] == 'reaction') {
       return MessagePayload.reaction(
@@ -1011,6 +1075,9 @@ class MessagePayload {
   /// On a deletion: the client id of the message to take back.
   final String? deleteTo;
 
+  /// The client id of the message an edit corrects. See [MessagePayload.edit].
+  final String? editTo;
+
   /// On a reply: the client id of the message being replied to.
   final String? replyToId;
 
@@ -1101,6 +1168,7 @@ class MessagePayload {
   bool get isCall => call != null;
   bool get isSync => sync != null;
   bool get isDeletion => deleteTo != null;
+  bool get isEdit => editTo != null;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
@@ -1132,7 +1200,8 @@ class MessagePayload {
       isSync ||
       isSessionReset ||
       isTimerChange ||
-      isDeletion;
+      isDeletion ||
+      isEdit;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -1153,6 +1222,7 @@ class MessagePayload {
     if (isSync) return 'sync';
     if (isCall) return 'call';
     if (isDeletion) return 'delete';
+    if (isEdit) return 'edit';
     if (isReaction) return 'reaction';
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
@@ -1181,6 +1251,7 @@ class MessagePayload {
         },
         if (isTyping) 'ta': typingAt,
         if (isDeletion) 'dt': deleteTo,
+        if (isEdit) 'et': editTo,
         if (isReaction) ...{
           'rt': reactionTo,
           // Always a real character, even on a custom reaction: it is what a

@@ -2857,6 +2857,12 @@ abstract class AppText {
   /// **'This message was deleted'**
   String get bubbleMessageDeleted;
 
+  /// No description provided for @bubbleEdited.
+  ///
+  /// In en, this message translates to:
+  /// **'edited'**
+  String get bubbleEdited;
+
   /// No description provided for @bubbleCouldNotOpen.
   ///
   /// In en, this message translates to:
@@ -3168,6 +3174,24 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Cancel reply'**
   String get chatCancelReply;
+
+  /// No description provided for @chatEditMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get chatEditMessage;
+
+  /// No description provided for @chatEditingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing message'**
+  String get chatEditingMessage;
+
+  /// No description provided for @chatCancelEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel editing'**
+  String get chatCancelEdit;
 
   /// No description provided for @contactsTitle.
   ///
@@ -6342,6 +6366,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Deleted here. The request to delete it there did not go out.'**
   String get failureDeletedHereOnly;
+
+  /// No description provided for @failureEditedHereOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed here. The correction did not reach the other side, so they still see the old text.'**
+  String get failureEditedHereOnly;
 
   /// No description provided for @failureCouldNotCreateGroup.
   ///
