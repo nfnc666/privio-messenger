@@ -11,6 +11,7 @@ import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
 import '../media/photo.dart';
 import '../crypto/privio_crypto.dart';
+import '../crypto/safety_number.dart';
 import 'message_search.dart';
 import '../media/voice.dart';
 import '../models/channel.dart';
@@ -105,6 +106,12 @@ class ConversationController extends ChangeNotifier {
   /// start, because a notice missed is a notice that did its job for nobody.
   final Set<String> _keyChangeAlerts = {};
 
+  /// What the keystore says about each person's safety number, by account.
+  ///
+  /// A copy for the lists, which draw it on every row and redraw often. Read
+  /// by [refreshTrust] and kept on this device like everything it comes from.
+  final Map<String, VerificationState> _trust = {};
+
   List<Contact> get contacts => _contacts;
 
   /// The last failure worth showing, or null. Cleared when the next call works.
@@ -136,6 +143,53 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The mark a list row shows for [accountId].
+  ///
+  /// A key change this controller knows about wins over what the keystore
+  /// says. Until the new number has been looked at, the person on the other
+  /// end is not provably the one who was there before, whatever was verified.
+  TrustMark trustMarkOf(String accountId) {
+    if (hasIdentityChange(accountId) || hasKeyChangeAlert(accountId)) {
+      return TrustMark.changed;
+    }
+    return switch (_trust[accountId]) {
+      VerificationState.verified => TrustMark.verified,
+      VerificationState.changed => TrustMark.changed,
+      _ => TrustMark.none,
+    };
+  }
+
+  /// Reads again how far each person's keys have been checked: everyone in
+  /// [accountIds], or every person in a chat or the contact list.
+  Future<void> refreshTrust([Iterable<String>? accountIds]) async {
+    final ids = accountIds ??
+        {
+          for (final conversation in _services.store.conversations())
+            if (!conversation.isGroup) conversation.id,
+          for (final contact in _contacts) contact.id,
+        };
+    var changed = false;
+    for (final id in ids) {
+      final state = await _services.crypto.verificationState(id);
+      if (_trust[id] == state) continue;
+      _trust[id] = state;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// Records that the user compared [numbers] with [accountId] and they
+  /// matched, or withdraws that. Through here rather than straight to the
+  /// keystore so the lists hear about it.
+  Future<void> setVerified(String accountId, SafetyNumbers numbers, {required bool verified}) async {
+    if (verified) {
+      await _services.crypto.markVerified(accountId, numbers);
+    } else {
+      await _services.crypto.clearVerified(accountId);
+    }
+    await refreshTrust([accountId]);
+  }
+
   Future<void> loadKeyChangeAlerts() async {
     _keyChangeAlerts
       ..clear()
@@ -146,8 +200,10 @@ class ConversationController extends ChangeNotifier {
   /// Turns whatever the protocol re-pinned during decryption into something
   /// the user will actually see.
   Future<void> _raiseKeyChanges() async {
+    final changed = <String>{};
     for (final change in _services.crypto.takeIdentityReplacements()) {
       if (change.accountId == accountId) continue; // one of my own devices
+      changed.add(change.accountId);
       // Only the first device of theirs to change raises a line in the
       // security log. A contact who reinstalls brings several new device keys
       // at once, and five identical warnings about one event teach the reader
@@ -161,6 +217,9 @@ class ConversationController extends ChangeNotifier {
         );
       }
     }
+    // A verified number no longer matches. The alert says so until it is
+    // answered; this is what keeps saying so afterwards.
+    if (changed.isNotEmpty) await refreshTrust(changed);
   }
 
   /// Where a security event goes, or null when nothing is listening.
@@ -185,6 +244,8 @@ class ConversationController extends ChangeNotifier {
     }
     _identityChanges.remove(accountId);
     _failure = null;
+    // Accepting the change also drops the verification it broke.
+    await refreshTrust([accountId]);
     notifyListeners();
   }
 
@@ -327,6 +388,7 @@ class ConversationController extends ChangeNotifier {
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
       markedUnread: conversation.markedUnread,
+      trust: trustMarkOf(conversation.id),
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.id.hashCode.abs(),
     );
@@ -754,6 +816,9 @@ class ConversationController extends ChangeNotifier {
         );
       }
       detached(_loadAvatars());
+      // Somebody new in the list has a number too, even if it was never
+      // checked.
+      detached(refreshTrust());
       _failure = null;
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);

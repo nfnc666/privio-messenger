@@ -93,9 +93,12 @@ class ScriptedMessaging extends MessagingService {
 
 /// [client] lets a test that needs the server to answer something supply it;
 /// the default refuses everything, which is what most of these want.
+/// [crypto] is for a test that needs keys already pinned, from a device that
+/// has talked to someone.
 Future<(PrivioServices, ScriptedMessaging)> buildServices(
   InMemoryMessageStore store, {
   http.Client? client,
+  PrivioCrypto? crypto,
 }) async {
   final api = PrivioApiClient(
     baseUrl: Uri.parse('https://api.test'),
@@ -108,7 +111,7 @@ Future<(PrivioServices, ScriptedMessaging)> buildServices(
           ),
         ),
   )..useToken('token');
-  final crypto = await PrivioCrypto.open(InMemoryCryptoStorage());
+  crypto ??= await PrivioCrypto.open(InMemoryCryptoStorage());
   final messaging = ScriptedMessaging(api: api, crypto: crypto);
   final secureStore = InMemorySecureStore();
 

@@ -14,7 +14,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | Distribution list (one message to many 1:1 chats, recipients do not see each other) | missing | client-side fan-out over the existing 1:1 sessions; no server change |
 | Share a location | missing | static coordinates in the sealed payload, map tile rendered on device; no live tracking |
 | Hide a chat behind its own PIN / biometrics | missing (only the whole-app lock) | per-conversation flag in the encrypted archive; content kept out of notifications and previews |
-| Trust level visible in the chat and contact lists | safety number per device, shown in the chat header only | small mark in list rows derived from the existing `VerificationState` |
+| Trust level visible in the chat and contact lists | **done on this branch** (was: chat header only) | small mark in list rows derived from the existing `VerificationState`, see below |
 | Mark a chat as unread | **done on this branch** | local flag, never sent, see below |
 | Group calls | 1:1 calls only | needs an SFU and end-to-end media keys; separate design document first |
 
@@ -87,6 +87,35 @@ a random ID, no address-book upload, no plaintext exception for bots.
   what leaves the device.
 - **Server:** unchanged, and never told.
 - **Tests:** `app/test/mark_unread_test.dart`. Every rule above was broken on
+  purpose once and the matching test went red.
+
+## Trust mark in the chat and contact lists
+
+- **Two marks, no third.** A shield beside the name when the safety number was
+  compared and every key still matches; a warning when a number changed. For
+  a number nobody compared there is no mark, because that is where every
+  conversation starts, and a mark on every row would teach people to look past
+  the one that matters.
+- **Changed** means either of two things: the keys pinned now are not the
+  ones that were verified (a key was replaced, or a device joined the
+  account), or a key changed under a message and the new number has not been
+  looked at yet. The second shows even for somebody never verified, as the
+  chat header already does. Looking at the new number clears that alert, but
+  a verified person stays "changed" until the number is compared again.
+- **Same answer as the safety number screen,** without its cost. A safety
+  number is 5200 hash rounds per device; the list only needs to know whether
+  what was verified is still what is pinned, which is a comparison
+  (`PrivioCrypto.verificationState`). The controller keeps the answers for
+  the lists and reads them again at sign-in (from the keystore, so it works
+  offline), after the contact list loads, after a key changes, after a
+  changed key is accepted, and when somebody is verified or the verification
+  is withdrawn.
+- **Groups and Saved** carry no mark: a group has several people with several
+  numbers, and Saved is this account.
+- **Read out** in the words the chat header and the safety number screen use
+  ("Verified", "Safety number changed"); no new strings.
+- **Server:** unchanged. Everything this reads is on the device.
+- **Tests:** `app/test/trust_mark_test.dart`. Every rule above was broken on
   purpose once and the matching test went red.
 
 ## Compatibility with older builds

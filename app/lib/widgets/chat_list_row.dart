@@ -7,6 +7,7 @@ import '../theme/accent.dart';
 import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'avatar.dart';
+import 'trust_badge.dart';
 
 /// A row in the Chats list: avatar, name, preview, timestamp, unread pill.
 class ChatListRow extends StatelessWidget {
@@ -80,7 +81,9 @@ class ChatListRow extends StatelessWidget {
                         const Icon(Icons.push_pin_rounded, size: 13, color: PrivioColors.textTertiary),
                         const SizedBox(width: 4),
                       ],
-                      Expanded(
+                      // Flexible, so the mark sits right after the name rather
+                      // than at the far edge, and a long name still gives way.
+                      Flexible(
                         child: Text(
                           chat.isSaved ? text.savedTitle : chat.title,
                           maxLines: 1,
@@ -88,6 +91,7 @@ class ChatListRow extends StatelessWidget {
                           style: theme.textTheme.titleMedium,
                         ),
                       ),
+                      TrustBadge(chat.trust),
                     ],
                   ),
                   const SizedBox(height: 3),

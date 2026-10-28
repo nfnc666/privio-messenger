@@ -14,6 +14,7 @@ import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/search_field.dart';
+import '../widgets/trust_badge.dart';
 import 'chat_screen.dart';
 
 /// Contacts, addressed by username rather than phone number.
@@ -157,9 +158,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                 seed: contact.avatarSeed,
                                 imageBytes: contact.avatarBytes,
                               ),
-                              title: Text(
-                                contact.displayName,
-                                style: Theme.of(context).textTheme.titleMedium,
+                              title: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      contact.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  TrustBadge(state.conversations.trustMarkOf(contact.id)),
+                                ],
                               ),
                               subtitle: Text(
                                 _subtitleFor(AppText.of(context), contact),

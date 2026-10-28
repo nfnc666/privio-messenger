@@ -730,6 +730,22 @@ class ChatStamp {
   final DateTime? at;
 }
 
+/// What a list row says about how far somebody's keys have been checked.
+///
+/// Two marks and no third. "Not checked" is where every conversation starts,
+/// and a mark on every row for it would be noise that teaches people to look
+/// past the one mark that matters: a number that changed.
+enum TrustMark {
+  none,
+
+  /// Compared, and every key still matches what was compared.
+  verified,
+
+  /// A key changed: since the comparison, or under a message that has not
+  /// been looked at yet.
+  changed,
+}
+
 @immutable
 class ChatSummary {
   const ChatSummary({
@@ -741,6 +757,7 @@ class ChatSummary {
     this.isGroup = false,
     this.pinned = false,
     this.markedUnread = false,
+    this.trust = TrustMark.none,
     this.previewKind = MessageKind.text,
     this.typing = false,
     this.avatarSeed = 0,
@@ -771,6 +788,11 @@ class ChatSummary {
 
   /// What the row and the Unread filter go by: something new, or a mark.
   bool get hasUnread => unreadCount > 0 || markedUnread;
+
+  /// For a person. Always [TrustMark.none] for a group, which has several
+  /// people with several numbers and is never looked up, and for Saved, which
+  /// is this account itself and has nobody to compare a number with.
+  final TrustMark trust;
 
   final MessageKind previewKind;
 

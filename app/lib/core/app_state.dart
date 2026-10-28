@@ -642,6 +642,9 @@ class AppState extends ChangeNotifier {
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.
     detached(controller.loadKeyChangeAlerts());
+    // The marks in the lists come from the keystore, and the contact list may
+    // not answer: a phone offline still knows whom it has verified.
+    detached(controller.refreshTrust());
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
