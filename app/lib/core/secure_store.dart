@@ -105,6 +105,12 @@ abstract interface class SecureStore {
   Future<bool> readShareLocation(String accountId);
   Future<void> writeShareLocation(String accountId, bool share);
 
+  /// The sealed-sender trust root this installation pinned on first use, as
+  /// base64. Not per account: it belongs to the server, and a different one
+  /// later is refused rather than adopted. See docs/sealed-sender.md.
+  Future<String?> readSealedTrustRoot();
+  Future<void> writeSealedTrustRoot(String trustRoot);
+
   /// Which colour the home-screen icon is wearing.
   ///
   /// **Not keyed by account**, unlike everything else here. A launcher icon
@@ -424,6 +430,14 @@ class KeystoreSecureStore implements SecureStore {
   Future<bool> readShareLocation(String accountId) async =>
       await _read(_shareLocationKey(accountId)) != 'false';
 
+  static const String _sealedTrustRootKey = 'privio.sealedSender.trustRoot';
+
+  @override
+  Future<String?> readSealedTrustRoot() => _read(_sealedTrustRootKey);
+
+  @override
+  Future<void> writeSealedTrustRoot(String trustRoot) => _write(_sealedTrustRootKey, trustRoot);
+
   @override
   Future<void> writeShareLocation(String accountId, bool share) =>
       _write(_shareLocationKey(accountId), share ? 'true' : 'false');
@@ -711,6 +725,13 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<bool> readShareLocation(String accountId) async =>
       _entries['shareLocation.$accountId'] != 'false';
+
+  @override
+  Future<String?> readSealedTrustRoot() async => _entries['sealedTrustRoot'];
+
+  @override
+  Future<void> writeSealedTrustRoot(String trustRoot) async =>
+      _entries['sealedTrustRoot'] = trustRoot;
 
   @override
   Future<void> writeShareLocation(String accountId, bool share) async =>

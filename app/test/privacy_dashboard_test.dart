@@ -10,6 +10,7 @@ import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/crypto_storage.dart';
 import 'package:privio/crypto/privio_crypto.dart';
+import 'package:privio/crypto/sealed_sender.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/l10n/app_localizations.dart';
 import 'package:privio/screens/privacy_dashboard_screen.dart';
@@ -18,12 +19,22 @@ import 'package:privio/services/channel_service.dart';
 import 'package:privio/services/messaging_service.dart';
 import 'package:privio/theme/privio_theme.dart';
 
+import 'crypto_test.dart' show TestDevice;
+import 'sealed_sender_crypto_test.dart' show FakeIssuer, aliceId;
 import 'support/fake_voice.dart';
 
 /// A server whose security answers can be set per test, because the whole point
 /// of the dashboard is that it repeats what the server says rather than what
 /// somebody typed into a widget.
 class _Server {
+  /// A UUID when a test needs a sender certificate, which names the account.
+  String accountId = 'acc-alice';
+
+  /// Sealed sender's routes, off unless a test turns them on with the
+  /// device whose crypto the certificate has to vouch for.
+  FakeIssuer? issuer;
+  TestDevice? device;
+
   bool twoFactor = false;
   bool phoneLinked = false;
   bool discoverable = false;
@@ -37,7 +48,7 @@ class _Server {
         if (request.method == 'POST' && (path == '/v1/accounts' || path == '/v1/sessions')) {
           return _json({
             'token': 'token',
-            'accountId': 'acc-alice',
+            'accountId': accountId,
             'username': 'alice',
             'deviceId': 'device-1',
           }, path == '/v1/accounts' ? 201 : 200);
@@ -72,6 +83,16 @@ class _Server {
               : _json(backup!);
         }
         if (path == '/v1/keys/count') return _json(const {'remaining': 50});
+        if (path == '/v1/certificate/trust-root') {
+          final issuer = this.issuer;
+          return issuer == null
+              ? _json(const {'error': 'sealed_sender_unavailable', 'message': 'off'}, 503)
+              : _json({'trustRoot': base64Encode(issuer.trustRoot)});
+        }
+        if (path == '/v1/certificate/delivery') {
+          return _json({'certificate': base64Encode(await issuer!.issue(device!))});
+        }
+        if (path == '/v1/accounts/me/unidentified-access') return _json(const {'enabled': true});
         return _json(const {'contacts': [], 'envelopes': [], 'more': false, 'channels': []});
       });
 
@@ -119,10 +140,17 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
-Future<AppState> _signedIn(WidgetTester tester, _Server server) async {
-  final state =
-      await tester.runAsync(() async => AppState(services: await _services(server), store: InMemorySecureStore()))
-          as AppState;
+Future<AppState> _signedIn(WidgetTester tester, _Server server, {bool sealed = false}) async {
+  final services = (await tester.runAsync(() => _services(server)))!;
+  if (sealed) {
+    // The issuer signs with the library, which has to be loaded first.
+    await tester.runAsync(SealedSender.load);
+    server
+      ..accountId = aliceId
+      ..issuer = FakeIssuer()
+      ..device = (TestDevice(aliceId, 'device-1', 1)..crypto = services.crypto);
+  }
+  final state = AppState(services: services, store: InMemorySecureStore());
   await tester.runAsync(state.initialise);
   await tester.runAsync(() => state.signIn(username: 'alice', password: 'correct-horse'));
   addTearDown(state.conversations.stop);
@@ -259,5 +287,67 @@ void main() {
     // exception that no longer exists — nor lose the claim it does make.
     expect(find.textContaining('not end-to-end encrypted'), findsNothing);
     expect(find.text('Messages'), findsOneWidget);
+  });
+
+  group('the sender', () {
+    testWidgets('with sealed sender on, says exactly what it hides and what it does not',
+        (tester) async {
+      final state = await _signedIn(tester, _Server(), sealed: true);
+      await _settle(tester);
+      expect(state.services.sealedSender.status.name, 'on');
+
+      await tester.pumpWidget(_dashboardOver(state));
+      await _settle(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pump();
+
+      expect(find.text('Sender hidden from the server'), findsOneWidget);
+      expect(find.text('One-to-one messages'), findsOneWidget);
+      expect(
+        find.textContaining('The first message of a chat, group messages and copies to your own devices still name you.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('without it, says Off and that every message names you', (tester) async {
+      final state = await _signedIn(tester, _Server());
+      await _settle(tester);
+
+      await tester.pumpWidget(_dashboardOver(state));
+      await _settle(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pump();
+
+      expect(find.text('Sender hidden from the server'), findsOneWidget);
+      expect(find.textContaining('every message names you to the server'), findsOneWidget);
+      expect(find.text('One-to-one messages'), findsNothing);
+    });
+
+    testWidgets('follows sealed sender as it changes, without being opened again', (tester) async {
+      final state = await _signedIn(tester, _Server(), sealed: true);
+      await _settle(tester);
+      await tester.pumpWidget(_dashboardOver(state));
+      await _settle(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pump();
+      expect(find.text('One-to-one messages'), findsOneWidget);
+
+      state.services.sealedSender.serverWentOff();
+      await tester.pump();
+
+      expect(find.text('One-to-one messages'), findsNothing);
+      expect(find.textContaining('every message names you to the server'), findsOneWidget);
+    });
+
+    testWidgets('the note on metadata no longer says the sender is always seen', (tester) async {
+      final state = await _signedIn(tester, _Server());
+      await tester.pumpWidget(_dashboardOver(state));
+      await _settle(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -900));
+      await tester.pump();
+
+      expect(find.textContaining('Who it is from is hidden only where'), findsOneWidget);
+      expect(find.textContaining('went from you to somebody'), findsNothing);
+    });
   });
 }

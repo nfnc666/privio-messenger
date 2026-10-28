@@ -5030,7 +5030,36 @@ class AppTextDe extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'Der Inhalt ist verschlüsselt; dass eine Nachricht von dir an jemanden ging und wann, ist es nicht. Der Server von Privio sieht das, weil er sie zustellen muss.';
+      'Der Inhalt ist verschlüsselt. Für wen eine Nachricht ist und wann, ist es nicht: Der Server muss sie zustellen. Von wem sie ist, bleibt nur dort verborgen, wo es die Zeile zum Absender oben sagt.';
+
+  @override
+  String get privacyDashboardSealedSender =>
+      'Absender vor dem Server verborgen';
+
+  @override
+  String get privacyDashboardSealedOn => 'Einzelnachrichten';
+
+  @override
+  String get privacyDashboardSealedOnNote =>
+      'Eine Einzelnachricht an jemanden, der deinen Profilschlüssel schon hat, geht versiegelt: Der Server stellt sie zu, ohne zu erfahren, dass sie von dir ist. Die erste Nachricht eines Chats, Gruppennachrichten und Kopien an deine eigenen Geräte nennen dich weiterhin.';
+
+  @override
+  String get privacyDashboardSealedReceiveOnly => 'Nur Empfang';
+
+  @override
+  String get privacyDashboardSealedReceiveOnlyNote =>
+      'Versiegelte Nachrichten an dich öffnen sich hier, aber dieses Gerät hat kein Absenderzertifikat, also nennt dich, was es sendet, weiterhin.';
+
+  @override
+  String get privacyDashboardSealedStopped => 'Angehalten';
+
+  @override
+  String get privacyDashboardSealedStoppedNote =>
+      'Der Server hat mit einem anderen Schlüssel geantwortet als dem, den dieses Gerät festgehalten hat. Bis das geklärt ist, wird nichts versiegelt oder geöffnet.';
+
+  @override
+  String get privacyDashboardSealedOffNote =>
+      'Der Server oder diese Version bietet es nicht an, also nennt dich jede Nachricht dem Server gegenüber, wie bisher.';
 
   @override
   String get privacyOverview => 'Übersicht';

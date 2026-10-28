@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import '../network/proxy_config.dart';
 import '../network/proxy_controller.dart';
 
@@ -288,7 +289,11 @@ class AppState extends ChangeNotifier {
       // The store is what lets it notice a device somebody else linked: the
       // detection is a diff against what this phone last saw, and without a
       // place to keep that it silently does nothing.
-      _security ??= SecurityController(services.api, store: _store);
+      _security ??= SecurityController(
+        services.api,
+        store: _store,
+        onUnblocked: services.messaging.refreshBlocked,
+      );
 
   /// The line this account published about itself.
   ///
@@ -653,6 +658,16 @@ class AppState extends ChangeNotifier {
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
+    // Sealed sender: whose access key to derive for a send, which accounts'
+    // sealed messages to drop, and the trust root and certificate. None of it
+    // blocks the app; until it is ready every send goes the way it always has.
+    services.messaging.profileKeyOf = (accountId) {
+      final key = services.store.conversationWith(accountId)?.user?.profileKey;
+      return key == null ? null : base64Decode(key);
+    };
+    detached(services.messaging.refreshBlocked());
+    final sealedAccount = _accountId;
+    if (sealedAccount != null) detached(services.sealedSender.start(sealedAccount));
     // Where a call would find a relay, fetched now rather than when someone
     // dials: asking at the moment of a call tells the server a call is about
     // to happen, and everything else about a call is sealed from it.

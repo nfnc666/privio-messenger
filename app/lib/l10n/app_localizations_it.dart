@@ -5039,7 +5039,35 @@ class AppTextIt extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'Il contenuto è cifrato; che un messaggio sia partito da te verso qualcuno, e quando, non lo è. Il server di Privio lo vede perché deve consegnarlo.';
+      'Il contenuto è cifrato. A chi è destinato un messaggio, e quando, non lo è: il server deve consegnarlo. Da chi viene resta nascosto solo dove lo dice la riga sul mittente qui sopra.';
+
+  @override
+  String get privacyDashboardSealedSender => 'Mittente nascosto al server';
+
+  @override
+  String get privacyDashboardSealedOn => 'Messaggi individuali';
+
+  @override
+  String get privacyDashboardSealedOnNote =>
+      'Un messaggio individuale a qualcuno che ha già la tua chiave del profilo parte sigillato: il server lo consegna senza sapere che è tuo. Il primo messaggio di una chat, i messaggi di gruppo e le copie ai tuoi dispositivi ti nominano ancora.';
+
+  @override
+  String get privacyDashboardSealedReceiveOnly => 'Solo ricezione';
+
+  @override
+  String get privacyDashboardSealedReceiveOnlyNote =>
+      'I messaggi sigillati per te si aprono qui, ma questo dispositivo non ha un certificato del mittente, quindi ciò che invia ti nomina ancora.';
+
+  @override
+  String get privacyDashboardSealedStopped => 'Fermato';
+
+  @override
+  String get privacyDashboardSealedStoppedNote =>
+      'Il server ha risposto con una chiave diversa da quella che questo dispositivo ha fissato, quindi nulla viene sigillato o aperto finché non è chiarito.';
+
+  @override
+  String get privacyDashboardSealedOffNote =>
+      'Il server o questa versione non lo offrono, quindi ogni messaggio ti nomina al server, come prima.';
 
   @override
   String get privacyOverview => 'Panoramica';

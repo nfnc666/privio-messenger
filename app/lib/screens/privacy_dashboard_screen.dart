@@ -8,6 +8,7 @@ import '../l10n/chat_text.dart' show formatEventTime;
 import '../network/proxy_controller.dart';
 import '../services/backup_service.dart';
 import '../theme/accent.dart';
+import '../services/sealed_sender_service.dart';
 import '../theme/privio_colors.dart';
 import '../widgets/privio_back_button.dart';
 import '../widgets/settings_row.dart';
@@ -98,6 +99,7 @@ class _PrivacyDashboardScreenState extends State<PrivacyDashboardScreen> {
           state.security,
           state.phone,
           state.conversations,
+          state.services.sealedSender,
           ProxyController.instance,
         ]),
         builder: (context, _) => ListView(
@@ -198,6 +200,7 @@ class _PrivacyDashboardScreenState extends State<PrivacyDashboardScreen> {
                           : _Tone.neutral,
                   subtitle: text.privacyDashboardVerifiedNote,
                 ),
+                _sealedSenderRow(text, state.services.sealedSender.status),
                 _Row(
                   label: text.proxyTitle,
                   value: ProxyController.instance.enabled
@@ -248,6 +251,41 @@ class _PrivacyDashboardScreenState extends State<PrivacyDashboardScreen> {
 /// How a value reads at a glance. Deliberately four, including "not known":
 /// a dashboard with only good and bad has to pick one for a value it does not
 /// have, and picking is how it ends up lying.
+/// What sealed sender does on this device, said exactly: on, it hides the
+/// sender of one-to-one messages and nothing more, and the note says which
+/// messages still name you.
+_Row _sealedSenderRow(AppText text, SealedSenderStatus status) => switch (status) {
+      SealedSenderStatus.on => _Row(
+          label: text.privacyDashboardSealedSender,
+          value: text.privacyDashboardSealedOn,
+          tone: _Tone.good,
+          subtitle: text.privacyDashboardSealedOnNote,
+        ),
+      SealedSenderStatus.receiveOnly => _Row(
+          label: text.privacyDashboardSealedSender,
+          value: text.privacyDashboardSealedReceiveOnly,
+          tone: _Tone.neutral,
+          subtitle: text.privacyDashboardSealedReceiveOnlyNote,
+        ),
+      SealedSenderStatus.trustRootChanged => _Row(
+          label: text.privacyDashboardSealedSender,
+          value: text.privacyDashboardSealedStopped,
+          tone: _Tone.warn,
+          subtitle: text.privacyDashboardSealedStoppedNote,
+        ),
+      SealedSenderStatus.serverOff || SealedSenderStatus.unavailableHere => _Row(
+          label: text.privacyDashboardSealedSender,
+          value: text.commonOff,
+          tone: _Tone.neutral,
+          subtitle: text.privacyDashboardSealedOffNote,
+        ),
+      SealedSenderStatus.notStarted => _Row(
+          label: text.privacyDashboardSealedSender,
+          value: null,
+          tone: _Tone.unknown,
+        ),
+    };
+
 enum _Tone { good, neutral, warn, unknown }
 
 class _Row extends StatelessWidget {

@@ -12,6 +12,7 @@ import '../media/attachment.dart';
 import '../media/avatar.dart';
 import '../media/voice.dart';
 import '../media/metadata_scrubber.dart';
+import 'sealed_sender_service.dart';
 
 /// A decrypted incoming message, with the routing facts that came with it.
 class IncomingMessage {
@@ -138,6 +139,40 @@ class MessagingService {
 
   final PrivioApiClient _api;
   final PrivioCrypto _crypto;
+
+  /// Sealed sender, once the services are put together. Null, or not started,
+  /// means every send goes the way it always has.
+  SealedSenderService? sealedSender;
+
+  /// The profile key somebody gave this account, by account id, which is what
+  /// their access key is derived from. Set by the conversation layer, which
+  /// is where profile keys are kept.
+  List<int>? Function(String accountId)? profileKeyOf;
+
+  /// Accounts this one has blocked, as the server last listed them.
+  ///
+  /// The server drops an ordinary message from a blocked account. It cannot
+  /// drop a sealed one, because it does not know who sent it, so this device
+  /// does: a sealed message whose certificate names somebody here is
+  /// acknowledged and never shown.
+  Set<String> _blocked = const {};
+  Future<void>? _blockedLoaded;
+
+  /// Reads the blocked list again. Called at start and after a block or an
+  /// unblock.
+  Future<void> refreshBlocked() => _blockedLoaded = _loadBlocked();
+
+  Future<void> _loadBlocked() async {
+    try {
+      final body = await _api.blocks();
+      _blocked = {
+        for (final entry in body['blocked'] as List<dynamic>? ?? const [])
+          (entry as Map<String, dynamic>)['accountId'] as String,
+      };
+    } on Object {
+      // Keep the list held; the next refresh tries again.
+    }
+  }
 
   /// The highest envelope id this device has already decrypted.
   ///
@@ -446,10 +481,13 @@ class MessagingService {
   /// Same pipeline as any attachment, with one difference that matters: the key
   /// is the long-lived profile key rather than a fresh one, because every
   /// contact has to be able to open the same picture.
-  Future<String> uploadAvatar(Uint8List image) async {
+  ///
+  /// [key] seals it under a profile key that is not in use yet, which is how
+  /// the key is changed without the picture going dark in between.
+  Future<String> uploadAvatar(Uint8List image, {Uint8List? key}) async {
     final sealed = await AttachmentCipher.sealWithKey(
       image,
-      key: await _crypto.profileKey(),
+      key: key ?? await _crypto.profileKey(),
       declaredType: 'image/jpeg',
     );
     final blob = await _api.uploadMedia(sealed, avatar: true);
@@ -485,6 +523,43 @@ class MessagingService {
     int? expiresInSeconds,
   }) async {
     final (:accountId, :devices) = await _devicesFor(username);
+
+    // Sealed when it can be: the server is then told who it is for and not
+    // who it is from. When it cannot be, or the recipient's door refuses this
+    // key, it goes the way it always has.
+    final route = await sealedSender?.routeTo(accountId, profileKeyOf?.call(accountId));
+    if (route != null) {
+      try {
+        final copies = await _crypto.sealSealedForDevices(
+          accountId: accountId,
+          devices: devices,
+          plaintext: plaintext,
+          senderCertificate: route.certificate,
+        );
+        if (copies.isEmpty) return (delivered: 0, accountId: accountId);
+        final result = await _api.sendSealedMessage(
+          accountId: accountId,
+          accessKey: route.accessKey,
+          expiresInSeconds: expiresInSeconds,
+          messages: [
+            for (final copy in copies)
+              {'deviceId': copy.deviceId, 'registrationId': copy.registrationId, 'content': copy.content},
+          ],
+        );
+        return (delivered: result['deliveredTo'] as int? ?? copies.length, accountId: accountId);
+      } on ApiException catch (error) {
+        switch (error.code) {
+          case 'unidentified_access_denied':
+            sealedSender?.refused(accountId);
+          case 'sealed_sender_unavailable':
+            sealedSender?.serverWentOff();
+          default:
+            // A stale device list is the caller's to answer, exactly as for
+            // an unsealed send; anything else is a send that failed.
+            rethrow;
+        }
+      }
+    }
 
     final sealed = await _crypto.sealForDevices(
       accountId: accountId,
@@ -722,6 +797,12 @@ class MessagingService {
         continue;
       }
 
+      if (type == 'sealed') {
+        await _openSealed(envelope, messages, failures);
+        highestHandled = envelopeId > highestHandled ? envelopeId : highestHandled;
+        continue;
+      }
+
       if (type != 'prekey' && type != 'ciphertext') {
         // Receipts, typing and control envelopes are handled elsewhere; they
         // still count as processed so the queue drains.
@@ -779,6 +860,41 @@ class MessagingService {
 
     if (highestHandled > _handledThrough) _handledThrough = highestHandled;
     return ReceiveResult(messages, failures, more, highestHandled: highestHandled);
+  }
+
+  /// Opens one sealed envelope: the sender comes out of the certificate
+  /// inside, checked against the pinned trust root. Something sealed from a
+  /// blocked account is dropped; something that will not open is reported,
+  /// without a sender, because nothing that could be trusted named one.
+  Future<void> _openSealed(
+    Map<String, dynamic> envelope,
+    List<IncomingMessage> messages,
+    List<UndecryptableMessage> failures,
+  ) async {
+    final envelopeId = envelope['id'] as int;
+    try {
+      final sealed = sealedSender;
+      if (sealed == null || !sealed.canOpen) {
+        throw StateError('Sealed sender is not set up on this device');
+      }
+      await (_blockedLoaded ?? refreshBlocked());
+      final receivedAt = DateTime.parse(envelope['createdAt'] as String);
+      final result = await sealed.open(content: envelope['content'] as String, sentAt: receivedAt);
+      if (_blocked.contains(result.senderAccountId)) return;
+      messages.add(
+        IncomingMessage(
+          envelopeId: envelopeId,
+          senderAccountId: result.senderAccountId,
+          senderDeviceIndex: result.senderDeviceIndex,
+          senderIdentityKey: result.opened.identityKey,
+          senderTrust: result.opened.trust,
+          payload: MessagePayload.decode(result.opened.body),
+          receivedAt: receivedAt,
+        ),
+      );
+    } on Object catch (error) {
+      failures.add(UndecryptableMessage(envelopeId, null, error));
+    }
   }
 
   // --- Groups ---------------------------------------------------------------

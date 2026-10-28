@@ -130,10 +130,13 @@ class PrivioApiClient {
     String path, {
     Object? body,
     Map<String, String>? query,
+    bool anonymous = false,
+    Map<String, String> extraHeaders = const {},
   }) async {
     final issuedOn = _session;
     final request = http.Request(method, _url(path, query))
-      ..headers.addAll(_headers);
+      ..headers.addAll(anonymous ? const {} : _headers)
+      ..headers.addAll(extraHeaders);
     if (body != null) {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);
@@ -339,6 +342,43 @@ class PrivioApiClient {
         if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
         'messages': messages,
       },);
+
+  // --- Sealed sender ----------------------------------------------------------
+  //
+  // See docs/sealed-sender.md. The certificate and access-key calls carry the
+  // session; the sealed send never does.
+
+  /// The key every certificate chains to. Public; pinned on first use.
+  Future<Map<String, dynamic>> sealedSenderTrustRoot() =>
+      _send('GET', '/v1/certificate/trust-root');
+
+  /// A sender certificate for this device, valid for a day.
+  Future<Map<String, dynamic>> senderCertificate() => _send('GET', '/v1/certificate/delivery');
+
+  /// Lets the people holding this account's profile key send it sealed.
+  Future<void> setUnidentifiedAccess(String accessKey) async =>
+      _send('PUT', '/v1/accounts/me/unidentified-access', body: {'accessKey': accessKey});
+
+  /// Delivers sealed copies to every device of [accountId] **without the
+  /// session**: no `Authorization` header, so the server cannot tell who
+  /// sent them. The recipient's access key is what lets it through.
+  Future<Map<String, dynamic>> sendSealedMessage({
+    required String accountId,
+    required String accessKey,
+    required List<Map<String, dynamic>> messages,
+    int? expiresInSeconds,
+  }) =>
+      _send(
+        'POST',
+        '/v1/messages/sealed',
+        anonymous: true,
+        extraHeaders: {'unidentified-access-key': accessKey},
+        body: {
+          'accountId': accountId,
+          if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
+          'messages': messages,
+        },
+      );
 
   Future<Map<String, dynamic>> sendGroupMessage({
     required String groupId,

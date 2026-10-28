@@ -5019,7 +5019,35 @@ class AppTextEs extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'El contenido está cifrado; que un mensaje fuera de ti a alguien, y cuándo, no lo está. El servidor de Privio lo ve porque tiene que entregarlo.';
+      'El contenido está cifrado. Para quién es un mensaje, y cuándo, no lo está: el servidor tiene que entregarlo. De quién es solo queda oculto donde lo dice la línea sobre el remitente de arriba.';
+
+  @override
+  String get privacyDashboardSealedSender => 'Remitente oculto al servidor';
+
+  @override
+  String get privacyDashboardSealedOn => 'Mensajes individuales';
+
+  @override
+  String get privacyDashboardSealedOnNote =>
+      'Un mensaje individual a alguien que ya tiene tu clave de perfil va sellado: el servidor lo entrega sin saber que es tuyo. El primer mensaje de un chat, los mensajes de grupo y las copias a tus propios dispositivos siguen nombrándote.';
+
+  @override
+  String get privacyDashboardSealedReceiveOnly => 'Solo recepción';
+
+  @override
+  String get privacyDashboardSealedReceiveOnlyNote =>
+      'Los mensajes sellados para ti se abren aquí, pero este dispositivo no tiene certificado de remitente, así que lo que envía sigue nombrándote.';
+
+  @override
+  String get privacyDashboardSealedStopped => 'Detenido';
+
+  @override
+  String get privacyDashboardSealedStoppedNote =>
+      'El servidor respondió con una clave distinta de la que este dispositivo fijó, así que no se sella ni se abre nada hasta que se aclare.';
+
+  @override
+  String get privacyDashboardSealedOffNote =>
+      'El servidor o esta versión no lo ofrecen, así que cada mensaje te nombra ante el servidor, como antes.';
 
   @override
   String get privacyOverview => 'Resumen';
