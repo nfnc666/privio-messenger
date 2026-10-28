@@ -755,6 +755,34 @@
   "locationUnavailable": "No position right now. Is location turned on?",
   "privacyShareLocation": "Share location",
   "privacyShareLocationNote": "Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.",
+  "listsTitle": "Distribution lists",
+  "listsNew": "New distribution list",
+  "listsEdit": "Edit list",
+  "listsEmpty": "Send one message to several people at once. Each of them gets it as an ordinary message in your chat with them, and does not see who else got it.",
+  "listsMembers": "{count, plural, =1{1 person} other{{count} people}}",
+  "@listsMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "listsName": "Name",
+  "listsNoContacts": "Add some contacts first: a list needs people on it.",
+  "listsInvalid": "Give the list a name and pick at least one person.",
+  "listsNote": "Each person gets this as an ordinary message in your chat with them, and cannot see who else got it. The server sees one message to each of them at the same moment, as if you had sent them one by one. The list itself stays on this device.",
+  "listsMessageHint": "Message to everyone on the list",
+  "listsSend": "Send to everyone",
+  "listsSent": "{count, plural, =0{Sent to nobody.} =1{Sent to 1 person.} other{Sent to {count} people.}}",
+  "@listsSent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "listsDelete": "Delete list",
+  "listsDeleteBody": "The list goes. What was sent through it stays in each chat.",
   "chatsGroupFallbackName": "Group",
   "chatsNewGroupTooltip": "New group",
   "chatsNewChatTooltip": "New chat",

@@ -1752,6 +1752,70 @@ class AppTextIt extends AppText {
       'Disattivato: Privio non chiede mai dove sei e «Posizione» sparisce dal menu degli allegati. I luoghi inviati da altri vengono ancora mostrati.';
 
   @override
+  String get listsTitle => 'Liste broadcast';
+
+  @override
+  String get listsNew => 'Nuova lista broadcast';
+
+  @override
+  String get listsEdit => 'Modifica lista';
+
+  @override
+  String get listsEmpty =>
+      'Invia un messaggio a più persone in una volta. Ognuna lo riceve come un normale messaggio nella vostra chat e non vede chi altro l\'ha ricevuto.';
+
+  @override
+  String listsMembers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count persone',
+      one: '1 persona',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsName => 'Nome';
+
+  @override
+  String get listsNoContacts =>
+      'Aggiungi prima dei contatti: una lista ha bisogno di persone.';
+
+  @override
+  String get listsInvalid =>
+      'Dai un nome alla lista e scegli almeno una persona.';
+
+  @override
+  String get listsNote =>
+      'Ogni persona lo riceve come un normale messaggio nella vostra chat e non può vedere chi altro l\'ha ricevuto. Il server vede nello stesso momento un messaggio per ognuna, come se li avessi inviati uno alla volta. La lista resta su questo dispositivo.';
+
+  @override
+  String get listsMessageHint => 'Messaggio a tutti nella lista';
+
+  @override
+  String get listsSend => 'Invia a tutti';
+
+  @override
+  String listsSent(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Inviato a $count persone.',
+      one: 'Inviato a 1 persona.',
+      zero: 'Inviato a nessuno.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsDelete => 'Elimina lista';
+
+  @override
+  String get listsDeleteBody =>
+      'La lista sparisce. Ciò che è stato inviato tramite essa resta in ogni chat.';
+
+  @override
   String get chatsGroupFallbackName => 'Gruppo';
 
   @override

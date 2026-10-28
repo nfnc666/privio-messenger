@@ -1737,6 +1737,70 @@ class AppTextEn extends AppText {
       'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.';
 
   @override
+  String get listsTitle => 'Distribution lists';
+
+  @override
+  String get listsNew => 'New distribution list';
+
+  @override
+  String get listsEdit => 'Edit list';
+
+  @override
+  String get listsEmpty =>
+      'Send one message to several people at once. Each of them gets it as an ordinary message in your chat with them, and does not see who else got it.';
+
+  @override
+  String listsMembers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count people',
+      one: '1 person',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsName => 'Name';
+
+  @override
+  String get listsNoContacts =>
+      'Add some contacts first: a list needs people on it.';
+
+  @override
+  String get listsInvalid =>
+      'Give the list a name and pick at least one person.';
+
+  @override
+  String get listsNote =>
+      'Each person gets this as an ordinary message in your chat with them, and cannot see who else got it. The server sees one message to each of them at the same moment, as if you had sent them one by one. The list itself stays on this device.';
+
+  @override
+  String get listsMessageHint => 'Message to everyone on the list';
+
+  @override
+  String get listsSend => 'Send to everyone';
+
+  @override
+  String listsSent(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Sent to $count people.',
+      one: 'Sent to 1 person.',
+      zero: 'Sent to nobody.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsDelete => 'Delete list';
+
+  @override
+  String get listsDeleteBody =>
+      'The list goes. What was sent through it stays in each chat.';
+
+  @override
   String get chatsGroupFallbackName => 'Group';
 
   @override

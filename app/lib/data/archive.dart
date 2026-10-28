@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../media/attachment.dart' show CustomEmojiRef;
 import '../core/secure_store.dart';
 import '../models/channel.dart';
+import '../models/distribution_list.dart';
 import '../models/geo_point.dart';
 import '../models/models.dart';
 import 'message_store.dart';
@@ -106,6 +107,7 @@ class ArchiveContents {
     this.conversations = const [],
     this.outbox = const [],
     this.channelPosts = const {},
+    this.distributionLists = const [],
   });
 
   final List<Conversation> conversations;
@@ -117,6 +119,10 @@ class ArchiveContents {
   /// Pointers only — a post's attachment is kept as its media id, token, type
   /// and size, never as decrypted bytes. See [ChannelPost.toCacheJson].
   final Map<String, List<ChannelPost>> channelPosts;
+
+  /// This device's distribution lists. Kept here, sealed with the chats they
+  /// send into, because they exist nowhere else.
+  final List<DistributionList> distributionLists;
 }
 
 /// The decrypted conversation history, at rest.
@@ -136,6 +142,7 @@ abstract interface class MessageArchive {
     List<PendingSend> outbox,
     String? accountId,
     Map<String, List<ChannelPost>> channelPosts,
+    List<DistributionList> distributionLists,
   });
 
   Future<void> clear();
@@ -157,6 +164,7 @@ class NoArchive implements MessageArchive {
     List<PendingSend> outbox = const [],
     String? accountId,
     Map<String, List<ChannelPost>> channelPosts = const {},
+    List<DistributionList> distributionLists = const [],
   }) async {}
 
   @override
@@ -266,6 +274,10 @@ class EncryptedMessageArchive implements MessageArchive {
           for (final raw in map['outbox'] as List<dynamic>? ?? const [])
             PendingSend.fromJson(raw as Map<String, dynamic>),
         ],
+        distributionLists: [
+          for (final raw in map['lists'] as List<dynamic>? ?? const [])
+            if (DistributionList.fromJson(raw) case final list?) list,
+        ],
       );
     } on Object {
       // A wrong key or a tampered blob. Returning an empty history is right:
@@ -280,6 +292,7 @@ class EncryptedMessageArchive implements MessageArchive {
     List<PendingSend> outbox = const [],
     String? accountId,
     Map<String, List<ChannelPost>> channelPosts = const {},
+    List<DistributionList> distributionLists = const [],
   }) async {
     final plain = utf8.encode(
       jsonEncode({
@@ -297,6 +310,8 @@ class EncryptedMessageArchive implements MessageArchive {
             for (final entry in channelPosts.entries)
               entry.key: [for (final post in entry.value) post.toCacheJson()],
           },
+        if (distributionLists.isNotEmpty)
+          'lists': [for (final list in distributionLists) list.toJson()],
       }),
     );
     final box = await _cipher.encrypt(plain, secretKey: await _key());

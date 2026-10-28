@@ -1507,6 +1507,20 @@ attach entry is gone, the phone is never asked, and the controller refuses a
 send even if something asked for one. It is a local setting, per account,
 never sent.
 
+## Distribution lists
+
+**A list is local, and invisible to the people on it.** It is a name and some
+account ids in the encrypted archive. Sending to it sends each person an
+ordinary one-to-one text through the same path as typing it in their chat,
+with nothing in the payload about the list or anybody else on it, so nobody
+can tell that a list exists or who else got the same message.
+
+**What it does not hide.** The server sees one envelope from this account to
+each person on the list at the same moment, which is what sending them one by
+one quickly would show too. Without sealed sender it sees that this account
+wrote to all of them; that is the gap in the section on metadata, not
+something the list adds. The list's screen says so.
+
 ## Two-factor authentication
 
 **It protects the account, not the messages.** The code is checked by the
