@@ -323,6 +323,22 @@ void main() {
       expect(find.text('One-to-one messages'), findsNothing);
     });
 
+    testWidgets('follows sealed sender as it changes, without being opened again', (tester) async {
+      final state = await _signedIn(tester, _Server(), sealed: true);
+      await _settle(tester);
+      await tester.pumpWidget(_dashboardOver(state));
+      await _settle(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pump();
+      expect(find.text('One-to-one messages'), findsOneWidget);
+
+      state.services.sealedSender.serverWentOff();
+      await tester.pump();
+
+      expect(find.text('One-to-one messages'), findsNothing);
+      expect(find.textContaining('every message names you to the server'), findsOneWidget);
+    });
+
     testWidgets('the note on metadata no longer says the sender is always seen', (tester) async {
       final state = await _signedIn(tester, _Server());
       await tester.pumpWidget(_dashboardOver(state));

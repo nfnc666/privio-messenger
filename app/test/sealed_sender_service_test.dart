@@ -38,6 +38,8 @@ class FakeServer {
   final List<Map<String, String>> sealedHeaders = [];
   bool sealedOffered = true;
   int sealedAttempts = 0;
+  String? sealedFailure;
+  int certificatesIssued = 0;
   bool certificates = true;
   int trustRootAsked = 0;
   int _nextId = 1;
@@ -71,6 +73,7 @@ class FakeServer {
           sealedAttempts += 1;
           if (auth != null) return _error(400, 'do_not_identify');
           if (!sealedOffered) return _error(503, 'sealed_sender_unavailable');
+          if (sealedFailure case final code?) return _error(413, code);
           sealedHeaders.add(Map.of(request.headers));
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final recipient = body['accountId'] as String;
@@ -126,6 +129,7 @@ class FakeServer {
         }
         if (request.method == 'GET' && path == '/v1/certificate/delivery') {
           if (!certificates) return _error(402, 'license_required');
+          certificatesIssued += 1;
           final certificate = await issuer.issue(me.device);
           return _json(200, {'certificate': base64Encode(certificate)});
         }
@@ -247,6 +251,35 @@ void main() {
       expect(alice.sealed.status, SealedSenderStatus.serverOff);
       final received = await bob.messaging.receive();
       expect(received.messages.map((m) => m.payload.body), ['eins', 'zwei']);
+    });
+
+    test('any other refusal is reported, never sent unsealed instead', () async {
+      await bob.start();
+      await alice.start();
+      await aliceKnowsBob();
+      server.sealedFailure = 'payload_too_large';
+
+      await expectLater(
+        alice.messaging.sendPayload('bob', const MessagePayload.text('zu groß')),
+        throwsA(isA<ApiException>().having((e) => e.code, 'code', 'payload_too_large')),
+      );
+      expect(bobsQueue(), isEmpty, reason: 'it went unsealed after all');
+      expect(alice.sealed.status, SealedSenderStatus.on);
+    });
+
+    test('one certificate serves many sends, not one fetched before each', () async {
+      // A certificate asked for, with this account's session, right before
+      // every sealed send would tie each one to its sender by the timing.
+      await bob.start();
+      await alice.start();
+      await aliceKnowsBob();
+      final issued = server.certificatesIssued;
+
+      await alice.messaging.sendPayload('bob', const MessagePayload.text('eins'));
+      await alice.messaging.sendPayload('bob', const MessagePayload.text('zwei'));
+
+      expect(bobsQueue().map((e) => e['type']), ['sealed', 'sealed']);
+      expect(server.certificatesIssued, issued);
     });
 
     test('nothing is sealed to this account itself', () async {
