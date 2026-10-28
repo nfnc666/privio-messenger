@@ -757,6 +757,7 @@ class ChatSummary {
     this.isGroup = false,
     this.pinned = false,
     this.markedUnread = false,
+    this.isPrivate = false,
     this.trust = TrustMark.none,
     this.previewKind = MessageKind.text,
     this.typing = false,
@@ -788,6 +789,10 @@ class ChatSummary {
 
   /// What the row and the Unread filter go by: something new, or a mark.
   bool get hasUnread => unreadCount > 0 || markedUnread;
+
+  /// One of the private chats, on show because the code was typed. A hidden
+  /// one never becomes a row at all.
+  final bool isPrivate;
 
   /// For a person. Always [TrustMark.none] for a group, which has several
   /// people with several numbers and is never looked up, and for Saved, which

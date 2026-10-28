@@ -81,6 +81,19 @@ class ChatListRow extends StatelessWidget {
                         const Icon(Icons.push_pin_rounded, size: 13, color: PrivioColors.textTertiary),
                         const SizedBox(width: 4),
                       ],
+                      // Only ever drawn while the private chats are on show,
+                      // so it is there to say which rows will go again.
+                      if (chat.isPrivate) ...[
+                        Semantics(
+                          label: text.chatsPrivateLabel,
+                          child: const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 13,
+                            color: PrivioColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       // Flexible, so the mark sits right after the name rather
                       // than at the far edge, and a long name still gives way.
                       Flexible(

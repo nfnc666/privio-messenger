@@ -1583,10 +1583,112 @@ class AppTextFr extends AppText {
 
   @override
   String get chatsMarkReadReceiptsNote =>
-      'Des confirmations de lecture sont envoyées, comme à l\'ouverture du chat.';
+      'Des confirmations de lecture sont envoyées, comme à l\'ouverture de la discussion.';
 
   @override
   String get chatsMarkedUnread => 'Marqué comme non lu';
+
+  @override
+  String get privacyPrivateChats => 'Discussions privées';
+
+  @override
+  String get privateChatsNote =>
+      'Les discussions privées n\'apparaissent ni dans la liste des discussions ni dans la recherche tant que vous n\'avez pas saisi ce code, et se masquent de nouveau dès que vous quittez l\'app. Elles protègent une discussion de quelqu\'un qui a votre téléphone déverrouillé en main. Ce n\'est pas un second chiffrement : sur l\'appareil, elles sont protégées par le verrouillage de l\'app, comme toute autre discussion.';
+
+  @override
+  String get privateChatsCode => 'Code';
+
+  @override
+  String get privateChatsNewCode => 'Nouveau code';
+
+  @override
+  String get privateChatsCurrentCode => 'Code actuel';
+
+  @override
+  String get privateChatsRepeat => 'Répéter le code';
+
+  @override
+  String get privateChatsSave => 'Enregistrer le code';
+
+  @override
+  String get privateChatsChange => 'Changer le code';
+
+  @override
+  String get privateChatsRemove => 'Supprimer le code';
+
+  @override
+  String get privateChatsRemoveNote =>
+      'Toutes les discussions privées redeviennent des discussions ordinaires.';
+
+  @override
+  String get privateChatsForgot => 'Code oublié ?';
+
+  @override
+  String get privateChatsForgotTitle => 'Supprimer les discussions privées ?';
+
+  @override
+  String get privateChatsForgotBody =>
+      'Sans le code, elles ne peuvent plus être affichées. Cela supprime toutes les discussions privées de cet appareil, ainsi que le code. Cela n\'atteint ni la copie de l\'autre personne ni une sauvegarde déjà envoyée au serveur. Les nouveaux messages des mêmes personnes arrivent dans des discussions ordinaires.';
+
+  @override
+  String get privateChatsForgotConfirm => 'Supprimer les discussions privées';
+
+  @override
+  String privateChatsTooShort(int count) {
+    return 'Au moins $count caractères.';
+  }
+
+  @override
+  String get privateChatsMismatch => 'Les deux codes ne correspondent pas.';
+
+  @override
+  String get privateChatsSameAsUnlock =>
+      'Choisissez un code différent de celui du verrouillage de l\'écran.';
+
+  @override
+  String get privateChatsWrongCode => 'Code incorrect.';
+
+  @override
+  String get privateChatsSaved => 'Code enregistré.';
+
+  @override
+  String get privateChatsRemoved =>
+      'Code supprimé. Les discussions privées redeviennent des discussions ordinaires.';
+
+  @override
+  String get privateChatsDeleted => 'Discussions privées supprimées.';
+
+  @override
+  String get privateChatsEnterCode => 'Saisir le code';
+
+  @override
+  String get privateChatsShow => 'Afficher';
+
+  @override
+  String get chatsShowPrivate => 'Afficher les discussions privées';
+
+  @override
+  String get chatsHidePrivate => 'Masquer les discussions privées';
+
+  @override
+  String get chatsMakePrivate => 'Rendre privée';
+
+  @override
+  String get chatsMakePrivateNote =>
+      'Masquée jusqu\'à la saisie de votre code des discussions privées. Uniquement sur cet appareil.';
+
+  @override
+  String get chatsMakeOrdinary => 'Retirer des discussions privées';
+
+  @override
+  String get chatsMadePrivate => 'Déplacée vers les discussions privées.';
+
+  @override
+  String get chatsPrivateLabel => 'Discussion privée';
+
+  @override
+  String get chatPrivateLockedBody =>
+      'Cette discussion est privée. Saisissez votre code pour la voir.';
 
   @override
   String get chatsGroupFallbackName => 'Groupe';

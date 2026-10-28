@@ -24,6 +24,10 @@ import 'api_client.dart';
 import 'failure.dart';
 import 'privio_services.dart';
 
+/// What became of a request to set or change the private-chats code, as a
+/// case: the screen that asked turns it into words.
+enum PrivateCodeOutcome { saved, tooShort, sameAsUnlock, wrongCode }
+
 /// Drives the chat and contact screens from real data.
 ///
 /// This is the seam between the UI and the encryption layer: it hands plaintext
@@ -316,7 +320,8 @@ class ConversationController extends ChangeNotifier {
 
   List<ChatSummary> get chats {
     final rows = [
-      for (final conversation in _services.store.conversations()) _summarise(conversation),
+      for (final conversation in _services.store.conversations())
+        if (!isHiddenPrivate(conversation.id)) _summarise(conversation),
     ];
     // The store leaves an empty direct conversation out of the list on purpose
     // — an empty chat with somebody is just a contact, and belongs under
@@ -388,6 +393,7 @@ class ConversationController extends ChangeNotifier {
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
       markedUnread: conversation.markedUnread,
+      isPrivate: conversation.isPrivate,
       trust: trustMarkOf(conversation.id),
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.id.hashCode.abs(),
@@ -1634,13 +1640,140 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Private chats ---------------------------------------------------------
+  //
+  // A private chat is left out of the chat list, the search and the chat
+  // screen until this account's private-chats code has been typed, and is
+  // hidden again whenever the app is left. It keeps a chat from somebody
+  // holding the unlocked phone. It is not a second encryption: at rest it is
+  // in the archive with every other chat, behind the app lock.
+
+  /// The shortest code accepted. The same floor as the duress code.
+  static const int privateCodeMinLength = 4;
+
+  bool _privateChatsCode = false;
+  bool _privateShown = false;
+
+  /// Whether this account has a private-chats code. Read at sign-in.
+  bool get hasPrivateChatsCode => _privateChatsCode;
+
+  /// Whether the private chats are on show: from the right code until they are
+  /// hidden again or the app is left.
+  bool get privateChatsShown => _privateShown;
+
+  bool isPrivate(String conversationId) =>
+      _services.store.conversationWith(conversationId)?.isPrivate ?? false;
+
+  /// Private and not on show. Whether there is a code yet does not come into
+  /// it: before the keystore has answered, or after a backup brought the chats
+  /// back to a phone without the code, the answer is still "hidden".
+  bool isHiddenPrivate(String conversationId) => !_privateShown && isPrivate(conversationId);
+
+  Future<void> loadPrivateChatsCode() async {
+    final account = accountId;
+    if (account == null) return;
+    final has = await _services.secureStore.hasPrivateChatsCode(account);
+    if (accountId != account || has == _privateChatsCode) return;
+    _privateChatsCode = has;
+    notifyListeners();
+  }
+
+  /// Sets the code, or changes it. Changing takes the [current] one, so a
+  /// phone handed over unlocked is not a way to replace it.
+  Future<PrivateCodeOutcome> setPrivateChatsCode(String code, {String? current}) async {
+    final account = accountId;
+    if (account == null) return PrivateCodeOutcome.wrongCode;
+    if (code.length < privateCodeMinLength) return PrivateCodeOutcome.tooShort;
+    final store = _services.secureStore;
+    if (_privateChatsCode &&
+        (current == null || !await store.verifyPrivateChatsCode(account, current))) {
+      return PrivateCodeOutcome.wrongCode;
+    }
+    // Whoever has watched this phone being unlocked has seen that one.
+    if (await store.hasPasscode() && await store.verifyPasscode(code)) {
+      return PrivateCodeOutcome.sameAsUnlock;
+    }
+    await store.setPrivateChatsCode(account, code);
+    _privateChatsCode = true;
+    notifyListeners();
+    return PrivateCodeOutcome.saved;
+  }
+
+  /// Takes the code away, after the [current] one. Every private chat becomes
+  /// an ordinary chat, since without a code nothing could show it again.
+  Future<bool> removePrivateChatsCode(String current) async {
+    final account = accountId;
+    if (account == null || !_privateChatsCode) return false;
+    if (!await _services.secureStore.verifyPrivateChatsCode(account, current)) return false;
+    for (final conversation in _services.store.conversations()) {
+      _services.store.setPrivate(conversation.id, isPrivate: false);
+    }
+    await _services.secureStore.setPrivateChatsCode(account, null);
+    _privateChatsCode = false;
+    _privateShown = false;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// For a forgotten code: deletes every private chat on this device, and the
+  /// code with them. Needs no code, because it shows nothing; somebody holding
+  /// the phone can destroy these chats this way, as they could by deleting the
+  /// app. New messages from the same people arrive in ordinary chats.
+  Future<void> deletePrivateChats() async {
+    final account = accountId;
+    for (final conversation in [..._services.store.conversations()]) {
+      if (conversation.isPrivate) _services.store.removeConversation(conversation.id);
+    }
+    if (account != null) await _services.secureStore.setPrivateChatsCode(account, null);
+    _privateChatsCode = false;
+    _privateShown = false;
+    _persist();
+    notifyListeners();
+  }
+
+  /// Shows the private chats, if [code] is the right one.
+  Future<bool> showPrivateChats(String code) async {
+    final account = accountId;
+    if (account == null) return false;
+    if (!await _services.secureStore.verifyPrivateChatsCode(account, code)) return false;
+    _privateShown = true;
+    notifyListeners();
+    return true;
+  }
+
+  /// Hides them again. Also called whenever the app is left.
+  void hidePrivateChats() {
+    if (!_privateShown) return;
+    _privateShown = false;
+    notifyListeners();
+  }
+
+  /// Makes a chat private or ordinary again. Refused for Saved, which is a
+  /// place rather than a chat, without a code to show it again, and for a chat
+  /// that is hidden right now.
+  bool setPrivate(String conversationId, {required bool isPrivate}) {
+    if (isSaved(conversationId) || isHiddenPrivate(conversationId)) return false;
+    if (isPrivate && !_privateChatsCode) return false;
+    if (!_services.store.setPrivate(conversationId, isPrivate: isPrivate)) return false;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
   /// Every message that matches [query], across every conversation.
   ///
   /// Runs on this device, over what it has already decrypted. There is nowhere
   /// else it could run — the server holds ciphertext it cannot read — and
-  /// sending a query there would tell it what someone is looking for.
-  List<SearchHit> searchMessages(String query) =>
-      MessageSearch.run(_services.store.conversations(), query);
+  /// sending a query there would tell it what someone is looking for. A
+  /// private chat that is hidden is not searched.
+  List<SearchHit> searchMessages(String query) => MessageSearch.run(
+        [
+          for (final conversation in _services.store.conversations())
+            if (!isHiddenPrivate(conversation.id)) conversation,
+        ],
+        query,
+      );
 
   // --- Taking a message back ------------------------------------------------
 
@@ -2262,6 +2395,7 @@ class ConversationController extends ChangeNotifier {
   List<String> timerExceptions() => [
         for (final conversation in _services.store.conversations())
           if (!isSaved(conversation.id) &&
+              !isHiddenPrivate(conversation.id) &&
               conversation.timer.isExceptionTo(_defaultDisappearAfter))
             conversation.id,
       ];

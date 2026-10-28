@@ -648,6 +648,7 @@ class AppState extends ChangeNotifier {
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.
     detached(controller.loadKeyChangeAlerts());
+    detached(controller.loadPrivateChatsCode());
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
@@ -955,6 +956,9 @@ class AppState extends ChangeNotifier {
   /// flushed, the app is not being used, and it is the point at which "I lost
   /// my phone" starts being a possibility.
   void lock() {
+    // Private chats go back into hiding whenever the app is left, lock or no
+    // lock: showing them is for this visit.
+    _conversations?.hidePrivateChats();
     // A device with no passcode has nothing to unlock with. Arming the lock
     // there is not a stricter lock, it is a device its own owner cannot get
     // back into: the lock screen has exactly one way past it, and on a device

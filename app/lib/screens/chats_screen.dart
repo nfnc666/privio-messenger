@@ -13,10 +13,12 @@ import '../theme/privio_colors.dart';
 import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/chat_list_row.dart';
+import '../widgets/private_code_dialog.dart';
 import '../widgets/search_field.dart';
 import 'chat_screen.dart';
 import 'contacts_screen.dart';
 import 'new_group_screen.dart';
+import 'private_chats_screen.dart';
 
 /// What a search turns the list into: the chats whose name or last line
 /// matched, and then everything that was ever said matching it.
@@ -273,6 +275,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
               subtitle: Text(sendsReceipts ? text.chatsMarkReadReceiptsNote : text.chatsMarkNote),
               onTap: () => Navigator.of(sheetContext).pop('unread'),
             ),
+            // Saved is a place, not a chat with somebody, and stays in view.
+            if (!chat.isSaved)
+              ListTile(
+                leading: Icon(
+                  chat.isPrivate ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                ),
+                title: Text(chat.isPrivate ? text.chatsMakeOrdinary : text.chatsMakePrivate),
+                subtitle: Text(chat.isPrivate ? text.chatsMarkNote : text.chatsMakePrivateNote),
+                onTap: () => Navigator.of(sheetContext).pop('private'),
+              ),
             const SizedBox(height: PrivioSpacing.sm),
           ],
         ),
@@ -285,6 +297,30 @@ class _ChatsScreenState extends State<ChatsScreen> {
         state.conversations.markRead(chat.id);
       case 'unread':
         state.conversations.setMarkedUnread(chat.id, marked: !chat.markedUnread);
+      case 'private' when context.mounted:
+        await _togglePrivate(context, state, chat);
+    }
+  }
+
+  /// Makes a chat private, setting up a code first if there is none yet, or
+  /// makes a private one ordinary again.
+  Future<void> _togglePrivate(BuildContext context, AppState state, ChatSummary chat) async {
+    final conversations = state.conversations;
+    if (chat.isPrivate) {
+      conversations.setPrivate(chat.id, isPrivate: false);
+      return;
+    }
+    if (!conversations.hasPrivateChatsCode) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const PrivateChatsScreen()),
+      );
+      if (!context.mounted || !conversations.hasPrivateChatsCode) return;
+    }
+    if (!conversations.setPrivate(chat.id, isPrivate: true) || !context.mounted) return;
+    if (!conversations.privateChatsShown) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppText.of(context).chatsMadePrivate)),
+      );
     }
   }
 
@@ -354,6 +390,23 @@ class _ChatsScreenState extends State<ChatsScreen> {
             // it — see `_DeepLinkOpener` in `app.dart`. What this button added
             // was a box to paste that same link into by hand.
             actions: [
+              // Only once there is a code. Before that there is nothing it
+              // could show, and a lock that asks for a code nobody has set is
+              // a question with no answer.
+              if (state.conversations.hasPrivateChatsCode)
+                state.conversations.privateChatsShown
+                    ? IconButton(
+                        key: const Key('private-hide'),
+                        onPressed: state.conversations.hidePrivateChats,
+                        icon: const Icon(Icons.lock_open_rounded),
+                        tooltip: text.chatsHidePrivate,
+                      )
+                    : IconButton(
+                        key: const Key('private-show'),
+                        onPressed: () => showPrivateChatsWithCode(context),
+                        icon: const Icon(Icons.lock_outline_rounded),
+                        tooltip: text.chatsShowPrivate,
+                      ),
               IconButton(
                 onPressed: () => _startGroup(context, state),
                 icon: const Icon(Icons.group_add_outlined),

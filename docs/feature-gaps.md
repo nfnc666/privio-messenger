@@ -13,7 +13,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | Polls in a chat or group | **done on this branch** (was: channels only, tallied by the server) | sealed poll, votes tallied on each device, see below |
 | Distribution list (one message to many 1:1 chats, recipients do not see each other) | missing | client-side fan-out over the existing 1:1 sessions; no server change |
 | Share a location | missing | static coordinates in the sealed payload, map tile rendered on device; no live tracking |
-| Hide a chat behind its own PIN / biometrics | missing (only the whole-app lock) | per-conversation flag in the encrypted archive; content kept out of notifications and previews |
+| Hide a chat behind its own PIN / biometrics | **done on this branch** with a code (was: whole-app lock only); no biometrics | per-conversation flag in the encrypted archive, see below |
 | Trust level visible in the chat and contact lists | **done on this branch** (was: chat header only) | small mark in list rows derived from the existing `VerificationState`, see below |
 | Mark a chat as unread | **done on this branch** | local flag, never sent, see below |
 | Group calls | 1:1 calls only | needs an SFU and end-to-end media keys; separate design document first |
@@ -117,6 +117,27 @@ a random ID, no address-book upload, no plaintext exception for bots.
 - **Server:** unchanged. Everything this reads is on the device.
 - **Tests:** `app/test/trust_mark_test.dart`. Every rule above was broken on
   purpose once and the matching test went red.
+
+## Private chats
+
+- **Where:** a long press on a chat offers "Make private"; the first time, it
+  sets up the code first. Settings → Privacy → Private chats changes or
+  removes the code. A lock at the top of the chat list shows and hides the
+  private chats once a code exists.
+- **Hidden** from the chat list, the message search and the disappearing-timer
+  exceptions; the chat screen shows a lock instead of the chat however it is
+  reached. Shown for one visit with the code, hidden again whenever the app is
+  left. Saved cannot be made private.
+- **Honest about what it is:** protection against somebody holding the
+  unlocked phone, not a second encryption. The settings screen says so.
+- **The code** is at least four characters, not the screen-lock passcode, and
+  kept as an Argon2id hash per account. Removing it makes every private chat
+  ordinary again; a forgotten code deletes the private chats, after asking.
+- **Not done:** biometrics. The person stays in Contacts, and calls are not
+  hidden. Details in `docs/security-model.md`, "Private chats".
+- **Server:** unchanged, and never told.
+- **Tests:** `app/test/private_chats_test.dart`. Every rule above was broken
+  on purpose once and the matching test went red.
 
 ## Compatibility with older builds
 

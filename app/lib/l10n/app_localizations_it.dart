@@ -1591,6 +1591,108 @@ class AppTextIt extends AppText {
   String get chatsMarkedUnread => 'Segnato come non letto';
 
   @override
+  String get privacyPrivateChats => 'Chat private';
+
+  @override
+  String get privateChatsNote =>
+      'Le chat private non compaiono nell\'elenco delle chat né nella ricerca finché non inserisci questo codice, e si nascondono di nuovo ogni volta che esci dall\'app. Proteggono una chat da chi ha in mano il tuo telefono sbloccato. Non sono una seconda cifratura: sul dispositivo le protegge il blocco dell\'app, come ogni altra chat.';
+
+  @override
+  String get privateChatsCode => 'Codice';
+
+  @override
+  String get privateChatsNewCode => 'Nuovo codice';
+
+  @override
+  String get privateChatsCurrentCode => 'Codice attuale';
+
+  @override
+  String get privateChatsRepeat => 'Ripeti il codice';
+
+  @override
+  String get privateChatsSave => 'Salva codice';
+
+  @override
+  String get privateChatsChange => 'Cambia codice';
+
+  @override
+  String get privateChatsRemove => 'Rimuovi codice';
+
+  @override
+  String get privateChatsRemoveNote =>
+      'Tutte le chat private tornano chat normali.';
+
+  @override
+  String get privateChatsForgot => 'Codice dimenticato?';
+
+  @override
+  String get privateChatsForgotTitle => 'Eliminare le chat private?';
+
+  @override
+  String get privateChatsForgotBody =>
+      'Senza il codice non si possono più mostrare. Questo elimina tutte le chat private su questo dispositivo, insieme al codice. Non raggiunge la copia dell\'altra persona né un backup già caricato sul server. I nuovi messaggi delle stesse persone arrivano in chat normali.';
+
+  @override
+  String get privateChatsForgotConfirm => 'Elimina chat private';
+
+  @override
+  String privateChatsTooShort(int count) {
+    return 'Almeno $count caratteri.';
+  }
+
+  @override
+  String get privateChatsMismatch => 'I due codici non coincidono.';
+
+  @override
+  String get privateChatsSameAsUnlock =>
+      'Scegli un codice diverso da quello del blocco schermo.';
+
+  @override
+  String get privateChatsWrongCode => 'Codice errato.';
+
+  @override
+  String get privateChatsSaved => 'Codice salvato.';
+
+  @override
+  String get privateChatsRemoved =>
+      'Codice rimosso. Le chat private tornano chat normali.';
+
+  @override
+  String get privateChatsDeleted => 'Chat private eliminate.';
+
+  @override
+  String get privateChatsEnterCode => 'Inserisci codice';
+
+  @override
+  String get privateChatsShow => 'Mostra';
+
+  @override
+  String get chatsShowPrivate => 'Mostra chat private';
+
+  @override
+  String get chatsHidePrivate => 'Nascondi chat private';
+
+  @override
+  String get chatsMakePrivate => 'Rendi privata';
+
+  @override
+  String get chatsMakePrivateNote =>
+      'Nascosta finché non viene inserito il tuo codice per le chat private. Solo su questo dispositivo.';
+
+  @override
+  String get chatsMakeOrdinary => 'Togli dalle chat private';
+
+  @override
+  String get chatsMadePrivate => 'Spostata nelle chat private.';
+
+  @override
+  String get chatsPrivateLabel => 'Chat privata';
+
+  @override
+  String get chatPrivateLockedBody =>
+      'Questa chat è privata. Inserisci il tuo codice per vederla.';
+
+  @override
   String get chatsGroupFallbackName => 'Gruppo';
 
   @override

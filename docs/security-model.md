@@ -1433,6 +1433,53 @@ already signed in elsewhere — the wipe happens at the sign-in the code is type
 into, and that device's local archive stays sealed but present. A remote kill
 switch is a different feature, and the screen does not imply this is one.
 
+## Private chats
+
+**What they are for.** A chat marked private is left out of the chat list, the
+message search and the list of disappearing-timer exceptions, and the chat
+screen shows a lock instead of it, however that screen is reached: from the
+list, a contact, a profile. They come back for one visit when the account's
+private-chats code is typed, and go back into hiding whenever the app is left,
+whether or not a screen lock is set. The threat is somebody holding the
+unlocked phone.
+
+**What they are not.** A second encryption. The flag lives on the conversation
+in the encrypted archive, beside the chat it hides, so at rest a private chat is
+protected by exactly what protects every other chat: the archive key, behind
+the app lock where one is set. The settings screen says so in the same note
+that explains the feature, because that half is the one people would otherwise
+get wrong.
+
+**The code is hashed, like the duress code.** Salt and Argon2id, per account,
+in the keystore, never as itself, compared in constant time. It must be at
+least four characters and is refused when it is the screen-lock passcode,
+which anybody who has watched the phone being unlocked has seen. Changing it
+takes the current one. Each wrong guess costs a key derivation; there is no
+attempt counter, as there is none at the lock screen.
+
+**Hidden does not wait for the keystore.** Whether a chat is hidden depends on
+the flag and on whether the code was typed in this visit, not on whether a code
+is known yet. A chat restored from the archive is hidden from its first frame,
+and a backup that brings private chats to a phone without the code brings them
+hidden; setting a code there shows them.
+
+**An emptied private chat keeps its flag.** The list that goes into the archive
+leaves out direct chats with no messages, which are only contacts. A private
+one is kept: otherwise a chat emptied by its timer would lose the flag at the
+next save, and the next message from that person would arrive in the open.
+
+**Removing the code** takes the code, and makes every private chat an ordinary
+chat again. **A forgotten code** costs the private chats: they are deleted from
+this device with the code, after a confirmation that says it cannot reach the
+other side's copy or a backup already on the server. That needs no code,
+because it shows nothing; somebody holding the phone could destroy those chats
+this way, as they could by deleting the app.
+
+**What they do not hide.** The person stays in Contacts, and a call from them
+rings as any call does. Notifications carry nothing in any case, so there is
+nothing in them to hide. The server is never told which chats are private and
+could not be.
+
 ## Two-factor authentication
 
 **It protects the account, not the messages.** The code is checked by the

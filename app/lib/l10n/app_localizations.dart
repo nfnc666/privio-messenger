@@ -2701,6 +2701,192 @@ abstract class AppText {
   /// **'Marked as unread'**
   String get chatsMarkedUnread;
 
+  /// No description provided for @privacyPrivateChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats'**
+  String get privacyPrivateChats;
+
+  /// No description provided for @privateChatsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats are left out of the chat list and the search until you enter this code, and go back into hiding whenever you leave the app. They keep a chat from someone holding your unlocked phone. They are not a second encryption: on the device they are protected by the app lock, like every other chat.'**
+  String get privateChatsNote;
+
+  /// No description provided for @privateChatsCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Code'**
+  String get privateChatsCode;
+
+  /// No description provided for @privateChatsNewCode.
+  ///
+  /// In en, this message translates to:
+  /// **'New code'**
+  String get privateChatsNewCode;
+
+  /// No description provided for @privateChatsCurrentCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Current code'**
+  String get privateChatsCurrentCode;
+
+  /// No description provided for @privateChatsRepeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat the code'**
+  String get privateChatsRepeat;
+
+  /// No description provided for @privateChatsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save code'**
+  String get privateChatsSave;
+
+  /// No description provided for @privateChatsChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change code'**
+  String get privateChatsChange;
+
+  /// No description provided for @privateChatsRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove code'**
+  String get privateChatsRemove;
+
+  /// No description provided for @privateChatsRemoveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Every private chat becomes an ordinary chat again.'**
+  String get privateChatsRemoveNote;
+
+  /// No description provided for @privateChatsForgot.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot the code?'**
+  String get privateChatsForgot;
+
+  /// No description provided for @privateChatsForgotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete private chats?'**
+  String get privateChatsForgotTitle;
+
+  /// No description provided for @privateChatsForgotBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Without the code they cannot be shown again. This deletes every private chat on this device, and the code with them. It cannot reach the other side\'s copy or a backup already on the server. New messages from the same people arrive in ordinary chats.'**
+  String get privateChatsForgotBody;
+
+  /// No description provided for @privateChatsForgotConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete private chats'**
+  String get privateChatsForgotConfirm;
+
+  /// No description provided for @privateChatsTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'At least {count} characters.'**
+  String privateChatsTooShort(int count);
+
+  /// No description provided for @privateChatsMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The two codes differ.'**
+  String get privateChatsMismatch;
+
+  /// No description provided for @privateChatsSameAsUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a code different from your screen lock.'**
+  String get privateChatsSameAsUnlock;
+
+  /// No description provided for @privateChatsWrongCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong code.'**
+  String get privateChatsWrongCode;
+
+  /// No description provided for @privateChatsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Code saved.'**
+  String get privateChatsSaved;
+
+  /// No description provided for @privateChatsRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Code removed. Private chats are ordinary chats again.'**
+  String get privateChatsRemoved;
+
+  /// No description provided for @privateChatsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats deleted.'**
+  String get privateChatsDeleted;
+
+  /// No description provided for @privateChatsEnterCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter code'**
+  String get privateChatsEnterCode;
+
+  /// No description provided for @privateChatsShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get privateChatsShow;
+
+  /// No description provided for @chatsShowPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Show private chats'**
+  String get chatsShowPrivate;
+
+  /// No description provided for @chatsHidePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide private chats'**
+  String get chatsHidePrivate;
+
+  /// No description provided for @chatsMakePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Make private'**
+  String get chatsMakePrivate;
+
+  /// No description provided for @chatsMakePrivateNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden until your private-chats code is entered. Only on this device.'**
+  String get chatsMakePrivateNote;
+
+  /// No description provided for @chatsMakeOrdinary.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from private chats'**
+  String get chatsMakeOrdinary;
+
+  /// No description provided for @chatsMadePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to private chats.'**
+  String get chatsMadePrivate;
+
+  /// No description provided for @chatsPrivateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chat'**
+  String get chatsPrivateLabel;
+
+  /// No description provided for @chatPrivateLockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This chat is private. Enter your code to see it.'**
+  String get chatPrivateLockedBody;
+
   /// No description provided for @chatsGroupFallbackName.
   ///
   /// In en, this message translates to:

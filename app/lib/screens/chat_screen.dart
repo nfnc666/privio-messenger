@@ -21,6 +21,7 @@ import '../media/photo.dart';
 import '../media/photo_source.dart';
 import '../media/voice.dart';
 import '../services/system_settings.dart';
+import '../widgets/private_code_dialog.dart';
 import 'contact_profile_screen.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
@@ -1385,6 +1386,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return ListenableBuilder(
       listenable: state.conversations,
       builder: (context, _) {
+        // A hidden private chat shows nothing of itself here: not its
+        // messages, not its name. However this screen was reached — from a
+        // contact, a profile, a link — the way in is the code. Leaving the app
+        // hides it again, and this screen goes back to the lock with it.
+        if (state.conversations.isHiddenPrivate(widget.accountId)) {
+          return const _PrivateChatLock();
+        }
         final all = state.conversations.messagesWith(widget.accountId);
         // Saved sorts differently from a chat: what was pinned is held at the
         // top, and what was searched for is all that is drawn. A chat is a
@@ -2460,6 +2468,46 @@ class _SavedEmpty extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// What a hidden private chat shows instead of itself.
+class _PrivateChatLock extends StatelessWidget {
+  const _PrivateChatLock();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: Text(text.chatsPrivateLabel),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.xxl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline_rounded, size: 40, color: PrivioColors.textSecondary),
+              const SizedBox(height: PrivioSpacing.md),
+              Text(
+                text.chatPrivateLockedBody,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: PrivioSpacing.xl),
+              FilledButton(
+                key: const Key('private-chat-unlock'),
+                onPressed: () => showPrivateChatsWithCode(context),
+                child: Text(text.privateChatsEnterCode),
+              ),
+            ],
+          ),
         ),
       ),
     );

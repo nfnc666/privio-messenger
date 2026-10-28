@@ -20,6 +20,7 @@ import 'screen_lock_screen.dart';
 import 'security_activity_screen.dart';
 import 'two_factor_screen.dart';
 import 'duress_code_screen.dart';
+import 'private_chats_screen.dart';
 
 /// Privacy and security.
 ///
@@ -262,6 +263,13 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 },
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const DuressCodeScreen()),
+                ),
+              ),
+              SettingsRow(
+                label: text.privacyPrivateChats,
+                value: conversations.hasPrivateChatsCode ? text.privacySet : text.commonOff,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const PrivateChatsScreen()),
                 ),
               ),
               _ScreenShieldRow(controller: state.screenShield),

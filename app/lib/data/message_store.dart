@@ -237,6 +237,14 @@ class Conversation {
   /// as soon as the chat is opened or marked read.
   bool markedUnread = false;
 
+  /// Left out of the chat list, the search and the chat screen until this
+  /// account's private-chats code has been typed.
+  ///
+  /// Local like [pinned]: nobody is told, and the server could not be. It
+  /// lives in the archive with the chat it hides, so at rest it is exactly as
+  /// protected as that chat and no more.
+  bool isPrivate = false;
+
   /// When the other side was last seen typing, or null.
   ///
   /// Deliberately not persisted: "was typing" is only interesting for a few
@@ -299,6 +307,10 @@ abstract interface class MessageStore {
   /// Marks a conversation unread on this device, or takes the mark away.
   /// Returns whether anything changed.
   bool setMarkedUnread(String id, {required bool marked});
+
+  /// Makes a conversation private or ordinary. Returns whether anything
+  /// changed.
+  bool setPrivate(String id, {required bool isPrivate});
 
   /// Marks the other side as typing until [until].
   void setTyping(String id, DateTime? until);
@@ -410,9 +422,13 @@ class InMemoryMessageStore implements MessageStore {
   List<Conversation> conversations() {
     // A group with nothing said in it still belongs in the list — someone who
     // joined by a link has to be able to find it before anyone speaks. An empty
-    // direct conversation is just a contact, and belongs under Contacts.
+    // direct conversation is just a contact, and belongs under Contacts —
+    // unless it is private. That one is kept, because this list is also what
+    // goes into the archive: a private chat emptied by its timer would
+    // otherwise lose the flag at the next save, and the next message from that
+    // person would arrive in the open.
     final all = _conversations.values
-        .where((c) => c.messages.isNotEmpty || c.isGroup)
+        .where((c) => c.messages.isNotEmpty || c.isGroup || c.isPrivate)
         .toList();
     // Pinned first, then most recent, which is the order the chat list shows.
     all.sort((a, b) {
@@ -454,6 +470,7 @@ class InMemoryMessageStore implements MessageStore {
       // refresh quietly undid was a pin that did not work.
       ..pinned = existing.pinned
       ..markedUnread = existing.markedUnread
+      ..isPrivate = existing.isPrivate
       ..typingUntil = existing.typingUntil;
     return _conversations[user.accountId] = replacement;
   }
@@ -495,6 +512,7 @@ class InMemoryMessageStore implements MessageStore {
       ..timerSetBy = existing.timerSetBy
       ..pinned = existing.pinned
       ..markedUnread = existing.markedUnread
+      ..isPrivate = existing.isPrivate
       ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
   }
@@ -565,6 +583,14 @@ class InMemoryMessageStore implements MessageStore {
     final conversation = _conversations[id];
     if (conversation == null || conversation.pinned == pinned) return false;
     conversation.pinned = pinned;
+    return true;
+  }
+
+  @override
+  bool setPrivate(String id, {required bool isPrivate}) {
+    final conversation = _conversations[id];
+    if (conversation == null || conversation.isPrivate == isPrivate) return false;
+    conversation.isPrivate = isPrivate;
     return true;
   }
 

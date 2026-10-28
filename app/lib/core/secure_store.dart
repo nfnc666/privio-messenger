@@ -132,6 +132,13 @@ abstract interface class SecureStore {
   Future<void> setDuressCode(String? code);
   Future<bool> verifyDuressCode(String code);
 
+  /// The code that shows this account's private chats, kept as an Argon2id
+  /// hash like the duress code and never as itself. Per account, because the
+  /// chats it hides are. Null removes it.
+  Future<void> setPrivateChatsCode(String accountId, String? code);
+  Future<bool> hasPrivateChatsCode(String accountId);
+  Future<bool> verifyPrivateChatsCode(String accountId, String code);
+
   /// The key the local message archive is sealed with. Small enough that a
   /// keystore is the right home for it, unlike the archive itself.
   Future<String?> readArchiveKey();
@@ -439,6 +446,25 @@ class KeystoreSecureStore implements SecureStore {
   Future<bool> verifyDuressCode(String code) async =>
       PasscodeVault.matches(code: code, stored: await _read(_duressKey));
 
+  static String _privateChatsKey(String accountId) => 'privio.privateChats.$accountId';
+
+  @override
+  Future<void> setPrivateChatsCode(String accountId, String? code) async => code == null
+      ? _storage.delete(
+          key: _privateChatsKey(accountId),
+          iOptions: _iosOptions,
+          aOptions: _androidOptions,
+        )
+      : _write(_privateChatsKey(accountId), await PasscodeVault.hash(code));
+
+  @override
+  Future<bool> hasPrivateChatsCode(String accountId) async =>
+      await _read(_privateChatsKey(accountId)) != null;
+
+  @override
+  Future<bool> verifyPrivateChatsCode(String accountId, String code) async =>
+      PasscodeVault.matches(code: code, stored: await _read(_privateChatsKey(accountId)));
+
   @override
   Future<bool> verifyPasscode(String passcode) async {
     // Where the archive key is wrapped, checking the passcode *is* opening it:
@@ -704,6 +730,23 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<bool> verifyDuressCode(String code) async =>
       PasscodeVault.matches(code: code, stored: _entries['duress']);
+
+  @override
+  Future<void> setPrivateChatsCode(String accountId, String? code) async {
+    if (code == null) {
+      _entries.remove('privateChats.$accountId');
+    } else {
+      _entries['privateChats.$accountId'] = await PasscodeVault.hash(code);
+    }
+  }
+
+  @override
+  Future<bool> hasPrivateChatsCode(String accountId) async =>
+      _entries.containsKey('privateChats.$accountId');
+
+  @override
+  Future<bool> verifyPrivateChatsCode(String accountId, String code) async =>
+      PasscodeVault.matches(code: code, stored: _entries['privateChats.$accountId']);
 
   /// What this store would still have after a relaunch: the written-down half,
   /// without the passcode and key a running process holds in memory.
