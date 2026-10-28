@@ -1879,6 +1879,16 @@ class AppTextDe extends AppText {
   String get chatCancelEdit => 'Bearbeiten abbrechen';
 
   @override
+  String get chatPollNote =>
+      'Frage, Antworten und Stimmen können nur die Personen in diesem Chat lesen. Jedes Gerät zählt die Stimmen selbst; der Server erfährt nicht einmal, dass es eine Umfrage ist.';
+
+  @override
+  String get chatPollEnd => 'Umfrage beenden';
+
+  @override
+  String get chatPollEnded => 'beendet';
+
+  @override
   String get contactsTitle => 'Kontakte';
 
   @override
@@ -3738,6 +3748,10 @@ class AppTextDe extends AppText {
       'Hier geändert. Die Korrektur ging nicht raus, dort steht noch der alte Text.';
 
   @override
+  String get failurePollActionHereOnly =>
+      'Hier vermerkt. Bei den anderen ist es nicht angekommen, sie sehen die Umfrage noch wie vorher.';
+
+  @override
   String get failureCouldNotCreateGroup =>
       'Die Gruppe konnte nicht erstellt werden';
 
@@ -3927,6 +3941,11 @@ class AppTextDe extends AppText {
 
   @override
   String get chatsPreviewFile => 'Datei';
+
+  @override
+  String chatsPreviewPoll(String question) {
+    return 'Umfrage: $question';
+  }
 
   @override
   String get notificationsPermissionDenied =>
@@ -4505,6 +4524,9 @@ class AppTextDe extends AppText {
 
   @override
   String get attachFile => 'Datei senden';
+
+  @override
+  String get attachPoll => 'Eine Frage stellen';
 
   @override
   String get photoTitle => 'Foto';

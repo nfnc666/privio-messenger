@@ -361,6 +361,20 @@ abstract interface class MessageStore {
     required DateTime editedAt,
   });
 
+  /// Records [accountId]'s whole vote on the poll with [clientId], replacing
+  /// any earlier one; an empty [choices] takes it back. Returns whether
+  /// anything changed. A vote on an ended poll, or one the poll cannot take,
+  /// changes nothing.
+  bool applyPollVote({
+    required String conversationId,
+    required String clientId,
+    required String accountId,
+    required Set<int> choices,
+  });
+
+  /// Ends the poll with [clientId]. Returns whether it was open.
+  bool closePoll({required String conversationId, required String clientId});
+
   /// Drops every message whose timer has run out.
   ///
   /// Returns the messages that went, rather than a count: the caller has to be
@@ -587,6 +601,45 @@ class InMemoryMessageStore implements MessageStore {
     if (message.kind != MessageKind.text || message.body == body) return false;
     conversation.messages[index] = message.copyWith(body: body, editedAt: editedAt);
     return true;
+  }
+
+  @override
+  bool applyPollVote({
+    required String conversationId,
+    required String clientId,
+    required String accountId,
+    required Set<int> choices,
+  }) {
+    final (index, poll) = _openPoll(conversationId, clientId);
+    if (poll == null || !poll.accepts(choices)) return false;
+    final current = poll.choicesOf(accountId);
+    if (current.length == choices.length && current.containsAll(choices)) return false;
+    final conversation = _conversations[conversationId]!;
+    conversation.messages[index] =
+        conversation.messages[index].copyWith(poll: poll.withVote(accountId, choices));
+    return true;
+  }
+
+  @override
+  bool closePoll({required String conversationId, required String clientId}) {
+    final (index, poll) = _openPoll(conversationId, clientId);
+    if (poll == null) return false;
+    final conversation = _conversations[conversationId]!;
+    conversation.messages[index] = conversation.messages[index].copyWith(poll: poll.asClosed());
+    return true;
+  }
+
+  /// The poll behind [clientId] and where it sits, or a null poll when there is
+  /// none or it has ended.
+  (int, ChatPoll?) _openPoll(String conversationId, String clientId) {
+    final messages = _conversations[conversationId]?.messages;
+    if (messages == null) return (-1, null);
+    final index = messages.indexWhere((m) => m.clientId == clientId);
+    if (index == -1) return (-1, null);
+    final message = messages[index];
+    final poll = message.poll;
+    if (message.kind != MessageKind.poll || poll == null || poll.closed) return (index, null);
+    return (index, poll);
   }
 
   @override

@@ -852,6 +852,9 @@
   "chatEditMessage": "Edit",
   "chatEditingMessage": "Editing message",
   "chatCancelEdit": "Cancel editing",
+  "chatPollNote": "Only the people in this chat can read the question, the answers and the votes. Every device counts the votes itself; the server never learns this is a poll.",
+  "chatPollEnd": "End poll",
+  "chatPollEnded": "ended",
   "contactsTitle": "Contacts",
   "contactsSearch": "Search contacts",
   "contactsLastSeen": "@{username} · last seen {when}",
@@ -1780,6 +1783,7 @@
   "failureCouldNotSetPicture": "Could not set the picture",
   "failureDeletedHereOnly": "Deleted here. The request to delete it there did not go out.",
   "failureEditedHereOnly": "Changed here. The correction did not reach the other side, so they still see the old text.",
+  "failurePollActionHereOnly": "Recorded here. It did not reach the others, so they still see the poll as it was.",
   "failureCouldNotCreateGroup": "Could not create the group",
   "failureNotAGroupLink": "That does not look like a Privio group link.",
   "failureGroupNotFound": "That group does not exist, or the link is wrong.",
@@ -1846,6 +1850,14 @@
   "chatsPreviewVideo": "Video",
   "chatsPreviewVoice": "Voice message",
   "chatsPreviewFile": "File",
+  "chatsPreviewPoll": "Poll: {question}",
+  "@chatsPreviewPoll": {
+    "placeholders": {
+      "question": {
+        "type": "String"
+      }
+    }
+  },
   "notificationsPermissionDenied": "Notifications are turned off for Privio in your system settings. Messages still arrive while Privio is open — you will not be told about them, and a call will not ring.",
   "notificationsPermissionNotAsked": "Privio has not been allowed to notify you yet.",
   "failureCallMediaNotEncrypted": "The call was ended: the other side asked for a connection Privio cannot encrypt. Privio never falls back to an unencrypted call.",
@@ -2111,6 +2123,7 @@
   "composerCamera": "Camera",
   "attachPhotos": "Choose photos",
   "attachFile": "Send a file",
+  "attachPoll": "Ask a question",
   "photoTitle": "Photo",
   "photoPreviewOne": "Send photo",
   "photoPreviewMany": "Send {count} photos",

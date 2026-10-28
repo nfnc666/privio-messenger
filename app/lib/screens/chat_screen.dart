@@ -14,6 +14,7 @@ import '../core/sticker_controller.dart';
 import '../crypto/safety_number.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
+import '../models/channel.dart';
 import '../models/models.dart';
 import '../media/attachment.dart' show CustomEmojiRef;
 import '../media/photo.dart';
@@ -40,6 +41,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/new_poll_dialog.dart';
 import '../widgets/scrub_notice.dart';
 import '../widgets/search_field.dart';
 import '../widgets/sticker_picker.dart';
@@ -535,6 +537,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: Text(text.chatEditMessage),
                 onTap: () => Navigator.of(sheetContext).pop('edit'),
               ),
+            if (message.isMine &&
+                message.kind == MessageKind.poll &&
+                !(message.poll?.closed ?? true) &&
+                !queued)
+              ListTile(
+                leading: const Icon(Icons.how_to_vote_outlined),
+                title: Text(text.chatPollEnd),
+                onTap: () => Navigator.of(sheetContext).pop('endpoll'),
+              ),
             if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -589,6 +600,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _replyingTo = message;
         _editing = null;
       });
+      return;
+    }
+    if (action == 'endpoll') {
+      await state.conversations.endPoll(widget.accountId, message);
       return;
     }
     if (action == 'edit') {
@@ -863,6 +878,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               title: Text(text.attachFile),
               onTap: () => Navigator.of(sheetContext).pop('file'),
             ),
+            // Not in Saved: a poll there would be a question with nobody to
+            // answer it.
+            if (!_isSaved(PrivioScope.of(context)))
+              ListTile(
+                leading: const Icon(Icons.poll_outlined),
+                title: Text(text.attachPoll),
+                onTap: () => Navigator.of(sheetContext).pop('poll'),
+              ),
             const Divider(height: 1, color: PrivioColors.border),
             // The timer's control lives here now that the bar is three things
             // wide. Its *state* does not: when it is on, the chip in the field
@@ -886,8 +909,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
     if (choice == null || !mounted) return;
     if (choice == 'photos') return _pickPhotos();
+    if (choice == 'poll') return _askPoll();
     if (choice == 'timer') return _chooseTimer(PrivioScope.of(context));
     return _attachFile();
+  }
+
+  /// Writes a poll and sends it into this chat.
+  Future<void> _askPoll() async {
+    final draft = await showDialog<ChannelPollDraft>(
+      context: context,
+      builder: (dialogContext) => NewPollDialog(
+        note: AppText.of(dialogContext).chatPollNote,
+        maxOptions: ChatPoll.maxOptions,
+        maxOptionLength: ChatPoll.maxOptionLength,
+        maxQuestionLength: ChatPoll.maxQuestionLength,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    await PrivioScope.of(context).conversations.sendPoll(
+          widget.accountId,
+          question: draft.question,
+          options: draft.options,
+          maxChoices: draft.maxChoices,
+        );
+    _scrollToEnd();
   }
 
   /// Opens the camera, and nothing else. The permission is asked for here, at
@@ -1631,6 +1676,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   if (!_selected.remove(id)) _selected.add(id);
                                 }),
                         selected: _selected.contains(message.clientId ?? message.id),
+                        myAccountId: state.conversations.accountId,
+                        // A poll still in the outbox has not been asked yet,
+                        // so there is nothing to vote on.
+                        onVote: message.kind != MessageKind.poll ||
+                                (message.clientId != null &&
+                                    state.conversations.isQueued(message.clientId!)) ||
+                                message.state == DeliveryState.sending ||
+                                message.state == DeliveryState.failed
+                            ? null
+                            : (choices) => unawaited(
+                                  state.conversations.vote(widget.accountId, message, choices),
+                                ),
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),

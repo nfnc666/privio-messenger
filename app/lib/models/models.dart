@@ -161,6 +161,10 @@ enum MessageKind {
   /// which is also why it carries no sender and no client id.
   notice,
 
+  /// A poll: the question is the body, the answers and votes are in
+  /// [Message.poll].
+  poll,
+
   /// Something arrived and could not be read.
   ///
   /// Its own kind rather than a [notice], because it is not housekeeping: a
@@ -168,6 +172,112 @@ enum MessageKind {
   /// worse than saying so is not saying so — a conversation with a silent hole
   /// in it reads as a conversation where nobody answered.
   undelivered,
+}
+
+/// A poll inside a chat or a group.
+///
+/// Unlike a channel poll, nothing about it is counted by the server: the
+/// question and the answers travel sealed in the message that asks, each vote
+/// travels sealed to every member, and every device keeps its own tally. The
+/// server relays bytes it cannot read and never learns that a poll exists.
+@immutable
+class ChatPoll {
+  const ChatPoll({
+    required this.options,
+    this.maxChoices = 1,
+    this.votes = const {},
+    this.closed = false,
+  });
+
+  static const int minOptions = 2;
+  static const int maxOptions = 12;
+  static const int maxOptionLength = 100;
+  static const int maxQuestionLength = 300;
+
+  /// Whether a poll as received is one this app will show. Anything outside the
+  /// limits is dropped rather than trimmed: a poll with an option quietly cut
+  /// off would ask a different question than the one that was sent.
+  static bool isValid(String question, List<String> options, int maxChoices) =>
+      question.trim().isNotEmpty &&
+      question.length <= maxQuestionLength &&
+      options.length >= minOptions &&
+      options.length <= maxOptions &&
+      options.every((o) => o.trim().isNotEmpty && o.length <= maxOptionLength) &&
+      maxChoices >= 1 &&
+      maxChoices <= options.length;
+
+  final List<String> options;
+  final int maxChoices;
+
+  /// Who chose what: account id to the option indexes they picked. One entry
+  /// per person, replaced when they change their mind, removed when they take
+  /// their vote back — the same shape as a reaction, for the same reason.
+  final Map<String, Set<int>> votes;
+
+  /// Ended by the person who asked. Votes that arrive afterwards are dropped.
+  final bool closed;
+
+  bool get takesSeveral => maxChoices > 1;
+  int get voters => votes.length;
+  int countFor(int index) => votes.values.where((chosen) => chosen.contains(index)).length;
+  Set<int> choicesOf(String accountId) => votes[accountId] ?? const {};
+
+  /// Against the busiest option, as for a channel poll: with several answers
+  /// per person the counts add up to more than the people.
+  double shareOf(int index) {
+    var highest = 0;
+    for (var i = 0; i < options.length; i++) {
+      final count = countFor(i);
+      if (count > highest) highest = count;
+    }
+    return highest == 0 ? 0 : countFor(index) / highest;
+  }
+
+  /// Whether [choices] is a vote this poll can take: in range, no repeats, not
+  /// more than allowed. Empty is allowed and means "take my vote back".
+  bool accepts(Iterable<int> choices) {
+    final list = choices.toList();
+    return list.length <= maxChoices &&
+        list.toSet().length == list.length &&
+        list.every((i) => i >= 0 && i < options.length);
+  }
+
+  ChatPoll withVote(String accountId, Set<int> choices) => ChatPoll(
+        options: options,
+        maxChoices: maxChoices,
+        closed: closed,
+        votes: {
+          for (final entry in votes.entries)
+            if (entry.key != accountId) entry.key: entry.value,
+          if (choices.isNotEmpty) accountId: Set.unmodifiable(choices),
+        },
+      );
+
+  ChatPoll asClosed() =>
+      ChatPoll(options: options, maxChoices: maxChoices, votes: votes, closed: true);
+
+  Map<String, dynamic> toJson() => {
+        'options': options,
+        'maxChoices': maxChoices,
+        if (votes.isNotEmpty)
+          'votes': {for (final entry in votes.entries) entry.key: entry.value.toList()..sort()},
+        if (closed) 'closed': true,
+      };
+
+  static ChatPoll? fromJson(Map<String, dynamic>? raw) {
+    if (raw == null) return null;
+    final options = (raw['options'] as List<dynamic>?)?.whereType<String>().toList();
+    if (options == null || options.length < minOptions) return null;
+    return ChatPoll(
+      options: options,
+      maxChoices: raw['maxChoices'] as int? ?? 1,
+      closed: raw['closed'] as bool? ?? false,
+      votes: {
+        for (final entry in (raw['votes'] as Map<String, dynamic>? ?? const {}).entries)
+          entry.key: Set.unmodifiable((entry.value as List<dynamic>).whereType<int>()),
+      },
+    );
+  }
 }
 
 /// An attachment a message points at.
@@ -378,6 +488,7 @@ class Message {
     this.reactionStickers = const {},
     this.pinned = false,
     this.editedAt,
+    this.poll,
   });
 
   final String id;
@@ -496,6 +607,9 @@ class Message {
 
   bool get isEdited => editedAt != null;
 
+  /// Set when this message *is* a poll; the question is in [body].
+  final ChatPoll? poll;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -507,6 +621,7 @@ class Message {
     /// its spans point into the old text and would no longer fit the new one.
     String? body,
     DateTime? editedAt,
+    ChatPoll? poll,
     DeliveryState? state,
     Attachment? attachment,
     DateTime? expiresAt,
@@ -547,6 +662,7 @@ class Message {
         customEmoji: body != null ? null : customEmoji,
         pinned: pinned ?? this.pinned,
         editedAt: editedAt ?? this.editedAt,
+        poll: poll ?? this.poll,
       );
 }
 
@@ -571,6 +687,9 @@ enum ChatPreviewKind {
   video,
   voice,
   file,
+
+  /// A poll; [ChatPreview.text] is its question.
+  poll,
 }
 
 @immutable

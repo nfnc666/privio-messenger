@@ -230,7 +230,11 @@ class MessagingService {
     // already went to every other device of this account, and a sync copy
     // would be the same payload reaching the same devices a second time.
     if (!toSelf &&
-        (!payload.isControl || payload.isDeletion || payload.isEdit || payload.isTimerChange)) {
+        (!payload.isControl ||
+            payload.isDeletion ||
+            payload.isEdit ||
+            payload.isPollAction ||
+            payload.isTimerChange)) {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,

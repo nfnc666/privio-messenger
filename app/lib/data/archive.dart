@@ -406,6 +406,7 @@ abstract final class ArchiveCodec {
                   if (message.pinned) 'pinned': true,
                   if (message.editedAt != null)
                     'editedAt': message.editedAt!.toIso8601String(),
+                  if (message.poll != null) 'poll': message.poll!.toJson(),
                   if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
@@ -528,6 +529,7 @@ abstract final class ArchiveCodec {
             replyPreview: message['replyPreview'] as String?,
             replySender: message['replySender'] as String?,
             pinned: message['pinned'] as bool? ?? false,
+            poll: ChatPoll.fromJson(message['poll'] as Map<String, dynamic>?),
             editedAt: message['editedAt'] == null
                 ? null
                 : DateTime.parse(message['editedAt'] as String),

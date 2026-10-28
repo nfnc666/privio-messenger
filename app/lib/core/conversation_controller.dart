@@ -344,6 +344,9 @@ class ConversationController extends ChangeNotifier {
     }
     final notice = message.notice;
     if (notice != null) return ChatPreview(ChatPreviewKind.notice, notice: notice);
+    if (message.kind == MessageKind.poll) {
+      return ChatPreview(ChatPreviewKind.poll, text: message.body);
+    }
     if (message.body.isNotEmpty) {
       return ChatPreview(ChatPreviewKind.body, text: message.body);
     }
@@ -1754,6 +1757,167 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Polls in chats and groups ---------------------------------------------
+
+  /// Asks a question in a chat or a group.
+  ///
+  /// The question and the answers are sealed like any message, and so is every
+  /// vote: each device keeps its own tally and the server never learns that a
+  /// poll exists. Returns false when the poll is outside the limits, which the
+  /// screen that builds it already enforces.
+  Future<bool> sendPoll(
+    String conversationId, {
+    required String question,
+    required List<String> options,
+    int maxChoices = 1,
+  }) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final asked = question.trim();
+    final answers = [for (final option in options) option.trim()];
+    if (!ChatPoll.isValid(asked, answers, maxChoices)) return false;
+
+    final clientId = _newClientId();
+    final timer = _effectiveTimer(conversation);
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: asked,
+        kind: MessageKind.poll,
+        poll: ChatPoll(options: List.unmodifiable(answers), maxChoices: maxChoices),
+        sentAt: DateTime.now(),
+        isMine: true,
+        state: DeliveryState.sending,
+      ),
+    );
+    notifyListeners();
+
+    final payload = MessagePayload.poll(
+      body: asked,
+      poll: ChatPollPayload.ask(options: answers, maxChoices: maxChoices),
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      clientId: clientId,
+    );
+    try {
+      if (conversation.isGroup) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
+      }
+      _markSent(conversationId, clientId, timer);
+      _failure = null;
+      _persist();
+    } on Object catch (failure) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
+      _failure = switch (failure) {
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
+      };
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Casts this account's whole vote on a poll, replacing any earlier one. An
+  /// empty [choices] takes the vote back.
+  Future<void> vote(String conversationId, Message pollMessage, Set<int> choices) async {
+    final me = accountId;
+    final clientId = pollMessage.clientId;
+    if (me == null || clientId == null) return;
+    final changed = _services.store.applyPollVote(
+      conversationId: conversationId,
+      clientId: clientId,
+      accountId: me,
+      choices: choices,
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+    final sorted = choices.toList()..sort();
+    await _sendPollAction(
+      conversationId,
+      ChatPollPayload.vote(target: clientId, choices: List.unmodifiable(sorted)),
+    );
+  }
+
+  /// Ends a poll this account asked. Votes that arrive afterwards are dropped
+  /// on every device that has received the end.
+  Future<void> endPoll(String conversationId, Message pollMessage) async {
+    final clientId = pollMessage.clientId;
+    if (!pollMessage.isMine || clientId == null) return;
+    if (!_services.store.closePoll(conversationId: conversationId, clientId: clientId)) return;
+    _persist();
+    notifyListeners();
+    await _sendPollAction(conversationId, ChatPollPayload.end(clientId));
+  }
+
+  Future<void> _sendPollAction(String conversationId, ChatPollPayload action) async {
+    final payload = MessagePayload.pollAction(action);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object catch (failure) {
+      _noteIdentityChange(failure);
+      _failure = const Failure(FailureKind.pollActionHereOnly);
+      notifyListeners();
+    }
+  }
+
+  /// Applies a vote or an end somebody sent.
+  ///
+  /// A vote counts for whoever the session says sent it — never for a name the
+  /// payload claims — so nobody can vote for somebody else. Only the person who
+  /// asked may end a poll, checked the same way as a deletion.
+  void _applyPollAction(
+    String conversationId,
+    MessagePayload payload, {
+    required String byAccountId,
+    required bool fromOwnDevice,
+  }) {
+    final action = payload.poll;
+    final clientId = action?.target;
+    if (action == null || clientId == null || clientId.isEmpty) return;
+    final target = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.clientId == clientId)
+        .firstOrNull;
+    if (target == null || target.kind != MessageKind.poll) return;
+
+    final bool changed;
+    if (action.isEnd) {
+      if (fromOwnDevice ? !target.isMine : target.isMine) return;
+      if (!fromOwnDevice &&
+          target.senderAccountId != null &&
+          target.senderAccountId != byAccountId) {
+        return;
+      }
+      changed = _services.store.closePoll(conversationId: conversationId, clientId: clientId);
+    } else {
+      final voter = fromOwnDevice ? (accountId ?? byAccountId) : byAccountId;
+      changed = _services.store.applyPollVote(
+        conversationId: conversationId,
+        clientId: clientId,
+        accountId: voter,
+        choices: (action.choices ?? const <int>[]).toSet(),
+      );
+    }
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+  }
+
   /// Drops the decrypted bytes of a deleted message's file.
   ///
   /// The archive is sealed and the ciphertext on the server expires on its own,
@@ -1897,6 +2061,8 @@ class ConversationController extends ChangeNotifier {
       // the word "Sticker" anyway, because it is the thing that was sent.
       MessageKind.sticker => 'Sticker',
       MessageKind.deleted => 'Deleted message',
+      // Never reached: a poll's question is its body.
+      MessageKind.poll => 'Poll',
       // Never reached: a notice always has a body, and nothing replies to one.
       MessageKind.notice || MessageKind.undelivered => '',
       MessageKind.text => '',
@@ -3020,6 +3186,15 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
+    if (incoming.payload.isPollAction) {
+      _applyPollAction(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: incoming.senderAccountId == accountId,
+      );
+      return;
+    }
     if (incoming.payload.isEdit) {
       _applyEdit(
         incoming.groupId ?? incoming.senderAccountId,
@@ -3144,6 +3319,7 @@ class ConversationController extends ChangeNotifier {
               )
             : null,
         sticker: _stickerIn(payload),
+        poll: _pollIn(payload),
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3172,6 +3348,15 @@ class ConversationController extends ChangeNotifier {
     }
     // A correction made on another of this account's devices, for the same
     // reason: the phone and the laptop must not show two versions of one line.
+    if (payload.isPollAction) {
+      _applyPollAction(
+        sync.conversationId,
+        payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: true,
+      );
+      return;
+    }
     if (payload.isEdit) {
       _applyEdit(
         sync.conversationId,
@@ -3244,6 +3429,7 @@ class ConversationController extends ChangeNotifier {
               )
             : null,
         sticker: _stickerIn(payload),
+        poll: _pollIn(payload),
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3256,10 +3442,22 @@ class ConversationController extends ChangeNotifier {
   /// that rendered as a bubble on one's own other device and a picture on
   /// everybody else's would be exactly that bug again.
   static MessageKind _kindOf(MessagePayload payload) {
+    // A poll this app will not show is filed as its question, as an older
+    // build would file it, rather than as a poll with nothing to answer.
+    if (_pollIn(payload) != null) return MessageKind.poll;
     if (payload.isSticker) return MessageKind.sticker;
     if (payload.isVoice) return MessageKind.voice;
     if (payload.isMedia) return _kindFor(payload.mediaType!);
     return MessageKind.text;
+  }
+
+  /// The poll a payload asks, if it is one this app will show.
+  static ChatPoll? _pollIn(MessagePayload payload) {
+    final poll = payload.poll;
+    if (!payload.isPoll || poll == null) return null;
+    final options = poll.options!;
+    if (!ChatPoll.isValid(payload.body, options, poll.maxChoices)) return null;
+    return ChatPoll(options: List.unmodifiable(options), maxChoices: poll.maxChoices);
   }
 
   bool _hasMessageWithClientId(String conversationId, String clientId) =>
@@ -3308,6 +3506,7 @@ class ConversationController extends ChangeNotifier {
             )
           : null,
       sticker: _stickerIn(payload),
+      poll: _pollIn(payload),
       customEmoji: payload.customEmoji,
     );
   }

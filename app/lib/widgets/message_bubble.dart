@@ -15,6 +15,7 @@ import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
 import 'avatar.dart';
+import 'chat_poll_card.dart';
 
 /// One message in a conversation.
 ///
@@ -31,7 +32,15 @@ class MessageBubble extends StatelessWidget {
     this.highlighted = false,
     this.selected = false,
     this.chatWith,
+    this.myAccountId,
+    this.onVote,
   });
+
+  /// This account, to show which answers of a poll it picked.
+  final String? myAccountId;
+
+  /// Casts this account's vote on a poll. Null where it cannot vote.
+  final ValueChanged<Set<int>>? onVote;
 
   final Message message;
 
@@ -182,6 +191,15 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ],
+              )
+            else if (message.kind == MessageKind.poll && message.poll != null)
+              ChatPollCard(
+                question: message.body,
+                poll: message.poll!,
+                myChoices: myAccountId == null
+                    ? const {}
+                    : message.poll!.choicesOf(myAccountId!),
+                onVote: onVote,
               )
             else if (message.isVoice)
               // A voice message renders itself: the waveform and the duration

@@ -21,6 +21,7 @@ String previewWords(AppText text, ChatPreview preview) => switch (preview.kind) 
       ChatPreviewKind.video => text.chatsPreviewVideo,
       ChatPreviewKind.voice => text.chatsPreviewVoice,
       ChatPreviewKind.file => text.chatsPreviewFile,
+      ChatPreviewKind.poll => text.chatsPreviewPoll(preview.text ?? ''),
     };
 
 /// When the last message arrived, written the way the reader's language writes

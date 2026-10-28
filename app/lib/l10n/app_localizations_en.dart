@@ -1867,6 +1867,16 @@ class AppTextEn extends AppText {
   String get chatCancelEdit => 'Cancel editing';
 
   @override
+  String get chatPollNote =>
+      'Only the people in this chat can read the question, the answers and the votes. Every device counts the votes itself; the server never learns this is a poll.';
+
+  @override
+  String get chatPollEnd => 'End poll';
+
+  @override
+  String get chatPollEnded => 'ended';
+
+  @override
   String get contactsTitle => 'Contacts';
 
   @override
@@ -3704,6 +3714,10 @@ class AppTextEn extends AppText {
       'Changed here. The correction did not reach the other side, so they still see the old text.';
 
   @override
+  String get failurePollActionHereOnly =>
+      'Recorded here. It did not reach the others, so they still see the poll as it was.';
+
+  @override
   String get failureCouldNotCreateGroup => 'Could not create the group';
 
   @override
@@ -3888,6 +3902,11 @@ class AppTextEn extends AppText {
 
   @override
   String get chatsPreviewFile => 'File';
+
+  @override
+  String chatsPreviewPoll(String question) {
+    return 'Poll: $question';
+  }
 
   @override
   String get notificationsPermissionDenied =>
@@ -4463,6 +4482,9 @@ class AppTextEn extends AppText {
 
   @override
   String get attachFile => 'Send a file';
+
+  @override
+  String get attachPoll => 'Ask a question';
 
   @override
   String get photoTitle => 'Photo';

@@ -1884,6 +1884,16 @@ class AppTextFr extends AppText {
   String get chatCancelEdit => 'Annuler la modification';
 
   @override
+  String get chatPollNote =>
+      'Seules les personnes de cette discussion peuvent lire la question, les réponses et les votes. Chaque appareil compte les votes lui-même ; le serveur ne sait même pas qu\'il s\'agit d\'un sondage.';
+
+  @override
+  String get chatPollEnd => 'Clore le sondage';
+
+  @override
+  String get chatPollEnded => 'clos';
+
+  @override
   String get contactsTitle => 'Contacts';
 
   @override
@@ -3738,6 +3748,10 @@ class AppTextFr extends AppText {
       'Modifié ici. La correction n\'est pas partie, l\'ancien texte reste affiché de l\'autre côté.';
 
   @override
+  String get failurePollActionHereOnly =>
+      'Enregistré ici. Cela n\'est pas parvenu aux autres, qui voient encore le sondage tel qu\'il était.';
+
+  @override
   String get failureCouldNotCreateGroup => 'Impossible de créer le groupe';
 
   @override
@@ -3924,6 +3938,11 @@ class AppTextFr extends AppText {
 
   @override
   String get chatsPreviewFile => 'Fichier';
+
+  @override
+  String chatsPreviewPoll(String question) {
+    return 'Sondage : $question';
+  }
 
   @override
   String get notificationsPermissionDenied =>
@@ -4503,6 +4522,9 @@ class AppTextFr extends AppText {
 
   @override
   String get attachFile => 'Envoyer un fichier';
+
+  @override
+  String get attachPoll => 'Poser une question';
 
   @override
   String get photoTitle => 'Photo';

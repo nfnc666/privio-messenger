@@ -46,6 +46,7 @@ enum FailureKind {
   couldNotSetPicture,
   deletedHereOnly,
   editedHereOnly,
+  pollActionHereOnly,
 
   // Groups.
   couldNotCreateGroup,

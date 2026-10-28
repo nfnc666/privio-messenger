@@ -3193,6 +3193,24 @@ abstract class AppText {
   /// **'Cancel editing'**
   String get chatCancelEdit;
 
+  /// No description provided for @chatPollNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the people in this chat can read the question, the answers and the votes. Every device counts the votes itself; the server never learns this is a poll.'**
+  String get chatPollNote;
+
+  /// No description provided for @chatPollEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End poll'**
+  String get chatPollEnd;
+
+  /// No description provided for @chatPollEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'ended'**
+  String get chatPollEnded;
+
   /// No description provided for @contactsTitle.
   ///
   /// In en, this message translates to:
@@ -6373,6 +6391,12 @@ abstract class AppText {
   /// **'Changed here. The correction did not reach the other side, so they still see the old text.'**
   String get failureEditedHereOnly;
 
+  /// No description provided for @failurePollActionHereOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded here. It did not reach the others, so they still see the poll as it was.'**
+  String get failurePollActionHereOnly;
+
   /// No description provided for @failureCouldNotCreateGroup.
   ///
   /// In en, this message translates to:
@@ -6672,6 +6696,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'File'**
   String get chatsPreviewFile;
+
+  /// No description provided for @chatsPreviewPoll.
+  ///
+  /// In en, this message translates to:
+  /// **'Poll: {question}'**
+  String chatsPreviewPoll(String question);
 
   /// No description provided for @notificationsPermissionDenied.
   ///
@@ -7644,6 +7674,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Send a file'**
   String get attachFile;
+
+  /// No description provided for @attachPoll.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a question'**
+  String get attachPoll;
 
   /// No description provided for @photoTitle.
   ///
