@@ -34,6 +34,8 @@ extension FailureText on Failure {
         FailureKind.notAnImage => text.failureNotAnImage,
         FailureKind.couldNotSetPicture => text.failureCouldNotSetPicture,
         FailureKind.deletedHereOnly => text.failureDeletedHereOnly,
+        FailureKind.editedHereOnly => text.failureEditedHereOnly,
+        FailureKind.pollActionHereOnly => text.failurePollActionHereOnly,
         FailureKind.couldNotCreateGroup => text.failureCouldNotCreateGroup,
         FailureKind.notAGroupLink => text.failureNotAGroupLink,
         FailureKind.groupNotFound => text.failureGroupNotFound,

@@ -1561,6 +1561,182 @@ class AppTextEn extends AppText {
   String get chatsPinNote => 'Only on this device. Nothing is sent.';
 
   @override
+  String get chatsMarkUnread => 'Mark as unread';
+
+  @override
+  String get chatsMarkRead => 'Mark as read';
+
+  @override
+  String get chatsMarkNote => 'Only on this device. Nothing is sent.';
+
+  @override
+  String get chatsMarkReadReceiptsNote =>
+      'Read receipts go out, as when you open the chat.';
+
+  @override
+  String get chatsMarkedUnread => 'Marked as unread';
+
+  @override
+  String get privacyPrivateChats => 'Private chats';
+
+  @override
+  String get privateChatsNote =>
+      'Private chats are left out of the chat list and the search until you enter this code, and go back into hiding whenever you leave the app. They keep a chat from someone holding your unlocked phone. They are not a second encryption: on the device they are protected by the app lock, like every other chat.';
+
+  @override
+  String get privateChatsCode => 'Code';
+
+  @override
+  String get privateChatsNewCode => 'New code';
+
+  @override
+  String get privateChatsCurrentCode => 'Current code';
+
+  @override
+  String get privateChatsRepeat => 'Repeat the code';
+
+  @override
+  String get privateChatsSave => 'Save code';
+
+  @override
+  String get privateChatsChange => 'Change code';
+
+  @override
+  String get privateChatsRemove => 'Remove code';
+
+  @override
+  String get privateChatsRemoveNote =>
+      'Every private chat becomes an ordinary chat again.';
+
+  @override
+  String get privateChatsForgot => 'Forgot the code?';
+
+  @override
+  String get privateChatsForgotTitle => 'Delete private chats?';
+
+  @override
+  String get privateChatsForgotBody =>
+      'Without the code they cannot be shown again. This deletes every private chat on this device, and the code with them. It cannot reach the other side\'s copy or a backup already on the server. New messages from the same people arrive in ordinary chats.';
+
+  @override
+  String get privateChatsForgotConfirm => 'Delete private chats';
+
+  @override
+  String privateChatsTooShort(int count) {
+    return 'At least $count characters.';
+  }
+
+  @override
+  String get privateChatsMismatch => 'The two codes differ.';
+
+  @override
+  String get privateChatsSameAsUnlock =>
+      'Choose a code different from your screen lock.';
+
+  @override
+  String get privateChatsWrongCode => 'Wrong code.';
+
+  @override
+  String get privateChatsSaved => 'Code saved.';
+
+  @override
+  String get privateChatsRemoved =>
+      'Code removed. Private chats are ordinary chats again.';
+
+  @override
+  String get privateChatsDeleted => 'Private chats deleted.';
+
+  @override
+  String get privateChatsEnterCode => 'Enter code';
+
+  @override
+  String get privateChatsShow => 'Show';
+
+  @override
+  String get chatsShowPrivate => 'Show private chats';
+
+  @override
+  String get chatsHidePrivate => 'Hide private chats';
+
+  @override
+  String get chatsMakePrivate => 'Make private';
+
+  @override
+  String get chatsMakePrivateNote =>
+      'Hidden until your private-chats code is entered. Only on this device.';
+
+  @override
+  String get chatsMakeOrdinary => 'Remove from private chats';
+
+  @override
+  String get chatsMadePrivate => 'Moved to private chats.';
+
+  @override
+  String get chatsPrivateLabel => 'Private chat';
+
+  @override
+  String get chatPrivateLockedBody =>
+      'This chat is private. Enter your code to see it.';
+
+  @override
+  String get locationTitle => 'Location';
+
+  @override
+  String get chatsPreviewLocation => 'Location';
+
+  @override
+  String locationAccuracy(int meters) {
+    return 'within $meters m';
+  }
+
+  @override
+  String get locationOpenInMaps => 'Open in maps';
+
+  @override
+  String get locationOpenTitle => 'Open in your maps app?';
+
+  @override
+  String get locationOpenNote =>
+      'Your maps app, and the map service behind it, will see this place.';
+
+  @override
+  String get locationOpen => 'Open';
+
+  @override
+  String get locationCopy => 'Copy';
+
+  @override
+  String get locationNoMapsApp => 'No app on this phone can open a place.';
+
+  @override
+  String get locationSendTitle => 'Send your location?';
+
+  @override
+  String get locationSendNote =>
+      'Your current position as two numbers, encrypted like any message. No map is loaded, so no map service learns where you are.';
+
+  @override
+  String get locationSend => 'Send';
+
+  @override
+  String get locationFinding => 'Finding your position…';
+
+  @override
+  String get locationDenied =>
+      'Privio may not use your location. You can allow it in the system settings.';
+
+  @override
+  String get locationUnavailable =>
+      'No position right now. Is location turned on?';
+
+  @override
+  String get privacyShareLocation => 'Share location';
+
+  @override
+  String get privacyShareLocationNote =>
+      'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.';
+
+  @override
   String get chatsGroupFallbackName => 'Group';
 
   @override
@@ -1660,6 +1836,9 @@ class AppTextEn extends AppText {
 
   @override
   String get bubbleMessageDeleted => 'This message was deleted';
+
+  @override
+  String get bubbleEdited => 'edited';
 
   @override
   String get bubbleCouldNotOpen => 'Could not open';
@@ -1853,6 +2032,25 @@ class AppTextEn extends AppText {
 
   @override
   String get chatCancelReply => 'Cancel reply';
+
+  @override
+  String get chatEditMessage => 'Edit';
+
+  @override
+  String get chatEditingMessage => 'Editing message';
+
+  @override
+  String get chatCancelEdit => 'Cancel editing';
+
+  @override
+  String get chatPollNote =>
+      'Only the people in this chat can read the question, the answers and the votes. Every device counts the votes itself; the server never learns this is a poll.';
+
+  @override
+  String get chatPollEnd => 'End poll';
+
+  @override
+  String get chatPollEnded => 'ended';
 
   @override
   String get contactsTitle => 'Contacts';
@@ -3688,6 +3886,14 @@ class AppTextEn extends AppText {
       'Deleted here. The request to delete it there did not go out.';
 
   @override
+  String get failureEditedHereOnly =>
+      'Changed here. The correction did not reach the other side, so they still see the old text.';
+
+  @override
+  String get failurePollActionHereOnly =>
+      'Recorded here. It did not reach the others, so they still see the poll as it was.';
+
+  @override
   String get failureCouldNotCreateGroup => 'Could not create the group';
 
   @override
@@ -3872,6 +4078,11 @@ class AppTextEn extends AppText {
 
   @override
   String get chatsPreviewFile => 'File';
+
+  @override
+  String chatsPreviewPoll(String question) {
+    return 'Poll: $question';
+  }
 
   @override
   String get notificationsPermissionDenied =>
@@ -4447,6 +4658,9 @@ class AppTextEn extends AppText {
 
   @override
   String get attachFile => 'Send a file';
+
+  @override
+  String get attachPoll => 'Ask a question';
 
   @override
   String get photoTitle => 'Photo';

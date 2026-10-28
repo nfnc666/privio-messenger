@@ -7,6 +7,7 @@ import '../theme/accent.dart';
 import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'avatar.dart';
+import 'trust_badge.dart';
 
 /// A row in the Chats list: avatar, name, preview, timestamp, unread pill.
 class ChatListRow extends StatelessWidget {
@@ -31,7 +32,7 @@ class ChatListRow extends StatelessWidget {
     final theme = Theme.of(context);
     final text = AppText.of(context);
     final icon = _previewIcons[chat.previewKind];
-    final hasUnread = chat.unreadCount > 0;
+    final hasUnread = chat.hasUnread;
 
     return InkWell(
       onTap: onTap,
@@ -80,7 +81,22 @@ class ChatListRow extends StatelessWidget {
                         const Icon(Icons.push_pin_rounded, size: 13, color: PrivioColors.textTertiary),
                         const SizedBox(width: 4),
                       ],
-                      Expanded(
+                      // Only ever drawn while the private chats are on show,
+                      // so it is there to say which rows will go again.
+                      if (chat.isPrivate) ...[
+                        Semantics(
+                          label: text.chatsPrivateLabel,
+                          child: const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 13,
+                            color: PrivioColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      // Flexible, so the mark sits right after the name rather
+                      // than at the far edge, and a long name still gives way.
+                      Flexible(
                         child: Text(
                           chat.isSaved ? text.savedTitle : chat.title,
                           maxLines: 1,
@@ -88,6 +104,7 @@ class ChatListRow extends StatelessWidget {
                           style: theme.textTheme.titleMedium,
                         ),
                       ),
+                      TrustBadge(chat.trust),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -131,7 +148,7 @@ class ChatListRow extends StatelessWidget {
                 AnimatedSwitcher(
                   duration: PrivioMotion.quick,
                   transitionBuilder: PrivioMotion.swap(context),
-                  child: hasUnread
+                  child: chat.unreadCount > 0
                       ? Container(
                           key: ValueKey(chat.unreadCount),
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -148,7 +165,27 @@ class ChatListRow extends StatelessWidget {
                             ),
                           ),
                         )
-                      : const SizedBox(key: ValueKey(0), height: 17),
+                      // Marked unread with nothing new: a dot, because a count
+                      // would claim messages that are not there.
+                      : chat.markedUnread
+                          ? Semantics(
+                              key: const ValueKey('marked'),
+                              label: text.chatsMarkedUnread,
+                              child: SizedBox(
+                                height: 17,
+                                child: Center(
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: context.accents.accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox(key: ValueKey(0), height: 17),
                 ),
               ],
             ),

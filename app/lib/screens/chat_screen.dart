@@ -14,12 +14,15 @@ import '../core/sticker_controller.dart';
 import '../crypto/safety_number.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/failure_text.dart';
+import '../models/channel.dart';
 import '../models/models.dart';
 import '../media/attachment.dart' show CustomEmojiRef;
 import '../media/photo.dart';
 import '../media/photo_source.dart';
 import '../media/voice.dart';
 import '../services/system_settings.dart';
+import '../widgets/private_code_dialog.dart';
+import '../location/device_location.dart';
 import 'contact_profile_screen.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
@@ -40,6 +43,7 @@ import '../theme/privio_colors.dart';
 import '../widgets/appear.dart';
 import '../widgets/avatar.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/new_poll_dialog.dart';
 import '../widgets/scrub_notice.dart';
 import '../widgets/search_field.dart';
 import '../widgets/sticker_picker.dart';
@@ -73,6 +77,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   /// The message the next send replies to, or null.
   Message? _replyingTo;
+
+  /// The message whose text is being corrected, while the composer holds it.
+  /// Never set together with [_replyingTo]: a correction is not a reply.
+  Message? _editing;
 
   /// Every message this screen has drawn, so only the ones that arrive while
   /// it is open move in. Filled with the whole history on the first build: a
@@ -141,6 +149,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!widget.isGroup) {
       WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_readVerification()));
     }
+    // A chat marked unread is a reminder to open it, and this is it opening —
+    // from the list, a contact or anywhere else.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      PrivioScope.of(context).conversations.setMarkedUnread(widget.accountId, marked: false);
+    });
   }
 
   Future<void> _readVerification() async {
@@ -298,6 +312,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final raw = _composer.text;
     final text = raw.trim();
     if (text.isEmpty) return;
+    final editing = _editing;
+    if (editing != null) {
+      _composer.clear();
+      setState(() {
+        _editing = null;
+        _pendingEmoji.clear();
+      });
+      await PrivioScope.of(context).conversations.editMessage(widget.accountId, editing, text);
+      return;
+    }
     final replyTo = _replyingTo;
 
     // The body is trimmed, so every span shifts left by whatever the leading
@@ -508,6 +532,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: Text(text.commonReply),
                 onTap: () => Navigator.of(sheetContext).pop('reply'),
               ),
+            // Correcting a line this account wrote. Only plain text that has
+            // already gone out, and not in Saved, whose entries are notes rather
+            // than something somebody else has read.
+            if (message.isMine &&
+                message.kind == MessageKind.text &&
+                !queued &&
+                clientId != null &&
+                !_isSaved(state))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(text.chatEditMessage),
+                onTap: () => Navigator.of(sheetContext).pop('edit'),
+              ),
+            if (message.isMine &&
+                message.kind == MessageKind.poll &&
+                !(message.poll?.closed ?? true) &&
+                !queued)
+              ListTile(
+                leading: const Icon(Icons.how_to_vote_outlined),
+                title: Text(text.chatPollEnd),
+                onTap: () => Navigator.of(sheetContext).pop('endpoll'),
+              ),
             if (message.body.isNotEmpty && message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -558,7 +604,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
     if (action == 'reply') {
-      setState(() => _replyingTo = message);
+      setState(() {
+        _replyingTo = message;
+        _editing = null;
+      });
+      return;
+    }
+    if (action == 'endpoll') {
+      await state.conversations.endPoll(widget.accountId, message);
+      return;
+    }
+    if (action == 'edit') {
+      _composer.value = TextEditingValue(
+        text: message.body,
+        selection: TextSelection.collapsed(offset: message.body.length),
+      );
+      setState(() {
+        _editing = message;
+        _replyingTo = null;
+        _pendingEmoji.clear();
+      });
       return;
     }
     if (action == 'copy') {
@@ -821,6 +886,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               title: Text(text.attachFile),
               onTap: () => Navigator.of(sheetContext).pop('file'),
             ),
+            // Not in Saved: a poll there would be a question with nobody to
+            // answer it.
+            if (!_isSaved(PrivioScope.of(context)))
+              ListTile(
+                leading: const Icon(Icons.poll_outlined),
+                title: Text(text.attachPoll),
+                onTap: () => Navigator.of(sheetContext).pop('poll'),
+              ),
+            // Gone, not greyed out, when sharing a place is switched off: then
+            // nothing in the app asks where the phone is.
+            if (PrivioScope.of(context).conversations.shareLocation)
+              ListTile(
+                key: const Key('attach-location'),
+                leading: const Icon(Icons.place_outlined),
+                title: Text(text.locationTitle),
+                onTap: () => Navigator.of(sheetContext).pop('location'),
+              ),
             const Divider(height: 1, color: PrivioColors.border),
             // The timer's control lives here now that the bar is three things
             // wide. Its *state* does not: when it is on, the chip in the field
@@ -844,8 +926,90 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
     if (choice == null || !mounted) return;
     if (choice == 'photos') return _pickPhotos();
+    if (choice == 'poll') return _askPoll();
+    if (choice == 'location') return _shareLocation();
     if (choice == 'timer') return _chooseTimer(PrivioScope.of(context));
     return _attachFile();
+  }
+
+  /// Asks the phone where it is, shows the place, and sends it only after a
+  /// yes. The system's permission prompt, if there is one, comes here and
+  /// nowhere else.
+  Future<void> _shareLocation() async {
+    final state = PrivioScope.of(context);
+    final text = AppText.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(text.locationFinding), duration: const Duration(seconds: 30)),
+    );
+    final read = await state.services.deviceLocation.current();
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    final point = switch (read) {
+      LocationFix(:final point) => point,
+      _ => null,
+    };
+    if (point == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(read is LocationDenied ? text.locationDenied : text.locationUnavailable),
+        ),
+      );
+      return;
+    }
+    final accuracy = point.accuracyMeters;
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text(text.locationSendTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(point.coordinates),
+            if (accuracy != null) Text(text.locationAccuracy(accuracy)),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(text.locationSendNote, style: Theme.of(dialogContext).textTheme.bodySmall),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(text.commonCancel),
+          ),
+          FilledButton(
+            key: const Key('location-send'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(text.locationSend),
+          ),
+        ],
+      ),
+    );
+    if (send != true || !mounted) return;
+    await state.conversations.sendLocation(widget.accountId, point);
+    _scrollToEnd();
+  }
+
+  /// Writes a poll and sends it into this chat.
+  Future<void> _askPoll() async {
+    final draft = await showDialog<ChannelPollDraft>(
+      context: context,
+      builder: (dialogContext) => NewPollDialog(
+        note: AppText.of(dialogContext).chatPollNote,
+        maxOptions: ChatPoll.maxOptions,
+        maxOptionLength: ChatPoll.maxOptionLength,
+        maxQuestionLength: ChatPoll.maxQuestionLength,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    await PrivioScope.of(context).conversations.sendPoll(
+          widget.accountId,
+          question: draft.question,
+          options: draft.options,
+          maxChoices: draft.maxChoices,
+        );
+    _scrollToEnd();
   }
 
   /// Opens the camera, and nothing else. The permission is asked for here, at
@@ -1292,6 +1456,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return ListenableBuilder(
       listenable: state.conversations,
       builder: (context, _) {
+        // A hidden private chat shows nothing of itself here: not its
+        // messages, not its name. However this screen was reached — from a
+        // contact, a profile, a link — the way in is the code. Leaving the app
+        // hides it again, and this screen goes back to the lock with it.
+        if (state.conversations.isHiddenPrivate(widget.accountId)) {
+          return const _PrivateChatLock();
+        }
         final all = state.conversations.messagesWith(widget.accountId);
         // Saved sorts differently from a chat: what was pinned is held at the
         // top, and what was searched for is all that is drawn. A chat is a
@@ -1589,6 +1760,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   if (!_selected.remove(id)) _selected.add(id);
                                 }),
                         selected: _selected.contains(message.clientId ?? message.id),
+                        myAccountId: state.conversations.accountId,
+                        // A poll still in the outbox has not been asked yet,
+                        // so there is nothing to vote on.
+                        onVote: message.kind != MessageKind.poll ||
+                                (message.clientId != null &&
+                                    state.conversations.isQueued(message.clientId!)) ||
+                                message.state == DeliveryState.sending ||
+                                message.state == DeliveryState.failed
+                            ? null
+                            : (choices) => unawaited(
+                                  state.conversations.vote(widget.accountId, message, choices),
+                                ),
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),
@@ -1623,6 +1806,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 _ReplyBar(
                   message: _replyingTo!,
                   onCancel: () => setState(() => _replyingTo = null),
+                ),
+              if (_editing != null)
+                _ReplyBar(
+                  message: _editing!,
+                  editing: true,
+                  onCancel: () {
+                    _composer.clear();
+                    setState(() => _editing = null);
+                  },
                 ),
               if (state.conversations.failure != null)
                 _ErrorBanner(
@@ -2235,11 +2427,15 @@ class _TrailingAction extends StatelessWidget {
 }
 
 /// The strip above the composer while a reply is being written.
+///
+/// The same strip, with [editing], while a message is being corrected: it shows
+/// the text as it stands now, so the person can see what they are changing.
 class _ReplyBar extends StatelessWidget {
-  const _ReplyBar({required this.message, required this.onCancel});
+  const _ReplyBar({required this.message, required this.onCancel, this.editing = false});
 
   final Message message;
   final VoidCallback onCancel;
+  final bool editing;
 
   @override
   Widget build(BuildContext context) {
@@ -2267,6 +2463,7 @@ class _ReplyBar extends StatelessWidget {
               children: [
                 Text(
                   switch ((message.isMine, message.senderName)) {
+                    _ when editing => AppText.of(context).chatEditingMessage,
                     (true, _) => AppText.of(context).chatReplyingToYourself,
                     // In a group the quote is meaningless without the name;
                     // in a 1:1 chat the header already says who.
@@ -2290,7 +2487,9 @@ class _ReplyBar extends StatelessWidget {
           IconButton(
             onPressed: onCancel,
             icon: const Icon(Icons.close_rounded, size: 20),
-            tooltip: AppText.of(context).chatCancelReply,
+            tooltip: editing
+                ? AppText.of(context).chatCancelEdit
+                : AppText.of(context).chatCancelReply,
           ),
         ],
       ),
@@ -2339,6 +2538,46 @@ class _SavedEmpty extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// What a hidden private chat shows instead of itself.
+class _PrivateChatLock extends StatelessWidget {
+  const _PrivateChatLock();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        leading: const PrivioBackButton(),
+        title: Text(text.chatsPrivateLabel),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(PrivioSpacing.xxl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline_rounded, size: 40, color: PrivioColors.textSecondary),
+              const SizedBox(height: PrivioSpacing.md),
+              Text(
+                text.chatPrivateLockedBody,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: PrivioSpacing.xl),
+              FilledButton(
+                key: const Key('private-chat-unlock'),
+                onPressed: () => showPrivateChatsWithCode(context),
+                child: Text(text.privateChatsEnterCode),
+              ),
+            ],
+          ),
         ),
       ),
     );

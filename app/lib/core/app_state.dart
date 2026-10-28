@@ -599,6 +599,7 @@ class AppState extends ChangeNotifier {
       // than when a chat opens: a security setting that waits for a screen is
       // one somebody will believe is on when it is not.
       detached(conversations.loadKeyChangeBlocking(account));
+      detached(conversations.loadShareLocation(account));
       ProxyController.instance.onRoutingChanged = ({required bool enabled}) =>
           _recordSecurityEvent(
             enabled ? SecurityEventKind.proxyEnabled : SecurityEventKind.proxyDisabled,
@@ -616,6 +617,12 @@ class AppState extends ChangeNotifier {
         final name = _username;
         if (name != null) controller.ensureSaved(username: name);
         controller.start(token: _sessionToken);
+        // The marks in the lists come from the keystore, for the chats just
+        // read back. After the restore, not beside it: asked any earlier, the
+        // store is still empty and the answer is about nobody. The contact
+        // list may never answer, and a phone offline still knows whom it has
+        // verified.
+        detached(controller.refreshTrust());
       }),
     );
     // The store builds register themselves; the free ones do not, because
@@ -642,6 +649,7 @@ class AppState extends ChangeNotifier {
     // A "their key changed" notice raised in an earlier run is still owed to
     // the user, so it is read back before anything else can bury it.
     detached(controller.loadKeyChangeAlerts());
+    detached(controller.loadPrivateChatsCode());
     // So a send can address this account's own other devices. Without it the
     // copy has nowhere to go and a second device's history quietly diverges.
     services.messaging.identifyAs(_username);
@@ -949,6 +957,9 @@ class AppState extends ChangeNotifier {
   /// flushed, the app is not being used, and it is the point at which "I lost
   /// my phone" starts being a possibility.
   void lock() {
+    // Private chats go back into hiding whenever the app is left, lock or no
+    // lock: showing them is for this visit.
+    _conversations?.hidePrivateChats();
     // A device with no passcode has nothing to unlock with. Arming the lock
     // there is not a stricter lock, it is a device its own owner cannot get
     // back into: the lock screen has exactly one way past it, and on a device

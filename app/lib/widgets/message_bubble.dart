@@ -15,6 +15,8 @@ import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
 import 'avatar.dart';
+import 'chat_poll_card.dart';
+import 'location_card.dart';
 
 /// One message in a conversation.
 ///
@@ -31,7 +33,15 @@ class MessageBubble extends StatelessWidget {
     this.highlighted = false,
     this.selected = false,
     this.chatWith,
+    this.myAccountId,
+    this.onVote,
   });
+
+  /// This account, to show which answers of a poll it picked.
+  final String? myAccountId;
+
+  /// Casts this account's vote on a poll. Null where it cannot vote.
+  final ValueChanged<Set<int>>? onVote;
 
   final Message message;
 
@@ -183,6 +193,17 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ],
               )
+            else if (message.kind == MessageKind.poll && message.poll != null)
+              ChatPollCard(
+                question: message.body,
+                poll: message.poll!,
+                myChoices: myAccountId == null
+                    ? const {}
+                    : message.poll!.choicesOf(myAccountId!),
+                onVote: onVote,
+              )
+            else if (message.kind == MessageKind.location && message.location != null)
+              LocationCard(point: message.location!)
             else if (message.isVoice)
               // A voice message renders itself: the waveform and the duration
               // come out of the sealed payload, so it is complete before the
@@ -228,6 +249,16 @@ class MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // Before the time and never hidden: a line that changed after
+                // somebody read it has to say so where they look for when it
+                // was written.
+                if (message.isEdited) ...[
+                  Text(
+                    AppText.of(context).bubbleEdited,
+                    style: theme.textTheme.labelSmall,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Text(
                   _formatTime(message.sentAt),
                   style: theme.textTheme.labelSmall,

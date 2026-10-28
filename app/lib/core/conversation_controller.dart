@@ -11,6 +11,8 @@ import '../media/avatar.dart';
 import '../media/metadata_scrubber.dart';
 import '../media/photo.dart';
 import '../crypto/privio_crypto.dart';
+import '../crypto/safety_number.dart';
+import '../models/geo_point.dart';
 import 'message_search.dart';
 import '../media/voice.dart';
 import '../models/channel.dart';
@@ -22,6 +24,10 @@ import '../models/security_event.dart';
 import 'api_client.dart';
 import 'failure.dart';
 import 'privio_services.dart';
+
+/// What became of a request to set or change the private-chats code, as a
+/// case: the screen that asked turns it into words.
+enum PrivateCodeOutcome { saved, tooShort, sameAsUnlock, wrongCode }
 
 /// Drives the chat and contact screens from real data.
 ///
@@ -105,6 +111,12 @@ class ConversationController extends ChangeNotifier {
   /// start, because a notice missed is a notice that did its job for nobody.
   final Set<String> _keyChangeAlerts = {};
 
+  /// What the keystore says about each person's safety number, by account.
+  ///
+  /// A copy for the lists, which draw it on every row and redraw often. Read
+  /// by [refreshTrust] and kept on this device like everything it comes from.
+  final Map<String, VerificationState> _trust = {};
+
   List<Contact> get contacts => _contacts;
 
   /// The last failure worth showing, or null. Cleared when the next call works.
@@ -136,6 +148,53 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The mark a list row shows for [accountId].
+  ///
+  /// A key change this controller knows about wins over what the keystore
+  /// says. Until the new number has been looked at, the person on the other
+  /// end is not provably the one who was there before, whatever was verified.
+  TrustMark trustMarkOf(String accountId) {
+    if (hasIdentityChange(accountId) || hasKeyChangeAlert(accountId)) {
+      return TrustMark.changed;
+    }
+    return switch (_trust[accountId]) {
+      VerificationState.verified => TrustMark.verified,
+      VerificationState.changed => TrustMark.changed,
+      _ => TrustMark.none,
+    };
+  }
+
+  /// Reads again how far each person's keys have been checked: everyone in
+  /// [accountIds], or every person in a chat or the contact list.
+  Future<void> refreshTrust([Iterable<String>? accountIds]) async {
+    final ids = accountIds ??
+        {
+          for (final conversation in _services.store.conversations())
+            if (!conversation.isGroup) conversation.id,
+          for (final contact in _contacts) contact.id,
+        };
+    var changed = false;
+    for (final id in ids) {
+      final state = await _services.crypto.verificationState(id);
+      if (_trust[id] == state) continue;
+      _trust[id] = state;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// Records that the user compared [numbers] with [accountId] and they
+  /// matched, or withdraws that. Through here rather than straight to the
+  /// keystore so the lists hear about it.
+  Future<void> setVerified(String accountId, SafetyNumbers numbers, {required bool verified}) async {
+    if (verified) {
+      await _services.crypto.markVerified(accountId, numbers);
+    } else {
+      await _services.crypto.clearVerified(accountId);
+    }
+    await refreshTrust([accountId]);
+  }
+
   Future<void> loadKeyChangeAlerts() async {
     _keyChangeAlerts
       ..clear()
@@ -146,8 +205,10 @@ class ConversationController extends ChangeNotifier {
   /// Turns whatever the protocol re-pinned during decryption into something
   /// the user will actually see.
   Future<void> _raiseKeyChanges() async {
+    final changed = <String>{};
     for (final change in _services.crypto.takeIdentityReplacements()) {
       if (change.accountId == accountId) continue; // one of my own devices
+      changed.add(change.accountId);
       // Only the first device of theirs to change raises a line in the
       // security log. A contact who reinstalls brings several new device keys
       // at once, and five identical warnings about one event teach the reader
@@ -161,6 +222,9 @@ class ConversationController extends ChangeNotifier {
         );
       }
     }
+    // A verified number no longer matches. The alert says so until it is
+    // answered; this is what keeps saying so afterwards.
+    if (changed.isNotEmpty) await refreshTrust(changed);
   }
 
   /// Where a security event goes, or null when nothing is listening.
@@ -185,6 +249,8 @@ class ConversationController extends ChangeNotifier {
     }
     _identityChanges.remove(accountId);
     _failure = null;
+    // Accepting the change also drops the verification it broke.
+    await refreshTrust([accountId]);
     notifyListeners();
   }
 
@@ -255,7 +321,8 @@ class ConversationController extends ChangeNotifier {
 
   List<ChatSummary> get chats {
     final rows = [
-      for (final conversation in _services.store.conversations()) _summarise(conversation),
+      for (final conversation in _services.store.conversations())
+        if (!isHiddenPrivate(conversation.id)) _summarise(conversation),
     ];
     // The store leaves an empty direct conversation out of the list on purpose
     // — an empty chat with somebody is just a contact, and belongs under
@@ -326,6 +393,9 @@ class ConversationController extends ChangeNotifier {
       timestamp: last == null ? ChatStamp.none : _stampFor(last.sentAt),
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
+      markedUnread: conversation.markedUnread,
+      isPrivate: conversation.isPrivate,
+      trust: trustMarkOf(conversation.id),
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.id.hashCode.abs(),
     );
@@ -344,6 +414,13 @@ class ConversationController extends ChangeNotifier {
     }
     final notice = message.notice;
     if (notice != null) return ChatPreview(ChatPreviewKind.notice, notice: notice);
+    if (message.kind == MessageKind.poll) {
+      return ChatPreview(ChatPreviewKind.poll, text: message.body);
+    }
+    // The word, never the coordinates: see [ChatPreviewKind.location].
+    if (message.kind == MessageKind.location) {
+      return const ChatPreview(ChatPreviewKind.location);
+    }
     if (message.body.isNotEmpty) {
       return ChatPreview(ChatPreviewKind.body, text: message.body);
     }
@@ -750,6 +827,9 @@ class ConversationController extends ChangeNotifier {
         );
       }
       detached(_loadAvatars());
+      // Somebody new in the list has a number too, even if it was never
+      // checked.
+      detached(refreshTrust());
       _failure = null;
     } on ApiException catch (failure) {
       _failure = Failure.server(failure.message);
@@ -1552,13 +1632,153 @@ class ConversationController extends ChangeNotifier {
   bool isPinned(String conversationId) =>
       _services.store.conversationWith(conversationId)?.pinned ?? false;
 
+  /// Shows a chat as unread again, or takes that mark away, without reading
+  /// anything.
+  ///
+  /// Local and never sent, like a pin: no receipt goes out and none is taken
+  /// back, so the other side's ticks say what they said before. Taking the
+  /// mark away is not reading the chat either. When messages really are
+  /// waiting, that is [markRead], with the receipts it sends.
+  void setMarkedUnread(String conversationId, {required bool marked}) {
+    if (!_services.store.setMarkedUnread(conversationId, marked: marked)) return;
+    _persist();
+    notifyListeners();
+  }
+
+  // --- Private chats ---------------------------------------------------------
+  //
+  // A private chat is left out of the chat list, the search and the chat
+  // screen until this account's private-chats code has been typed, and is
+  // hidden again whenever the app is left. It keeps a chat from somebody
+  // holding the unlocked phone. It is not a second encryption: at rest it is
+  // in the archive with every other chat, behind the app lock.
+
+  /// The shortest code accepted. The same floor as the duress code.
+  static const int privateCodeMinLength = 4;
+
+  bool _privateChatsCode = false;
+  bool _privateShown = false;
+
+  /// Whether this account has a private-chats code. Read at sign-in.
+  bool get hasPrivateChatsCode => _privateChatsCode;
+
+  /// Whether the private chats are on show: from the right code until they are
+  /// hidden again or the app is left.
+  bool get privateChatsShown => _privateShown;
+
+  bool isPrivate(String conversationId) =>
+      _services.store.conversationWith(conversationId)?.isPrivate ?? false;
+
+  /// Private and not on show. Whether there is a code yet does not come into
+  /// it: before the keystore has answered, or after a backup brought the chats
+  /// back to a phone without the code, the answer is still "hidden".
+  bool isHiddenPrivate(String conversationId) => !_privateShown && isPrivate(conversationId);
+
+  Future<void> loadPrivateChatsCode() async {
+    final account = accountId;
+    if (account == null) return;
+    final has = await _services.secureStore.hasPrivateChatsCode(account);
+    if (accountId != account || has == _privateChatsCode) return;
+    _privateChatsCode = has;
+    notifyListeners();
+  }
+
+  /// Sets the code, or changes it. Changing takes the [current] one, so a
+  /// phone handed over unlocked is not a way to replace it.
+  Future<PrivateCodeOutcome> setPrivateChatsCode(String code, {String? current}) async {
+    final account = accountId;
+    if (account == null) return PrivateCodeOutcome.wrongCode;
+    if (code.length < privateCodeMinLength) return PrivateCodeOutcome.tooShort;
+    final store = _services.secureStore;
+    if (_privateChatsCode &&
+        (current == null || !await store.verifyPrivateChatsCode(account, current))) {
+      return PrivateCodeOutcome.wrongCode;
+    }
+    // Whoever has watched this phone being unlocked has seen that one.
+    if (await store.hasPasscode() && await store.verifyPasscode(code)) {
+      return PrivateCodeOutcome.sameAsUnlock;
+    }
+    await store.setPrivateChatsCode(account, code);
+    _privateChatsCode = true;
+    notifyListeners();
+    return PrivateCodeOutcome.saved;
+  }
+
+  /// Takes the code away, after the [current] one. Every private chat becomes
+  /// an ordinary chat, since without a code nothing could show it again.
+  Future<bool> removePrivateChatsCode(String current) async {
+    final account = accountId;
+    if (account == null || !_privateChatsCode) return false;
+    if (!await _services.secureStore.verifyPrivateChatsCode(account, current)) return false;
+    for (final conversation in _services.store.conversations()) {
+      _services.store.setPrivate(conversation.id, isPrivate: false);
+    }
+    await _services.secureStore.setPrivateChatsCode(account, null);
+    _privateChatsCode = false;
+    _privateShown = false;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// For a forgotten code: deletes every private chat on this device, and the
+  /// code with them. Needs no code, because it shows nothing; somebody holding
+  /// the phone can destroy these chats this way, as they could by deleting the
+  /// app. New messages from the same people arrive in ordinary chats.
+  Future<void> deletePrivateChats() async {
+    final account = accountId;
+    for (final conversation in [..._services.store.conversations()]) {
+      if (conversation.isPrivate) _services.store.removeConversation(conversation.id);
+    }
+    if (account != null) await _services.secureStore.setPrivateChatsCode(account, null);
+    _privateChatsCode = false;
+    _privateShown = false;
+    _persist();
+    notifyListeners();
+  }
+
+  /// Shows the private chats, if [code] is the right one.
+  Future<bool> showPrivateChats(String code) async {
+    final account = accountId;
+    if (account == null) return false;
+    if (!await _services.secureStore.verifyPrivateChatsCode(account, code)) return false;
+    _privateShown = true;
+    notifyListeners();
+    return true;
+  }
+
+  /// Hides them again. Also called whenever the app is left.
+  void hidePrivateChats() {
+    if (!_privateShown) return;
+    _privateShown = false;
+    notifyListeners();
+  }
+
+  /// Makes a chat private or ordinary again. Refused for Saved, which is a
+  /// place rather than a chat, without a code to show it again, and for a chat
+  /// that is hidden right now.
+  bool setPrivate(String conversationId, {required bool isPrivate}) {
+    if (isSaved(conversationId) || isHiddenPrivate(conversationId)) return false;
+    if (isPrivate && !_privateChatsCode) return false;
+    if (!_services.store.setPrivate(conversationId, isPrivate: isPrivate)) return false;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
   /// Every message that matches [query], across every conversation.
   ///
   /// Runs on this device, over what it has already decrypted. There is nowhere
   /// else it could run — the server holds ciphertext it cannot read — and
-  /// sending a query there would tell it what someone is looking for.
-  List<SearchHit> searchMessages(String query) =>
-      MessageSearch.run(_services.store.conversations(), query);
+  /// sending a query there would tell it what someone is looking for. A
+  /// private chat that is hidden is not searched.
+  List<SearchHit> searchMessages(String query) => MessageSearch.run(
+        [
+          for (final conversation in _services.store.conversations())
+            if (!isHiddenPrivate(conversation.id)) conversation,
+        ],
+        query,
+      );
 
   // --- Taking a message back ------------------------------------------------
 
@@ -1664,6 +1884,333 @@ class ConversationController extends ChangeNotifier {
     );
     if (!changed) return;
     _forgetAttachment(target);
+    _persist();
+    notifyListeners();
+  }
+
+  // --- Correcting a message ------------------------------------------------
+
+  /// Replaces the text of a message this account sent, here and on every
+  /// device that has it.
+  ///
+  /// Only for an ordinary text message that has already gone out: what is
+  /// still queued can simply be discarded and written again, and a file, a
+  /// voice note or a sticker has no text an edit could honestly stand in for.
+  ///
+  /// Changed here first and the correction sent after, for the same reason as
+  /// [deleteForEveryone]: a failed send leaves the sender looking at the new
+  /// text and is told that the other side still has the old one, rather than
+  /// the other way round.
+  Future<void> editMessage(String conversationId, Message target, String body) async {
+    final clientId = target.clientId;
+    final text = body.trim();
+    if (!target.isMine || clientId == null || target.kind != MessageKind.text) return;
+    if (text.isEmpty || text == target.body || isQueued(clientId)) return;
+
+    final changed = _services.store.editMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      body: text,
+      editedAt: DateTime.now(),
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+
+    final payload = MessagePayload.edit(editTo: clientId, body: text);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object catch (failure) {
+      _noteIdentityChange(failure);
+      _failure = const Failure(FailureKind.editedHereOnly);
+      notifyListeners();
+    }
+  }
+
+  /// Applies a correction somebody sent.
+  ///
+  /// The same rule as a deletion, checked on the way in because a modified
+  /// client would not check it on the way out: a correction may only change a
+  /// message its own sender wrote — and from this account's own other devices,
+  /// only this account's own. An empty correction is refused rather than read
+  /// as a deletion; taking a message back has its own payload and its own
+  /// tombstone, and an edit that blanked a line would be a deletion that
+  /// leaves no trace of having been one.
+  void _applyEdit(
+    String conversationId,
+    MessagePayload payload, {
+    required String byAccountId,
+    required bool fromOwnDevice,
+  }) {
+    final clientId = payload.editTo;
+    final body = payload.body.trim();
+    if (clientId == null || clientId.isEmpty || body.isEmpty) return;
+    final target = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.clientId == clientId)
+        .firstOrNull;
+    if (target == null) return;
+    if (fromOwnDevice) {
+      if (!target.isMine) return;
+    } else {
+      if (target.isMine) return;
+      if (target.senderAccountId != null && target.senderAccountId != byAccountId) return;
+    }
+    final changed = _services.store.editMessage(
+      conversationId: conversationId,
+      clientId: clientId,
+      body: body,
+      editedAt: DateTime.now(),
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+  }
+
+  // --- Polls in chats and groups ---------------------------------------------
+
+  /// Asks a question in a chat or a group.
+  ///
+  /// The question and the answers are sealed like any message, and so is every
+  /// vote: each device keeps its own tally and the server never learns that a
+  /// poll exists. Returns false when the poll is outside the limits, which the
+  /// screen that builds it already enforces.
+  Future<bool> sendPoll(
+    String conversationId, {
+    required String question,
+    required List<String> options,
+    int maxChoices = 1,
+  }) async {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final asked = question.trim();
+    final answers = [for (final option in options) option.trim()];
+    if (!ChatPoll.isValid(asked, answers, maxChoices)) return false;
+
+    final clientId = _newClientId();
+    final timer = _effectiveTimer(conversation);
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: asked,
+        kind: MessageKind.poll,
+        poll: ChatPoll(options: List.unmodifiable(answers), maxChoices: maxChoices),
+        sentAt: DateTime.now(),
+        isMine: true,
+        state: DeliveryState.sending,
+      ),
+    );
+    notifyListeners();
+
+    final payload = MessagePayload.poll(
+      body: asked,
+      poll: ChatPollPayload.ask(options: answers, maxChoices: maxChoices),
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      clientId: clientId,
+    );
+    try {
+      if (conversation.isGroup) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
+      }
+      _markSent(conversationId, clientId, timer);
+      _failure = null;
+      _persist();
+    } on Object catch (failure) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
+      _failure = switch (failure) {
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
+      };
+    }
+    notifyListeners();
+    return true;
+  }
+
+  // --- Places ----------------------------------------------------------------
+
+  bool _shareLocation = true;
+
+  /// Whether this account offers to share a location at all. See
+  /// `SecureStore.readShareLocation`.
+  bool get shareLocation => _shareLocation;
+
+  Future<void> loadShareLocation(String account) async {
+    final share = await _services.secureStore.readShareLocation(account);
+    if (accountId != account || share == _shareLocation) return;
+    _shareLocation = share;
+    notifyListeners();
+  }
+
+  Future<void> setShareLocation(bool share) async {
+    final account = accountId;
+    _shareLocation = share;
+    notifyListeners();
+    if (account != null) await _services.secureStore.writeShareLocation(account, share);
+  }
+
+  /// Sends a place: coordinates, sealed like any message. No map, no address:
+  /// either would have to be asked of a service that learns the place first.
+  ///
+  /// Refused while sharing is switched off, whatever asked, and for anything
+  /// that is not a place. Returns whether it was sent off.
+  Future<bool> sendLocation(String conversationId, GeoPoint point) async {
+    if (!_shareLocation || !point.isValid) return false;
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final place = point.rounded();
+
+    final clientId = _newClientId();
+    final timer = _effectiveTimer(conversation);
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: place.coordinates,
+        kind: MessageKind.location,
+        location: place,
+        sentAt: DateTime.now(),
+        isMine: true,
+        state: DeliveryState.sending,
+      ),
+    );
+    notifyListeners();
+
+    final payload = MessagePayload.location(
+      body: place.coordinates,
+      location: place,
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      clientId: clientId,
+    );
+    try {
+      if (conversation.isGroup) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
+      }
+      _markSent(conversationId, clientId, timer);
+      _failure = null;
+      _persist();
+    } on Object catch (failure) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
+      _failure = switch (failure) {
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
+      };
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Casts this account's whole vote on a poll, replacing any earlier one. An
+  /// empty [choices] takes the vote back.
+  Future<void> vote(String conversationId, Message pollMessage, Set<int> choices) async {
+    final me = accountId;
+    final clientId = pollMessage.clientId;
+    if (me == null || clientId == null) return;
+    final changed = _services.store.applyPollVote(
+      conversationId: conversationId,
+      clientId: clientId,
+      accountId: me,
+      choices: choices,
+    );
+    if (!changed) return;
+    _persist();
+    notifyListeners();
+    final sorted = choices.toList()..sort();
+    await _sendPollAction(
+      conversationId,
+      ChatPollPayload.vote(target: clientId, choices: List.unmodifiable(sorted)),
+    );
+  }
+
+  /// Ends a poll this account asked. Votes that arrive afterwards are dropped
+  /// on every device that has received the end.
+  Future<void> endPoll(String conversationId, Message pollMessage) async {
+    final clientId = pollMessage.clientId;
+    if (!pollMessage.isMine || clientId == null) return;
+    if (!_services.store.closePoll(conversationId: conversationId, clientId: clientId)) return;
+    _persist();
+    notifyListeners();
+    await _sendPollAction(conversationId, ChatPollPayload.end(clientId));
+  }
+
+  Future<void> _sendPollAction(String conversationId, ChatPollPayload action) async {
+    final payload = MessagePayload.pollAction(action);
+    final conversation = _services.store.conversationWith(conversationId);
+    try {
+      if (conversation?.isGroup ?? false) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        final username = conversation?.user?.username;
+        if (username != null) await _services.messaging.sendPayload(username, payload);
+      }
+    } on Object catch (failure) {
+      _noteIdentityChange(failure);
+      _failure = const Failure(FailureKind.pollActionHereOnly);
+      notifyListeners();
+    }
+  }
+
+  /// Applies a vote or an end somebody sent.
+  ///
+  /// A vote counts for whoever the session says sent it — never for a name the
+  /// payload claims — so nobody can vote for somebody else. Only the person who
+  /// asked may end a poll, checked the same way as a deletion.
+  void _applyPollAction(
+    String conversationId,
+    MessagePayload payload, {
+    required String byAccountId,
+    required bool fromOwnDevice,
+  }) {
+    final action = payload.poll;
+    final clientId = action?.target;
+    if (action == null || clientId == null || clientId.isEmpty) return;
+    final target = _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.clientId == clientId)
+        .firstOrNull;
+    if (target == null || target.kind != MessageKind.poll) return;
+
+    final bool changed;
+    if (action.isEnd) {
+      if (fromOwnDevice ? !target.isMine : target.isMine) return;
+      if (!fromOwnDevice &&
+          target.senderAccountId != null &&
+          target.senderAccountId != byAccountId) {
+        return;
+      }
+      changed = _services.store.closePoll(conversationId: conversationId, clientId: clientId);
+    } else {
+      final voter = fromOwnDevice ? (accountId ?? byAccountId) : byAccountId;
+      changed = _services.store.applyPollVote(
+        conversationId: conversationId,
+        clientId: clientId,
+        accountId: voter,
+        choices: (action.choices ?? const <int>[]).toSet(),
+      );
+    }
+    if (!changed) return;
     _persist();
     notifyListeners();
   }
@@ -1811,6 +2358,10 @@ class ConversationController extends ChangeNotifier {
       // the word "Sticker" anyway, because it is the thing that was sent.
       MessageKind.sticker => 'Sticker',
       MessageKind.deleted => 'Deleted message',
+      // Never reached: a poll's question is its body.
+      MessageKind.poll => 'Poll',
+      // Never reached either: a place's coordinates are its body.
+      MessageKind.location => 'Location',
       // Never reached: a notice always has a body, and nothing replies to one.
       MessageKind.notice || MessageKind.undelivered => '',
       MessageKind.text => '',
@@ -1931,6 +2482,7 @@ class ConversationController extends ChangeNotifier {
   List<String> timerExceptions() => [
         for (final conversation in _services.store.conversations())
           if (!isSaved(conversation.id) &&
+              !isHiddenPrivate(conversation.id) &&
               conversation.timer.isExceptionTo(_defaultDisappearAfter))
             conversation.id,
       ];
@@ -2934,6 +3486,24 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
+    if (incoming.payload.isPollAction) {
+      _applyPollAction(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: incoming.senderAccountId == accountId,
+      );
+      return;
+    }
+    if (incoming.payload.isEdit) {
+      _applyEdit(
+        incoming.groupId ?? incoming.senderAccountId,
+        incoming.payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: incoming.senderAccountId == accountId,
+      );
+      return;
+    }
     if (incoming.payload.isReaction) {
       _applyReaction(
         incoming.groupId ?? incoming.senderAccountId,
@@ -3049,6 +3619,8 @@ class ConversationController extends ChangeNotifier {
               )
             : null,
         sticker: _stickerIn(payload),
+        poll: _pollIn(payload),
+        location: payload.location,
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3068,6 +3640,26 @@ class ConversationController extends ChangeNotifier {
     // on the laptop deletes it nowhere that matters.
     if (payload.isDeletion) {
       _applyDeletion(
+        sync.conversationId,
+        payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: true,
+      );
+      return;
+    }
+    // A correction made on another of this account's devices, for the same
+    // reason: the phone and the laptop must not show two versions of one line.
+    if (payload.isPollAction) {
+      _applyPollAction(
+        sync.conversationId,
+        payload,
+        byAccountId: incoming.senderAccountId,
+        fromOwnDevice: true,
+      );
+      return;
+    }
+    if (payload.isEdit) {
+      _applyEdit(
         sync.conversationId,
         payload,
         byAccountId: incoming.senderAccountId,
@@ -3138,6 +3730,8 @@ class ConversationController extends ChangeNotifier {
               )
             : null,
         sticker: _stickerIn(payload),
+        poll: _pollIn(payload),
+        location: payload.location,
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3150,10 +3744,24 @@ class ConversationController extends ChangeNotifier {
   /// that rendered as a bubble on one's own other device and a picture on
   /// everybody else's would be exactly that bug again.
   static MessageKind _kindOf(MessagePayload payload) {
+    // A poll this app will not show is filed as its question, as an older
+    // build would file it, rather than as a poll with nothing to answer.
+    if (_pollIn(payload) != null) return MessageKind.poll;
+    // Only ever set on a place the payload layer read as one.
+    if (payload.isLocation) return MessageKind.location;
     if (payload.isSticker) return MessageKind.sticker;
     if (payload.isVoice) return MessageKind.voice;
     if (payload.isMedia) return _kindFor(payload.mediaType!);
     return MessageKind.text;
+  }
+
+  /// The poll a payload asks, if it is one this app will show.
+  static ChatPoll? _pollIn(MessagePayload payload) {
+    final poll = payload.poll;
+    if (!payload.isPoll || poll == null) return null;
+    final options = poll.options!;
+    if (!ChatPoll.isValid(payload.body, options, poll.maxChoices)) return null;
+    return ChatPoll(options: List.unmodifiable(options), maxChoices: poll.maxChoices);
   }
 
   bool _hasMessageWithClientId(String conversationId, String clientId) =>
@@ -3202,6 +3810,8 @@ class ConversationController extends ChangeNotifier {
             )
           : null,
       sticker: _stickerIn(payload),
+      poll: _pollIn(payload),
+      location: payload.location,
       customEmoji: payload.customEmoji,
     );
   }

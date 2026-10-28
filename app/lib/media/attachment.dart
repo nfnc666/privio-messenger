@@ -7,6 +7,7 @@ import '../calls/call_signal.dart';
 import 'package:cryptography/cryptography.dart';
 
 import '../crypto/padding.dart';
+import '../models/geo_point.dart';
 import 'metadata_scrubber.dart';
 
 /// An attachment prepared for sending: scrubbed, padded, sealed.
@@ -211,6 +212,43 @@ class CustomEmojiRef {
   int get hashCode => Object.hash(itemId, mediaId, offset, length);
 }
 
+/// The poll part of a payload: asking, voting, or ending.
+///
+/// One type with three shapes rather than three fields on [MessagePayload],
+/// which already carries one nullable field per feature and initialises every
+/// one of them in every constructor.
+@immutable
+class ChatPollPayload {
+  /// Asking: the answers. The question is the payload's body.
+  const ChatPollPayload.ask({required List<String> this.options, this.maxChoices = 1})
+      : target = null,
+        choices = null,
+        isEnd = false;
+
+  /// Voting on the poll whose client id is [target]. Empty [choices] takes the
+  /// vote back. Always the whole vote, never a change to it: a vote that only
+  /// said "add option 2" would depend on which earlier vote arrived first.
+  const ChatPollPayload.vote({required String this.target, required List<int> this.choices})
+      : options = null,
+        maxChoices = 1,
+        isEnd = false;
+
+  /// Ending the poll whose client id is [target]. Only its author may.
+  const ChatPollPayload.end(String this.target)
+      : options = null,
+        choices = null,
+        maxChoices = 1,
+        isEnd = true;
+
+  final List<String>? options;
+  final int maxChoices;
+  final String? target;
+  final List<int>? choices;
+  final bool isEnd;
+
+  bool get isAsk => options != null;
+}
+
 class MessagePayload {
   const MessagePayload.text(
     this.body, {
@@ -238,6 +276,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         mediaToken = null,
         sync = null,
@@ -278,6 +319,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -307,6 +351,9 @@ class MessagePayload {
     this.stickerMediaId,
   })  : body = '',
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -384,6 +431,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         sync = null,
         call = null,
@@ -403,6 +453,9 @@ class MessagePayload {
   /// screen that offers this says so rather than implying an undo.
   const MessagePayload.deletion(String this.deleteTo)
       : body = '',
+        editTo = null,
+        poll = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -437,6 +490,191 @@ class MessagePayload {
         stickerPackId = null,
         stickerMediaId = null,
         customEmoji = null;
+
+  /// A correction to a message the sender wrote: [editTo] names it, [body] is
+  /// the whole new text.
+  ///
+  /// Control, never conversation, like a deletion: it changes a line that is
+  /// already in the transcript rather than adding one, and the receiving device
+  /// decides whether it is allowed to. The new text travels sealed exactly like
+  /// the original did, so the server learns that something was sent and
+  /// nothing about what changed. A reply that quoted the old text keeps its
+  /// own copy — a correction cannot reach into what somebody already answered.
+  const MessagePayload.edit({required String this.editTo, required this.body})
+      : deleteTo = null,
+        poll = null,
+        location = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
+
+  /// A poll in a chat or a group: [body] is the question, [poll] the answers.
+  ///
+  /// A message, not machinery: it is filed, shown and replied to like one. An
+  /// older build that does not know polls shows the question as plain text,
+  /// which is a fair reading of what was asked.
+  const MessagePayload.poll({
+    required this.body,
+    required ChatPollPayload this.poll,
+    this.profileKey,
+    this.groupKey,
+    this.expiresInSeconds,
+    this.clientId,
+  })  : editTo = null,
+        location = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null,
+        deleteTo = null;
+
+  /// A place: [location] is the coordinates, [body] the same two numbers as
+  /// text.
+  ///
+  /// A message, filed and shown like one. The body is what an older build that
+  /// does not know places shows, so it reads the coordinates rather than an
+  /// empty line, and what a reply quotes.
+  const MessagePayload.location({
+    required this.body,
+    required GeoPoint this.location,
+    this.profileKey,
+    this.groupKey,
+    this.expiresInSeconds,
+    this.clientId,
+  })  : editTo = null,
+        poll = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null,
+        deleteTo = null;
+
+  /// A vote on a poll, or the poll's end. See [ChatPollPayload].
+  ///
+  /// Control: it changes a poll already in the transcript rather than adding a
+  /// line, and the receiving device decides whether it may.
+  const MessagePayload.pollAction(ChatPollPayload this.poll)
+      : body = '',
+        editTo = null,
+        location = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        expiresInSeconds = null,
+        clientId = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null,
+        deleteTo = null;
 
   /// "Start again — I cannot read what you are sending."
   ///
@@ -473,6 +711,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -512,6 +753,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -551,6 +795,9 @@ class MessagePayload {
         receiptKind = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -594,6 +841,9 @@ class MessagePayload {
         reactionTo = null,
         reactionEmoji = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         sync = null,
         call = null,
         sessionReset = false,
@@ -635,6 +885,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -676,6 +929,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -732,6 +988,9 @@ class MessagePayload {
         typingAt = null,
         reactionTo = null,
         deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -783,6 +1042,55 @@ class MessagePayload {
     }
     if (json['t'] == 'delete') {
       return MessagePayload.deletion(json['dt'] as String? ?? '');
+    }
+    if (json['t'] == 'poll') {
+      final raw = json['pl'];
+      final options = raw is Map<String, dynamic> ? raw['o'] : null;
+      if (options is List) {
+        return MessagePayload.poll(
+          body: json['b'] as String? ?? '',
+          poll: ChatPollPayload.ask(
+            options: options.whereType<String>().toList(growable: false),
+            maxChoices: (raw as Map<String, dynamic>)['mc'] as int? ?? 1,
+          ),
+          profileKey: profileKey,
+          groupKey: groupKey,
+          expiresInSeconds: expiresInSeconds,
+          clientId: clientId,
+        );
+      }
+    }
+    if (json['t'] == 'vote') {
+      return MessagePayload.pollAction(
+        ChatPollPayload.vote(
+          target: json['pt'] as String? ?? '',
+          choices: (json['pc'] as List<dynamic>? ?? const []).whereType<int>().toList(growable: false),
+        ),
+      );
+    }
+    if (json['t'] == 'pollend') {
+      return MessagePayload.pollAction(ChatPollPayload.end(json['pt'] as String? ?? ''));
+    }
+    if (json['t'] == 'loc') {
+      // A place this app cannot read is filed as its text, which is the two
+      // numbers, as an older build would file it.
+      final point = GeoPoint.fromJson(json['gl']);
+      if (point != null) {
+        return MessagePayload.location(
+          body: json['b'] as String? ?? '',
+          location: point,
+          profileKey: profileKey,
+          groupKey: groupKey,
+          expiresInSeconds: expiresInSeconds,
+          clientId: clientId,
+        );
+      }
+    }
+    if (json['t'] == 'edit') {
+      return MessagePayload.edit(
+        editTo: json['et'] as String? ?? '',
+        body: json['b'] as String? ?? '',
+      );
     }
     if (json['t'] == 'reaction') {
       return MessagePayload.reaction(
@@ -1011,6 +1319,15 @@ class MessagePayload {
   /// On a deletion: the client id of the message to take back.
   final String? deleteTo;
 
+  /// The client id of the message an edit corrects. See [MessagePayload.edit].
+  final String? editTo;
+
+  /// A poll being asked, voted on, or ended. See [ChatPollPayload].
+  final ChatPollPayload? poll;
+
+  /// A place. See [MessagePayload.location].
+  final GeoPoint? location;
+
   /// On a reply: the client id of the message being replied to.
   final String? replyToId;
 
@@ -1064,6 +1381,26 @@ class MessagePayload {
     // Control payloads carry no profile key: a receipt is not a place to attach
     // anything about who sent it beyond what the envelope already says.
     if (isControl) return this;
+    if (isLocation) {
+      return MessagePayload.location(
+        body: body,
+        location: location!,
+        profileKey: key,
+        groupKey: groupKey,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      );
+    }
+    if (isPoll) {
+      return MessagePayload.poll(
+        body: body,
+        poll: poll!,
+        profileKey: key,
+        groupKey: groupKey,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      );
+    }
     if (isMedia) {
       return MessagePayload.media(
         mediaId: mediaId!,
@@ -1101,6 +1438,10 @@ class MessagePayload {
   bool get isCall => call != null;
   bool get isSync => sync != null;
   bool get isDeletion => deleteTo != null;
+  bool get isEdit => editTo != null;
+  bool get isPoll => poll?.isAsk ?? false;
+  bool get isLocation => location != null;
+  bool get isPollAction => poll != null && !poll!.isAsk;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
   bool get isReaction => reactionTo != null;
@@ -1132,7 +1473,9 @@ class MessagePayload {
       isSync ||
       isSessionReset ||
       isTimerChange ||
-      isDeletion;
+      isDeletion ||
+      isEdit ||
+      isPollAction;
 
   bool get isVoice => (mediaType ?? '').startsWith('audio/');
 
@@ -1153,6 +1496,10 @@ class MessagePayload {
     if (isSync) return 'sync';
     if (isCall) return 'call';
     if (isDeletion) return 'delete';
+    if (isEdit) return 'edit';
+    if (isPoll) return 'poll';
+    if (isPollAction) return poll!.isEnd ? 'pollend' : 'vote';
+    if (isLocation) return 'loc';
     if (isReaction) return 'reaction';
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
@@ -1181,6 +1528,13 @@ class MessagePayload {
         },
         if (isTyping) 'ta': typingAt,
         if (isDeletion) 'dt': deleteTo,
+        if (isEdit) 'et': editTo,
+        if (isPoll) 'pl': {'o': poll!.options, 'mc': poll!.maxChoices},
+        if (isLocation) 'gl': location!.toJson(),
+        if (isPollAction) ...{
+          'pt': poll!.target,
+          if (!poll!.isEnd) 'pc': poll!.choices,
+        },
         if (isReaction) ...{
           'rt': reactionTo,
           // Always a real character, even on a custom reaction: it is what a

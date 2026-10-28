@@ -568,14 +568,31 @@ class PrivioCrypto {
     final recorded = await _store.allVerifications();
     var count = 0;
     for (final entry in recorded.entries) {
-      final pinned = await _store.pinnedIdentities(entry.key);
-      final now = {
-        for (final device in pinned.entries)
-          '${device.key}': base64Encode(device.value.serialize()),
-      };
-      if (mapEquals(entry.value, now)) count++;
+      if (mapEquals(entry.value, await _pinnedSnapshot(entry.key))) count++;
     }
     return count;
+  }
+
+  /// What [safetyNumbers] would say about [remoteAccountId], without working
+  /// out a single digit.
+  ///
+  /// For the lists, which want the answer for every row and redraw often. A
+  /// safety number is 5200 hash rounds per device; the state is only whether
+  /// what was verified is still what is pinned, and that is a comparison.
+  Future<VerificationState> verificationState(String remoteAccountId) async {
+    final checked = await _store.readVerification(remoteAccountId);
+    if (checked == null) return VerificationState.unverified;
+    return mapEquals(checked, await _pinnedSnapshot(remoteAccountId))
+        ? VerificationState.verified
+        : VerificationState.changed;
+  }
+
+  /// The keys pinned for an account now, in the shape a verification records.
+  Future<Map<String, String>> _pinnedSnapshot(String accountId) async {
+    final pinned = await _store.pinnedIdentities(accountId);
+    return {
+      for (final device in pinned.entries) '${device.key}': base64Encode(device.value.serialize()),
+    };
   }
 
   /// Records that the user compared these numbers and they matched.

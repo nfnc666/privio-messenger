@@ -26,6 +26,9 @@ import UIKit
     // nothing: iOS is only asked once Dart calls `read`, which happens when
     // somebody presses the button that matches contacts.
     ContactsReader.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
+    // Where the phone is, once, when somebody shares a place. Attaching asks
+    // for nothing: iOS is only asked once Dart calls `current`.
+    LocationReader.shared.attach(messenger: engineBridge.applicationRegistrar.messenger())
   }
 
   // MARK: - APNs

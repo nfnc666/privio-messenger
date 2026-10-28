@@ -22,6 +22,7 @@ import '../widgets/verified_badge.dart';
 import '../widgets/channel_avatar.dart';
 import '../widgets/linked_text.dart';
 import '../widgets/photo_viewer.dart';
+import '../widgets/new_poll_dialog.dart';
 import '../widgets/poll_option_row.dart';
 import '../widgets/privio_back_button.dart';
 
@@ -253,7 +254,7 @@ class _ChannelFeedScreenState extends State<ChannelFeedScreen> {
   Future<void> _poll() async {
     final draft = await showDialog<ChannelPollDraft>(
       context: context,
-      builder: (_) => const _NewPollDialog(),
+      builder: (context) => NewPollDialog(note: AppText.of(context).feedPollNote),
     );
     if (draft == null || !mounted) return;
 
@@ -1952,134 +1953,6 @@ class _PollCardState extends State<_PollCard> {
   }
 }
 
-
-/// Writing a poll.
-class _NewPollDialog extends StatefulWidget {
-  const _NewPollDialog();
-
-  @override
-  State<_NewPollDialog> createState() => _NewPollDialogState();
-}
-
-class _NewPollDialogState extends State<_NewPollDialog> {
-  /// Two is the fewest that is a question; twelve is what the server allows and
-  /// more than fits on a phone.
-  static const int _maxOptions = 12;
-
-  final TextEditingController _question = TextEditingController();
-  final List<TextEditingController> _options = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
-  bool _several = false;
-
-  @override
-  void dispose() {
-    _question.dispose();
-    for (final option in _options) {
-      option.dispose();
-    }
-    super.dispose();
-  }
-
-  List<String> get _filled =>
-      [for (final option in _options) option.text.trim()]..removeWhere((o) => o.isEmpty);
-
-  bool get _ready => _question.text.trim().isNotEmpty && _filled.length >= 2;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
-      backgroundColor: PrivioColors.surfaceRaised,
-      title: Text(AppText.of(context).feedAskQuestion),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _question,
-              autofocus: true,
-              onChanged: (_) => setState(() {}),
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(hintText: AppText.of(context).feedPollQuestion),
-            ),
-            const SizedBox(height: PrivioSpacing.md),
-            for (var index = 0; index < _options.length; index++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: PrivioSpacing.sm),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _options[index],
-                        onChanged: (_) => setState(() {}),
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: InputDecoration(
-                          hintText: AppText.of(context).feedPollAnswerN(index + 1),
-                        ),
-                      ),
-                    ),
-                    if (_options.length > 2)
-                      IconButton(
-                        onPressed: () => setState(() => _options.removeAt(index).dispose()),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        tooltip: AppText.of(context).commonRemove,
-                      ),
-                  ],
-                ),
-              ),
-            if (_options.length < _maxOptions)
-              TextButton.icon(
-                onPressed: () =>
-                    setState(() => _options.add(TextEditingController())),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(AppText.of(context).feedPollAddAnswer),
-              ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _several,
-              onChanged: (value) => setState(() => _several = value),
-              activeThumbColor: context.accents.accent,
-              title: Text(
-                AppText.of(context).feedPollSeveral,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-            Text(
-              AppText.of(context).feedPollNote,
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(AppText.of(context).commonCancel),
-        ),
-        FilledButton(
-          onPressed: !_ready
-              ? null
-              : () {
-                  final options = _filled;
-                  Navigator.of(context).pop(
-                    ChannelPollDraft(
-                      question: _question.text.trim(),
-                      options: options,
-                      // "Several" means up to all but one: letting somebody
-                      // tick every box is not a poll, it is a list.
-                      maxChoices: _several ? options.length - 1 : 1,
-                    ),
-                  );
-                },
-          child: Text(AppText.of(context).feedPollAsk),
-        ),
-      ],
-    );
-  }
-}
 
 /// The reactions on a post, and a way to add one.
 ///

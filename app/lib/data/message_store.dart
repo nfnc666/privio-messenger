@@ -229,6 +229,22 @@ class Conversation {
   /// without telling a server which chats matter most to somebody.
   bool pinned = false;
 
+  /// Shown as unread in the chat list although nothing new has arrived — a
+  /// reminder somebody set for themselves to come back to it.
+  ///
+  /// Local like [pinned], for the same reason: nobody is told, there is no
+  /// receipt to take back, and the other side's ticks stay as they were. Gone
+  /// as soon as the chat is opened or marked read.
+  bool markedUnread = false;
+
+  /// Left out of the chat list, the search and the chat screen until this
+  /// account's private-chats code has been typed.
+  ///
+  /// Local like [pinned]: nobody is told, and the server could not be. It
+  /// lives in the archive with the chat it hides, so at rest it is exactly as
+  /// protected as that chat and no more.
+  bool isPrivate = false;
+
   /// When the other side was last seen typing, or null.
   ///
   /// Deliberately not persisted: "was typing" is only interesting for a few
@@ -287,6 +303,14 @@ abstract interface class MessageStore {
   /// Pins a conversation to the top of the list, or lets it go. Returns
   /// whether anything changed.
   bool setPinned(String id, {required bool pinned});
+
+  /// Marks a conversation unread on this device, or takes the mark away.
+  /// Returns whether anything changed.
+  bool setMarkedUnread(String id, {required bool marked});
+
+  /// Makes a conversation private or ordinary. Returns whether anything
+  /// changed.
+  bool setPrivate(String id, {required bool isPrivate});
 
   /// Marks the other side as typing until [until].
   void setTyping(String id, DateTime? until);
@@ -348,6 +372,33 @@ abstract interface class MessageStore {
     required bool tombstone,
   });
 
+  /// Replaces the text of a message with a correction its sender made.
+  ///
+  /// Only an ordinary text message can be corrected — a file, a voice note, a
+  /// sticker or a tombstone has nothing that an edit could honestly replace.
+  /// Returns whether anything changed: an edit to a message this device does
+  /// not have, or one that says what is already there, is not a change.
+  bool editMessage({
+    required String conversationId,
+    required String clientId,
+    required String body,
+    required DateTime editedAt,
+  });
+
+  /// Records [accountId]'s whole vote on the poll with [clientId], replacing
+  /// any earlier one; an empty [choices] takes it back. Returns whether
+  /// anything changed. A vote on an ended poll, or one the poll cannot take,
+  /// changes nothing.
+  bool applyPollVote({
+    required String conversationId,
+    required String clientId,
+    required String accountId,
+    required Set<int> choices,
+  });
+
+  /// Ends the poll with [clientId]. Returns whether it was open.
+  bool closePoll({required String conversationId, required String clientId});
+
   /// Drops every message whose timer has run out.
   ///
   /// Returns the messages that went, rather than a count: the caller has to be
@@ -371,9 +422,13 @@ class InMemoryMessageStore implements MessageStore {
   List<Conversation> conversations() {
     // A group with nothing said in it still belongs in the list — someone who
     // joined by a link has to be able to find it before anyone speaks. An empty
-    // direct conversation is just a contact, and belongs under Contacts.
+    // direct conversation is just a contact, and belongs under Contacts —
+    // unless it is private. That one is kept, because this list is also what
+    // goes into the archive: a private chat emptied by its timer would
+    // otherwise lose the flag at the next save, and the next message from that
+    // person would arrive in the open.
     final all = _conversations.values
-        .where((c) => c.messages.isNotEmpty || c.isGroup)
+        .where((c) => c.messages.isNotEmpty || c.isGroup || c.isPrivate)
         .toList();
     // Pinned first, then most recent, which is the order the chat list shows.
     all.sort((a, b) {
@@ -414,6 +469,8 @@ class InMemoryMessageStore implements MessageStore {
       // refresh and on every message from someone new, and a pin that a
       // refresh quietly undid was a pin that did not work.
       ..pinned = existing.pinned
+      ..markedUnread = existing.markedUnread
+      ..isPrivate = existing.isPrivate
       ..typingUntil = existing.typingUntil;
     return _conversations[user.accountId] = replacement;
   }
@@ -454,6 +511,8 @@ class InMemoryMessageStore implements MessageStore {
       ..timerVersion = existing.timerVersion
       ..timerSetBy = existing.timerSetBy
       ..pinned = existing.pinned
+      ..markedUnread = existing.markedUnread
+      ..isPrivate = existing.isPrivate
       ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
   }
@@ -528,6 +587,22 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
+  bool setPrivate(String id, {required bool isPrivate}) {
+    final conversation = _conversations[id];
+    if (conversation == null || conversation.isPrivate == isPrivate) return false;
+    conversation.isPrivate = isPrivate;
+    return true;
+  }
+
+  @override
+  bool setMarkedUnread(String id, {required bool marked}) {
+    final conversation = _conversations[id];
+    if (conversation == null || conversation.markedUnread == marked) return false;
+    conversation.markedUnread = marked;
+    return true;
+  }
+
+  @override
   bool deleteMessage({
     required String conversationId,
     required String clientId,
@@ -557,6 +632,62 @@ class InMemoryMessageStore implements MessageStore {
       clientId: message.clientId,
     );
     return true;
+  }
+
+  @override
+  bool editMessage({
+    required String conversationId,
+    required String clientId,
+    required String body,
+    required DateTime editedAt,
+  }) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return false;
+    final index = conversation.messages.indexWhere((m) => m.clientId == clientId);
+    if (index == -1) return false;
+    final message = conversation.messages[index];
+    if (message.kind != MessageKind.text || message.body == body) return false;
+    conversation.messages[index] = message.copyWith(body: body, editedAt: editedAt);
+    return true;
+  }
+
+  @override
+  bool applyPollVote({
+    required String conversationId,
+    required String clientId,
+    required String accountId,
+    required Set<int> choices,
+  }) {
+    final (index, poll) = _openPoll(conversationId, clientId);
+    if (poll == null || !poll.accepts(choices)) return false;
+    final current = poll.choicesOf(accountId);
+    if (current.length == choices.length && current.containsAll(choices)) return false;
+    final conversation = _conversations[conversationId]!;
+    conversation.messages[index] =
+        conversation.messages[index].copyWith(poll: poll.withVote(accountId, choices));
+    return true;
+  }
+
+  @override
+  bool closePoll({required String conversationId, required String clientId}) {
+    final (index, poll) = _openPoll(conversationId, clientId);
+    if (poll == null) return false;
+    final conversation = _conversations[conversationId]!;
+    conversation.messages[index] = conversation.messages[index].copyWith(poll: poll.asClosed());
+    return true;
+  }
+
+  /// The poll behind [clientId] and where it sits, or a null poll when there is
+  /// none or it has ended.
+  (int, ChatPoll?) _openPoll(String conversationId, String clientId) {
+    final messages = _conversations[conversationId]?.messages;
+    if (messages == null) return (-1, null);
+    final index = messages.indexWhere((m) => m.clientId == clientId);
+    if (index == -1) return (-1, null);
+    final message = messages[index];
+    final poll = message.poll;
+    if (message.kind != MessageKind.poll || poll == null || poll.closed) return (index, null);
+    return (index, poll);
   }
 
   @override
@@ -602,7 +733,8 @@ class InMemoryMessageStore implements MessageStore {
   @override
   List<String> unreadClientIds(String id) => [
         for (final message in _conversations[id]?.messages ?? const <Message>[])
-          if (!message.isMine && message.clientId != null) message.clientId!,
+          if (!message.isMine && message.clientId != null && message.state != DeliveryState.read)
+            message.clientId!,
       ];
 
   @override
@@ -611,6 +743,7 @@ class InMemoryMessageStore implements MessageStore {
     for (final message in _conversations[id]?.messages ?? const <Message>[]) {
       final sender = message.senderAccountId;
       if (message.isMine || message.clientId == null || sender == null) continue;
+      if (message.state == DeliveryState.read) continue;
       bySender.putIfAbsent(sender, () => []).add(message.clientId!);
     }
     return bySender;
@@ -688,7 +821,22 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
-  void markRead(String id) => _conversations[id]?.unreadCount = 0;
+  void markRead(String id) {
+    final conversation = _conversations[id];
+    if (conversation == null) return;
+    conversation
+      ..unreadCount = 0
+      ..markedUnread = false;
+    // Remembered per message, so the next read receipt names what arrived
+    // after this and not everything ever said in the chat. This account's own
+    // messages are left alone: their state is what the other side reported.
+    final messages = conversation.messages;
+    for (var i = 0; i < messages.length; i++) {
+      final message = messages[i];
+      if (message.isMine || message.state == DeliveryState.read) continue;
+      messages[i] = message.copyWith(state: DeliveryState.read);
+    }
+  }
 
   @override
   void updateState(String id, String messageId, DeliveryState state) {

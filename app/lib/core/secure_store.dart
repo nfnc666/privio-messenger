@@ -97,6 +97,14 @@ abstract interface class SecureStore {
   Future<bool> readBlockOnKeyChange(String accountId);
   Future<void> writeBlockOnKeyChange(String accountId, bool block);
 
+  /// Whether this account offers to share a location at all.
+  ///
+  /// On unless switched off: sharing is always one person's deliberate act,
+  /// with the place shown before it goes. Off, Privio never asks the system
+  /// where the phone is, and the option is gone from the attach menu.
+  Future<bool> readShareLocation(String accountId);
+  Future<void> writeShareLocation(String accountId, bool share);
+
   /// Which colour the home-screen icon is wearing.
   ///
   /// **Not keyed by account**, unlike everything else here. A launcher icon
@@ -131,6 +139,13 @@ abstract interface class SecureStore {
   /// recognise it with no network — which is the situation it exists for.
   Future<void> setDuressCode(String? code);
   Future<bool> verifyDuressCode(String code);
+
+  /// The code that shows this account's private chats, kept as an Argon2id
+  /// hash like the duress code and never as itself. Per account, because the
+  /// chats it hides are. Null removes it.
+  Future<void> setPrivateChatsCode(String accountId, String? code);
+  Future<bool> hasPrivateChatsCode(String accountId);
+  Future<bool> verifyPrivateChatsCode(String accountId, String code);
 
   /// The key the local message archive is sealed with. Small enough that a
   /// keystore is the right home for it, unlike the archive itself.
@@ -403,6 +418,16 @@ class KeystoreSecureStore implements SecureStore {
   Future<bool> readBlockOnKeyChange(String accountId) async =>
       await _read(_blockOnKeyChangeKey(accountId)) == 'true';
 
+  static String _shareLocationKey(String accountId) => 'privio.shareLocation.$accountId';
+
+  @override
+  Future<bool> readShareLocation(String accountId) async =>
+      await _read(_shareLocationKey(accountId)) != 'false';
+
+  @override
+  Future<void> writeShareLocation(String accountId, bool share) =>
+      _write(_shareLocationKey(accountId), share ? 'true' : 'false');
+
   @override
   Future<void> writeBlockOnKeyChange(String accountId, bool block) =>
       _write(_blockOnKeyChangeKey(accountId), block ? 'true' : 'false');
@@ -438,6 +463,25 @@ class KeystoreSecureStore implements SecureStore {
   @override
   Future<bool> verifyDuressCode(String code) async =>
       PasscodeVault.matches(code: code, stored: await _read(_duressKey));
+
+  static String _privateChatsKey(String accountId) => 'privio.privateChats.$accountId';
+
+  @override
+  Future<void> setPrivateChatsCode(String accountId, String? code) async => code == null
+      ? _storage.delete(
+          key: _privateChatsKey(accountId),
+          iOptions: _iosOptions,
+          aOptions: _androidOptions,
+        )
+      : _write(_privateChatsKey(accountId), await PasscodeVault.hash(code));
+
+  @override
+  Future<bool> hasPrivateChatsCode(String accountId) async =>
+      await _read(_privateChatsKey(accountId)) != null;
+
+  @override
+  Future<bool> verifyPrivateChatsCode(String accountId, String code) async =>
+      PasscodeVault.matches(code: code, stored: await _read(_privateChatsKey(accountId)));
 
   @override
   Future<bool> verifyPasscode(String passcode) async {
@@ -665,6 +709,14 @@ class InMemorySecureStore implements SecureStore {
       _entries['blockOnKeyChange.$accountId'] == 'true';
 
   @override
+  Future<bool> readShareLocation(String accountId) async =>
+      _entries['shareLocation.$accountId'] != 'false';
+
+  @override
+  Future<void> writeShareLocation(String accountId, bool share) async =>
+      _entries['shareLocation.$accountId'] = share ? 'true' : 'false';
+
+  @override
   Future<void> writeBlockOnKeyChange(String accountId, bool block) async =>
       _entries['blockOnKeyChange.$accountId'] = block ? 'true' : 'false';
 
@@ -704,6 +756,23 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<bool> verifyDuressCode(String code) async =>
       PasscodeVault.matches(code: code, stored: _entries['duress']);
+
+  @override
+  Future<void> setPrivateChatsCode(String accountId, String? code) async {
+    if (code == null) {
+      _entries.remove('privateChats.$accountId');
+    } else {
+      _entries['privateChats.$accountId'] = await PasscodeVault.hash(code);
+    }
+  }
+
+  @override
+  Future<bool> hasPrivateChatsCode(String accountId) async =>
+      _entries.containsKey('privateChats.$accountId');
+
+  @override
+  Future<bool> verifyPrivateChatsCode(String accountId, String code) async =>
+      PasscodeVault.matches(code: code, stored: _entries['privateChats.$accountId']);
 
   /// What this store would still have after a relaunch: the written-down half,
   /// without the passcode and key a running process holds in memory.

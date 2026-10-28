@@ -2671,6 +2671,324 @@ abstract class AppText {
   /// **'Only on this device. Nothing is sent.'**
   String get chatsPinNote;
 
+  /// No description provided for @chatsMarkUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as unread'**
+  String get chatsMarkUnread;
+
+  /// No description provided for @chatsMarkRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as read'**
+  String get chatsMarkRead;
+
+  /// No description provided for @chatsMarkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only on this device. Nothing is sent.'**
+  String get chatsMarkNote;
+
+  /// No description provided for @chatsMarkReadReceiptsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts go out, as when you open the chat.'**
+  String get chatsMarkReadReceiptsNote;
+
+  /// No description provided for @chatsMarkedUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Marked as unread'**
+  String get chatsMarkedUnread;
+
+  /// No description provided for @privacyPrivateChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats'**
+  String get privacyPrivateChats;
+
+  /// No description provided for @privateChatsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats are left out of the chat list and the search until you enter this code, and go back into hiding whenever you leave the app. They keep a chat from someone holding your unlocked phone. They are not a second encryption: on the device they are protected by the app lock, like every other chat.'**
+  String get privateChatsNote;
+
+  /// No description provided for @privateChatsCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Code'**
+  String get privateChatsCode;
+
+  /// No description provided for @privateChatsNewCode.
+  ///
+  /// In en, this message translates to:
+  /// **'New code'**
+  String get privateChatsNewCode;
+
+  /// No description provided for @privateChatsCurrentCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Current code'**
+  String get privateChatsCurrentCode;
+
+  /// No description provided for @privateChatsRepeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat the code'**
+  String get privateChatsRepeat;
+
+  /// No description provided for @privateChatsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save code'**
+  String get privateChatsSave;
+
+  /// No description provided for @privateChatsChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change code'**
+  String get privateChatsChange;
+
+  /// No description provided for @privateChatsRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove code'**
+  String get privateChatsRemove;
+
+  /// No description provided for @privateChatsRemoveNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Every private chat becomes an ordinary chat again.'**
+  String get privateChatsRemoveNote;
+
+  /// No description provided for @privateChatsForgot.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot the code?'**
+  String get privateChatsForgot;
+
+  /// No description provided for @privateChatsForgotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete private chats?'**
+  String get privateChatsForgotTitle;
+
+  /// No description provided for @privateChatsForgotBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Without the code they cannot be shown again. This deletes every private chat on this device, and the code with them. It cannot reach the other side\'s copy or a backup already on the server. New messages from the same people arrive in ordinary chats.'**
+  String get privateChatsForgotBody;
+
+  /// No description provided for @privateChatsForgotConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete private chats'**
+  String get privateChatsForgotConfirm;
+
+  /// No description provided for @privateChatsTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'At least {count} characters.'**
+  String privateChatsTooShort(int count);
+
+  /// No description provided for @privateChatsMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The two codes differ.'**
+  String get privateChatsMismatch;
+
+  /// No description provided for @privateChatsSameAsUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a code different from your screen lock.'**
+  String get privateChatsSameAsUnlock;
+
+  /// No description provided for @privateChatsWrongCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong code.'**
+  String get privateChatsWrongCode;
+
+  /// No description provided for @privateChatsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Code saved.'**
+  String get privateChatsSaved;
+
+  /// No description provided for @privateChatsRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Code removed. Private chats are ordinary chats again.'**
+  String get privateChatsRemoved;
+
+  /// No description provided for @privateChatsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats deleted.'**
+  String get privateChatsDeleted;
+
+  /// No description provided for @privateChatsEnterCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter code'**
+  String get privateChatsEnterCode;
+
+  /// No description provided for @privateChatsShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get privateChatsShow;
+
+  /// No description provided for @chatsShowPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Show private chats'**
+  String get chatsShowPrivate;
+
+  /// No description provided for @chatsHidePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide private chats'**
+  String get chatsHidePrivate;
+
+  /// No description provided for @chatsMakePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Make private'**
+  String get chatsMakePrivate;
+
+  /// No description provided for @chatsMakePrivateNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden until your private-chats code is entered. Only on this device.'**
+  String get chatsMakePrivateNote;
+
+  /// No description provided for @chatsMakeOrdinary.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from private chats'**
+  String get chatsMakeOrdinary;
+
+  /// No description provided for @chatsMadePrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to private chats.'**
+  String get chatsMadePrivate;
+
+  /// No description provided for @chatsPrivateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chat'**
+  String get chatsPrivateLabel;
+
+  /// No description provided for @chatPrivateLockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This chat is private. Enter your code to see it.'**
+  String get chatPrivateLockedBody;
+
+  /// No description provided for @locationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get locationTitle;
+
+  /// No description provided for @chatsPreviewLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get chatsPreviewLocation;
+
+  /// No description provided for @locationAccuracy.
+  ///
+  /// In en, this message translates to:
+  /// **'within {meters} m'**
+  String locationAccuracy(int meters);
+
+  /// No description provided for @locationOpenInMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in maps'**
+  String get locationOpenInMaps;
+
+  /// No description provided for @locationOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in your maps app?'**
+  String get locationOpenTitle;
+
+  /// No description provided for @locationOpenNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your maps app, and the map service behind it, will see this place.'**
+  String get locationOpenNote;
+
+  /// No description provided for @locationOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get locationOpen;
+
+  /// No description provided for @locationCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get locationCopy;
+
+  /// No description provided for @locationNoMapsApp.
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this phone can open a place.'**
+  String get locationNoMapsApp;
+
+  /// No description provided for @locationSendTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send your location?'**
+  String get locationSendTitle;
+
+  /// No description provided for @locationSendNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current position as two numbers, encrypted like any message. No map is loaded, so no map service learns where you are.'**
+  String get locationSendNote;
+
+  /// No description provided for @locationSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get locationSend;
+
+  /// No description provided for @locationFinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding your position…'**
+  String get locationFinding;
+
+  /// No description provided for @locationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio may not use your location. You can allow it in the system settings.'**
+  String get locationDenied;
+
+  /// No description provided for @locationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No position right now. Is location turned on?'**
+  String get locationUnavailable;
+
+  /// No description provided for @privacyShareLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Share location'**
+  String get privacyShareLocation;
+
+  /// No description provided for @privacyShareLocationNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.'**
+  String get privacyShareLocationNote;
+
   /// No description provided for @chatsGroupFallbackName.
   ///
   /// In en, this message translates to:
@@ -2856,6 +3174,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'This message was deleted'**
   String get bubbleMessageDeleted;
+
+  /// No description provided for @bubbleEdited.
+  ///
+  /// In en, this message translates to:
+  /// **'edited'**
+  String get bubbleEdited;
 
   /// No description provided for @bubbleCouldNotOpen.
   ///
@@ -3168,6 +3492,42 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Cancel reply'**
   String get chatCancelReply;
+
+  /// No description provided for @chatEditMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get chatEditMessage;
+
+  /// No description provided for @chatEditingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing message'**
+  String get chatEditingMessage;
+
+  /// No description provided for @chatCancelEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel editing'**
+  String get chatCancelEdit;
+
+  /// No description provided for @chatPollNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the people in this chat can read the question, the answers and the votes. Every device counts the votes itself; the server never learns this is a poll.'**
+  String get chatPollNote;
+
+  /// No description provided for @chatPollEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End poll'**
+  String get chatPollEnd;
+
+  /// No description provided for @chatPollEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'ended'**
+  String get chatPollEnded;
 
   /// No description provided for @contactsTitle.
   ///
@@ -6343,6 +6703,18 @@ abstract class AppText {
   /// **'Deleted here. The request to delete it there did not go out.'**
   String get failureDeletedHereOnly;
 
+  /// No description provided for @failureEditedHereOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed here. The correction did not reach the other side, so they still see the old text.'**
+  String get failureEditedHereOnly;
+
+  /// No description provided for @failurePollActionHereOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded here. It did not reach the others, so they still see the poll as it was.'**
+  String get failurePollActionHereOnly;
+
   /// No description provided for @failureCouldNotCreateGroup.
   ///
   /// In en, this message translates to:
@@ -6642,6 +7014,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'File'**
   String get chatsPreviewFile;
+
+  /// No description provided for @chatsPreviewPoll.
+  ///
+  /// In en, this message translates to:
+  /// **'Poll: {question}'**
+  String chatsPreviewPoll(String question);
 
   /// No description provided for @notificationsPermissionDenied.
   ///
@@ -7614,6 +7992,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Send a file'**
   String get attachFile;
+
+  /// No description provided for @attachPoll.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a question'**
+  String get attachPoll;
 
   /// No description provided for @photoTitle.
   ///

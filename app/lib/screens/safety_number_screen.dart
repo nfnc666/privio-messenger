@@ -100,11 +100,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
     final state = PrivioScope.of(context);
     final numbers = _numbers;
     if (numbers == null) return;
-    if (verified) {
-      await state.services.crypto.markVerified(widget.accountId, numbers);
-    } else {
-      await state.services.crypto.clearVerified(widget.accountId);
-    }
+    await state.conversations.setVerified(widget.accountId, numbers, verified: verified);
     // Both directions are worth a line. Withdrawing a verification is the
     // rarer one and the more interesting: it is what somebody does after
     // deciding the check they made no longer stands.

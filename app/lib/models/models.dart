@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../media/attachment.dart' show CustomEmojiRef;
+import 'geo_point.dart';
 
 
 @immutable
@@ -161,6 +162,14 @@ enum MessageKind {
   /// which is also why it carries no sender and no client id.
   notice,
 
+  /// A poll: the question is the body, the answers and votes are in
+  /// [Message.poll].
+  poll,
+
+  /// A place: the coordinates are in [Message.location], and the same two
+  /// numbers as text in the body.
+  location,
+
   /// Something arrived and could not be read.
   ///
   /// Its own kind rather than a [notice], because it is not housekeeping: a
@@ -168,6 +177,112 @@ enum MessageKind {
   /// worse than saying so is not saying so — a conversation with a silent hole
   /// in it reads as a conversation where nobody answered.
   undelivered,
+}
+
+/// A poll inside a chat or a group.
+///
+/// Unlike a channel poll, nothing about it is counted by the server: the
+/// question and the answers travel sealed in the message that asks, each vote
+/// travels sealed to every member, and every device keeps its own tally. The
+/// server relays bytes it cannot read and never learns that a poll exists.
+@immutable
+class ChatPoll {
+  const ChatPoll({
+    required this.options,
+    this.maxChoices = 1,
+    this.votes = const {},
+    this.closed = false,
+  });
+
+  static const int minOptions = 2;
+  static const int maxOptions = 12;
+  static const int maxOptionLength = 100;
+  static const int maxQuestionLength = 300;
+
+  /// Whether a poll as received is one this app will show. Anything outside the
+  /// limits is dropped rather than trimmed: a poll with an option quietly cut
+  /// off would ask a different question than the one that was sent.
+  static bool isValid(String question, List<String> options, int maxChoices) =>
+      question.trim().isNotEmpty &&
+      question.length <= maxQuestionLength &&
+      options.length >= minOptions &&
+      options.length <= maxOptions &&
+      options.every((o) => o.trim().isNotEmpty && o.length <= maxOptionLength) &&
+      maxChoices >= 1 &&
+      maxChoices <= options.length;
+
+  final List<String> options;
+  final int maxChoices;
+
+  /// Who chose what: account id to the option indexes they picked. One entry
+  /// per person, replaced when they change their mind, removed when they take
+  /// their vote back — the same shape as a reaction, for the same reason.
+  final Map<String, Set<int>> votes;
+
+  /// Ended by the person who asked. Votes that arrive afterwards are dropped.
+  final bool closed;
+
+  bool get takesSeveral => maxChoices > 1;
+  int get voters => votes.length;
+  int countFor(int index) => votes.values.where((chosen) => chosen.contains(index)).length;
+  Set<int> choicesOf(String accountId) => votes[accountId] ?? const {};
+
+  /// Against the busiest option, as for a channel poll: with several answers
+  /// per person the counts add up to more than the people.
+  double shareOf(int index) {
+    var highest = 0;
+    for (var i = 0; i < options.length; i++) {
+      final count = countFor(i);
+      if (count > highest) highest = count;
+    }
+    return highest == 0 ? 0 : countFor(index) / highest;
+  }
+
+  /// Whether [choices] is a vote this poll can take: in range, no repeats, not
+  /// more than allowed. Empty is allowed and means "take my vote back".
+  bool accepts(Iterable<int> choices) {
+    final list = choices.toList();
+    return list.length <= maxChoices &&
+        list.toSet().length == list.length &&
+        list.every((i) => i >= 0 && i < options.length);
+  }
+
+  ChatPoll withVote(String accountId, Set<int> choices) => ChatPoll(
+        options: options,
+        maxChoices: maxChoices,
+        closed: closed,
+        votes: {
+          for (final entry in votes.entries)
+            if (entry.key != accountId) entry.key: entry.value,
+          if (choices.isNotEmpty) accountId: Set.unmodifiable(choices),
+        },
+      );
+
+  ChatPoll asClosed() =>
+      ChatPoll(options: options, maxChoices: maxChoices, votes: votes, closed: true);
+
+  Map<String, dynamic> toJson() => {
+        'options': options,
+        'maxChoices': maxChoices,
+        if (votes.isNotEmpty)
+          'votes': {for (final entry in votes.entries) entry.key: entry.value.toList()..sort()},
+        if (closed) 'closed': true,
+      };
+
+  static ChatPoll? fromJson(Map<String, dynamic>? raw) {
+    if (raw == null) return null;
+    final options = (raw['options'] as List<dynamic>?)?.whereType<String>().toList();
+    if (options == null || options.length < minOptions) return null;
+    return ChatPoll(
+      options: options,
+      maxChoices: raw['maxChoices'] as int? ?? 1,
+      closed: raw['closed'] as bool? ?? false,
+      votes: {
+        for (final entry in (raw['votes'] as Map<String, dynamic>? ?? const {}).entries)
+          entry.key: Set.unmodifiable((entry.value as List<dynamic>).whereType<int>()),
+      },
+    );
+  }
 }
 
 /// An attachment a message points at.
@@ -377,6 +492,9 @@ class Message {
     this.customEmoji,
     this.reactionStickers = const {},
     this.pinned = false,
+    this.editedAt,
+    this.poll,
+    this.location,
   });
 
   final String id;
@@ -384,6 +502,12 @@ class Message {
   final DateTime sentAt;
   final bool isMine;
   final MessageKind kind;
+
+  /// How far one of this account's messages has got.
+  ///
+  /// On a message from the other side it says one thing only: whether this
+  /// device has read it, which is `read` from the moment the chat is marked
+  /// read. That is what keeps a read receipt from naming a message twice.
   final DeliveryState state;
   final Duration? voiceDuration;
 
@@ -484,6 +608,23 @@ class Message {
   /// the caller happened to be holding.
   final bool pinned;
 
+  /// When the sender last corrected this message, if they did.
+  ///
+  /// Shown next to the time as "edited", and never hidden: a line that changed
+  /// after somebody read it has to say so, or a correction becomes a way to
+  /// make the other person doubt what they saw. Only the newest text is kept —
+  /// keeping the old one on this device would be keeping what the sender took
+  /// back.
+  final DateTime? editedAt;
+
+  bool get isEdited => editedAt != null;
+
+  /// Set when this message *is* a poll; the question is in [body].
+  final ChatPoll? poll;
+
+  /// Set when this message *is* a place.
+  final GeoPoint? location;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -491,6 +632,11 @@ class Message {
   bool hasExpiredAt(DateTime now) => expiresAt != null && !expiresAt!.isAfter(now);
 
   Message copyWith({
+    /// A corrected text, from an edit. Drops the custom-emoji overlay with it:
+    /// its spans point into the old text and would no longer fit the new one.
+    String? body,
+    DateTime? editedAt,
+    ChatPoll? poll,
     DeliveryState? state,
     Attachment? attachment,
     DateTime? expiresAt,
@@ -508,7 +654,7 @@ class Message {
   }) =>
       Message(
         id: id,
-        body: body,
+        body: body ?? this.body,
         sentAt: sentAt,
         isMine: isMine,
         kind: kind,
@@ -528,8 +674,11 @@ class Message {
         reactionStickers: reactionStickers ?? this.reactionStickers,
         notice: notice,
         sticker: sticker,
-        customEmoji: customEmoji,
+        customEmoji: body != null ? null : customEmoji,
         pinned: pinned ?? this.pinned,
+        editedAt: editedAt ?? this.editedAt,
+        poll: poll ?? this.poll,
+        location: location,
       );
 }
 
@@ -554,6 +703,13 @@ enum ChatPreviewKind {
   video,
   voice,
   file,
+
+  /// A poll; [ChatPreview.text] is its question.
+  poll,
+
+  /// A place. Never its coordinates: the chat list is on screen far more
+  /// often than the chat, and has no business showing where somebody is.
+  location,
 }
 
 @immutable
@@ -588,6 +744,22 @@ class ChatStamp {
   final DateTime? at;
 }
 
+/// What a list row says about how far somebody's keys have been checked.
+///
+/// Two marks and no third. "Not checked" is where every conversation starts,
+/// and a mark on every row for it would be noise that teaches people to look
+/// past the one mark that matters: a number that changed.
+enum TrustMark {
+  none,
+
+  /// Compared, and every key still matches what was compared.
+  verified,
+
+  /// A key changed: since the comparison, or under a message that has not
+  /// been looked at yet.
+  changed,
+}
+
 @immutable
 class ChatSummary {
   const ChatSummary({
@@ -598,6 +770,9 @@ class ChatSummary {
     this.unreadCount = 0,
     this.isGroup = false,
     this.pinned = false,
+    this.markedUnread = false,
+    this.isPrivate = false,
+    this.trust = TrustMark.none,
     this.previewKind = MessageKind.text,
     this.typing = false,
     this.avatarSeed = 0,
@@ -622,6 +797,22 @@ class ChatSummary {
   final int unreadCount;
   final bool isGroup;
   final bool pinned;
+
+  /// Set on this device to come back to, with nothing new in it.
+  final bool markedUnread;
+
+  /// What the row and the Unread filter go by: something new, or a mark.
+  bool get hasUnread => unreadCount > 0 || markedUnread;
+
+  /// One of the private chats, on show because the code was typed. A hidden
+  /// one never becomes a row at all.
+  final bool isPrivate;
+
+  /// For a person. Always [TrustMark.none] for a group, which has several
+  /// people with several numbers and is never looked up, and for Saved, which
+  /// is this account itself and has nobody to compare a number with.
+  final TrustMark trust;
+
   final MessageKind previewKind;
 
   /// True while the other side is typing, which the row shows in the accent

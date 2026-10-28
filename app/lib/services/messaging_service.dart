@@ -221,14 +221,20 @@ class MessagingService {
 
     // Control payloads are machinery, not conversation: a receipt or a typing
     // notice on the other device would be filed as a message that was never
-    // written. Two are exceptions — a deletion has to reach this account's own
-    // devices or the message stays on half of them, and a timer change has to
-    // or this account's phone and laptop disagree about when things vanish.
+    // written. Three are exceptions — a deletion or a correction has to reach
+    // this account's own devices or the message differs between them, and a
+    // timer change has to or this account's phone and laptop disagree about
+    // when things vanish.
     //
     // Never for a message addressed to this account itself: the send above
     // already went to every other device of this account, and a sync copy
     // would be the same payload reaching the same devices a second time.
-    if (!toSelf && (!payload.isControl || payload.isDeletion || payload.isTimerChange)) {
+    if (!toSelf &&
+        (!payload.isControl ||
+            payload.isDeletion ||
+            payload.isEdit ||
+            payload.isPollAction ||
+            payload.isTimerChange)) {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,

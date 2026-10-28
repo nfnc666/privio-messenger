@@ -7,6 +7,7 @@ import '../calls/webrtc_call_peer.dart';
 import '../crypto/crypto_storage.dart';
 import '../crypto/privio_crypto.dart';
 import '../contacts/address_book.dart';
+import '../location/device_location.dart';
 import '../crypto/safety_number.dart';
 import '../data/archive.dart';
 import '../data/message_store.dart';
@@ -37,6 +38,7 @@ class PrivioServices {
     required this.player,
     PhotoSource? photos,
     AddressBook? addressBook,
+    DeviceLocation? deviceLocation,
     required this.backup,
     required this.store,
     required this.secureStore,
@@ -44,6 +46,7 @@ class PrivioServices {
     SecurityLog? securityLog,
   })  : photos = photos ?? const NoPhotoSource(),
         addressBook = addressBook ?? const NoAddressBook(),
+        deviceLocation = deviceLocation ?? const NoDeviceLocation(),
         securityLog = securityLog ?? const NoSecurityLog(),
         archive = archive ?? const NoArchive() {
     // Assembled here rather than in the initialiser list because it is built
@@ -110,6 +113,7 @@ class PrivioServices {
       player: JustAudioVoicePlayer(),
       photos: ImagePickerPhotoSource(),
       addressBook: const ChannelAddressBook(),
+      deviceLocation: const ChannelDeviceLocation(),
       backup: BackupService(api: api, store: secure, messages: store),
       store: store,
       secureStore: secure,
@@ -163,6 +167,11 @@ class PrivioServices {
   /// thing that ever calls this is the contact-matching button, after the
   /// account's own consent is already on.
   final AddressBook addressBook;
+
+  /// Where the phone is, asked only when somebody shares a place. Defaults to
+  /// the one that knows nothing, for the same reason as [addressBook]: nothing
+  /// that was not written to share a place can ask by accident.
+  final DeviceLocation deviceLocation;
 
   /// The local, sealed security activity log. Defaults to the one that keeps
   /// nothing, so a test that does not care about it never writes a keystore
