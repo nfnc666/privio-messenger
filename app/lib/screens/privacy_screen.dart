@@ -266,6 +266,15 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
+                label: text.privacyShareLocation,
+                subtitle: text.privacyShareLocationNote,
+                trailing: Switch(
+                  key: const ValueKey('share-location'),
+                  value: conversations.shareLocation,
+                  onChanged: (value) => unawaited(conversations.setShareLocation(value)),
+                ),
+              ),
+              SettingsRow(
                 label: text.privacyPrivateChats,
                 value: conversations.hasPrivateChatsCode ? text.privacySet : text.commonOff,
                 onTap: () => Navigator.of(context).push(

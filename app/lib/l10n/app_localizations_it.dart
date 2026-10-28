@@ -1693,6 +1693,65 @@ class AppTextIt extends AppText {
       'Questa chat è privata. Inserisci il tuo codice per vederla.';
 
   @override
+  String get locationTitle => 'Posizione';
+
+  @override
+  String get chatsPreviewLocation => 'Posizione';
+
+  @override
+  String locationAccuracy(int meters) {
+    return 'con precisione di $meters m';
+  }
+
+  @override
+  String get locationOpenInMaps => 'Apri nelle mappe';
+
+  @override
+  String get locationOpenTitle => 'Aprire nella tua app di mappe?';
+
+  @override
+  String get locationOpenNote =>
+      'La tua app di mappe, e il servizio di mappe dietro di essa, vedranno questo luogo.';
+
+  @override
+  String get locationOpen => 'Apri';
+
+  @override
+  String get locationCopy => 'Copia';
+
+  @override
+  String get locationNoMapsApp =>
+      'Nessuna app su questo telefono può aprire un luogo.';
+
+  @override
+  String get locationSendTitle => 'Inviare la tua posizione?';
+
+  @override
+  String get locationSendNote =>
+      'La tua posizione attuale come due numeri, cifrata come ogni messaggio. Non viene caricata nessuna mappa, quindi nessun servizio di mappe sa dove sei.';
+
+  @override
+  String get locationSend => 'Invia';
+
+  @override
+  String get locationFinding => 'Ricerca della posizione…';
+
+  @override
+  String get locationDenied =>
+      'Privio non può usare la tua posizione. Puoi consentirlo nelle impostazioni di sistema.';
+
+  @override
+  String get locationUnavailable =>
+      'Nessuna posizione al momento. La localizzazione è attiva?';
+
+  @override
+  String get privacyShareLocation => 'Condividi posizione';
+
+  @override
+  String get privacyShareLocationNote =>
+      'Disattivato: Privio non chiede mai dove sei e «Posizione» sparisce dal menu degli allegati. I luoghi inviati da altri vengono ancora mostrati.';
+
+  @override
   String get chatsGroupFallbackName => 'Gruppo';
 
   @override

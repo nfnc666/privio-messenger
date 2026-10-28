@@ -1691,6 +1691,65 @@ class AppTextFr extends AppText {
       'Cette discussion est privée. Saisissez votre code pour la voir.';
 
   @override
+  String get locationTitle => 'Position';
+
+  @override
+  String get chatsPreviewLocation => 'Position';
+
+  @override
+  String locationAccuracy(int meters) {
+    return 'à $meters m près';
+  }
+
+  @override
+  String get locationOpenInMaps => 'Ouvrir dans une app de cartes';
+
+  @override
+  String get locationOpenTitle => 'Ouvrir dans votre app de cartes ?';
+
+  @override
+  String get locationOpenNote =>
+      'Votre app de cartes, et le service de cartes derrière elle, verront ce lieu.';
+
+  @override
+  String get locationOpen => 'Ouvrir';
+
+  @override
+  String get locationCopy => 'Copier';
+
+  @override
+  String get locationNoMapsApp =>
+      'Aucune app de ce téléphone ne peut ouvrir un lieu.';
+
+  @override
+  String get locationSendTitle => 'Envoyer votre position ?';
+
+  @override
+  String get locationSendNote =>
+      'Votre position actuelle sous forme de deux nombres, chiffrée comme tout message. Aucune carte n\'est chargée, donc aucun service de cartes ne sait où vous êtes.';
+
+  @override
+  String get locationSend => 'Envoyer';
+
+  @override
+  String get locationFinding => 'Recherche de votre position…';
+
+  @override
+  String get locationDenied =>
+      'Privio ne peut pas utiliser votre position. Vous pouvez l\'autoriser dans les réglages du système.';
+
+  @override
+  String get locationUnavailable =>
+      'Pas de position pour le moment. La localisation est-elle activée ?';
+
+  @override
+  String get privacyShareLocation => 'Partager la position';
+
+  @override
+  String get privacyShareLocationNote =>
+      'Désactivé : Privio ne demande jamais où vous êtes, et « Position » disparaît du menu des pièces jointes. Les lieux envoyés par d\'autres restent affichés.';
+
+  @override
   String get chatsGroupFallbackName => 'Groupe';
 
   @override

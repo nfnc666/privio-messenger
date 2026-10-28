@@ -61,6 +61,8 @@
 	<string>Privio receives only the pictures you pick in the system photo picker. It does not read your photo library, and it does not look at anything you did not choose.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Privio can check which of your contacts already use Privio. It never sends a phone number: each one is turned into a keyed hash on this device and only the hashes are compared. Nothing is uploaded, nothing is stored on the server, and your address book stays on this phone. You can add people by Privio ID, invite link or QR code instead.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Privio asks where you are only when you share a place in a chat, and only once for that place. You see it before it is sent. It goes encrypted to that chat and nowhere else: no map is loaded, so no map service learns it, and Privio's servers cannot read it.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Privio uses the microphone for voice messages and for calls. Both are encrypted on this device before they leave it; Privio's servers cannot listen to them.</string>
 	<key>CFBundleName</key>

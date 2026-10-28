@@ -1687,6 +1687,65 @@ class AppTextDe extends AppText {
       'Dieser Chat ist privat. Gib deinen Code ein, um ihn zu sehen.';
 
   @override
+  String get locationTitle => 'Standort';
+
+  @override
+  String get chatsPreviewLocation => 'Standort';
+
+  @override
+  String locationAccuracy(int meters) {
+    return 'auf $meters m genau';
+  }
+
+  @override
+  String get locationOpenInMaps => 'In Karten öffnen';
+
+  @override
+  String get locationOpenTitle => 'In deiner Karten-App öffnen?';
+
+  @override
+  String get locationOpenNote =>
+      'Deine Karten-App und der Kartendienst dahinter sehen diesen Ort.';
+
+  @override
+  String get locationOpen => 'Öffnen';
+
+  @override
+  String get locationCopy => 'Kopieren';
+
+  @override
+  String get locationNoMapsApp =>
+      'Keine App auf diesem Handy kann einen Ort öffnen.';
+
+  @override
+  String get locationSendTitle => 'Deinen Standort senden?';
+
+  @override
+  String get locationSendNote =>
+      'Deine aktuelle Position als zwei Zahlen, verschlüsselt wie jede Nachricht. Es wird keine Karte geladen, also erfährt kein Kartendienst, wo du bist.';
+
+  @override
+  String get locationSend => 'Senden';
+
+  @override
+  String get locationFinding => 'Position wird bestimmt…';
+
+  @override
+  String get locationDenied =>
+      'Privio darf deinen Standort nicht verwenden. Du kannst es in den Systemeinstellungen erlauben.';
+
+  @override
+  String get locationUnavailable =>
+      'Gerade keine Position. Ist der Standort eingeschaltet?';
+
+  @override
+  String get privacyShareLocation => 'Standort teilen';
+
+  @override
+  String get privacyShareLocationNote =>
+      'Aus: Privio fragt nie, wo du bist, und „Standort“ fehlt im Anhang-Menü. Orte, die andere senden, werden weiter angezeigt.';
+
+  @override
   String get chatsGroupFallbackName => 'Gruppe';
 
   @override

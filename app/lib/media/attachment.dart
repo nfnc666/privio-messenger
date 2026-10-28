@@ -7,6 +7,7 @@ import '../calls/call_signal.dart';
 import 'package:cryptography/cryptography.dart';
 
 import '../crypto/padding.dart';
+import '../models/geo_point.dart';
 import 'metadata_scrubber.dart';
 
 /// An attachment prepared for sending: scrubbed, padded, sealed.
@@ -277,6 +278,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         mediaToken = null,
         sync = null,
@@ -319,6 +321,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -350,6 +353,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -429,6 +433,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         sync = null,
         call = null,
@@ -450,6 +455,7 @@ class MessagePayload {
       : body = '',
         editTo = null,
         poll = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -497,6 +503,7 @@ class MessagePayload {
   const MessagePayload.edit({required String this.editTo, required this.body})
       : deleteTo = null,
         poll = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -545,6 +552,54 @@ class MessagePayload {
     this.expiresInSeconds,
     this.clientId,
   })  : editTo = null,
+        location = null,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null,
+        deleteTo = null;
+
+  /// A place: [location] is the coordinates, [body] the same two numbers as
+  /// text.
+  ///
+  /// A message, filed and shown like one. The body is what an older build that
+  /// does not know places shows, so it reads the coordinates rather than an
+  /// empty line, and what a reply quotes.
+  const MessagePayload.location({
+    required this.body,
+    required GeoPoint this.location,
+    this.profileKey,
+    this.groupKey,
+    this.expiresInSeconds,
+    this.clientId,
+  })  : editTo = null,
+        poll = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -584,6 +639,7 @@ class MessagePayload {
   const MessagePayload.pollAction(ChatPollPayload this.poll)
       : body = '',
         editTo = null,
+        location = null,
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -657,6 +713,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -698,6 +755,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -739,6 +797,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -784,6 +843,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         sync = null,
         call = null,
         sessionReset = false,
@@ -827,6 +887,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -870,6 +931,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -928,6 +990,7 @@ class MessagePayload {
         deleteTo = null,
         editTo = null,
         poll = null,
+        location = null,
         reactionEmoji = null,
         replyToId = null,
         replyPreview = null,
@@ -1007,6 +1070,21 @@ class MessagePayload {
     }
     if (json['t'] == 'pollend') {
       return MessagePayload.pollAction(ChatPollPayload.end(json['pt'] as String? ?? ''));
+    }
+    if (json['t'] == 'loc') {
+      // A place this app cannot read is filed as its text, which is the two
+      // numbers, as an older build would file it.
+      final point = GeoPoint.fromJson(json['gl']);
+      if (point != null) {
+        return MessagePayload.location(
+          body: json['b'] as String? ?? '',
+          location: point,
+          profileKey: profileKey,
+          groupKey: groupKey,
+          expiresInSeconds: expiresInSeconds,
+          clientId: clientId,
+        );
+      }
     }
     if (json['t'] == 'edit') {
       return MessagePayload.edit(
@@ -1247,6 +1325,9 @@ class MessagePayload {
   /// A poll being asked, voted on, or ended. See [ChatPollPayload].
   final ChatPollPayload? poll;
 
+  /// A place. See [MessagePayload.location].
+  final GeoPoint? location;
+
   /// On a reply: the client id of the message being replied to.
   final String? replyToId;
 
@@ -1300,6 +1381,16 @@ class MessagePayload {
     // Control payloads carry no profile key: a receipt is not a place to attach
     // anything about who sent it beyond what the envelope already says.
     if (isControl) return this;
+    if (isLocation) {
+      return MessagePayload.location(
+        body: body,
+        location: location!,
+        profileKey: key,
+        groupKey: groupKey,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      );
+    }
     if (isPoll) {
       return MessagePayload.poll(
         body: body,
@@ -1349,6 +1440,7 @@ class MessagePayload {
   bool get isDeletion => deleteTo != null;
   bool get isEdit => editTo != null;
   bool get isPoll => poll?.isAsk ?? false;
+  bool get isLocation => location != null;
   bool get isPollAction => poll != null && !poll!.isAsk;
   bool get isReceipt => receiptKind != null;
   bool get isTyping => typingAt != null;
@@ -1407,6 +1499,7 @@ class MessagePayload {
     if (isEdit) return 'edit';
     if (isPoll) return 'poll';
     if (isPollAction) return poll!.isEnd ? 'pollend' : 'vote';
+    if (isLocation) return 'loc';
     if (isReaction) return 'reaction';
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
@@ -1437,6 +1530,7 @@ class MessagePayload {
         if (isDeletion) 'dt': deleteTo,
         if (isEdit) 'et': editTo,
         if (isPoll) 'pl': {'o': poll!.options, 'mc': poll!.maxChoices},
+        if (isLocation) 'gl': location!.toJson(),
         if (isPollAction) ...{
           'pt': poll!.target,
           if (!poll!.isEnd) 'pc': poll!.choices,

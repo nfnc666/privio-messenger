@@ -12,6 +12,7 @@ import '../media/metadata_scrubber.dart';
 import '../media/photo.dart';
 import '../crypto/privio_crypto.dart';
 import '../crypto/safety_number.dart';
+import '../models/geo_point.dart';
 import 'message_search.dart';
 import '../media/voice.dart';
 import '../models/channel.dart';
@@ -415,6 +416,10 @@ class ConversationController extends ChangeNotifier {
     if (notice != null) return ChatPreview(ChatPreviewKind.notice, notice: notice);
     if (message.kind == MessageKind.poll) {
       return ChatPreview(ChatPreviewKind.poll, text: message.body);
+    }
+    // The word, never the coordinates: see [ChatPreviewKind.location].
+    if (message.kind == MessageKind.location) {
+      return const ChatPreview(ChatPreviewKind.location);
     }
     if (message.body.isNotEmpty) {
       return ChatPreview(ChatPreviewKind.body, text: message.body);
@@ -2036,6 +2041,86 @@ class ConversationController extends ChangeNotifier {
     return true;
   }
 
+  // --- Places ----------------------------------------------------------------
+
+  bool _shareLocation = true;
+
+  /// Whether this account offers to share a location at all. See
+  /// `SecureStore.readShareLocation`.
+  bool get shareLocation => _shareLocation;
+
+  Future<void> loadShareLocation(String account) async {
+    final share = await _services.secureStore.readShareLocation(account);
+    if (accountId != account || share == _shareLocation) return;
+    _shareLocation = share;
+    notifyListeners();
+  }
+
+  Future<void> setShareLocation(bool share) async {
+    final account = accountId;
+    _shareLocation = share;
+    notifyListeners();
+    if (account != null) await _services.secureStore.writeShareLocation(account, share);
+  }
+
+  /// Sends a place: coordinates, sealed like any message. No map, no address:
+  /// either would have to be asked of a service that learns the place first.
+  ///
+  /// Refused while sharing is switched off, whatever asked, and for anything
+  /// that is not a place. Returns whether it was sent off.
+  Future<bool> sendLocation(String conversationId, GeoPoint point) async {
+    if (!_shareLocation || !point.isValid) return false;
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return false;
+    final place = point.rounded();
+
+    final clientId = _newClientId();
+    final timer = _effectiveTimer(conversation);
+    _services.store.append(
+      conversationId,
+      Message(
+        id: clientId,
+        clientId: clientId,
+        body: place.coordinates,
+        kind: MessageKind.location,
+        location: place,
+        sentAt: DateTime.now(),
+        isMine: true,
+        state: DeliveryState.sending,
+      ),
+    );
+    notifyListeners();
+
+    final payload = MessagePayload.location(
+      body: place.coordinates,
+      location: place,
+      groupKey: conversation.isGroup ? conversation.group!.groupKey : null,
+      expiresInSeconds: timer?.inSeconds,
+      clientId: clientId,
+    );
+    try {
+      if (conversation.isGroup) {
+        await _services.messaging.sendPayloadToGroup(conversationId, payload);
+      } else {
+        await _services.messaging.sendPayload(conversation.user!.username, payload);
+      }
+      _markSent(conversationId, clientId, timer);
+      _failure = null;
+      _persist();
+    } on Object catch (failure) {
+      _services.store.updateState(conversationId, clientId, DeliveryState.failed);
+      _noteIdentityChange(failure);
+      _failure = switch (failure) {
+        ApiException(code: 'license_required') => const Failure(FailureKind.licenseRequired),
+        IdentityChangedException() => const Failure(FailureKind.identityChanged),
+        ApiException(:final message) => Failure.server(message),
+        _ => const Failure(FailureKind.couldNotSendMessage),
+      };
+    }
+    notifyListeners();
+    return true;
+  }
+
   /// Casts this account's whole vote on a poll, replacing any earlier one. An
   /// empty [choices] takes the vote back.
   Future<void> vote(String conversationId, Message pollMessage, Set<int> choices) async {
@@ -2275,6 +2360,8 @@ class ConversationController extends ChangeNotifier {
       MessageKind.deleted => 'Deleted message',
       // Never reached: a poll's question is its body.
       MessageKind.poll => 'Poll',
+      // Never reached either: a place's coordinates are its body.
+      MessageKind.location => 'Location',
       // Never reached: a notice always has a body, and nothing replies to one.
       MessageKind.notice || MessageKind.undelivered => '',
       MessageKind.text => '',
@@ -3533,6 +3620,7 @@ class ConversationController extends ChangeNotifier {
             : null,
         sticker: _stickerIn(payload),
         poll: _pollIn(payload),
+        location: payload.location,
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3643,6 +3731,7 @@ class ConversationController extends ChangeNotifier {
             : null,
         sticker: _stickerIn(payload),
         poll: _pollIn(payload),
+        location: payload.location,
         customEmoji: payload.customEmoji,
       ),
     );
@@ -3658,6 +3747,8 @@ class ConversationController extends ChangeNotifier {
     // A poll this app will not show is filed as its question, as an older
     // build would file it, rather than as a poll with nothing to answer.
     if (_pollIn(payload) != null) return MessageKind.poll;
+    // Only ever set on a place the payload layer read as one.
+    if (payload.isLocation) return MessageKind.location;
     if (payload.isSticker) return MessageKind.sticker;
     if (payload.isVoice) return MessageKind.voice;
     if (payload.isMedia) return _kindFor(payload.mediaType!);
@@ -3720,6 +3811,7 @@ class ConversationController extends ChangeNotifier {
           : null,
       sticker: _stickerIn(payload),
       poll: _pollIn(payload),
+      location: payload.location,
       customEmoji: payload.customEmoji,
     );
   }

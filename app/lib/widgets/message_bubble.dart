@@ -16,6 +16,7 @@ import 'sticker_tile.dart';
 import 'voice_bubble.dart';
 import 'avatar.dart';
 import 'chat_poll_card.dart';
+import 'location_card.dart';
 
 /// One message in a conversation.
 ///
@@ -201,6 +202,8 @@ class MessageBubble extends StatelessWidget {
                     : message.poll!.choicesOf(myAccountId!),
                 onVote: onVote,
               )
+            else if (message.kind == MessageKind.location && message.location != null)
+              LocationCard(point: message.location!)
             else if (message.isVoice)
               // A voice message renders itself: the waveform and the duration
               // come out of the sealed payload, so it is complete before the

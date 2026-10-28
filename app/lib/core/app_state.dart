@@ -599,6 +599,7 @@ class AppState extends ChangeNotifier {
       // than when a chat opens: a security setting that waits for a screen is
       // one somebody will believe is on when it is not.
       detached(conversations.loadKeyChangeBlocking(account));
+      detached(conversations.loadShareLocation(account));
       ProxyController.instance.onRoutingChanged = ({required bool enabled}) =>
           _recordSecurityEvent(
             enabled ? SecurityEventKind.proxyEnabled : SecurityEventKind.proxyDisabled,

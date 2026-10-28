@@ -31,6 +31,12 @@ class MainActivity : FlutterActivity() {
             this,
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ContactsReader.CHANNEL),
         )
+        // Where the phone is, once, when somebody shares a place. Nothing is
+        // asked until Dart calls it — see `LocationReader`.
+        LocationReader.attach(
+            this,
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LocationReader.CHANNEL),
+        )
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -157,6 +163,10 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == ContactsReader.REQUEST_CODE) {
             ContactsReader.permissionResult(this, grantResults)
+            return
+        }
+        if (requestCode == LocationReader.REQUEST_CODE) {
+            LocationReader.permissionResult(this, grantResults)
             return
         }
         if (requestCode != NotificationPermissions.REQUEST_CODE) return

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../media/attachment.dart' show CustomEmojiRef;
+import 'geo_point.dart';
 
 
 @immutable
@@ -164,6 +165,10 @@ enum MessageKind {
   /// A poll: the question is the body, the answers and votes are in
   /// [Message.poll].
   poll,
+
+  /// A place: the coordinates are in [Message.location], and the same two
+  /// numbers as text in the body.
+  location,
 
   /// Something arrived and could not be read.
   ///
@@ -489,6 +494,7 @@ class Message {
     this.pinned = false,
     this.editedAt,
     this.poll,
+    this.location,
   });
 
   final String id;
@@ -616,6 +622,9 @@ class Message {
   /// Set when this message *is* a poll; the question is in [body].
   final ChatPoll? poll;
 
+  /// Set when this message *is* a place.
+  final GeoPoint? location;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -669,6 +678,7 @@ class Message {
         pinned: pinned ?? this.pinned,
         editedAt: editedAt ?? this.editedAt,
         poll: poll ?? this.poll,
+        location: location,
       );
 }
 
@@ -696,6 +706,10 @@ enum ChatPreviewKind {
 
   /// A poll; [ChatPreview.text] is its question.
   poll,
+
+  /// A place. Never its coordinates: the chat list is on screen far more
+  /// often than the chat, and has no business showing where somebody is.
+  location,
 }
 
 @immutable

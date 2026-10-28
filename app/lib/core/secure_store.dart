@@ -97,6 +97,14 @@ abstract interface class SecureStore {
   Future<bool> readBlockOnKeyChange(String accountId);
   Future<void> writeBlockOnKeyChange(String accountId, bool block);
 
+  /// Whether this account offers to share a location at all.
+  ///
+  /// On unless switched off: sharing is always one person's deliberate act,
+  /// with the place shown before it goes. Off, Privio never asks the system
+  /// where the phone is, and the option is gone from the attach menu.
+  Future<bool> readShareLocation(String accountId);
+  Future<void> writeShareLocation(String accountId, bool share);
+
   /// Which colour the home-screen icon is wearing.
   ///
   /// **Not keyed by account**, unlike everything else here. A launcher icon
@@ -410,6 +418,16 @@ class KeystoreSecureStore implements SecureStore {
   Future<bool> readBlockOnKeyChange(String accountId) async =>
       await _read(_blockOnKeyChangeKey(accountId)) == 'true';
 
+  static String _shareLocationKey(String accountId) => 'privio.shareLocation.$accountId';
+
+  @override
+  Future<bool> readShareLocation(String accountId) async =>
+      await _read(_shareLocationKey(accountId)) != 'false';
+
+  @override
+  Future<void> writeShareLocation(String accountId, bool share) =>
+      _write(_shareLocationKey(accountId), share ? 'true' : 'false');
+
   @override
   Future<void> writeBlockOnKeyChange(String accountId, bool block) =>
       _write(_blockOnKeyChangeKey(accountId), block ? 'true' : 'false');
@@ -689,6 +707,14 @@ class InMemorySecureStore implements SecureStore {
   @override
   Future<bool> readBlockOnKeyChange(String accountId) async =>
       _entries['blockOnKeyChange.$accountId'] == 'true';
+
+  @override
+  Future<bool> readShareLocation(String accountId) async =>
+      _entries['shareLocation.$accountId'] != 'false';
+
+  @override
+  Future<void> writeShareLocation(String accountId, bool share) async =>
+      _entries['shareLocation.$accountId'] = share ? 'true' : 'false';
 
   @override
   Future<void> writeBlockOnKeyChange(String accountId, bool block) async =>

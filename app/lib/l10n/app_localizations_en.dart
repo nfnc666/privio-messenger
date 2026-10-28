@@ -1679,6 +1679,64 @@ class AppTextEn extends AppText {
       'This chat is private. Enter your code to see it.';
 
   @override
+  String get locationTitle => 'Location';
+
+  @override
+  String get chatsPreviewLocation => 'Location';
+
+  @override
+  String locationAccuracy(int meters) {
+    return 'within $meters m';
+  }
+
+  @override
+  String get locationOpenInMaps => 'Open in maps';
+
+  @override
+  String get locationOpenTitle => 'Open in your maps app?';
+
+  @override
+  String get locationOpenNote =>
+      'Your maps app, and the map service behind it, will see this place.';
+
+  @override
+  String get locationOpen => 'Open';
+
+  @override
+  String get locationCopy => 'Copy';
+
+  @override
+  String get locationNoMapsApp => 'No app on this phone can open a place.';
+
+  @override
+  String get locationSendTitle => 'Send your location?';
+
+  @override
+  String get locationSendNote =>
+      'Your current position as two numbers, encrypted like any message. No map is loaded, so no map service learns where you are.';
+
+  @override
+  String get locationSend => 'Send';
+
+  @override
+  String get locationFinding => 'Finding your position…';
+
+  @override
+  String get locationDenied =>
+      'Privio may not use your location. You can allow it in the system settings.';
+
+  @override
+  String get locationUnavailable =>
+      'No position right now. Is location turned on?';
+
+  @override
+  String get privacyShareLocation => 'Share location';
+
+  @override
+  String get privacyShareLocationNote =>
+      'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.';
+
+  @override
   String get chatsGroupFallbackName => 'Group';
 
   @override

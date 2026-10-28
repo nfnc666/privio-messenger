@@ -22,6 +22,7 @@ import '../media/photo_source.dart';
 import '../media/voice.dart';
 import '../services/system_settings.dart';
 import '../widgets/private_code_dialog.dart';
+import '../location/device_location.dart';
 import 'contact_profile_screen.dart';
 import 'group_info_screen.dart';
 import 'license_screen.dart';
@@ -893,6 +894,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 title: Text(text.attachPoll),
                 onTap: () => Navigator.of(sheetContext).pop('poll'),
               ),
+            // Gone, not greyed out, when sharing a place is switched off: then
+            // nothing in the app asks where the phone is.
+            if (PrivioScope.of(context).conversations.shareLocation)
+              ListTile(
+                key: const Key('attach-location'),
+                leading: const Icon(Icons.place_outlined),
+                title: Text(text.locationTitle),
+                onTap: () => Navigator.of(sheetContext).pop('location'),
+              ),
             const Divider(height: 1, color: PrivioColors.border),
             // The timer's control lives here now that the bar is three things
             // wide. Its *state* does not: when it is on, the chip in the field
@@ -917,8 +927,68 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (choice == null || !mounted) return;
     if (choice == 'photos') return _pickPhotos();
     if (choice == 'poll') return _askPoll();
+    if (choice == 'location') return _shareLocation();
     if (choice == 'timer') return _chooseTimer(PrivioScope.of(context));
     return _attachFile();
+  }
+
+  /// Asks the phone where it is, shows the place, and sends it only after a
+  /// yes. The system's permission prompt, if there is one, comes here and
+  /// nowhere else.
+  Future<void> _shareLocation() async {
+    final state = PrivioScope.of(context);
+    final text = AppText.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text(text.locationFinding), duration: const Duration(seconds: 30)),
+    );
+    final read = await state.services.deviceLocation.current();
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    final point = switch (read) {
+      LocationFix(:final point) => point,
+      _ => null,
+    };
+    if (point == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(read is LocationDenied ? text.locationDenied : text.locationUnavailable),
+        ),
+      );
+      return;
+    }
+    final accuracy = point.accuracyMeters;
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PrivioColors.surface,
+        title: Text(text.locationSendTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(point.coordinates),
+            if (accuracy != null) Text(text.locationAccuracy(accuracy)),
+            const SizedBox(height: PrivioSpacing.md),
+            Text(text.locationSendNote, style: Theme.of(dialogContext).textTheme.bodySmall),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(text.commonCancel),
+          ),
+          FilledButton(
+            key: const Key('location-send'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(text.locationSend),
+          ),
+        ],
+      ),
+    );
+    if (send != true || !mounted) return;
+    await state.conversations.sendLocation(widget.accountId, point);
+    _scrollToEnd();
   }
 
   /// Writes a poll and sends it into this chat.

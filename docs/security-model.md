@@ -1480,6 +1480,33 @@ rings as any call does. Notifications carry nothing in any case, so there is
 nothing in them to hide. The server is never told which chats are private and
 could not be.
 
+## Sharing a location
+
+**Two numbers, sealed, shown first.** Picking "Location" in a chat asks the
+phone for one position, shows it with its accuracy, and sends it only after
+"Send". The payload carries the coordinates rounded to six decimals and the
+accuracy, end-to-end encrypted like any message. The server relays it without
+being able to tell it from text.
+
+**No map is ever loaded.** Drawing a map means fetching tiles for the spot on
+screen from a map server, which would learn the place before anybody chose to
+tell it. The card shows the coordinates and offers two things: "Open in maps",
+which asks first and says that the maps app and the service behind it will
+see the place, and "Copy", which tells nobody. The chat list shows the word
+"Location" and never the coordinates, because it is on screen far more often
+than the chat.
+
+**Asked when wanted, and only then.** The system permission is requested at
+the moment somebody picks "Location", for while the app is in use, for one
+position: no background permission, no updates, no live location. On Android
+the framework's own `LocationManager` answers, not Google's fused provider, so
+the Libre build carries no Play services for it.
+
+**It can be switched off.** Settings → Privacy → Share location. Off, the
+attach entry is gone, the phone is never asked, and the controller refuses a
+send even if something asked for one. It is a local setting, per account,
+never sent.
+
 ## Two-factor authentication
 
 **It protects the account, not the messages.** The code is checked by the

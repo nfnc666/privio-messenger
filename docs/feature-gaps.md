@@ -12,7 +12,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | Edit a sent message in a chat or group | **done on this branch** (was: channels only) | sealed `edit` control payload, see below |
 | Polls in a chat or group | **done on this branch** (was: channels only, tallied by the server) | sealed poll, votes tallied on each device, see below |
 | Distribution list (one message to many 1:1 chats, recipients do not see each other) | missing | client-side fan-out over the existing 1:1 sessions; no server change |
-| Share a location | missing | static coordinates in the sealed payload, map tile rendered on device; no live tracking |
+| Share a location | **done on this branch**, switchable off | static coordinates in the sealed payload; no map is loaded, no live tracking, see below |
 | Hide a chat behind its own PIN / biometrics | **done on this branch** with a code (was: whole-app lock only); no biometrics | per-conversation flag in the encrypted archive, see below |
 | Trust level visible in the chat and contact lists | **done on this branch** (was: chat header only) | small mark in list rows derived from the existing `VerificationState`, see below |
 | Mark a chat as unread | **done on this branch** | local flag, never sent, see below |
@@ -139,12 +139,45 @@ a random ID, no address-book upload, no plaintext exception for bots.
 - **Tests:** `app/test/private_chats_test.dart`. Every rule above was broken
   on purpose once and the matching test went red.
 
+## Sharing a location
+
+- **Where:** "Location" in a chat's attach menu. The phone is asked for one
+  position at that moment, the place is shown with its accuracy, and it is
+  sent only after "Send".
+- **Switchable off:** Settings → Privacy → Share location, on by default.
+  Off, the entry is gone from the attach menu, Privio never asks the system
+  where the phone is, and a send is refused even if something asked for one.
+  Places other people send are still shown.
+- **What travels:** a `loc` payload with the two numbers rounded to six
+  decimals (about 10 cm, more than a phone measures) and the accuracy, sealed
+  like any message. Its text is the same two numbers, which is what an older
+  build shows and what a reply quotes. The chat list says "Location", never
+  the coordinates.
+- **No map.** A map is pictures fetched from a map server for the spot on
+  screen, which tells that server the place. The card shows the coordinates
+  instead, with "Open in maps", which asks first and says the maps app and
+  its service will see the place, and "Copy", which tells nobody anything.
+  The original plan of a map tile rendered on the device is dropped for that
+  reason.
+- **Native halves without Google:** `LocationReader.kt` on the framework's
+  `LocationManager`, not the fused provider from Play services, so the Libre
+  build can carry it; `LocationReader.swift` on CoreLocation. Permission is
+  asked for when "Location" is picked, while the app is in use only, one
+  position, no background, no stream.
+- **Not done:** live location, a place name or address, a map preview.
+- **Server:** unchanged. It relays a sealed envelope like any other.
+- **Tests:** `app/test/location_test.dart`. Every rule above was broken on
+  purpose once and the matching test went red. The two native halves are
+  not compiled here (no Android SDK, no Xcode in this environment); the
+  mobile build workflow compiles them on a pull request.
+
 ## Compatibility with older builds
 
-Editing and polls add new payload types. A build from before this branch does
-not know them and falls back to reading the payload as plain text: a
-correction shows up there as a new message with the corrected text, a poll as
-its question, and a vote or a poll's end as an empty line. Nothing is lost or
+Editing, polls and places add new payload types. A build from before this
+branch does not know them and falls back to reading the payload as plain
+text: a correction shows up there as a new message with the corrected text, a
+poll as its question, a place as its coordinates, and a vote or a poll's end
+as an empty line. Nothing is lost or
 exposed, but it reads wrong, so every device in a conversation should be on a
 build with these features before they are used. A future payload type should
 carry a flag that tells older clients to drop it rather than show it; that is

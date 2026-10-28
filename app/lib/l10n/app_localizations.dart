@@ -2887,6 +2887,108 @@ abstract class AppText {
   /// **'This chat is private. Enter your code to see it.'**
   String get chatPrivateLockedBody;
 
+  /// No description provided for @locationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get locationTitle;
+
+  /// No description provided for @chatsPreviewLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get chatsPreviewLocation;
+
+  /// No description provided for @locationAccuracy.
+  ///
+  /// In en, this message translates to:
+  /// **'within {meters} m'**
+  String locationAccuracy(int meters);
+
+  /// No description provided for @locationOpenInMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in maps'**
+  String get locationOpenInMaps;
+
+  /// No description provided for @locationOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in your maps app?'**
+  String get locationOpenTitle;
+
+  /// No description provided for @locationOpenNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your maps app, and the map service behind it, will see this place.'**
+  String get locationOpenNote;
+
+  /// No description provided for @locationOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get locationOpen;
+
+  /// No description provided for @locationCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get locationCopy;
+
+  /// No description provided for @locationNoMapsApp.
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this phone can open a place.'**
+  String get locationNoMapsApp;
+
+  /// No description provided for @locationSendTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send your location?'**
+  String get locationSendTitle;
+
+  /// No description provided for @locationSendNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current position as two numbers, encrypted like any message. No map is loaded, so no map service learns where you are.'**
+  String get locationSendNote;
+
+  /// No description provided for @locationSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get locationSend;
+
+  /// No description provided for @locationFinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding your position…'**
+  String get locationFinding;
+
+  /// No description provided for @locationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Privio may not use your location. You can allow it in the system settings.'**
+  String get locationDenied;
+
+  /// No description provided for @locationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No position right now. Is location turned on?'**
+  String get locationUnavailable;
+
+  /// No description provided for @privacyShareLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Share location'**
+  String get privacyShareLocation;
+
+  /// No description provided for @privacyShareLocationNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.'**
+  String get privacyShareLocationNote;
+
   /// No description provided for @chatsGroupFallbackName.
   ///
   /// In en, this message translates to:

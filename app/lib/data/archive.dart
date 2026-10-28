@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../media/attachment.dart' show CustomEmojiRef;
 import '../core/secure_store.dart';
 import '../models/channel.dart';
+import '../models/geo_point.dart';
 import '../models/models.dart';
 import 'message_store.dart';
 import 'outbox.dart';
@@ -409,6 +410,7 @@ abstract final class ArchiveCodec {
                   if (message.editedAt != null)
                     'editedAt': message.editedAt!.toIso8601String(),
                   if (message.poll != null) 'poll': message.poll!.toJson(),
+                  if (message.location != null) 'location': message.location!.toJson(),
                   if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
@@ -532,6 +534,7 @@ abstract final class ArchiveCodec {
             replySender: message['replySender'] as String?,
             pinned: message['pinned'] as bool? ?? false,
             poll: ChatPoll.fromJson(message['poll'] as Map<String, dynamic>?),
+            location: GeoPoint.fromJson(message['location']),
             editedAt: message['editedAt'] == null
                 ? null
                 : DateTime.parse(message['editedAt'] as String),

@@ -731,6 +731,30 @@
   "chatsMadePrivate": "Moved to private chats.",
   "chatsPrivateLabel": "Private chat",
   "chatPrivateLockedBody": "This chat is private. Enter your code to see it.",
+  "locationTitle": "Location",
+  "chatsPreviewLocation": "Location",
+  "locationAccuracy": "within {meters} m",
+  "@locationAccuracy": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
+  "locationOpenInMaps": "Open in maps",
+  "locationOpenTitle": "Open in your maps app?",
+  "locationOpenNote": "Your maps app, and the map service behind it, will see this place.",
+  "locationOpen": "Open",
+  "locationCopy": "Copy",
+  "locationNoMapsApp": "No app on this phone can open a place.",
+  "locationSendTitle": "Send your location?",
+  "locationSendNote": "Your current position as two numbers, encrypted like any message. No map is loaded, so no map service learns where you are.",
+  "locationSend": "Send",
+  "locationFinding": "Finding your position…",
+  "locationDenied": "Privio may not use your location. You can allow it in the system settings.",
+  "locationUnavailable": "No position right now. Is location turned on?",
+  "privacyShareLocation": "Share location",
+  "privacyShareLocationNote": "Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.",
   "chatsGroupFallbackName": "Group",
   "chatsNewGroupTooltip": "New group",
   "chatsNewChatTooltip": "New chat",
