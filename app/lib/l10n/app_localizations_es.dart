@@ -1570,6 +1570,22 @@ class AppTextEs extends AppText {
   String get chatsPinNote => 'Solo en este dispositivo. No se envía nada.';
 
   @override
+  String get chatsMarkUnread => 'Marcar como no leído';
+
+  @override
+  String get chatsMarkRead => 'Marcar como leído';
+
+  @override
+  String get chatsMarkNote => 'Solo en este dispositivo. No se envía nada.';
+
+  @override
+  String get chatsMarkReadReceiptsNote =>
+      'Se envían confirmaciones de lectura, como al abrir el chat.';
+
+  @override
+  String get chatsMarkedUnread => 'Marcado como no leído';
+
+  @override
   String get chatsGroupFallbackName => 'Grupo';
 
   @override

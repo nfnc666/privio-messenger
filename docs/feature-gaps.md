@@ -15,7 +15,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | Share a location | missing | static coordinates in the sealed payload, map tile rendered on device; no live tracking |
 | Hide a chat behind its own PIN / biometrics | missing (only the whole-app lock) | per-conversation flag in the encrypted archive; content kept out of notifications and previews |
 | Trust level visible in the chat and contact lists | safety number per device, shown in the chat header only | small mark in list rows derived from the existing `VerificationState` |
-| Mark a chat as unread | missing | local flag, never sent |
+| Mark a chat as unread | **done on this branch** | local flag, never sent, see below |
 | Group calls | 1:1 calls only | needs an SFU and end-to-end media keys; separate design document first |
 
 ## Editing a message
@@ -67,6 +67,28 @@ a random ID, no address-book upload, no plaintext exception for bots.
 - **Tests:** `app/test/chat_poll_test.dart`, including group polls. Every rule
   above was broken on purpose once and the matching test went red.
 
+## Marking a chat unread
+
+- **Where:** a long press on a row in the chat list. A read chat offers "Mark
+  as unread"; a chat that is marked, or has messages waiting, offers "Mark as
+  read".
+- **Local only.** The mark lives on the conversation in the encrypted archive,
+  next to the pin, and is never sent. No receipt goes out and none is taken
+  back, so the other side's ticks stay as they were. A refresh of the contact
+  list or of a group listing keeps it.
+- **Shown:** a dot where the count would be, because a number would claim
+  messages that are not there. A real count wins over the dot. The "Unread"
+  filter shows marked chats too.
+- **Gone** when the chat is opened, from the list or any other way in, and when
+  it is marked read.
+- **Marking read with messages waiting** is the same as opening the chat: read
+  receipts go out if they are switched on. The sheet says so in that case, and
+  says "nothing is sent" in every other one, so the note is never wrong about
+  what leaves the device.
+- **Server:** unchanged, and never told.
+- **Tests:** `app/test/mark_unread_test.dart`. Every rule above was broken on
+  purpose once and the matching test went red.
+
 ## Compatibility with older builds
 
 Editing and polls add new payload types. A build from before this branch does
@@ -77,4 +99,7 @@ exposed, but it reads wrong, so every device in a conversation should be on a
 build with these features before they are used. A future payload type should
 carry a flag that tells older clients to drop it rather than show it; that is
 not part of this branch.
+
+Marking a chat unread sends nothing, so it needs nothing from anyone else's
+build. An older build reading an archive that holds the mark ignores it.
 

@@ -1574,6 +1574,23 @@ class AppTextIt extends AppText {
       'Solo su questo dispositivo. Non viene inviato nulla.';
 
   @override
+  String get chatsMarkUnread => 'Segna come non letto';
+
+  @override
+  String get chatsMarkRead => 'Segna come letto';
+
+  @override
+  String get chatsMarkNote =>
+      'Solo su questo dispositivo. Non viene inviato nulla.';
+
+  @override
+  String get chatsMarkReadReceiptsNote =>
+      'Vengono inviate le conferme di lettura, come quando apri la chat.';
+
+  @override
+  String get chatsMarkedUnread => 'Segnato come non letto';
+
+  @override
   String get chatsGroupFallbackName => 'Gruppo';
 
   @override

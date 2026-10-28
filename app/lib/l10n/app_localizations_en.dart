@@ -1561,6 +1561,22 @@ class AppTextEn extends AppText {
   String get chatsPinNote => 'Only on this device. Nothing is sent.';
 
   @override
+  String get chatsMarkUnread => 'Mark as unread';
+
+  @override
+  String get chatsMarkRead => 'Mark as read';
+
+  @override
+  String get chatsMarkNote => 'Only on this device. Nothing is sent.';
+
+  @override
+  String get chatsMarkReadReceiptsNote =>
+      'Read receipts go out, as when you open the chat.';
+
+  @override
+  String get chatsMarkedUnread => 'Marked as unread';
+
+  @override
   String get chatsGroupFallbackName => 'Group';
 
   @override

@@ -1572,6 +1572,23 @@ class AppTextFr extends AppText {
   String get chatsPinNote => 'Uniquement sur cet appareil. Rien n\'est envoyé.';
 
   @override
+  String get chatsMarkUnread => 'Marquer comme non lu';
+
+  @override
+  String get chatsMarkRead => 'Marquer comme lu';
+
+  @override
+  String get chatsMarkNote =>
+      'Uniquement sur cet appareil. Rien n\'est envoyé.';
+
+  @override
+  String get chatsMarkReadReceiptsNote =>
+      'Des confirmations de lecture sont envoyées, comme à l\'ouverture du chat.';
+
+  @override
+  String get chatsMarkedUnread => 'Marqué comme non lu';
+
+  @override
   String get chatsGroupFallbackName => 'Groupe';
 
   @override

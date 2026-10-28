@@ -326,6 +326,7 @@ class ConversationController extends ChangeNotifier {
       timestamp: last == null ? ChatStamp.none : _stampFor(last.sentAt),
       unreadCount: conversation.unreadCount,
       pinned: conversation.pinned,
+      markedUnread: conversation.markedUnread,
       previewKind: last?.kind ?? MessageKind.text,
       avatarSeed: conversation.id.hashCode.abs(),
     );
@@ -1554,6 +1555,19 @@ class ConversationController extends ChangeNotifier {
 
   bool isPinned(String conversationId) =>
       _services.store.conversationWith(conversationId)?.pinned ?? false;
+
+  /// Shows a chat as unread again, or takes that mark away, without reading
+  /// anything.
+  ///
+  /// Local and never sent, like a pin: no receipt goes out and none is taken
+  /// back, so the other side's ticks say what they said before. Taking the
+  /// mark away is not reading the chat either. When messages really are
+  /// waiting, that is [markRead], with the receipts it sends.
+  void setMarkedUnread(String conversationId, {required bool marked}) {
+    if (!_services.store.setMarkedUnread(conversationId, marked: marked)) return;
+    _persist();
+    notifyListeners();
+  }
 
   /// Every message that matches [query], across every conversation.
   ///

@@ -2671,6 +2671,36 @@ abstract class AppText {
   /// **'Only on this device. Nothing is sent.'**
   String get chatsPinNote;
 
+  /// No description provided for @chatsMarkUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as unread'**
+  String get chatsMarkUnread;
+
+  /// No description provided for @chatsMarkRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as read'**
+  String get chatsMarkRead;
+
+  /// No description provided for @chatsMarkNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only on this device. Nothing is sent.'**
+  String get chatsMarkNote;
+
+  /// No description provided for @chatsMarkReadReceiptsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Read receipts go out, as when you open the chat.'**
+  String get chatsMarkReadReceiptsNote;
+
+  /// No description provided for @chatsMarkedUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Marked as unread'**
+  String get chatsMarkedUnread;
+
   /// No description provided for @chatsGroupFallbackName.
   ///
   /// In en, this message translates to:

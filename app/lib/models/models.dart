@@ -734,6 +734,7 @@ class ChatSummary {
     this.unreadCount = 0,
     this.isGroup = false,
     this.pinned = false,
+    this.markedUnread = false,
     this.previewKind = MessageKind.text,
     this.typing = false,
     this.avatarSeed = 0,
@@ -758,6 +759,13 @@ class ChatSummary {
   final int unreadCount;
   final bool isGroup;
   final bool pinned;
+
+  /// Set on this device to come back to, with nothing new in it.
+  final bool markedUnread;
+
+  /// What the row and the Unread filter go by: something new, or a mark.
+  bool get hasUnread => unreadCount > 0 || markedUnread;
+
   final MessageKind previewKind;
 
   /// True while the other side is typing, which the row shows in the accent

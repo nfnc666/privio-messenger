@@ -229,6 +229,14 @@ class Conversation {
   /// without telling a server which chats matter most to somebody.
   bool pinned = false;
 
+  /// Shown as unread in the chat list although nothing new has arrived — a
+  /// reminder somebody set for themselves to come back to it.
+  ///
+  /// Local like [pinned], for the same reason: nobody is told, there is no
+  /// receipt to take back, and the other side's ticks stay as they were. Gone
+  /// as soon as the chat is opened or marked read.
+  bool markedUnread = false;
+
   /// When the other side was last seen typing, or null.
   ///
   /// Deliberately not persisted: "was typing" is only interesting for a few
@@ -287,6 +295,10 @@ abstract interface class MessageStore {
   /// Pins a conversation to the top of the list, or lets it go. Returns
   /// whether anything changed.
   bool setPinned(String id, {required bool pinned});
+
+  /// Marks a conversation unread on this device, or takes the mark away.
+  /// Returns whether anything changed.
+  bool setMarkedUnread(String id, {required bool marked});
 
   /// Marks the other side as typing until [until].
   void setTyping(String id, DateTime? until);
@@ -441,6 +453,7 @@ class InMemoryMessageStore implements MessageStore {
       // refresh and on every message from someone new, and a pin that a
       // refresh quietly undid was a pin that did not work.
       ..pinned = existing.pinned
+      ..markedUnread = existing.markedUnread
       ..typingUntil = existing.typingUntil;
     return _conversations[user.accountId] = replacement;
   }
@@ -481,6 +494,7 @@ class InMemoryMessageStore implements MessageStore {
       ..timerVersion = existing.timerVersion
       ..timerSetBy = existing.timerSetBy
       ..pinned = existing.pinned
+      ..markedUnread = existing.markedUnread
       ..typingUntil = existing.typingUntil;
     return _conversations[group.groupId] = replacement;
   }
@@ -551,6 +565,14 @@ class InMemoryMessageStore implements MessageStore {
     final conversation = _conversations[id];
     if (conversation == null || conversation.pinned == pinned) return false;
     conversation.pinned = pinned;
+    return true;
+  }
+
+  @override
+  bool setMarkedUnread(String id, {required bool marked}) {
+    final conversation = _conversations[id];
+    if (conversation == null || conversation.markedUnread == marked) return false;
+    conversation.markedUnread = marked;
     return true;
   }
 
@@ -771,7 +793,13 @@ class InMemoryMessageStore implements MessageStore {
   }
 
   @override
-  void markRead(String id) => _conversations[id]?.unreadCount = 0;
+  void markRead(String id) {
+    final conversation = _conversations[id];
+    if (conversation == null) return;
+    conversation
+      ..unreadCount = 0
+      ..markedUnread = false;
+  }
 
   @override
   void updateState(String id, String messageId, DeliveryState state) {

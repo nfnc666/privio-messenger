@@ -328,6 +328,7 @@ abstract final class ArchiveCodec {
             'id': conversation.id,
             'unreadCount': conversation.unreadCount,
             if (conversation.pinned) 'pinned': true,
+            if (conversation.markedUnread) 'markedUnread': true,
             if (conversation.timer.after != null)
               'disappearAfterSeconds': conversation.timer.after!.inSeconds,
             // Written even when false, because its absence means something
@@ -570,6 +571,7 @@ abstract final class ArchiveCodec {
           )
             ..unreadCount = entry['unreadCount'] as int? ?? 0
             ..pinned = entry['pinned'] as bool? ?? false
+            ..markedUnread = entry['markedUnread'] as bool? ?? false
             ..timer = _decodeChatTimer(entry)
             ..timerWasCapped = _timerWasCapped(entry)
             ..timerVersion = entry['timerVersion'] as int? ?? 0
@@ -594,6 +596,7 @@ abstract final class ArchiveCodec {
         )
           ..unreadCount = entry['unreadCount'] as int? ?? 0
           ..pinned = entry['pinned'] as bool? ?? false
+          ..markedUnread = entry['markedUnread'] as bool? ?? false
           ..timer = _decodeChatTimer(entry)
           ..timerWasCapped = _timerWasCapped(entry)
           ..timerVersion = entry['timerVersion'] as int? ?? 0

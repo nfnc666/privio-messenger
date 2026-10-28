@@ -196,7 +196,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     final query = _query.trim().toLowerCase();
     return chats.where((chat) {
       final matchesFilter = switch (_filter) {
-        1 => chat.unreadCount > 0,
+        1 => chat.hasUnread,
         2 => chat.isGroup,
         _ => true,
       };
@@ -243,6 +243,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
     ChatSummary chat,
   ) async {
     final pinned = state.conversations.isPinned(chat.id);
+    // Marking read only does more than drop a mark when something is really
+    // waiting, and then it is the same as opening the chat — receipts and all,
+    // if they are on. The note says which of the two this is.
+    final waiting = chat.unreadCount > 0;
+    final sendsReceipts = waiting && state.conversations.readReceiptsEnabled;
     final text = AppText.of(context);
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -260,13 +265,27 @@ class _ChatsScreenState extends State<ChatsScreen> {
               subtitle: Text(text.chatsPinNote),
               onTap: () => Navigator.of(sheetContext).pop('pin'),
             ),
+            ListTile(
+              leading: Icon(
+                chat.hasUnread ? Icons.mark_chat_read_outlined : Icons.mark_chat_unread_outlined,
+              ),
+              title: Text(chat.hasUnread ? text.chatsMarkRead : text.chatsMarkUnread),
+              subtitle: Text(sendsReceipts ? text.chatsMarkReadReceiptsNote : text.chatsMarkNote),
+              onTap: () => Navigator.of(sheetContext).pop('unread'),
+            ),
             const SizedBox(height: PrivioSpacing.sm),
           ],
         ),
       ),
     );
-    if (action != 'pin') return;
-    await state.conversations.togglePin(chat.id);
+    switch (action) {
+      case 'pin':
+        await state.conversations.togglePin(chat.id);
+      case 'unread' when waiting:
+        state.conversations.markRead(chat.id);
+      case 'unread':
+        state.conversations.setMarkedUnread(chat.id, marked: !chat.markedUnread);
+    }
   }
 
   void _openHit(BuildContext context, AppState state, SearchHit hit) {

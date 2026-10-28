@@ -147,6 +147,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!widget.isGroup) {
       WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_readVerification()));
     }
+    // A chat marked unread is a reminder to open it, and this is it opening —
+    // from the list, a contact or anywhere else.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      PrivioScope.of(context).conversations.setMarkedUnread(widget.accountId, marked: false);
+    });
   }
 
   Future<void> _readVerification() async {
