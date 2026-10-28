@@ -496,6 +496,12 @@ class Message {
   final DateTime sentAt;
   final bool isMine;
   final MessageKind kind;
+
+  /// How far one of this account's messages has got.
+  ///
+  /// On a message from the other side it says one thing only: whether this
+  /// device has read it, which is `read` from the moment the chat is marked
+  /// read. That is what keeps a read receipt from naming a message twice.
   final DeliveryState state;
   final Duration? voiceDuration;
 

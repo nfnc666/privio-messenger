@@ -707,7 +707,8 @@ class InMemoryMessageStore implements MessageStore {
   @override
   List<String> unreadClientIds(String id) => [
         for (final message in _conversations[id]?.messages ?? const <Message>[])
-          if (!message.isMine && message.clientId != null) message.clientId!,
+          if (!message.isMine && message.clientId != null && message.state != DeliveryState.read)
+            message.clientId!,
       ];
 
   @override
@@ -716,6 +717,7 @@ class InMemoryMessageStore implements MessageStore {
     for (final message in _conversations[id]?.messages ?? const <Message>[]) {
       final sender = message.senderAccountId;
       if (message.isMine || message.clientId == null || sender == null) continue;
+      if (message.state == DeliveryState.read) continue;
       bySender.putIfAbsent(sender, () => []).add(message.clientId!);
     }
     return bySender;
@@ -799,6 +801,15 @@ class InMemoryMessageStore implements MessageStore {
     conversation
       ..unreadCount = 0
       ..markedUnread = false;
+    // Remembered per message, so the next read receipt names what arrived
+    // after this and not everything ever said in the chat. This account's own
+    // messages are left alone: their state is what the other side reported.
+    final messages = conversation.messages;
+    for (var i = 0; i < messages.length; i++) {
+      final message = messages[i];
+      if (message.isMine || message.state == DeliveryState.read) continue;
+      messages[i] = message.copyWith(state: DeliveryState.read);
+    }
   }
 
   @override

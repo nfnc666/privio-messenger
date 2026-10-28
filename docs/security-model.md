@@ -1260,6 +1260,16 @@ far. Until then the count is on the bubble: "delivered to everybody, read by
 three" is on screen rather than implied. Where the member count is not known
 yet, nothing claims everyone has seen it.
 
+**A read receipt names each message once.** Marking a chat read records on
+each message from the other side that this device has read it, and the next
+receipt names only what arrived since. It used to name every message the other
+side had ever sent in the chat, each time the chat was opened. That was not
+wrong on the other side, whose ticks never move backwards, but more left the
+device than the news was worth. What is read while receipts are off is never
+confirmed later: turning them on is about what comes next. An archive from
+before this change confirms its old messages once more, the first time each
+chat is read.
+
 **What they still leak.** A typing notice is traffic: someone watching the
 network learns that a device sent something small to another account at that
 moment, which is a finer-grained timing signal than messages alone. Turning

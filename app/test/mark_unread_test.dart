@@ -147,9 +147,10 @@ void main() {
       expect(messaging.sent, isEmpty, reason: 'a mark told somebody something');
       expect(messaging.sentToGroup, isEmpty);
 
-      // And this is what it is not: reading the chat does send, because read
-      // receipts are on. Without this line the test above would also pass if
-      // the mark went through the read path.
+      // And this is what it is not: reading a chat with something new in it
+      // does send, because read receipts are on. Without this the test above
+      // would also pass if the mark went through the read path.
+      store.append('account-bob', text('c2'));
       controller.markRead('account-bob');
       await pumpEventQueue();
       expect(messaging.sent.where((payload) => payload.isReceipt), isNotEmpty);
