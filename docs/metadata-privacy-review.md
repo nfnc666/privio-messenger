@@ -128,25 +128,35 @@ and this section says so rather than calling media padded and leaving it there.
 
 ## 6. Sender and recipient routing
 
-**Required · stored until delivery · not hideable in this design**
+**Required · stored until delivery · partly hidden by sealed sender**
 
-`envelopes.recipient_device_id` and `envelopes.sender_account_id`. The server
-knows who sent what to whom, at the account level, for as long as the row exists.
+`envelopes.recipient_device_id` and `envelopes.sender_account_id`. For an
+ordinary envelope the server knows who sent what to whom, at the account level,
+for as long as the row exists. A conversation's content is private; the fact
+that it happened, between whom, and when, is not.
 
-This is the most important line on the page. Privio has **no sealed sender**:
-there is no equivalent of Signal's construction where the server learns the
-recipient but not the sender. A conversation's content is private; the fact that
-it happened, between whom, and when, is not.
+**Sealed sender** (`docs/sealed-sender.md`) is implemented on the server and in
+the app. A sealed envelope is sent without a session, over a route that logs
+nothing, and stored with no sender columns at all: the server learns the
+recipient, the time and the padded size, not the sender. It applies only
+where:
 
-**Hideable in a future design** — sealed sender is the published answer — and
-doing so would need delivery tokens, a different abuse-control story, and a
-review. It should not be claimed until it exists.
+* the server has its sealed-sender keys configured. Without them nothing is
+  sealed, and the privacy dashboard says so;
+* the message is one-to-one, to somebody else. Group messages and the copies
+  to this account's own devices still carry the sender;
+* the recipient's access key is known, which takes having received their
+  profile key. **The first message of a conversation still names its sender**;
+  replies and everything after do not.
 
-**Status:** the server half now exists (`docs/sealed-sender.md`): sender
-certificates, access keys derived from the profile key, and an unauthenticated,
-unlogged route that stores envelopes with no sender columns at all. **The app
-does not seal anything yet**, so every message still travels as described
-above, and this section stays true until the client phase ships.
+What sealing cannot hide: the sender's IP address on the connection (not
+logged, but visible to anyone recording traffic, see section 1 and the proxy),
+and timing, which can link a sealed send to the same device's authenticated
+requests.
+
+**Status:** tested automatically, not yet confirmed on real devices. Until a
+server runs with the keys configured, every message still travels as
+described in the first paragraph.
 
 ## 7. Group membership
 
@@ -239,8 +249,9 @@ screen. It is never shown to anybody but the owner.
 
 Still open, in order:
 
-1. **No sealed sender.** The server knows who talks to whom. Design work, not a
-   patch; the server half exists (section 6).
+1. **Sealed sender covers one-to-one messages only.** Groups, first contact and
+   copies to this account's own devices still name the sender, and nothing is
+   sealed on a server without the keys configured (section 6).
 2. **Large attachments are padded only coarsely.** To within 16 KiB, which still
    identifies a known file (section 5).
 3. **The proxy's own access log.** Outside this server, and the operator's to
@@ -252,7 +263,9 @@ outlived their use by a year.
 
 ## What must not be claimed
 
-* That Privio hides who is talking to whom. It does not.
+* That Privio hides who is talking to whom. Sealed sender hides the sender of
+  one-to-one messages after the first, on a server that has it configured,
+  and nothing more (section 6).
 * That contact discovery is anonymous. It is a keyed hash with a lookup budget.
 * That metadata is "minimal" without pointing at this page.
 

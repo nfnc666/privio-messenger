@@ -1240,8 +1240,12 @@ A privacy product that overstates itself is worse than one that says nothing.
    correctly, but rewritten whole on every change, so it will not scale to a
    long history. Moving it to SQLCipher is planned; the storage port exists so
    that swap touches one file.
-3. **No sealed sender.** Envelopes name the sender, which the server uses for
-   blocking and rate limiting.
+3. **Sealed sender covers one-to-one messages only.** Where the server has its
+   sealed-sender keys configured, a one-to-one message after the first travels
+   without naming its sender (`docs/sealed-sender.md`). Group messages, the
+   first message of a chat and copies to your own devices still name the
+   sender, which the server uses for blocking and rate limiting. Tested
+   automatically, not yet confirmed on real devices.
 4. **The link domains are not registered.** Links are generated against
    `privio.channel`, `privio.group` and `privio.app` (the invite link), none of
    which this project owns, so
@@ -1531,7 +1535,7 @@ Group admin · Account deletion
 is already waiting for · Pairing a second device directly, over a QR code,
 rather than by restoring the encrypted backup
 
-**Later** — Sealed sender · SQLCipher for the local history
+**Later** — Sealed sender for groups · SQLCipher for the local history
 
 Before any of that ships to a store: the official `libsignal` behind FFI, an
 external review of the crypto integration, and a pass on a real device for the

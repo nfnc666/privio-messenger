@@ -48,7 +48,11 @@ revokes every other session.
 prefix search, no directory, and no address-book upload.
 
 **Learning that you blocked someone.** A blocked sender's messages return an
-ordinary success and are dropped.
+ordinary success and are dropped. With sealed sender, a block also rotates your
+profile key, so the blocked account's sealed sends are refused and its app
+quietly sends the usual way instead, which the server then drops. The app shows
+nothing of this; a modified client could notice that its sealed sends to you
+stopped being accepted. Signal's design has the same property.
 
 ### Not defended against
 
@@ -57,8 +61,11 @@ messages. No messenger solves this.
 
 **Traffic analysis.** The server sees who exchanges envelopes and when. Message
 *length* is padded away (below), so size no longer distinguishes a word from a
-paragraph, or a photo from a sentence. Sealed sender would narrow the remaining
-who-and-when; a global passive adversary correlating timing is out of scope.
+paragraph, or a photo from a sentence. Sealed sender (`docs/sealed-sender.md`)
+hides the sender of one-to-one messages after the first, where the server has
+it configured; group messages and first contact still name the sender, and the
+recipient and the time stay visible. A global passive adversary correlating
+timing is out of scope.
 
 **A malicious recipient.** Anyone you message can screenshot, copy or forward
 it. "Restrict content saving" raises the effort; it is not a security control

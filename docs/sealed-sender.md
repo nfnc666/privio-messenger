@@ -1,9 +1,10 @@
 # Sealed sender
 
-**Status:** design accepted. Server side implemented. The native library is
-vendored and built from source (phase 2). The app does not seal anything yet,
-see "Phases" below. Until it does, no message is sealed and
-`docs/metadata-privacy-review.md` §6 stays true as written.
+**Status:** phases 1 to 3 implemented: server, native library built from
+source, and the app (see "Phases" below). One-to-one messages go sealed where
+the server has its sealed-sender keys configured and the recipient's access key
+is known. Without the keys on the server, nothing is sealed and the privacy
+dashboard says so. Not yet confirmed on real devices.
 
 ## The gap this closes
 
@@ -126,6 +127,20 @@ the knowledge is:
 2. **The device drops** anything whose certificate names a blocked account.
 3. The unsealed path keeps the server-side check it has today.
 
+In the app (`ConversationController.rotateProfileKey`):
+
+* The key is rotated only where this device can open sealed messages. Without
+  sealed sender there is no door to shut, and a new key would only cost
+  contacts the profile picture until they hear from this account again.
+* The profile picture is sealed under the profile key, so it is re-uploaded
+  under the **new** key first. If that fails, the key stays as it is and the
+  device still drops what the blocked account seals.
+* The new access key is published right after. Offline, the next start
+  publishes it.
+* The blocked list the device drops by is read at sign-in, again after every
+  block and unblock, and before the first sealed envelope is opened if it has
+  not arrived yet.
+
 ## The sealed route
 
 `POST /v1/messages/sealed`:
@@ -141,6 +156,58 @@ the knowledge is:
   envelope size limit, same `expiresInSeconds` bound.
 * The envelope is stored with `envelope_type = 'sealed'` and **no sender
   columns**. `GET /v1/messages` returns it with `senderAccountId: null`.
+
+## The app
+
+`app/lib/services/sealed_sender_service.dart` holds this device's side,
+`app/lib/crypto/privio_crypto.dart` (`sealSealedForDevices`, `openSealed`) the
+two library calls.
+
+**Trust root.** A release can carry it in the build
+(`--dart-define=PRIVIO_SEALED_TRUST_ROOT=<base64>`); then it is the only one
+accepted and the server is never asked. Without that, the first answer of
+`GET /v1/certificate/trust-root` is pinned in the secure store, as a contact's
+key is on first use, and every later answer has to match it. A different one
+stops sealed sender on this device, sending and opening, and the privacy
+dashboard says it stopped. Nothing is learned from a server that offers a new
+root. The build pin is the stronger choice for a release, because trust on
+first use trusts whatever server answers first.
+
+**Certificate.** Fetched at sign-in, kept, and fetched again an hour before it
+runs out, so no message leaves with one that expires on the way. No license or
+no answer: the device still opens sealed messages, sends the usual way, and the
+dashboard says "receive only".
+
+**Access key.** Derived from this account's profile key with HKDF-SHA256 (info
+`Privio unidentified access key`, 16 bytes) and published at every start and
+after every rotation. A reference vector in
+`app/test/sealed_sender_crypto_test.dart` keeps the derivation from drifting
+between versions, because sender and recipient have to agree on it.
+
+**Sending.** A one-to-one send goes sealed when sealed sender is on, the
+recipient's profile key is known on this device, the recipient is not this
+account, and the recipient's door has not refused this key in the last hour.
+Receipts, typing notices, edits and deletions are one-to-one sends too, so they
+go sealed under the same conditions. Otherwise, and when the server answers
+`401 unidentified_access_denied` or `503 sealed_sender_unavailable`, the
+message goes the way it always has. Any other failure (`409 device_mismatch`
+among them) is reported exactly as for an unsealed send, never quietly sent
+unsealed instead. The sealed route takes no idempotency key, because a key
+that repeats across retries would tie them together; a repeated sealed
+message is recognised on the receiving device by the client id inside it.
+
+**Opening.** The sender comes out of the certificate, checked against the
+pinned trust root and the time the server received the envelope. One decision
+differs from libsignal's own default and is deliberate: the library would
+refuse a sender whose identity key differs from the one stored on this
+device, and the message would be lost without even a name to show. Privio
+hands the library no stored identity for that check. Instead, before anything
+is decrypted, it requires the key in the certificate to be the key of the
+message inside (the pre-key message's identity key, or the stored identity
+for an ordinary message). A message that passes is opened through the same
+code as every unsealed one, so a changed key is accepted and reported exactly
+as it is today, with the key-change notice in the chat. A sealed envelope that does not open is reported without a
+sender, because nothing that could be trusted named one.
 
 ## What stays visible, said plainly
 
@@ -158,6 +225,11 @@ the knowledge is:
 * **First contact.** Someone who has never received this account's profile key
   holds no access key and sends unsealed. The first message of a conversation
   is therefore attributable; replies and everything after are not.
+* **Copies to this account's own devices** are sent the usual way: the server
+  knows the account anyway, since it is the recipient.
+* **The access key** is a fixed value per profile key. The server sees the same
+  one on every sealed send to an account until the profile key rotates. It
+  learns from that only what it already knows, the recipient.
 
 ## Phases
 
@@ -172,12 +244,20 @@ the knowledge is:
    builds without a cache. `app/test/sealed_sender_library_test.dart` seals a
    message from the app's existing Signal sessions and opens it again through
    that library, on every CI run.
-3. **App:** fetch and cache the certificate, pin the trust root, derive and
-   upload the access key, seal one-to-one messages when the recipient's access
-   key is known, fall back to unsealed when not, open sealed envelopes, drop
-   blocked senders, rotate the profile key on block. Shown in the privacy
-   dashboard as what it is.
-4. **Receipts and typing indicators sealed** the same way. Then **groups**.
+3. **App** (done, see "The app" above): fetch and cache the certificate, pin
+   the trust root, derive and upload the access key, seal one-to-one messages
+   when the recipient's access key is known, fall back to unsealed when not,
+   open sealed envelopes, drop blocked senders, rotate the profile key on
+   block. Shown in the privacy dashboard as what it is: on, receive only,
+   stopped, or off, with the note on which messages still name the sender.
+   Tested in `app/test/sealed_sender_crypto_test.dart`,
+   `sealed_sender_service_test.dart`, `sealed_sender_block_test.dart` and
+   `privacy_dashboard_test.dart`; each rule there was broken once on purpose
+   and its test went red.
+4. **Groups**: sealing hides which member wrote. Membership stays known.
 
-Only when phase 3 ships may anything in the app or in a store listing say that
-Privio hides who talks to whom, and then only for what is sealed.
+Anything in the app or in a store listing may say that Privio hides who sent a
+message only for what is sealed, and only once the server has its keys
+configured: one-to-one messages after the first, not groups, not first
+contact. The dashboard row is the place that says it, and it says it only when
+it is on.

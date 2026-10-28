@@ -4,10 +4,12 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:privio/core/api_client.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/conversation_controller.dart';
 import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
+import 'package:privio/core/security_controller.dart';
 import 'package:privio/crypto/sealed_sender.dart';
 import 'package:privio/data/message_store.dart';
 
@@ -141,6 +143,19 @@ void main() {
       await pumpEventQueue();
       expect(await services.crypto.profileKey(), before);
     });
+  });
+
+  test('unblocking is passed on, so their sealed messages are shown again', () async {
+    final server = ProfileServer()..blocked.add('account-bob');
+    final api = PrivioApiClient(baseUrl: Uri.parse('https://api.test'), client: MockClient((request) async {
+      if (request.method == 'DELETE') return http.Response('{}', 200, headers: {'content-type': 'application/json'});
+      return server.client().send(request).then(http.Response.fromStream);
+    }))..useToken('token');
+    var told = 0;
+    final security = SecurityController(api, onUnblocked: () async => told += 1);
+
+    await security.unblock('account-bob');
+    expect(told, 1);
   });
 
   testWidgets('a signed-in start knows whose profile key opens whose door, and sets up',

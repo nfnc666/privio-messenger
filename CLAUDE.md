@@ -34,10 +34,12 @@ Daraus folgt bei jeder Funktion:
 
 Stand dieser Datei, Details in `docs/metadata-privacy-review.md`:
 
-* **Kein Sealed Sender in der App.** Der Server weiß noch, wer mit wem
-  schreibt. Server-Seite und die aus dem Quellcode gebaute libsignal-Bibliothek
-  sind da (`docs/sealed-sender.md`); es fehlt die App-Seite. Bis dahin wird
-  nichts als versiegelt beworben.
+* **Sealed Sender nur für Einzelchats, noch nicht auf echten Geräten
+  bestätigt.** Server, libsignal aus dem Quellcode und App-Seite sind da
+  (`docs/sealed-sender.md`). Aktiv nur, wenn der Server seine
+  Sealed-Sender-Schlüssel hat. Gruppen, die erste Nachricht eines Chats und
+  Kopien an eigene Geräte nennen den Absender weiterhin. Beworben wird nur das,
+  und erst nach der Bestätigung auf echten Geräten.
 * **Keine „Einmal ansehen“-Nachrichten.**
 
 ## Feste Regeln

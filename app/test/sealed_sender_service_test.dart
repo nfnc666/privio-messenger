@@ -37,6 +37,7 @@ class FakeServer {
   final Map<String, Set<String>> blocks = {};
   final List<Map<String, String>> sealedHeaders = [];
   bool sealedOffered = true;
+  int sealedAttempts = 0;
   bool certificates = true;
   int trustRootAsked = 0;
   int _nextId = 1;
@@ -67,6 +68,7 @@ class FakeServer {
         final me = auth == null ? null : _byToken[auth.replaceFirst('Bearer ', '')];
 
         if (request.method == 'POST' && path == '/v1/messages/sealed') {
+          sealedAttempts += 1;
           if (auth != null) return _error(400, 'do_not_identify');
           if (!sealedOffered) return _error(503, 'sealed_sender_unavailable');
           sealedHeaders.add(Map.of(request.headers));
@@ -232,6 +234,21 @@ void main() {
       expect(received.messages.map((m) => m.payload.body), ['eins', 'zwei']);
     });
 
+    test('a server that stops offering it mid-way is not asked again', () async {
+      await bob.start();
+      await alice.start();
+      await aliceKnowsBob();
+      server.sealedOffered = false;
+
+      await alice.messaging.sendPayload('bob', const MessagePayload.text('eins'));
+      await alice.messaging.sendPayload('bob', const MessagePayload.text('zwei'));
+
+      expect(server.sealedAttempts, 1);
+      expect(alice.sealed.status, SealedSenderStatus.serverOff);
+      final received = await bob.messaging.receive();
+      expect(received.messages.map((m) => m.payload.body), ['eins', 'zwei']);
+    });
+
     test('nothing is sealed to this account itself', () async {
       await alice.start();
       expect(await alice.sealed.routeTo(aliceId, List.filled(32, 1)), isNull);
@@ -255,6 +272,7 @@ void main() {
 
       await alice.messaging.sendPayload('bob', const MessagePayload.text('hallo'));
       expect(bobsQueue().single['type'], 'prekey');
+      expect(server.sealedAttempts, 0);
       expect(server.accessKeys, isEmpty, reason: 'a key was published to a server that does not use it');
     });
 
@@ -266,6 +284,8 @@ void main() {
       await alice.start();
       expect(alice.sealed.status, SealedSenderStatus.trustRootChanged);
       expect(alice.sealed.canOpen, isFalse);
+      expect(await alice.sealed.routeTo(bobId, List.filled(32, 1)), isNull,
+          reason: 'something would be sealed under a root this device refused');
       expect(await alice.store.readSealedTrustRoot(), isNot(base64Encode(server.issuer.trustRoot)),
           reason: 'the new root replaced the pinned one');
     });
@@ -310,6 +330,17 @@ void main() {
       expect(received.messages, isEmpty);
       expect(received.failures, isEmpty, reason: 'a dropped message is not an error to show');
       expect(bobsQueue(), isEmpty, reason: 'it was left in the queue');
+    });
+
+    test('the blocked list is read before the first sealed message, even unasked', () async {
+      await bob.start();
+      await alice.start();
+      await aliceKnowsBob();
+      server.blocks[bobId] = {aliceId};
+
+      await alice.messaging.sendPayload('bob', const MessagePayload.text('gleich nach dem Start'));
+      final received = await bob.messaging.receive();
+      expect(received.messages, isEmpty);
     });
 
     test('a sealed envelope that will not open is reported, naming nobody', () async {
