@@ -11,7 +11,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | --- | --- | --- |
 | Edit a sent message in a chat or group | **done on this branch** (was: channels only) | sealed `edit` control payload, see below |
 | Polls in a chat or group | **done on this branch** (was: channels only, tallied by the server) | sealed poll, votes tallied on each device, see below |
-| Distribution list (one message to many 1:1 chats, recipients do not see each other) | missing | client-side fan-out over the existing 1:1 sessions; no server change |
+| Distribution list (one message to many 1:1 chats, recipients do not see each other) | **done on this branch** (text) | client-side fan-out over the existing 1:1 sessions; no server change, see below |
 | Share a location | **done on this branch**, switchable off | static coordinates in the sealed payload; no map is loaded, no live tracking, see below |
 | Hide a chat behind its own PIN / biometrics | **done on this branch** with a code (was: whole-app lock only); no biometrics | per-conversation flag in the encrypted archive, see below |
 | Trust level visible in the chat and contact lists | **done on this branch** (was: chat header only) | small mark in list rows derived from the existing `VerificationState`, see below |
@@ -171,6 +171,30 @@ a random ID, no address-book upload, no plaintext exception for bots.
   not compiled here (no Android SDK, no Xcode in this environment); the
   mobile build workflow compiles them on a pull request.
 
+## Distribution lists
+
+- **Where:** the megaphone in the chat list's top bar. A list is a name and
+  up to 256 people this device has a one-to-one chat with.
+- **Sending** writes the text once and sends it to each person as an
+  ordinary message in their chat with this account, through the same path as
+  typing it there: its own client id, that chat's disappearing timer, its own
+  place in the offline queue and its own retry. Somebody blocked since the
+  list was made has no chat any more and is skipped.
+- **Nothing about the list is in any payload.** Each person gets a plain text
+  message and cannot tell that anybody else got the same one, or that a list
+  exists. The test checks the exact keys of every payload.
+- **Local only:** the list lives in the encrypted archive and is never sent.
+  Deleting it leaves what was sent through it in each chat.
+- **What the server sees,** said on the list's screen: one envelope to each
+  person at the same moment, which is what sending them one by one quickly
+  would look like too.
+- **Not done:** photos, files, voice and polls through a list (text only),
+  and a history on the list itself; what was sent is in each chat, under
+  that chat's own timer.
+- **Server:** unchanged.
+- **Tests:** `app/test/distribution_list_test.dart`. Every rule above was
+  broken on purpose once and the matching test went red.
+
 ## Compatibility with older builds
 
 Editing, polls and places add new payload types. A build from before this
@@ -183,6 +207,6 @@ build with these features before they are used. A future payload type should
 carry a flag that tells older clients to drop it rather than show it; that is
 not part of this branch.
 
-Marking a chat unread sends nothing, so it needs nothing from anyone else's
-build. An older build reading an archive that holds the mark ignores it.
+Marking a chat unread sends nothing, and a distribution list sends ordinary
+text messages, so neither needs anything from anyone else's build. An older build reading an archive that holds the mark ignores it.
 

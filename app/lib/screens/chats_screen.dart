@@ -17,6 +17,7 @@ import '../widgets/private_code_dialog.dart';
 import '../widgets/search_field.dart';
 import 'chat_screen.dart';
 import 'contacts_screen.dart';
+import 'distribution_lists_screen.dart';
 import 'new_group_screen.dart';
 import 'private_chats_screen.dart';
 
@@ -407,6 +408,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         icon: const Icon(Icons.lock_outline_rounded),
                         tooltip: text.chatsShowPrivate,
                       ),
+              IconButton(
+                key: const Key('lists-open'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const DistributionListsScreen()),
+                ),
+                icon: const Icon(Icons.campaign_outlined),
+                tooltip: text.listsTitle,
+              ),
               IconButton(
                 onPressed: () => _startGroup(context, state),
                 icon: const Icon(Icons.group_add_outlined),

@@ -1750,6 +1750,70 @@ class AppTextFr extends AppText {
       'Désactivé : Privio ne demande jamais où vous êtes, et « Position » disparaît du menu des pièces jointes. Les lieux envoyés par d\'autres restent affichés.';
 
   @override
+  String get listsTitle => 'Listes de diffusion';
+
+  @override
+  String get listsNew => 'Nouvelle liste de diffusion';
+
+  @override
+  String get listsEdit => 'Modifier la liste';
+
+  @override
+  String get listsEmpty =>
+      'Envoyez un message à plusieurs personnes à la fois. Chacune le reçoit comme un message ordinaire dans votre discussion et ne voit pas qui d\'autre l\'a reçu.';
+
+  @override
+  String listsMembers(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count personnes',
+      one: '1 personne',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsName => 'Nom';
+
+  @override
+  String get listsNoContacts =>
+      'Ajoutez d\'abord des contacts : une liste a besoin de personnes.';
+
+  @override
+  String get listsInvalid =>
+      'Donnez un nom à la liste et choisissez au moins une personne.';
+
+  @override
+  String get listsNote =>
+      'Chaque personne le reçoit comme un message ordinaire dans votre discussion et ne peut pas voir qui d\'autre l\'a reçu. Le serveur voit au même moment un message pour chacune, comme si vous les aviez envoyés un par un. La liste elle-même reste sur cet appareil.';
+
+  @override
+  String get listsMessageHint => 'Message à tous les membres de la liste';
+
+  @override
+  String get listsSend => 'Envoyer à tous';
+
+  @override
+  String listsSent(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Envoyé à $count personnes.',
+      one: 'Envoyé à 1 personne.',
+      zero: 'Envoyé à personne.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get listsDelete => 'Supprimer la liste';
+
+  @override
+  String get listsDeleteBody =>
+      'La liste disparaît. Ce qui a été envoyé par elle reste dans chaque discussion.';
+
+  @override
   String get chatsGroupFallbackName => 'Groupe';
 
   @override

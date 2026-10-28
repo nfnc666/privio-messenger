@@ -2989,6 +2989,90 @@ abstract class AppText {
   /// **'Off: Privio never asks where you are, and Location is gone from the attach menu. Places others send are still shown.'**
   String get privacyShareLocationNote;
 
+  /// No description provided for @listsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Distribution lists'**
+  String get listsTitle;
+
+  /// No description provided for @listsNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New distribution list'**
+  String get listsNew;
+
+  /// No description provided for @listsEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit list'**
+  String get listsEdit;
+
+  /// No description provided for @listsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Send one message to several people at once. Each of them gets it as an ordinary message in your chat with them, and does not see who else got it.'**
+  String get listsEmpty;
+
+  /// No description provided for @listsMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 person} other{{count} people}}'**
+  String listsMembers(int count);
+
+  /// No description provided for @listsName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get listsName;
+
+  /// No description provided for @listsNoContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Add some contacts first: a list needs people on it.'**
+  String get listsNoContacts;
+
+  /// No description provided for @listsInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Give the list a name and pick at least one person.'**
+  String get listsInvalid;
+
+  /// No description provided for @listsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Each person gets this as an ordinary message in your chat with them, and cannot see who else got it. The server sees one message to each of them at the same moment, as if you had sent them one by one. The list itself stays on this device.'**
+  String get listsNote;
+
+  /// No description provided for @listsMessageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Message to everyone on the list'**
+  String get listsMessageHint;
+
+  /// No description provided for @listsSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to everyone'**
+  String get listsSend;
+
+  /// No description provided for @listsSent.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Sent to nobody.} =1{Sent to 1 person.} other{Sent to {count} people.}}'**
+  String listsSent(int count);
+
+  /// No description provided for @listsDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete list'**
+  String get listsDelete;
+
+  /// No description provided for @listsDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The list goes. What was sent through it stays in each chat.'**
+  String get listsDeleteBody;
+
   /// No description provided for @chatsGroupFallbackName.
   ///
   /// In en, this message translates to:

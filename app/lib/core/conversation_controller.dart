@@ -12,6 +12,7 @@ import '../media/metadata_scrubber.dart';
 import '../media/photo.dart';
 import '../crypto/privio_crypto.dart';
 import '../crypto/safety_number.dart';
+import '../models/distribution_list.dart';
 import '../models/geo_point.dart';
 import 'message_search.dart';
 import '../media/voice.dart';
@@ -462,6 +463,11 @@ class ConversationController extends ChangeNotifier {
     // history at all — somebody may be in channels and in no chats.
     _channelPosts = contents.channelPosts;
     onChannelPostsRestored?.call(contents.channelPosts);
+    // Before the early return below: somebody can have lists and, after
+    // clearing the history, no chats.
+    _lists
+      ..clear()
+      ..addAll(contents.distributionLists);
     if (contents.conversations.isEmpty && contents.outbox.isEmpty) return;
     _services.store.restore(contents.conversations);
     _outbox
@@ -547,6 +553,7 @@ class ConversationController extends ChangeNotifier {
           outbox: _outbox,
           accountId: accountId,
           channelPosts: _channelPosts,
+          distributionLists: _lists,
         ),
       );
     });
@@ -561,6 +568,7 @@ class ConversationController extends ChangeNotifier {
       outbox: _outbox,
       accountId: accountId,
       channelPosts: _channelPosts,
+      distributionLists: _lists,
     );
   }
 
@@ -2039,6 +2047,82 @@ class ConversationController extends ChangeNotifier {
     }
     notifyListeners();
     return true;
+  }
+
+  // --- Distribution lists ----------------------------------------------------
+  //
+  // One message to several people, as that many ordinary one-to-one messages.
+  // The list is a name and some account ids on this device; nothing about it
+  // is in any payload, so nobody on it can tell that anybody else got the same
+  // message. See [DistributionList].
+
+  final List<DistributionList> _lists = [];
+
+  List<DistributionList> get distributionLists => List.unmodifiable(_lists);
+
+  DistributionList? distributionList(String id) =>
+      _lists.where((list) => list.id == id).firstOrNull;
+
+  /// The people a list can hold: somebody this device has a one-to-one chat
+  /// with, and not this account itself. Order kept, repeats dropped.
+  List<String> _listMembers(Iterable<String> accountIds) => [
+        for (final id in {...accountIds})
+          if (id != accountId && _services.store.conversationWith(id)?.user != null) id,
+      ];
+
+  /// Makes a list and returns its id, or null when it would not be one: no
+  /// name, nobody in it, or too many.
+  String? createDistributionList(String name, Iterable<String> accountIds) {
+    final members = _listMembers(accountIds);
+    if (!DistributionList.isValid(name, members)) return null;
+    final list = DistributionList(id: _newClientId(), name: name.trim(), memberIds: members);
+    _lists.add(list);
+    _persist();
+    notifyListeners();
+    return list.id;
+  }
+
+  /// Renames a list or changes who is on it. Returns whether it changed.
+  bool updateDistributionList(String id, {String? name, Iterable<String>? accountIds}) {
+    final at = _lists.indexWhere((list) => list.id == id);
+    if (at == -1) return false;
+    final members = accountIds == null ? _lists[at].memberIds : _listMembers(accountIds);
+    final newName = name?.trim() ?? _lists[at].name;
+    if (!DistributionList.isValid(newName, members)) return false;
+    _lists[at] = _lists[at].copyWith(name: newName, memberIds: members);
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Deletes a list. What was sent through it stays in each chat.
+  bool deleteDistributionList(String id) {
+    final before = _lists.length;
+    _lists.removeWhere((list) => list.id == id);
+    if (_lists.length == before) return false;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
+  /// Sends [text] to everybody on the list, each as an ordinary message in
+  /// their chat with this account, and returns how many it went to.
+  ///
+  /// Through [send], one person at a time, so each message is exactly what
+  /// sending it by hand would have made: its own client id, the chat's own
+  /// timer, its own place in the queue when the network is gone, its own
+  /// retry. Somebody blocked since the list was made has no chat any more and
+  /// is skipped.
+  Future<int> sendToList(String listId, String text) async {
+    final list = distributionList(listId);
+    if (list == null || text.trim().isEmpty) return 0;
+    var reached = 0;
+    for (final memberId in list.memberIds) {
+      if (_services.store.conversationWith(memberId)?.user == null) continue;
+      await send(memberId, text);
+      reached += 1;
+    }
+    return reached;
   }
 
   // --- Places ----------------------------------------------------------------

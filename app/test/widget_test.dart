@@ -206,18 +206,20 @@ void main() {
     expect(find.byIcon(Icons.link_rounded), findsNothing);
     expect(find.byTooltip('Join a group with a link'), findsNothing);
 
-    // And the two that stay, still there.
+    // And the two that stay, still there, with the distribution lists that
+    // came later beside them.
     expect(find.byIcon(Icons.group_add_outlined), findsOneWidget);
     expect(find.byIcon(Icons.edit_square), findsOneWidget);
+    expect(find.byTooltip('Distribution lists'), findsOneWidget);
 
-    // Exactly two buttons in the bar, which is what says the third left no
-    // invisible tap target behind — an icon can be hidden while its 48dp hit
-    // area stays and swallows taps meant for its neighbour.
+    // Exactly those three buttons in the bar, which is what says the link
+    // button left no invisible tap target behind — an icon can be hidden while
+    // its 48dp hit area stays and swallows taps meant for its neighbour.
     final inBar = find.descendant(
       of: find.byType(AppBar),
       matching: find.byType(IconButton),
     );
-    expect(inBar, findsNWidgets(2));
+    expect(inBar, findsNWidgets(3));
 
     // No gap where it used to be. `AppBar.actions` is a Row that packs to the
     // right, so removing the leftmost one closes up on its own — this asserts
