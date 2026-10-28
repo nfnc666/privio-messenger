@@ -11,6 +11,7 @@ import 'package:privio/core/privio_services.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/crypto/privio_crypto.dart';
 import 'package:privio/crypto/safety_number.dart';
+import 'package:privio/data/archive.dart';
 import 'package:privio/data/message_store.dart';
 import 'package:privio/media/attachment.dart';
 import 'package:privio/models/models.dart';
@@ -257,7 +258,7 @@ void main() {
     Future<AppState> signedIn(
       PrivioCrypto crypto, {
       List<Map<String, Object?>>? contacts = const [],
-      InMemoryMessageStore? messages,
+      MessageArchive? archive,
     }) async {
       final client = MockClient(
         (request) async => contacts == null
@@ -286,8 +287,9 @@ void main() {
         recorder: FakeVoiceRecorder(),
         player: FakeVoicePlayer(),
         backup: BackupService(api: api, store: store, messages: InMemoryMessageStore()),
-        store: messages ?? InMemoryMessageStore(),
+        store: InMemoryMessageStore(),
         secureStore: store,
+        archive: archive,
       );
       final state = AppState(services: services, store: store);
       await state.initialise();
@@ -305,7 +307,15 @@ void main() {
       final (_, alice, _) = await aliceAndBob();
       await alice.crypto.markVerified('account-bob', await numbersOf(alice.crypto));
 
-      final state = await signedIn(alice.crypto, contacts: null, messages: storeWith([text('t1')]));
+      // The chat with Bob is on disk from an earlier run, and the server does
+      // not answer, so the only way to Bob is through the archive.
+      final archive = EncryptedMessageArchive(
+        storage: InMemoryArchiveStorage(),
+        keyStore: InMemorySecureStore(),
+      );
+      await archive.save(storeWith([text('t1')]).conversations(), accountId: 'account-alice');
+
+      final state = await signedIn(alice.crypto, contacts: null, archive: archive);
       await tester.pump(const Duration(seconds: 1));
 
       expect(state.conversations.trustMarkOf('account-bob'), TrustMark.verified);

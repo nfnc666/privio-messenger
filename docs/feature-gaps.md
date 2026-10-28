@@ -106,8 +106,8 @@ a random ID, no address-book upload, no plaintext exception for bots.
   number is 5200 hash rounds per device; the list only needs to know whether
   what was verified is still what is pinned, which is a comparison
   (`PrivioCrypto.verificationState`). The controller keeps the answers for
-  the lists and reads them again at sign-in (from the keystore, so it works
-  offline), after the contact list loads, after a key changes, after a
+  the lists and reads them again at sign-in once the archive is read back
+  (from the keystore, so it works offline), after the contact list loads, after a key changes, after a
   changed key is accepted, and when somebody is verified or the verification
   is withdrawn.
 - **Groups and Saved** carry no mark: a group has several people with several
