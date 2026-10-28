@@ -75,9 +75,15 @@ class BlockedUser {
 /// in the widget tree — "Two-Factor Authentication: On" over an account that
 /// had none. A screen about security is the last place to guess.
 class SecurityController extends ChangeNotifier {
-  SecurityController(this._api, {SecureStore? store}) : _store = store;
+  SecurityController(this._api, {SecureStore? store, Future<void> Function()? onUnblocked})
+      : _store = store,
+        _onUnblocked = onUnblocked;
 
   final PrivioApiClient _api;
+
+  /// Told when somebody is unblocked, so a sealed message from them is shown
+  /// again rather than dropped on this device.
+  final Future<void> Function()? _onUnblocked;
 
   /// Where the last-known device list is remembered between launches. Null in
   /// a test that does not care; the device diff below simply does nothing then.
@@ -406,6 +412,7 @@ class SecurityController extends ChangeNotifier {
     notifyListeners();
     try {
       await _api.unblock(accountId);
+      await _onUnblocked?.call();
     } on Object {
       _blocked = before;
       _failure = const Failure(FailureKind.couldNotLiftBlock);

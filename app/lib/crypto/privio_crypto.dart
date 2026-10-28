@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:libsignal/libsignal.dart' as rs;
 import 'package:libsignal_protocol_dart/libsignal_protocol_dart.dart';
 
 import 'crypto_storage.dart';
@@ -33,6 +34,31 @@ class SealedCopy {
         'type': type,
         'content': content,
       };
+}
+
+/// What a sealed envelope turned out to be: who the certificate inside says
+/// sent it, and the message.
+class SealedOpened {
+  const SealedOpened({
+    required this.senderAccountId,
+    required this.senderDeviceIndex,
+    required this.opened,
+  });
+
+  final String senderAccountId;
+  final int senderDeviceIndex;
+  final OpenedEnvelope opened;
+}
+
+/// A sealed envelope whose certificate and inner message do not belong
+/// together. Never opened.
+class SealedSenderMismatch implements Exception {
+  const SealedSenderMismatch(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'Sealed sender refused: $reason';
 }
 
 /// A recipient device, as the server describes it.
@@ -400,6 +426,132 @@ class PrivioCrypto {
     return sealed;
   }
 
+  // --- Sealed sender --------------------------------------------------------
+
+  /// Seals one copy per recipient device and wraps each in sealed sender's
+  /// outer layer, so the envelope does not say who sent it.
+  ///
+  /// The inner message is exactly what [sealForDevices] makes, from the same
+  /// sessions. The outer layer is libsignal's: it is encrypted to the
+  /// recipient device's identity key and carries [senderCertificate], which
+  /// only that device can read. See docs/sealed-sender.md.
+  Future<List<SealedCopy>> sealSealedForDevices({
+    required String accountId,
+    required List<DeviceBundle> devices,
+    required String plaintext,
+    required Uint8List senderCertificate,
+  }) async {
+    final sealed = <SealedCopy>[];
+    for (final device in devices) {
+      await ensureSession(accountId, device);
+      final inner = await seal(
+        accountId: accountId,
+        deviceId: device.deviceId,
+        deviceIndex: device.deviceIndex,
+        registrationId: device.registrationId,
+        plaintext: plaintext,
+      );
+      final usmc = rs.UnidentifiedSenderMessageContent(
+        messageType: inner.type == 'prekey' ? CiphertextMessage.prekeyType : CiphertextMessage.whisperType,
+        senderCertificate: senderCertificate,
+        contents: base64Decode(inner.content),
+        contentHint: 0,
+      );
+      final outer = await rs.sealedSenderEncryptFromUsmcWithCallbacks(
+        recipientName: accountId,
+        recipientDeviceId: device.deviceIndex,
+        usmc: usmc.serialize(),
+        getIdentityKeyPair: () async => (await _store.getIdentityKeyPair()).serialize(),
+        getLocalRegistrationId: _store.getLocalRegistrationId,
+        getIdentity: _identityBytes,
+      );
+      sealed.add(
+        SealedCopy(
+          deviceId: device.deviceId,
+          registrationId: device.registrationId,
+          type: 'sealed',
+          content: base64Encode(outer),
+        ),
+      );
+    }
+    return sealed;
+  }
+
+  /// Opens a sealed envelope: who sent it comes out of the certificate inside,
+  /// and then the message opens like any other.
+  ///
+  /// The library checks the certificate against [trustRoot] and its expiry at
+  /// [sentAt], and refuses this device's own message reflected back. It is
+  /// **not** asked to compare the sender's key with the one stored here: it
+  /// would refuse a changed key outright, and the message would be lost
+  /// without even saying whose it was. A changed key is Privio's to handle
+  /// as it handles one on any message — accepted, and put in front of the
+  /// user — which [_openEnvelope] does.
+  ///
+  /// What is checked here instead is that the certificate and the message
+  /// inside it name the same key. Without it a certificate for one person
+  /// could carry a message from somebody else's session.
+  Future<SealedOpened> openSealed({
+    required String content,
+    required Uint8List trustRoot,
+    required DateTime sentAt,
+    required String localAccountId,
+    required int localDeviceIndex,
+  }) =>
+      _oneAtATime(() async {
+        final unsealed = await rs.sealedSenderDecryptToUsmcWithCallbacks(
+          ciphertext: base64Decode(content),
+          trustRoot: trustRoot,
+          timestamp: BigInt.from(sentAt.millisecondsSinceEpoch),
+          localName: localAccountId,
+          localDeviceId: localDeviceIndex,
+          getIdentityKeyPair: () async => (await _store.getIdentityKeyPair()).serialize(),
+          getLocalRegistrationId: _store.getLocalRegistrationId,
+          getIdentity: (_, _) => null,
+        );
+        final usmc = rs.UnidentifiedSenderMessageContent.deserialize(data: unsealed);
+        final certificate = usmc.senderCertificate();
+        final sender = rs.senderCertificateGetSenderName(certificate: certificate);
+        final device = rs.senderCertificateGetSenderDeviceId(certificate: certificate);
+        final certified = rs.senderCertificateGetKey(certificate: certificate);
+        final contents = usmc.contents();
+
+        // Before anything is decrypted, so a mismatch changes no session.
+        final List<int>? innerKey;
+        final String type;
+        switch (usmc.messageType()) {
+          case CiphertextMessage.prekeyType:
+            type = 'prekey';
+            innerKey = PreKeySignalMessage(contents).getIdentityKey().serialize();
+          case CiphertextMessage.whisperType:
+            type = 'ciphertext';
+            innerKey = (await _store.getIdentity(_address(sender, device)))?.serialize();
+          default:
+            throw const SealedSenderMismatch('not a one-to-one message');
+        }
+        if (innerKey == null || !listEquals(innerKey, certified)) {
+          throw const SealedSenderMismatch('the certificate names a different key');
+        }
+
+        final opened = await _openEnvelope(
+          senderAccountId: sender,
+          senderDeviceIndex: device,
+          type: type,
+          content: base64Encode(contents),
+        );
+        return SealedOpened(senderAccountId: sender, senderDeviceIndex: device, opened: opened);
+      });
+
+  /// The identity stored for one device, for the library's callbacks, which
+  /// must never throw: the Rust side treats a Dart exception as a panic.
+  Future<Uint8List?> _identityBytes(String accountId, int deviceIndex) async {
+    try {
+      return (await _store.getIdentity(_address(accountId, deviceIndex)))?.serialize();
+    } on Object {
+      return null;
+    }
+  }
+
   /// Decrypts one envelope from the queue.
   ///
   /// A `prekey` envelope also establishes the session and consumes the one-time
@@ -476,6 +628,14 @@ class PrivioCrypto {
     await _store.writeProfileKey(generated);
     return generated;
   }
+
+  /// A new profile key, not yet in use. See [replaceProfileKey].
+  Uint8List freshProfileKey() => generateRandomBytes();
+
+  /// Puts [key] in place of the profile key. Everybody this account writes to
+  /// gets it with the next message; until then their copy still opens the old
+  /// picture, and no longer opens sealed sender's door.
+  Future<void> replaceProfileKey(Uint8List key) => _store.writeProfileKey(key);
 
   /// This device's identity fingerprint, for the safety-number screen.
   Future<String> identityFingerprint() async {

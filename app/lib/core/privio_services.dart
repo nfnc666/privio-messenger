@@ -19,6 +19,7 @@ import '../services/backup_service.dart';
 import '../services/call_service.dart';
 import '../services/channel_service.dart';
 import '../services/messaging_service.dart';
+import '../services/sealed_sender_service.dart';
 import 'api_client.dart';
 import 'secure_store.dart';
 
@@ -53,6 +54,9 @@ class PrivioServices {
     // out of three of the fields above. A caller may still pass its own, which
     // is how a test drives a call without a microphone in the room.
     ice = IceServerCache(api: api);
+    // Inert until started at sign-in; until then every send goes unsealed.
+    sealedSender = SealedSenderService(api: api, crypto: crypto, store: secureStore);
+    messaging.sealedSender = sealedSender;
     this.calls = calls ??
         CallService(
           messaging: messaging,
@@ -137,6 +141,10 @@ class PrivioServices {
   /// as ordinary sealed payloads, so the addresses inside it are not the
   /// server's to read.
   late final CallService calls;
+
+  /// Sealed sender: the trust root, the certificate and the access key. See
+  /// docs/sealed-sender.md.
+  late final SealedSenderService sealedSender;
 
   /// Where this deployment's STUN and TURN servers are, held between calls.
   ///

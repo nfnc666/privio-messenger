@@ -8446,8 +8446,56 @@ abstract class AppText {
   /// No description provided for @privacyDashboardMetadataNote.
   ///
   /// In en, this message translates to:
-  /// **'Content is encrypted; the fact that a message went from you to somebody, and when, is not. Privio’s server sees that much because it has to deliver it.'**
+  /// **'Content is encrypted. Who a message is for, and when, is not: the server has to deliver it. Who it is from is hidden only where the line on the sender above says so.'**
   String get privacyDashboardMetadataNote;
+
+  /// No description provided for @privacyDashboardSealedSender.
+  ///
+  /// In en, this message translates to:
+  /// **'Sender hidden from the server'**
+  String get privacyDashboardSealedSender;
+
+  /// No description provided for @privacyDashboardSealedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'One-to-one messages'**
+  String get privacyDashboardSealedOn;
+
+  /// No description provided for @privacyDashboardSealedOnNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A one-to-one message to somebody who already has your profile key goes sealed: the server delivers it without learning it is from you. The first message of a chat, group messages and copies to your own devices still name you.'**
+  String get privacyDashboardSealedOnNote;
+
+  /// No description provided for @privacyDashboardSealedReceiveOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving only'**
+  String get privacyDashboardSealedReceiveOnly;
+
+  /// No description provided for @privacyDashboardSealedReceiveOnlyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sealed messages to you open here, but this device has no sender certificate, so what it sends still names you.'**
+  String get privacyDashboardSealedReceiveOnlyNote;
+
+  /// No description provided for @privacyDashboardSealedStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get privacyDashboardSealedStopped;
+
+  /// No description provided for @privacyDashboardSealedStoppedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The server answered with a different key than the one this device pinned, so nothing is sealed or opened until that is explained.'**
+  String get privacyDashboardSealedStoppedNote;
+
+  /// No description provided for @privacyDashboardSealedOffNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The server or this build does not offer it, so every message names you to the server, as before.'**
+  String get privacyDashboardSealedOffNote;
 
   /// No description provided for @privacyOverview.
   ///

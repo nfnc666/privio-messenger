@@ -4919,7 +4919,35 @@ class AppTextEn extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'Content is encrypted; the fact that a message went from you to somebody, and when, is not. Privio’s server sees that much because it has to deliver it.';
+      'Content is encrypted. Who a message is for, and when, is not: the server has to deliver it. Who it is from is hidden only where the line on the sender above says so.';
+
+  @override
+  String get privacyDashboardSealedSender => 'Sender hidden from the server';
+
+  @override
+  String get privacyDashboardSealedOn => 'One-to-one messages';
+
+  @override
+  String get privacyDashboardSealedOnNote =>
+      'A one-to-one message to somebody who already has your profile key goes sealed: the server delivers it without learning it is from you. The first message of a chat, group messages and copies to your own devices still name you.';
+
+  @override
+  String get privacyDashboardSealedReceiveOnly => 'Receiving only';
+
+  @override
+  String get privacyDashboardSealedReceiveOnlyNote =>
+      'Sealed messages to you open here, but this device has no sender certificate, so what it sends still names you.';
+
+  @override
+  String get privacyDashboardSealedStopped => 'Stopped';
+
+  @override
+  String get privacyDashboardSealedStoppedNote =>
+      'The server answered with a different key than the one this device pinned, so nothing is sealed or opened until that is explained.';
+
+  @override
+  String get privacyDashboardSealedOffNote =>
+      'The server or this build does not offer it, so every message names you to the server, as before.';
 
   @override
   String get privacyOverview => 'Overview';

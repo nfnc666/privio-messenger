@@ -4967,7 +4967,35 @@ class AppTextFr extends AppText {
 
   @override
   String get privacyDashboardMetadataNote =>
-      'Le contenu est chiffré ; le fait qu’un message soit parti de vous vers quelqu’un, et quand, ne l’est pas. Le serveur de Privio le voit parce qu’il doit le livrer.';
+      'Le contenu est chiffré. À qui un message est destiné, et quand, ne l\'est pas : le serveur doit le livrer. De qui il vient n\'est masqué que là où la ligne sur l\'expéditeur ci-dessus le dit.';
+
+  @override
+  String get privacyDashboardSealedSender => 'Expéditeur masqué au serveur';
+
+  @override
+  String get privacyDashboardSealedOn => 'Messages individuels';
+
+  @override
+  String get privacyDashboardSealedOnNote =>
+      'Un message individuel à quelqu\'un qui a déjà votre clé de profil part scellé : le serveur le livre sans apprendre qu\'il vient de vous. Le premier message d\'une discussion, les messages de groupe et les copies vers vos propres appareils vous nomment toujours.';
+
+  @override
+  String get privacyDashboardSealedReceiveOnly => 'Réception seulement';
+
+  @override
+  String get privacyDashboardSealedReceiveOnlyNote =>
+      'Les messages scellés qui vous sont adressés s\'ouvrent ici, mais cet appareil n\'a pas de certificat d\'expéditeur, donc ce qu\'il envoie vous nomme toujours.';
+
+  @override
+  String get privacyDashboardSealedStopped => 'Arrêté';
+
+  @override
+  String get privacyDashboardSealedStoppedNote =>
+      'Le serveur a répondu avec une autre clé que celle que cet appareil a épinglée, donc rien n\'est scellé ni ouvert tant que ce n\'est pas expliqué.';
+
+  @override
+  String get privacyDashboardSealedOffNote =>
+      'Le serveur ou cette version ne le propose pas, donc chaque message vous nomme auprès du serveur, comme avant.';
 
   @override
   String get privacyOverview => 'Aperçu';

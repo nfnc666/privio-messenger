@@ -2393,6 +2393,47 @@ class ConversationController extends ChangeNotifier {
     _services.store.removeConversation(accountId);
     _persist();
     notifyListeners();
+    detached(_afterBlock());
+    return true;
+  }
+
+  /// What a block means for sealed messages, which the server cannot drop
+  /// because it does not know who sent them: this device stops showing them,
+  /// and a new profile key shuts the door the blocked account's copy opened.
+  Future<void> _afterBlock() async {
+    await _services.messaging.refreshBlocked();
+    // Only where there is a door to shut. Without sealed sender a new key buys
+    // nothing, and costs contacts the picture until they hear from us again.
+    if (_services.sealedSender.canOpen) await rotateProfileKey();
+  }
+
+  /// Changes this account's profile key and tells the server the access key
+  /// that goes with it. Returns whether it changed.
+  ///
+  /// The picture comes first: it is sealed under the profile key, and
+  /// changing the key before the picture would leave everybody who gets the
+  /// new one looking at nothing. If the picture cannot be moved over, the key
+  /// stays as it is.
+  Future<bool> rotateProfileKey() async {
+    final fresh = _services.crypto.freshProfileKey();
+    try {
+      final mediaId = (await _services.api.me())['avatarMediaId'] as String?;
+      if (mediaId != null) {
+        final picture =
+            ownAvatar ?? await _services.messaging.openAvatar(mediaId, await _services.crypto.profileKey());
+        await _services.messaging.uploadAvatar(picture, key: fresh);
+      }
+    } on Object {
+      return false;
+    }
+    await _services.crypto.replaceProfileKey(fresh);
+    try {
+      await _services.sealedSender.publishAccessKey();
+    } on Object {
+      // Offline: the next start publishes it. Until then the old key still
+      // opens the door, and this device still drops what a blocked account
+      // sends through it.
+    }
     return true;
   }
 
