@@ -33,6 +33,7 @@ class PendingSend {
     this.mediaToken,
     this.expiresInSeconds,
     this.attempts = 0,
+    this.viewOnce = false,
   });
 
   /// The sender's id for this message. Doubles as the send's idempotency key,
@@ -85,6 +86,10 @@ class PendingSend {
   /// How many times this has been tried. Only used to back off.
   final int attempts;
 
+  /// A photo to be viewed once. [caption] then holds what an older build
+  /// shows in its place, since such a photo carries no caption.
+  final bool viewOnce;
+
   Duration get duration => Duration(milliseconds: durationMs);
 
   PendingSend copyWith({String? mediaId, String? mediaToken, int? attempts}) => PendingSend(
@@ -105,6 +110,7 @@ class PendingSend {
         mediaToken: mediaToken ?? this.mediaToken,
         expiresInSeconds: expiresInSeconds,
         attempts: attempts ?? this.attempts,
+        viewOnce: viewOnce,
       );
 
   Map<String, dynamic> toJson() => {
@@ -125,6 +131,7 @@ class PendingSend {
         if (mediaToken != null) 'mediaToken': mediaToken,
         if (expiresInSeconds != null) 'expiresInSeconds': expiresInSeconds,
         'attempts': attempts,
+        if (viewOnce) 'viewOnce': true,
       };
 
   static PendingSend fromJson(Map<String, dynamic> json) => PendingSend(
@@ -147,5 +154,6 @@ class PendingSend {
         mediaToken: json['mediaToken'] as String?,
         expiresInSeconds: json['expiresInSeconds'] as int?,
         attempts: json['attempts'] as int? ?? 0,
+        viewOnce: json['viewOnce'] as bool? ?? false,
       );
 }

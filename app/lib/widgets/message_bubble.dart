@@ -35,6 +35,7 @@ class MessageBubble extends StatelessWidget {
     this.chatWith,
     this.myAccountId,
     this.onVote,
+    this.onOpenOnce,
   });
 
   /// This account, to show which answers of a poll it picked.
@@ -42,6 +43,10 @@ class MessageBubble extends StatelessWidget {
 
   /// Casts this account's vote on a poll. Null where it cannot vote.
   final ValueChanged<Set<int>>? onVote;
+
+  /// Opens a photo meant to be viewed once. Null where there is nothing this
+  /// device may open: one's own, or one already opened.
+  final VoidCallback? onOpenOnce;
 
   final Message message;
 
@@ -220,6 +225,13 @@ class MessageBubble extends StatelessWidget {
                 controller: PrivioScope.maybeOf(context)?.stickers,
                 onTap: onStickerTap,
               )
+            else if (message.viewOnce) ...[
+              // Before the attachment branch, and that order is the point:
+              // that one fetches and draws the picture as soon as the bubble
+              // is on screen.
+              _ViewOnce(message: message, mine: mine, onOpen: onOpenOnce),
+              if (mine) _PhotoStatus(state: message.state),
+            ]
             else ...[
               if (message.attachment != null) ...[
                 _AttachmentView(attachment: message.attachment!),
@@ -360,6 +372,68 @@ class _AttachmentView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// A photo meant to be viewed once, as a line rather than a picture.
+///
+/// No thumbnail, and nothing fetched until it is opened: a preview drawn in the
+/// chat would be a second viewing that nobody chose. Tappable only while this
+/// device can still open it.
+class _ViewOnce extends StatelessWidget {
+  const _ViewOnce({required this.message, required this.mine, this.onOpen});
+
+  final Message message;
+  final bool mine;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final theme = Theme.of(context);
+    final open = !mine && message.canOpenOnce && onOpen != null;
+    final (IconData icon, String line) = mine
+        ? (Icons.looks_one_outlined, text.bubbleViewOnceMine)
+        : message.canOpenOnce
+            ? (Icons.looks_one, text.bubbleViewOnceTap)
+            : (Icons.done_rounded, text.bubbleViewOnceOpened);
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: PrivioSpacing.xs),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 28,
+            color: open ? context.accents.bright : PrivioColors.textTertiary,
+          ),
+          const SizedBox(width: PrivioSpacing.sm),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(text.bubbleViewOnce, style: theme.textTheme.titleSmall),
+                Text(
+                  line,
+                  style: theme.textTheme.bodySmall?.copyWith(color: PrivioColors.textTertiary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!open) return content;
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        key: Key('view-once-${message.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onOpen,
+        child: content,
+      ),
     );
   }
 }

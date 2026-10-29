@@ -495,6 +495,7 @@ class Message {
     this.editedAt,
     this.poll,
     this.location,
+    this.viewOnce = false,
   });
 
   final String id;
@@ -625,6 +626,16 @@ class Message {
   /// Set when this message *is* a place.
   final GeoPoint? location;
 
+  /// A photo to be viewed once. See `MessagePayload.viewOnce`.
+  ///
+  /// Received and not yet opened, it has its [attachment], and with it the
+  /// only key there is. Opened, sent by this account, or restored from a
+  /// backup, it has none, and nothing on this device can show it again.
+  final bool viewOnce;
+
+  /// Whether this is a photo to be viewed once that this device can still open.
+  bool get canOpenOnce => viewOnce && !isMine && attachment != null;
+
   /// A line about the conversation rather than in it. Not a bubble, not unread,
   /// not something to reply to, react to, search or take back.
   bool get isNotice => kind == MessageKind.notice || kind == MessageKind.undelivered;
@@ -679,6 +690,40 @@ class Message {
         editedAt: editedAt ?? this.editedAt,
         poll: poll ?? this.poll,
         location: location,
+        viewOnce: viewOnce,
+      );
+
+  /// The same message with its attachment gone, key and all.
+  ///
+  /// What opening a photo meant to be viewed once leaves behind: the bubble,
+  /// with nothing in it that could open the picture again.
+  Message withoutAttachment() => Message(
+        id: id,
+        body: body,
+        sentAt: sentAt,
+        isMine: isMine,
+        kind: kind,
+        state: state,
+        voiceDuration: voiceDuration,
+        waveform: waveform,
+        senderName: senderName,
+        senderAccountId: senderAccountId,
+        expiresAt: expiresAt,
+        clientId: clientId,
+        replyToId: replyToId,
+        replyPreview: replyPreview,
+        replySender: replySender,
+        reactions: reactions,
+        receipts: receipts,
+        reactionStickers: reactionStickers,
+        notice: notice,
+        sticker: sticker,
+        customEmoji: customEmoji,
+        pinned: pinned,
+        editedAt: editedAt,
+        poll: poll,
+        location: location,
+        viewOnce: viewOnce,
       );
 }
 

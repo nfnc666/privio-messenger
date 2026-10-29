@@ -54,7 +54,7 @@ abstract final class BackupCodec {
       jsonEncode({
         'v': _formatVersion,
         'createdAt': (createdAt ?? DateTime.now()).toUtc().toIso8601String(),
-        'conversations': ArchiveCodec.encode(conversations),
+        'conversations': ArchiveCodec.encode(conversations, forBackup: true),
       }),
     );
     final box = await _cipher.encrypt(plain, secretKey: await _deriveKey(recovery));

@@ -337,8 +337,15 @@ class EncryptedMessageArchive implements MessageArchive {
 /// Shared by the local archive and by backups, because they are the same
 /// history in two places — and the last thing this format needs is two
 /// implementations drifting apart.
+///
+/// [forBackup] is the one place they differ: a backup leaves out the key of a
+/// photo meant to be viewed once.
 abstract final class ArchiveCodec {
-  static List<Map<String, dynamic>> encode(List<Conversation> conversations) => [
+  static List<Map<String, dynamic>> encode(
+    List<Conversation> conversations, {
+    bool forBackup = false,
+  }) =>
+      [
         for (final conversation in conversations)
           {
             'id': conversation.id,
@@ -426,13 +433,17 @@ abstract final class ArchiveCodec {
                     'editedAt': message.editedAt!.toIso8601String(),
                   if (message.poll != null) 'poll': message.poll!.toJson(),
                   if (message.location != null) 'location': message.location!.toJson(),
+                  if (message.viewOnce) 'viewOnce': true,
                   if (message.notice != null) 'notice': message.notice!.toJson(),
                   if (message.receipts.isNotEmpty)
                     'receipts': {
                       for (final entry in message.receipts.entries)
                         entry.key: entry.value.name,
                     },
-                  if (message.attachment != null)
+                  // Never in a backup for a photo meant to be viewed once: a
+                  // restore would hand the key back to a device that had
+                  // already used it, or to a second one that never should.
+                  if (message.attachment != null && !(forBackup && message.viewOnce))
                     'attachment': {
                       'mediaId': message.attachment!.mediaId,
                       'mediaKey': message.attachment!.mediaKey,
@@ -550,6 +561,7 @@ abstract final class ArchiveCodec {
             pinned: message['pinned'] as bool? ?? false,
             poll: ChatPoll.fromJson(message['poll'] as Map<String, dynamic>?),
             location: GeoPoint.fromJson(message['location']),
+            viewOnce: message['viewOnce'] as bool? ?? false,
             editedAt: message['editedAt'] == null
                 ? null
                 : DateTime.parse(message['editedAt'] as String),

@@ -48,6 +48,7 @@ import '../widgets/scrub_notice.dart';
 import '../widgets/search_field.dart';
 import '../widgets/sticker_picker.dart';
 import '../widgets/typing_label.dart';
+import '../widgets/view_once_viewer.dart';
 
 /// One conversation. Everything shown here was decrypted on this device, and
 /// everything typed here is sealed before it leaves it.
@@ -576,9 +577,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             // because a row that silently vanished would leave somebody
             // wondering where it went. It is refused when pressed, with the
             // reason, which is the honest version of the same thing.
+            // Never for a photo meant to be viewed once: a copy kept is the
+            // one thing that photo promised not to leave behind.
             if (!_isSaved(state) &&
                 !queued &&
                 !message.isNotice &&
+                !message.viewOnce &&
                 message.kind != MessageKind.deleted)
               ListTile(
                 leading: const Icon(Icons.bookmark_add_outlined),
@@ -1081,6 +1085,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       context,
       photos: prepared,
       allowRetake: allowRetake,
+      allowViewOnce: !_isSaved(PrivioScope.of(context)),
     );
     if (!mounted) return false;
     if (result is PhotoPreviewRetake) return true;
@@ -1099,6 +1104,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       result.photos,
       caption: result.caption,
       account: account,
+      viewOnce: result.viewOnce,
+      olderBuildsText: text.viewOnceOlderBuilds,
     );
     if (!mounted) return false;
     _scrollToEnd();
@@ -1107,6 +1114,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final report = result.photos.first.report;
     ScrubNotice.show(context, report);
     return false;
+  }
+
+  /// Opens a photo meant to be viewed once. The controller has dropped its key
+  /// before this gets the picture; the viewer holds the only copy left.
+  Future<void> _openOnce(Message message) async {
+    final bytes = await PrivioScope.of(context).conversations.openViewOnce(widget.accountId, message.id);
+    if (bytes == null || !mounted) return;
+    await ViewOnceViewer.open(context, bytes: bytes);
   }
 
   /// A refused camera or photo permission, with the one thing that can be done
@@ -1775,6 +1790,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         onStickerTap: message.sticker == null
                             ? null
                             : () => unawaited(_openStickerPack(message.sticker!)),
+                        onOpenOnce: message.canOpenOnce
+                            ? () => unawaited(_openOnce(message))
+                            : null,
                         // Groups only, and only where there is an id to open:
                         // a message filed before senders were recorded has a
                         // name and no account behind it, and a tap that looked

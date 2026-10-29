@@ -273,12 +273,28 @@ class MessagingService {
       await _syncToOwnDevices(
         conversationId: result.accountId,
         isGroup: false,
-        encoded: encoded,
+        // A photo to be viewed once goes to this account's other devices
+        // without its key: they show that it went, and cannot open it.
+        encoded: payload.viewOnce ? payload.withoutViewOnceKey().encode() : encoded,
         idempotencyKey: key,
       );
     }
     return result.delivered;
   }
+
+  /// Tells this account's other devices something about [conversationId],
+  /// and nobody else. A failure is swallowed, as for any copy to them.
+  Future<void> tellOwnDevices({
+    required String conversationId,
+    required bool isGroup,
+    required MessagePayload payload,
+  }) =>
+      _syncToOwnDevices(
+        conversationId: conversationId,
+        isGroup: isGroup,
+        encoded: payload.encode(),
+        idempotencyKey: payload.clientId,
+      );
 
   /// Sends a file: strips its metadata, pads it, seals it under its own key,
   /// uploads the ciphertext, and sends the key inside the encrypted message.
@@ -1188,6 +1204,9 @@ class MessagingService {
   /// Seals [payload] once per member device and posts it to the group.
   Future<int> sendPayloadToGroup(String groupId, MessagePayload payload) async {
     final encoded = (await _withProfileKey(payload)).encode();
+    // The fan-out includes this account's own other devices. A photo to be
+    // viewed once reaches them without its key, as in a one-to-one chat.
+    final forOwnDevices = payload.viewOnce ? payload.withoutViewOnceKey().encode() : encoded;
 
     final devices = await _api.groupDevices(groupId);
     final targets = [
@@ -1225,7 +1244,7 @@ class MessagingService {
         deviceId: device['deviceId'] as String,
         deviceIndex: device['deviceIndex'] as int,
         registrationId: device['registrationId'] as int,
-        plaintext: encoded,
+        plaintext: device['username'] == _selfUsername ? forOwnDevices : encoded,
       );
       sealed.add(copy.toJson());
     }

@@ -19,10 +19,13 @@ sealed class PhotoPreviewResult {
 /// Send these, with this caption. Never empty: removing the last picture
 /// closes the screen as a cancel.
 final class PhotoPreviewSend extends PhotoPreviewResult {
-  const PhotoPreviewSend({required this.photos, required this.caption});
+  const PhotoPreviewSend({required this.photos, required this.caption, this.viewOnce = false});
 
   final List<PreparedPhoto> photos;
   final String caption;
+
+  /// To be opened once by whoever receives them. Never with a caption.
+  final bool viewOnce;
 }
 
 /// Throw this one away and open the camera again.
@@ -39,11 +42,20 @@ final class PhotoPreviewRetake extends PhotoPreviewResult {
 /// [onRetake] is offered only for a capture. There is nothing to retake about
 /// a picture chosen from the library — that button would mean "choose again",
 /// which is what cancelling and tapping the same menu entry already does.
+///
+/// [allowViewOnce] offers sending the pictures to be viewed once. Not in
+/// Saved, where a note that vanishes when read would be no note at all.
 class PhotoPreviewSheet extends StatefulWidget {
-  const PhotoPreviewSheet({required this.photos, super.key, this.allowRetake = false});
+  const PhotoPreviewSheet({
+    required this.photos,
+    super.key,
+    this.allowRetake = false,
+    this.allowViewOnce = false,
+  });
 
   final List<PreparedPhoto> photos;
   final bool allowRetake;
+  final bool allowViewOnce;
 
   /// Opens the preview. Null means cancelled — and cancelled means nothing was
   /// sent, uploaded, or written anywhere.
@@ -51,11 +63,16 @@ class PhotoPreviewSheet extends StatefulWidget {
     BuildContext context, {
     required List<PreparedPhoto> photos,
     bool allowRetake = false,
+    bool allowViewOnce = false,
   }) {
     return Navigator.of(context).push<PhotoPreviewResult>(
       MaterialPageRoute<PhotoPreviewResult>(
         fullscreenDialog: true,
-        builder: (_) => PhotoPreviewSheet(photos: photos, allowRetake: allowRetake),
+        builder: (_) => PhotoPreviewSheet(
+          photos: photos,
+          allowRetake: allowRetake,
+          allowViewOnce: allowViewOnce,
+        ),
       ),
     );
   }
@@ -68,6 +85,7 @@ class _PhotoPreviewSheetState extends State<PhotoPreviewSheet> {
   late final List<PreparedPhoto> _photos = List.of(widget.photos);
   final TextEditingController _caption = TextEditingController();
   int _showing = 0;
+  bool _viewOnce = false;
 
   @override
   void dispose() {
@@ -156,14 +174,28 @@ class _PhotoPreviewSheetState extends State<PhotoPreviewSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  if (widget.allowViewOnce) ...[
+                    IconButton(
+                      key: const Key('photo-view-once'),
+                      isSelected: _viewOnce,
+                      icon: const Icon(Icons.looks_one_outlined),
+                      selectedIcon: Icon(Icons.looks_one, color: context.accents.bright),
+                      tooltip: text.photoViewOnce,
+                      onPressed: () => setState(() => _viewOnce = !_viewOnce),
+                    ),
+                    const SizedBox(width: PrivioSpacing.xs),
+                  ],
                   Expanded(
                     child: TextField(
                       controller: _caption,
+                      // A caption would stay in the chat after the picture
+                      // had gone, so there is none to write.
+                      enabled: !_viewOnce,
                       minLines: 1,
                       maxLines: 4,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
-                        hintText: text.photoCaptionHint,
+                        hintText: _viewOnce ? text.photoViewOnceCaptionHint : text.photoCaptionHint,
                         isDense: true,
                       ),
                     ),
@@ -174,7 +206,11 @@ class _PhotoPreviewSheetState extends State<PhotoPreviewSheet> {
                     tooltip: text.chatSend,
                     style: IconButton.styleFrom(backgroundColor: context.accents.bright),
                     onPressed: () => Navigator.of(context).pop(
-                      PhotoPreviewSend(photos: _photos, caption: _caption.text.trim()),
+                      PhotoPreviewSend(
+                        photos: _photos,
+                        caption: _viewOnce ? '' : _caption.text.trim(),
+                        viewOnce: _viewOnce,
+                      ),
                     ),
                   ),
                 ],

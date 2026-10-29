@@ -701,6 +701,7 @@ class ConversationController extends ChangeNotifier {
     final me = accountId;
     if (me == null) return FailureKind.couldNotSave;
     if (source.expiresAt != null) return FailureKind.savedDisappearingRefused;
+    if (source.viewOnce) return FailureKind.savedViewOnceRefused;
     if (source.kind == MessageKind.deleted || source.isNotice) {
       return FailureKind.savedNothingToSave;
     }
@@ -1525,6 +1526,87 @@ class ConversationController extends ChangeNotifier {
       _failure = Failure.of(failure, FailureKind.couldNotOpenFile);
       notifyListeners();
       return null;
+    }
+  }
+
+  /// Opens a photo meant to be viewed once, and makes sure it cannot be again.
+  ///
+  /// Returns the picture, or null when there is nothing this device may open:
+  /// it was opened already, here or on another of this account's devices, or
+  /// it is this account's own. A fetch that fails also returns null and leaves
+  /// it unopened, to be tried again.
+  ///
+  /// The key is gone before the picture is handed back, and written down
+  /// gone, rather than when the viewer closes. A viewer that never closes
+  /// properly, because the app was killed or the phone died, must not leave a
+  /// photo that opens a second time.
+  Future<Uint8List?> openViewOnce(String conversationId, String messageId) async {
+    Message? find() => _services.store
+        .conversationWith(conversationId)
+        ?.messages
+        .where((m) => m.id == messageId)
+        .firstOrNull;
+    final message = find();
+    final attachment = message?.attachment;
+    if (message == null || attachment == null || !message.canOpenOnce) return null;
+
+    final Uint8List bytes;
+    try {
+      bytes = await _services.messaging.openAttachment(
+        MessagePayload.media(
+          mediaId: attachment.mediaId,
+          mediaKey: attachment.mediaKey,
+          mediaToken: attachment.mediaToken,
+          mediaType: attachment.mediaType,
+          byteSize: attachment.byteSize,
+          fileName: attachment.fileName,
+        ),
+      );
+    } on Object catch (failure) {
+      _failure = Failure.of(failure, FailureKind.couldNotOpenFile);
+      notifyListeners();
+      return null;
+    }
+    // Read again: a second tap, or another device, may have opened it while
+    // this one was fetching. Only one of them shows it.
+    final current = find();
+    if (current == null || !current.canOpenOnce) return null;
+    _services.store.replace(conversationId, messageId, current.withoutAttachment());
+    _attachmentCache.remove(attachment.mediaId);
+    await flush();
+    notifyListeners();
+
+    final clientId = current.clientId;
+    if (clientId != null) {
+      detached(
+        _services.messaging.tellOwnDevices(
+          conversationId: conversationId,
+          isGroup: _services.store.conversationWith(conversationId)?.isGroup ?? false,
+          payload: MessagePayload.receipt(
+            receiptIds: [clientId],
+            receiptKind: MessagePayload.openedReceipt,
+          ),
+        ),
+      );
+    }
+    return bytes;
+  }
+
+  /// Another of this account's devices opened these photos meant to be viewed
+  /// once. This device lets go of their keys.
+  void _applyOpenedElsewhere(String conversationId, List<String> clientIds) {
+    final conversation = _services.store.conversationWith(conversationId);
+    if (conversation == null) return;
+    var changed = false;
+    for (final message in [...conversation.messages]) {
+      if (!message.canOpenOnce || !clientIds.contains(message.clientId)) continue;
+      _services.store.replace(conversationId, message.id, message.withoutAttachment());
+      _attachmentCache.remove(message.attachment!.mediaId);
+      changed = true;
+    }
+    if (changed) {
+      _persist();
+      notifyListeners();
     }
   }
 
@@ -2856,13 +2938,22 @@ class ConversationController extends ChangeNotifier {
   /// as long as somebody takes to choose, which is ample time to switch
   /// accounts behind it; the check means the photos are dropped rather than
   /// filed into whoever is logged in when the sheet closes.
+  ///
+  /// [viewOnce] sends each picture to be opened once, with no caption: a
+  /// caption would stay in the chat after the picture had gone. What an older
+  /// build shows in its place is [olderBuildsText], in the sender's language,
+  /// because a build from before this cannot show the picture at all.
   Future<void> sendPhotos(
     String conversationId,
     List<PreparedPhoto> photos, {
     String caption = '',
     String? account,
+    bool viewOnce = false,
+    String olderBuildsText = '',
   }) async {
     if (photos.isEmpty) return;
+    // Never into Saved: a note to oneself that vanishes when read is not one.
+    if (viewOnce && isSaved(conversationId)) return;
     if (account != null && account != accountId) return;
     final conversation = _services.store.conversationWith(conversationId);
     if (conversation == null) return;
@@ -2883,11 +2974,12 @@ class ConversationController extends ChangeNotifier {
         Message(
           id: clientId,
           clientId: clientId,
-          body: i == 0 ? caption : '',
+          body: i == 0 && !viewOnce ? caption : '',
           sentAt: DateTime.now(),
           isMine: true,
           kind: MessageKind.photo,
           state: DeliveryState.sending,
+          viewOnce: viewOnce,
           // No expiry until it has been somewhere. Same reason as voice: a
           // photo queued with no signal must not run its clock down while it
           // waits, disappear from the sender's own chat, and then send.
@@ -2908,8 +3000,9 @@ class ConversationController extends ChangeNotifier {
           durationMs: 0,
           waveform: const [],
           fileName: photo.fileName,
-          caption: i == 0 ? caption : '',
+          caption: viewOnce ? olderBuildsText : (i == 0 ? caption : ''),
           expiresInSeconds: timer?.inSeconds,
+          viewOnce: viewOnce,
         ),
       );
     }
@@ -3060,6 +3153,7 @@ class ConversationController extends ChangeNotifier {
       groupKey: pending.isGroup ? pending.groupKey : null,
       expiresInSeconds: pending.expiresInSeconds,
       clientId: pending.clientId,
+      viewOnce: pending.viewOnce,
     );
 
     if (pending.isGroup) {
@@ -3084,6 +3178,19 @@ class ConversationController extends ChangeNotifier {
     // The timer starts here, not where the message was recorded: this is the
     // moment it exists anywhere but on this phone.
     final seconds = pending.expiresInSeconds;
+    if (pending.viewOnce) {
+      // Sent, and nothing kept to open it with. The queue entry that held the
+      // key goes with the delivery, and the bubble never had it.
+      _services.store.replace(
+        pending.conversationId,
+        pending.clientId,
+        message.copyWith(
+          state: DeliveryState.sent,
+          expiresAt: seconds == null ? null : DateTime.now().add(Duration(seconds: seconds)),
+        ),
+      );
+      return;
+    }
     _services.store.replace(
       pending.conversationId,
       pending.clientId,
@@ -3595,6 +3702,11 @@ class ConversationController extends ChangeNotifier {
     // message from whoever the envelope came from, which is this account.
     final sync = incoming.payload.sync;
     if (sync != null) {
+      // Only ever from this account. Taken from anybody else, a "copy from
+      // another of my devices" would let them write in this account's name,
+      // take back its messages, move its timers past an admin check, and mark
+      // its photos opened.
+      if (incoming.senderAccountId != accountId) return;
       await _fileOwnSentCopy(sync, incoming);
       return;
     }
@@ -3733,7 +3845,7 @@ class ConversationController extends ChangeNotifier {
         voiceDuration: payload.voiceDuration,
         waveform: payload.waveform,
         // Deliberately no `expiresAt`: Saved keeps what is put in it.
-        attachment: payload.isMedia
+        attachment: payload.isMedia && !payload.viewOnce
             ? Attachment(
                 mediaId: payload.mediaId!,
                 mediaKey: payload.mediaKey!,
@@ -3805,6 +3917,12 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
+    // Another of this account's devices opened a photo meant to be viewed
+    // once. It has been viewed; it must not be openable here as well.
+    if (payload.isReceipt && payload.receiptKind == MessagePayload.openedReceipt) {
+      _applyOpenedElsewhere(sync.conversationId, payload.receiptIds ?? const []);
+      return;
+    }
     // The rest of it does not become a bubble, whichever device it came from.
     if (payload.isControl) return;
 
@@ -3844,7 +3962,9 @@ class ConversationController extends ChangeNotifier {
         replyToId: payload.replyToId,
         replyPreview: payload.replyPreview,
         replySender: payload.replySender,
-        attachment: payload.isMedia
+        // Never the key of a photo meant to be viewed once, even if one came:
+        // the sender's devices do not open what they sent.
+        attachment: payload.isMedia && !payload.viewOnce
             ? Attachment(
                 mediaId: payload.mediaId!,
                 mediaKey: payload.mediaKey!,
@@ -3858,6 +3978,7 @@ class ConversationController extends ChangeNotifier {
         poll: _pollIn(payload),
         location: payload.location,
         customEmoji: payload.customEmoji,
+        viewOnce: payload.viewOnce,
       ),
     );
   }
@@ -3875,6 +3996,8 @@ class ConversationController extends ChangeNotifier {
     // Only ever set on a place the payload layer read as one.
     if (payload.isLocation) return MessageKind.location;
     if (payload.isSticker) return MessageKind.sticker;
+    // A photo meant to be viewed once, with or without anything to open it.
+    if (payload.viewOnce) return MessageKind.photo;
     if (payload.isVoice) return MessageKind.voice;
     if (payload.isMedia) return _kindFor(payload.mediaType!);
     return MessageKind.text;
@@ -3907,6 +4030,9 @@ class ConversationController extends ChangeNotifier {
     final payload = incoming.payload;
     final timer = disappearAfter(conversationId);
     final receivedAt = incoming.receivedAt.toLocal();
+    // A photo meant to be viewed once that this account sent from another of
+    // its devices, in a group: the sender's devices do not open it.
+    final ownViewOnce = payload.viewOnce && incoming.senderAccountId == accountId;
     return Message(
       id: 'envelope-${incoming.envelopeId}',
       clientId: payload.clientId,
@@ -3924,7 +4050,7 @@ class ConversationController extends ChangeNotifier {
       replyToId: payload.replyToId,
       replyPreview: payload.replyPreview,
       replySender: payload.replySender,
-      attachment: payload.isMedia
+      attachment: payload.isMedia && !ownViewOnce
           ? Attachment(
               mediaId: payload.mediaId!,
               mediaKey: payload.mediaKey!,
@@ -3938,6 +4064,7 @@ class ConversationController extends ChangeNotifier {
       poll: _pollIn(payload),
       location: payload.location,
       customEmoji: payload.customEmoji,
+      viewOnce: payload.viewOnce,
     );
   }
 

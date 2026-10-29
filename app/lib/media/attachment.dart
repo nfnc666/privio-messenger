@@ -260,7 +260,8 @@ class MessagePayload {
     this.replyPreview,
     this.replySender,
     this.customEmoji,
-  })  : mediaId = null,
+  })  : viewOnce = false,
+        mediaId = null,
         mediaKey = null,
         fileName = null,
         mediaType = null,
@@ -302,7 +303,8 @@ class MessagePayload {
     required String this.keyScope,
     required String this.deliveredKey,
     this.keyEpoch,
-  })  : body = '',
+  })  : viewOnce = false,
+        body = '',
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -349,7 +351,8 @@ class MessagePayload {
     this.stickerItemId,
     this.stickerPackId,
     this.stickerMediaId,
-  })  : body = '',
+  })  : viewOnce = false,
+        body = '',
         deleteTo = null,
         editTo = null,
         poll = null,
@@ -414,7 +417,8 @@ class MessagePayload {
     this.replyToId,
     this.replyPreview,
     this.replySender,
-  })  : mediaId = null,
+  })  : viewOnce = false,
+        mediaId = null,
         mediaKey = null,
         mediaToken = null,
         fileName = null,
@@ -452,7 +456,8 @@ class MessagePayload {
   /// somebody's memory, or a copy already restored from a backup, and the
   /// screen that offers this says so rather than implying an undo.
   const MessagePayload.deletion(String this.deleteTo)
-      : body = '',
+      : viewOnce = false,
+        body = '',
         editTo = null,
         poll = null,
         location = null,
@@ -501,7 +506,8 @@ class MessagePayload {
   /// nothing about what changed. A reply that quoted the old text keeps its
   /// own copy — a correction cannot reach into what somebody already answered.
   const MessagePayload.edit({required String this.editTo, required this.body})
-      : deleteTo = null,
+      : viewOnce = false,
+        deleteTo = null,
         poll = null,
         location = null,
         mediaId = null,
@@ -551,7 +557,8 @@ class MessagePayload {
     this.groupKey,
     this.expiresInSeconds,
     this.clientId,
-  })  : editTo = null,
+  })  : viewOnce = false,
+        editTo = null,
         location = null,
         mediaId = null,
         mediaKey = null,
@@ -598,7 +605,8 @@ class MessagePayload {
     this.groupKey,
     this.expiresInSeconds,
     this.clientId,
-  })  : editTo = null,
+  })  : viewOnce = false,
+        editTo = null,
         poll = null,
         mediaId = null,
         mediaKey = null,
@@ -637,7 +645,8 @@ class MessagePayload {
   /// Control: it changes a poll already in the transcript rather than adding a
   /// line, and the receiving device decides whether it may.
   const MessagePayload.pollAction(ChatPollPayload this.poll)
-      : body = '',
+      : viewOnce = false,
+        body = '',
         editTo = null,
         location = null,
         mediaId = null,
@@ -685,7 +694,8 @@ class MessagePayload {
   /// the moment it arrives — so one payload puts both directions back on a
   /// working ratchet. Nothing about it is shown to either person.
   const MessagePayload.sessionReset()
-      : sessionReset = true,
+      : viewOnce = false,
+        sessionReset = true,
         timerChange = false,
         timerVersion = null,
         receiptGroupId = null,
@@ -734,7 +744,8 @@ class MessagePayload {
     required List<String> this.receiptIds,
     required String this.receiptKind,
     this.receiptGroupId,
-  })  : body = '',
+  })  : viewOnce = false,
+        body = '',
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -775,7 +786,8 @@ class MessagePayload {
   /// — delivered late, or after the app was closed — can be recognised as stale
   /// and ignored instead of showing someone typing who stopped an hour ago.
   const MessagePayload.typing(int this.typingAt)
-      : body = '',
+      : viewOnce = false,
+        body = '',
         mediaId = null,
         mediaKey = null,
         fileName = null,
@@ -831,6 +843,7 @@ class MessagePayload {
     this.replyToId,
     this.replyPreview,
     this.replySender,
+    this.viewOnce = false,
   })  : keyScope = null,
         keyScopeId = null,
         keyEpoch = null,
@@ -855,6 +868,55 @@ class MessagePayload {
         stickerMediaId = null,
         customEmoji = null;
 
+  /// What this account's own other devices are told about a photo it sent to
+  /// be viewed once: that it went, and nothing to open it with.
+  ///
+  /// The sender keeps no key either. A device of the sender's that could open
+  /// the picture would be a second place to see something that was promised
+  /// to be seen once, and a phone is easier to get into than a message is to
+  /// intercept. [body] is what an older build shows instead.
+  const MessagePayload.viewOnceSent({
+    this.body = '',
+    this.expiresInSeconds,
+    this.clientId,
+  })  : viewOnce = true,
+        mediaId = null,
+        mediaKey = null,
+        mediaToken = null,
+        fileName = null,
+        mediaType = null,
+        byteSize = null,
+        profileKey = null,
+        groupKey = null,
+        keyScope = null,
+        keyScopeId = null,
+        keyEpoch = null,
+        deliveredKey = null,
+        voiceDurationMs = null,
+        waveform = null,
+        receiptIds = null,
+        receiptKind = null,
+        typingAt = null,
+        reactionTo = null,
+        reactionEmoji = null,
+        deleteTo = null,
+        editTo = null,
+        poll = null,
+        location = null,
+        replyToId = null,
+        replyPreview = null,
+        replySender = null,
+        sync = null,
+        call = null,
+        sessionReset = false,
+        timerChange = false,
+        timerVersion = null,
+        receiptGroupId = null,
+        stickerItemId = null,
+        stickerPackId = null,
+        stickerMediaId = null,
+        customEmoji = null;
+
   /// One step in setting up, or tearing down, a call.
   ///
   /// Control, never conversation: it must not appear in a chat, and it carries
@@ -863,7 +925,8 @@ class MessagePayload {
   /// is sealed to the other device exactly as a sentence is. A server that
   /// could read it would learn where both people are.
   const MessagePayload.callSignal(CallSignal this.call)
-      : body = '',
+      : viewOnce = false,
+        body = '',
         sync = null,
         mediaId = null,
         mediaKey = null,
@@ -907,7 +970,8 @@ class MessagePayload {
   /// Control, never conversation: it is filed as an outgoing message in the
   /// conversation it names, and must never appear as one somebody sent to you.
   const MessagePayload.sync(SyncEnvelope this.sync)
-      : body = '',
+      : viewOnce = false,
+        body = '',
         mediaId = null,
         mediaKey = null,
         mediaToken = null,
@@ -964,7 +1028,8 @@ class MessagePayload {
   /// one went to this conversation at this moment. The value is inside the
   /// ciphertext.
   const MessagePayload.timerChange(this.expiresInSeconds, {this.timerVersion})
-      : timerChange = true,
+      : viewOnce = false,
+        timerChange = true,
         body = '',
         sessionReset = false,
         receiptGroupId = null,
@@ -1144,6 +1209,34 @@ class MessagePayload {
         deliveredKey: json['kk'] as String,
       );
     }
+    if (json['t'] == 'once') {
+      final mediaId = json['id'] as String?;
+      final mediaKey = json['k'] as String?;
+      final mediaType = json['m'] as String?;
+      final byteSize = json['s'] as int?;
+      // Photos only. Anything else under this type, or a photo with nothing
+      // to open it with, is filed as one that went and cannot be opened.
+      if (mediaId != null &&
+          mediaKey != null &&
+          byteSize != null &&
+          (mediaType ?? '').startsWith('image/')) {
+        return MessagePayload.media(
+          mediaId: mediaId,
+          mediaKey: mediaKey,
+          mediaToken: json['tk'] as String?,
+          mediaType: mediaType!,
+          byteSize: byteSize,
+          fileName: json['n'] as String?,
+          // `b` is what an older build shows in its place, never a caption.
+          profileKey: profileKey,
+          groupKey: groupKey,
+          expiresInSeconds: expiresInSeconds,
+          clientId: clientId,
+          viewOnce: true,
+        );
+      }
+      return MessagePayload.viewOnceSent(expiresInSeconds: expiresInSeconds, clientId: clientId);
+    }
     if (json['t'] == 'media') {
       return MessagePayload.media(
         mediaId: json['id'] as String,
@@ -1231,6 +1324,15 @@ class MessagePayload {
   final List<CustomEmojiRef>? customEmoji;
 
   final String? mediaId;
+
+  /// A photo the recipient can open once, on one device, and never again.
+  ///
+  /// Its own type on the wire, `once`, rather than a flag on an ordinary
+  /// photo, and that is the point: a build from before this existed reads a
+  /// type it does not know as text, and shows the sentence in [body] saying to
+  /// update. A flag on `media` would be ignored by such a build, and the photo
+  /// shown and kept like any other. See docs/view-once.md.
+  final bool viewOnce;
 
   /// Base64. Never leaves the end-to-end encrypted envelope.
   final String? mediaKey;
@@ -1419,6 +1521,7 @@ class MessagePayload {
         replyToId: replyToId,
         replyPreview: replyPreview,
         replySender: replySender,
+        viewOnce: viewOnce,
       );
     }
     return MessagePayload.text(
@@ -1434,6 +1537,19 @@ class MessagePayload {
   }
 
   bool get isMedia => mediaId != null;
+
+  /// The copy of this for this account's own other devices, when it is a
+  /// photo to be viewed once. See [MessagePayload.viewOnceSent].
+  MessagePayload withoutViewOnceKey() => MessagePayload.viewOnceSent(
+        body: body,
+        expiresInSeconds: expiresInSeconds,
+        clientId: clientId,
+      );
+
+  /// The receipt kind this account's devices tell each other with, once one
+  /// of them has opened a photo that could be viewed once. Never sent to
+  /// anybody else.
+  static const String openedReceipt = 'opened';
 
   bool get isCall => call != null;
   bool get isSync => sync != null;
@@ -1504,6 +1620,7 @@ class MessagePayload {
     if (isReceipt) return 'receipt';
     if (isTyping) return 'typing';
     if (isKeyDelivery) return 'key';
+    if (viewOnce) return 'once';
     if (isSticker) return 'sticker';
     if (isMedia) return 'media';
     return 'text';

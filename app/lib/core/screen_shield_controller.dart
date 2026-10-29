@@ -66,7 +66,29 @@ class ScreenShieldController extends ChangeNotifier {
   /// so `_captured` is already false there. It stays because the cost is one
   /// `&&` and the failure it guards against — the whole app going blank on a
   /// phone in ordinary use — is the worst outcome this feature has.
-  bool get shouldCover => _enabled && _capability.detectsCapture && _captured;
+  bool get shouldCover => (_enabled || _holds > 0) && _capability.detectsCapture && _captured;
+
+  /// How many screens are protecting themselves right now, whatever the
+  /// account chose. See [hold].
+  int _holds = 0;
+
+  /// Protects the screen while something is on it that was meant to be seen
+  /// once, whether or not the account turned protection on. [release] when it
+  /// is gone. Every hold needs its release; the account's own choice comes
+  /// back with the last one.
+  Future<void> hold() async {
+    _holds += 1;
+    if (_holds == 1 && !_enabled) await _apply(true);
+    notifyListeners();
+  }
+
+  /// Ends one [hold].
+  Future<void> release() async {
+    if (_holds == 0) return;
+    _holds -= 1;
+    if (_holds == 0 && !_enabled) await _apply(false);
+    notifyListeners();
+  }
 
   /// Reads this account's choice and applies it.
   ///
@@ -94,7 +116,7 @@ class ScreenShieldController extends ChangeNotifier {
     if (choice != _choice) return;
 
     _enabled = wanted;
-    await _apply(wanted);
+    await _apply(wanted || _holds > 0);
     if (!_stillOn(accountId)) return;
     notifyListeners();
   }
@@ -118,7 +140,8 @@ class ScreenShieldController extends ChangeNotifier {
 
     await _store.writeScreenShield(account, on);
     if (!_stillOn(account)) return;
-    await _apply(on);
+    // Not off while something meant to be seen once is still on screen.
+    await _apply(on || _holds > 0);
     if (!_stillOn(account)) return;
     notifyListeners();
   }
@@ -160,6 +183,7 @@ class ScreenShieldController extends ChangeNotifier {
     _accountId = null;
     _enabled = false;
     _captured = false;
+    _holds = 0;
     _shield.stopListening();
     await _shield.setProtected(false);
     if (notify) notifyListeners();
