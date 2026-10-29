@@ -997,6 +997,7 @@ because the socket and the poll each delivered the same envelope once.
 | **Message length hidden** | ✅ | Padded into buckets, so size says nothing |
 | **Realtime delivery** | ✅ | WebSocket push — measured at 722 ms end to end, not 3 s |
 | **Voice messages** | ✅ | Hold to record, slide to cancel, pause, preview, 1x/1.5x/2x; sealed before upload |
+| **Photos to be viewed once** | ✅ | Opened once by the recipient, then gone from the device; the sender keeps no key, and neither do Saved or a backup. Screenshots are refused on Android while it is open; on iPhone they cannot be, and the viewer says so. Not yet confirmed on real devices ([details](docs/view-once.md)) |
 | **Read receipts & typing** | ✅ | Sealed like any message, reciprocal switches. Receipts work in groups too, where the ticks move only once *everyone* has and the count is shown until then; typing notices stay 1:1 |
 | **Replies & reactions** | ✅ | The quote travels inside the sealed payload; one reaction per person |
 | **Disappearing messages** | ✅ | Per chat and per group, agreed end to end; every change announced in the chat; the server is never asked |

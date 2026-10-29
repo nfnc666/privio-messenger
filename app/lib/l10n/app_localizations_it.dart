@@ -5380,4 +5380,47 @@ class AppTextIt extends AppText {
   @override
   String get noticeTimerCapped =>
       'I messaggi a tempo sono stati impostati su 24 ore, il massimo di questa app.';
+
+  @override
+  String get photoViewOnce => 'Visualizza una volta';
+
+  @override
+  String get photoViewOnceCaptionHint =>
+      'Nessuna didascalia con «Visualizza una volta»';
+
+  @override
+  String get viewOnceOlderBuilds =>
+      '📷 Una foto da vedere una sola volta. Aggiorna Privio per aprirla.';
+
+  @override
+  String get bubbleViewOnce => 'Foto · visualizza una volta';
+
+  @override
+  String get bubbleViewOnceTap => 'Tocca per vederla. Poi sparisce.';
+
+  @override
+  String get bubbleViewOnceOpened => 'Aperta';
+
+  @override
+  String get bubbleViewOnceMine => 'Nemmeno tu puoi aprirla.';
+
+  @override
+  String get viewOnceNoteBlocked =>
+      'Finché è aperta, screenshot e registrazioni dello schermo sono bloccati. Una fotocamera puntata sullo schermo no.';
+
+  @override
+  String get viewOnceNoteDetects =>
+      'Questo telefono non può bloccare uno screenshot. Durante una registrazione o una duplicazione dello schermo la foto viene coperta.';
+
+  @override
+  String get viewOnceNoteNone =>
+      'Su questo dispositivo non è possibile bloccare gli screenshot.';
+
+  @override
+  String get viewOnceGone =>
+      'È già stata eliminata da questo dispositivo. Appena chiudi, sparisce.';
+
+  @override
+  String get savedViewOnceRefused =>
+      'Una foto da vedere una sola volta non si può salvare.';
 }

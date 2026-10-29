@@ -40,7 +40,9 @@ Stand dieser Datei, Details in `docs/metadata-privacy-review.md`:
   Sealed-Sender-Schlüssel hat. Gruppen, die erste Nachricht eines Chats und
   Kopien an eigene Geräte nennen den Absender weiterhin. Beworben wird nur das,
   und erst nach der Bestätigung auf echten Geräten.
-* **Keine „Einmal ansehen“-Nachrichten.**
+* **„Einmal ansehen“ nur für Fotos, noch nicht auf echten Geräten bestätigt**
+  (`docs/view-once.md`). Ein Bildschirmfoto verhindert sie nur auf Android;
+  eine zweite Kamera nirgends. Mehr wird nicht versprochen.
 
 ## Feste Regeln
 

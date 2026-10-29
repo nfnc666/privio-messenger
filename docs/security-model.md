@@ -1528,6 +1528,23 @@ one quickly would show too. Without sealed sender it sees that this account
 wrote to all of them; that is the gap in the section on metadata, not
 something the list adds. The list's screen says so.
 
+## Photos to be viewed once
+
+**No copy kept by the app, and no claim beyond that.** The sender's devices
+never keep the key, the recipient's device drops it before the picture is
+shown, the account's other devices are told to drop theirs, and a backup never
+contains it. Saved refuses it. What the app cannot stop it does not pretend to:
+on Android a screenshot is refused while the photo is open, on iPhone it is not
+and a recording only covers the photo while it runs, and nowhere is a second
+camera stopped. The viewer says which of these applies. See
+`docs/view-once.md`.
+
+**Copies from this account's own devices are taken from this account only.**
+Until this change a copy "from another of my devices" was filed whoever sent
+it, so any contact could write in this account's name, take back its messages,
+or move a group's timer past the admin check. The sender of such a copy is now
+checked against this account before anything in it is applied.
+
 ## Two-factor authentication
 
 **It protects the account, not the messages.** The code is checked by the

@@ -16,6 +16,7 @@ a random ID, no address-book upload, no plaintext exception for bots.
 | Hide a chat behind its own PIN / biometrics | **done on this branch** with a code (was: whole-app lock only); no biometrics | per-conversation flag in the encrypted archive, see below |
 | Trust level visible in the chat and contact lists | **done on this branch** (was: chat header only) | small mark in list rows derived from the existing `VerificationState`, see below |
 | Mark a chat as unread | **done on this branch** | local flag, never sent, see below |
+| Photo that can be viewed once | **done on this branch** | own payload type `once`; no key kept anywhere after opening; see `docs/view-once.md` |
 | Group calls | 1:1 calls only | needs an SFU and end-to-end media keys; separate design document first |
 
 ## Editing a message

@@ -5361,4 +5361,46 @@ class AppTextEs extends AppText {
   @override
   String get noticeTimerCapped =>
       'Los mensajes temporales se han puesto en 24 horas, el máximo de esta aplicación.';
+
+  @override
+  String get photoViewOnce => 'Ver una vez';
+
+  @override
+  String get photoViewOnceCaptionHint => 'Sin texto en «Ver una vez»';
+
+  @override
+  String get viewOnceOlderBuilds =>
+      '📷 Una foto que se puede ver una vez. Actualiza Privio para abrirla.';
+
+  @override
+  String get bubbleViewOnce => 'Foto · ver una vez';
+
+  @override
+  String get bubbleViewOnceTap => 'Toca para verla. Después desaparece.';
+
+  @override
+  String get bubbleViewOnceOpened => 'Abierta';
+
+  @override
+  String get bubbleViewOnceMine => 'Tampoco tú puedes abrirla.';
+
+  @override
+  String get viewOnceNoteBlocked =>
+      'Mientras esté abierta, las capturas y grabaciones de pantalla están bloqueadas. Una cámara que apunte a la pantalla, no.';
+
+  @override
+  String get viewOnceNoteDetects =>
+      'Este teléfono no puede bloquear una captura. Mientras se graba o se duplica la pantalla, la foto queda tapada.';
+
+  @override
+  String get viewOnceNoteNone =>
+      'En este dispositivo no se pueden bloquear las capturas.';
+
+  @override
+  String get viewOnceGone =>
+      'Ya se ha borrado de este dispositivo. En cuanto cierres, desaparece.';
+
+  @override
+  String get savedViewOnceRefused =>
+      'Una foto para ver una vez no se puede guardar.';
 }

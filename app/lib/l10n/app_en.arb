@@ -2547,5 +2547,17 @@
   "disappearingResetToDefault": "Use general setting",
   "disappearingResetAll": "Reset all to the general setting",
   "disappearingCappedNotice": "A timer longer than 24 hours was shortened to 24 hours. Messages already sent keep the time they were sent with.",
-  "noticeTimerCapped": "Disappearing messages were set to 24 hours, the longest this app allows."
+  "noticeTimerCapped": "Disappearing messages were set to 24 hours, the longest this app allows.",
+  "photoViewOnce": "View once",
+  "photoViewOnceCaptionHint": "No caption on a photo viewed once",
+  "viewOnceOlderBuilds": "📷 A photo that can be viewed once. Update Privio to open it.",
+  "bubbleViewOnce": "Photo · view once",
+  "bubbleViewOnceTap": "Tap to view. It is gone afterwards.",
+  "bubbleViewOnceOpened": "Opened",
+  "bubbleViewOnceMine": "You cannot open it either.",
+  "viewOnceNoteBlocked": "Screenshots and screen recordings are blocked while this is open. A camera pointed at the screen is not.",
+  "viewOnceNoteDetects": "This phone cannot block a screenshot. During a screen recording or mirroring, the photo is covered.",
+  "viewOnceNoteNone": "Screenshots cannot be blocked on this device.",
+  "viewOnceGone": "It is already deleted from this device. Once you close this, it is gone.",
+  "savedViewOnceRefused": "A photo meant to be viewed once cannot be saved."
 }

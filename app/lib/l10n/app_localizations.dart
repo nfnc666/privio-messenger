@@ -9072,6 +9072,78 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Disappearing messages were set to 24 hours, the longest this app allows.'**
   String get noticeTimerCapped;
+
+  /// No description provided for @photoViewOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'View once'**
+  String get photoViewOnce;
+
+  /// No description provided for @photoViewOnceCaptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No caption on a photo viewed once'**
+  String get photoViewOnceCaptionHint;
+
+  /// No description provided for @viewOnceOlderBuilds.
+  ///
+  /// In en, this message translates to:
+  /// **'📷 A photo that can be viewed once. Update Privio to open it.'**
+  String get viewOnceOlderBuilds;
+
+  /// No description provided for @bubbleViewOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo · view once'**
+  String get bubbleViewOnce;
+
+  /// No description provided for @bubbleViewOnceTap.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to view. It is gone afterwards.'**
+  String get bubbleViewOnceTap;
+
+  /// No description provided for @bubbleViewOnceOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Opened'**
+  String get bubbleViewOnceOpened;
+
+  /// No description provided for @bubbleViewOnceMine.
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot open it either.'**
+  String get bubbleViewOnceMine;
+
+  /// No description provided for @viewOnceNoteBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots and screen recordings are blocked while this is open. A camera pointed at the screen is not.'**
+  String get viewOnceNoteBlocked;
+
+  /// No description provided for @viewOnceNoteDetects.
+  ///
+  /// In en, this message translates to:
+  /// **'This phone cannot block a screenshot. During a screen recording or mirroring, the photo is covered.'**
+  String get viewOnceNoteDetects;
+
+  /// No description provided for @viewOnceNoteNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshots cannot be blocked on this device.'**
+  String get viewOnceNoteNone;
+
+  /// No description provided for @viewOnceGone.
+  ///
+  /// In en, this message translates to:
+  /// **'It is already deleted from this device. Once you close this, it is gone.'**
+  String get viewOnceGone;
+
+  /// No description provided for @savedViewOnceRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'A photo meant to be viewed once cannot be saved.'**
+  String get savedViewOnceRefused;
 }
 
 class _AppTextDelegate extends LocalizationsDelegate<AppText> {

@@ -1557,5 +1557,17 @@
   "disappearingResetToDefault": "Usa l’impostazione generale",
   "disappearingResetAll": "Riporta tutto all’impostazione generale",
   "disappearingCappedNotice": "Un timer superiore a 24 ore è stato ridotto a 24 ore. I messaggi già inviati mantengono il tempo originale.",
-  "noticeTimerCapped": "I messaggi a tempo sono stati impostati su 24 ore, il massimo di questa app."
+  "noticeTimerCapped": "I messaggi a tempo sono stati impostati su 24 ore, il massimo di questa app.",
+  "photoViewOnce": "Visualizza una volta",
+  "photoViewOnceCaptionHint": "Nessuna didascalia con «Visualizza una volta»",
+  "viewOnceOlderBuilds": "📷 Una foto da vedere una sola volta. Aggiorna Privio per aprirla.",
+  "bubbleViewOnce": "Foto · visualizza una volta",
+  "bubbleViewOnceTap": "Tocca per vederla. Poi sparisce.",
+  "bubbleViewOnceOpened": "Aperta",
+  "bubbleViewOnceMine": "Nemmeno tu puoi aprirla.",
+  "viewOnceNoteBlocked": "Finché è aperta, screenshot e registrazioni dello schermo sono bloccati. Una fotocamera puntata sullo schermo no.",
+  "viewOnceNoteDetects": "Questo telefono non può bloccare uno screenshot. Durante una registrazione o una duplicazione dello schermo la foto viene coperta.",
+  "viewOnceNoteNone": "Su questo dispositivo non è possibile bloccare gli screenshot.",
+  "viewOnceGone": "È già stata eliminata da questo dispositivo. Appena chiudi, sparisce.",
+  "savedViewOnceRefused": "Una foto da vedere una sola volta non si può salvare."
 }

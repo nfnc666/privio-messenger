@@ -185,6 +185,9 @@ enum FailureKind {
   /// Saved would defeat the one guarantee its sender was given.
   savedDisappearingRefused,
 
+  /// A photo meant to be viewed once. Refused for the same reason.
+  savedViewOnceRefused,
+
   /// A deleted message or a system notice — there is nothing in it to keep.
   savedNothingToSave,
 

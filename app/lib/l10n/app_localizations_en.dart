@@ -5323,4 +5323,46 @@ class AppTextEn extends AppText {
   @override
   String get noticeTimerCapped =>
       'Disappearing messages were set to 24 hours, the longest this app allows.';
+
+  @override
+  String get photoViewOnce => 'View once';
+
+  @override
+  String get photoViewOnceCaptionHint => 'No caption on a photo viewed once';
+
+  @override
+  String get viewOnceOlderBuilds =>
+      '📷 A photo that can be viewed once. Update Privio to open it.';
+
+  @override
+  String get bubbleViewOnce => 'Photo · view once';
+
+  @override
+  String get bubbleViewOnceTap => 'Tap to view. It is gone afterwards.';
+
+  @override
+  String get bubbleViewOnceOpened => 'Opened';
+
+  @override
+  String get bubbleViewOnceMine => 'You cannot open it either.';
+
+  @override
+  String get viewOnceNoteBlocked =>
+      'Screenshots and screen recordings are blocked while this is open. A camera pointed at the screen is not.';
+
+  @override
+  String get viewOnceNoteDetects =>
+      'This phone cannot block a screenshot. During a screen recording or mirroring, the photo is covered.';
+
+  @override
+  String get viewOnceNoteNone =>
+      'Screenshots cannot be blocked on this device.';
+
+  @override
+  String get viewOnceGone =>
+      'It is already deleted from this device. Once you close this, it is gone.';
+
+  @override
+  String get savedViewOnceRefused =>
+      'A photo meant to be viewed once cannot be saved.';
 }

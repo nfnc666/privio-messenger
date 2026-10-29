@@ -15,6 +15,7 @@ extension FailureText on Failure {
         FailureKind.unreachable => text.failureUnreachable,
         FailureKind.statusNotSaved => text.accountStatusCouldNotSave,
         FailureKind.savedDisappearingRefused => text.savedDisappearingRefused,
+        FailureKind.savedViewOnceRefused => text.savedViewOnceRefused,
         FailureKind.savedNothingToSave => text.savedNothingToSave,
         FailureKind.unreachableCheckConnection => text.failureUnreachableCheckConnection,
         FailureKind.unreachableTryAgain => text.failureUnreachableTryAgain,

@@ -5373,4 +5373,48 @@ class AppTextFr extends AppText {
   @override
   String get noticeTimerCapped =>
       'Les messages éphémères ont été réglés sur 24 heures, le maximum de cette application.';
+
+  @override
+  String get photoViewOnce => 'Voir une fois';
+
+  @override
+  String get photoViewOnceCaptionHint =>
+      'Pas de légende avec « Voir une fois »';
+
+  @override
+  String get viewOnceOlderBuilds =>
+      '📷 Une photo à voir une seule fois. Mettez Privio à jour pour l’ouvrir.';
+
+  @override
+  String get bubbleViewOnce => 'Photo · voir une fois';
+
+  @override
+  String get bubbleViewOnceTap =>
+      'Touchez pour la voir. Ensuite, elle disparaît.';
+
+  @override
+  String get bubbleViewOnceOpened => 'Ouverte';
+
+  @override
+  String get bubbleViewOnceMine => 'Vous non plus ne pouvez pas l’ouvrir.';
+
+  @override
+  String get viewOnceNoteBlocked =>
+      'Tant que c’est ouvert, les captures et enregistrements d’écran sont bloqués. Un appareil photo pointé sur l’écran, non.';
+
+  @override
+  String get viewOnceNoteDetects =>
+      'Ce téléphone ne peut pas bloquer une capture d’écran. Pendant un enregistrement ou une recopie de l’écran, la photo est masquée.';
+
+  @override
+  String get viewOnceNoteNone =>
+      'Sur cet appareil, les captures d’écran ne peuvent pas être bloquées.';
+
+  @override
+  String get viewOnceGone =>
+      'Elle est déjà supprimée de cet appareil. Dès que vous fermez, elle disparaît.';
+
+  @override
+  String get savedViewOnceRefused =>
+      'Une photo à voir une seule fois ne peut pas être enregistrée.';
 }

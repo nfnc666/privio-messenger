@@ -1557,5 +1557,17 @@
   "disappearingResetToDefault": "Allgemeine Einstellung verwenden",
   "disappearingResetAll": "Alle auf die allgemeine Einstellung zurücksetzen",
   "disappearingCappedNotice": "Ein Timer über 24 Stunden wurde auf 24 Stunden verkürzt. Bereits gesendete Nachrichten behalten ihre ursprüngliche Zeit.",
-  "noticeTimerCapped": "Selbstlöschende Nachrichten wurden auf 24 Stunden gesetzt, das Maximum dieser App."
+  "noticeTimerCapped": "Selbstlöschende Nachrichten wurden auf 24 Stunden gesetzt, das Maximum dieser App.",
+  "photoViewOnce": "Einmal ansehen",
+  "photoViewOnceCaptionHint": "Keine Bildunterschrift bei „Einmal ansehen“",
+  "viewOnceOlderBuilds": "📷 Ein Foto, das man einmal ansehen kann. Aktualisiere Privio, um es zu öffnen.",
+  "bubbleViewOnce": "Foto · einmal ansehen",
+  "bubbleViewOnceTap": "Zum Ansehen tippen. Danach ist es weg.",
+  "bubbleViewOnceOpened": "Geöffnet",
+  "bubbleViewOnceMine": "Auch du kannst es nicht öffnen.",
+  "viewOnceNoteBlocked": "Solange das offen ist, sind Bildschirmfotos und Bildschirmaufnahmen gesperrt. Eine Kamera, die auf den Bildschirm zeigt, nicht.",
+  "viewOnceNoteDetects": "Dieses Telefon kann ein Bildschirmfoto nicht verhindern. Während einer Bildschirmaufnahme oder Spiegelung wird das Foto verdeckt.",
+  "viewOnceNoteNone": "Auf diesem Gerät lassen sich Bildschirmfotos nicht sperren.",
+  "viewOnceGone": "Auf diesem Gerät ist es schon gelöscht. Sobald du das schließt, ist es weg.",
+  "savedViewOnceRefused": "Ein Foto zum einmaligen Ansehen lässt sich nicht speichern."
 }

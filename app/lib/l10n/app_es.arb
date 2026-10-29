@@ -1557,5 +1557,17 @@
   "disappearingResetToDefault": "Usar la configuración general",
   "disappearingResetAll": "Restablecer todo a la configuración general",
   "disappearingCappedNotice": "Un temporizador de más de 24 horas se ha reducido a 24 horas. Los mensajes ya enviados conservan su tiempo original.",
-  "noticeTimerCapped": "Los mensajes temporales se han puesto en 24 horas, el máximo de esta aplicación."
+  "noticeTimerCapped": "Los mensajes temporales se han puesto en 24 horas, el máximo de esta aplicación.",
+  "photoViewOnce": "Ver una vez",
+  "photoViewOnceCaptionHint": "Sin texto en «Ver una vez»",
+  "viewOnceOlderBuilds": "📷 Una foto que se puede ver una vez. Actualiza Privio para abrirla.",
+  "bubbleViewOnce": "Foto · ver una vez",
+  "bubbleViewOnceTap": "Toca para verla. Después desaparece.",
+  "bubbleViewOnceOpened": "Abierta",
+  "bubbleViewOnceMine": "Tampoco tú puedes abrirla.",
+  "viewOnceNoteBlocked": "Mientras esté abierta, las capturas y grabaciones de pantalla están bloqueadas. Una cámara que apunte a la pantalla, no.",
+  "viewOnceNoteDetects": "Este teléfono no puede bloquear una captura. Mientras se graba o se duplica la pantalla, la foto queda tapada.",
+  "viewOnceNoteNone": "En este dispositivo no se pueden bloquear las capturas.",
+  "viewOnceGone": "Ya se ha borrado de este dispositivo. En cuanto cierres, desaparece.",
+  "savedViewOnceRefused": "Una foto para ver una vez no se puede guardar."
 }

@@ -5375,4 +5375,47 @@ class AppTextDe extends AppText {
   @override
   String get noticeTimerCapped =>
       'Selbstlöschende Nachrichten wurden auf 24 Stunden gesetzt, das Maximum dieser App.';
+
+  @override
+  String get photoViewOnce => 'Einmal ansehen';
+
+  @override
+  String get photoViewOnceCaptionHint =>
+      'Keine Bildunterschrift bei „Einmal ansehen“';
+
+  @override
+  String get viewOnceOlderBuilds =>
+      '📷 Ein Foto, das man einmal ansehen kann. Aktualisiere Privio, um es zu öffnen.';
+
+  @override
+  String get bubbleViewOnce => 'Foto · einmal ansehen';
+
+  @override
+  String get bubbleViewOnceTap => 'Zum Ansehen tippen. Danach ist es weg.';
+
+  @override
+  String get bubbleViewOnceOpened => 'Geöffnet';
+
+  @override
+  String get bubbleViewOnceMine => 'Auch du kannst es nicht öffnen.';
+
+  @override
+  String get viewOnceNoteBlocked =>
+      'Solange das offen ist, sind Bildschirmfotos und Bildschirmaufnahmen gesperrt. Eine Kamera, die auf den Bildschirm zeigt, nicht.';
+
+  @override
+  String get viewOnceNoteDetects =>
+      'Dieses Telefon kann ein Bildschirmfoto nicht verhindern. Während einer Bildschirmaufnahme oder Spiegelung wird das Foto verdeckt.';
+
+  @override
+  String get viewOnceNoteNone =>
+      'Auf diesem Gerät lassen sich Bildschirmfotos nicht sperren.';
+
+  @override
+  String get viewOnceGone =>
+      'Auf diesem Gerät ist es schon gelöscht. Sobald du das schließt, ist es weg.';
+
+  @override
+  String get savedViewOnceRefused =>
+      'Ein Foto zum einmaligen Ansehen lässt sich nicht speichern.';
 }
