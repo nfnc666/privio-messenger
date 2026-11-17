@@ -250,9 +250,11 @@ is gone rather than offering a choice that does not exist.
   radius; the card is a `Material`, so a row's tap ripple shows. A disabled row
   greys its tile. Destructive rows drop the icon and colour the label `danger`.
   Every row in a list has an icon, or none does.
-- **Settings structure:** the Account tab shows the profile, then a visible
-  *Settings* row (no gear in the corner), *Saved* and the invite, then the
-  profile details under a *Profile* caption, then sign-out and delete.
+- **Settings structure:** the Account tab shows the profile, then a card with
+  *Your address* — the `@username` large, *Copy link* (the invite link, not the
+  bare name) and *QR code* (the invite screen, opened on the code) — then a
+  visible *Settings* row (no gear in the corner) and *Saved*, then the profile
+  details under a *Profile* caption, then sign-out and delete.
   Settings is grouped and captioned: *Security & account* (privacy & security,
   devices, backup, proxy, disguise), *Chats & media* (notifications, data and
   storage, stickers), *Look & language* (appearance, language), then licence

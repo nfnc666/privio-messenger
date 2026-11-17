@@ -12,14 +12,22 @@ import '../widgets/privio_back_button.dart';
 
 /// Screen 10: how someone reaches you without ever learning your phone number.
 class InviteScreen extends StatefulWidget {
-  const InviteScreen({super.key});
+  const InviteScreen({super.key, this.showQr = false});
+
+  /// Opens on the QR code rather than the link — what the account tab's
+  /// "QR code" button promises.
+  final bool showQr;
+
+  /// The invite link for [username]. One place for its shape, so the account
+  /// tab's "Copy link" and this screen cannot hand out two different links.
+  static String linkFor(String username) => 'https://privio.app/u/$username';
 
   @override
   State<InviteScreen> createState() => _InviteScreenState();
 }
 
 class _InviteScreenState extends State<InviteScreen> {
-  int _tab = 0;
+  late int _tab = widget.showQr ? 1 : 0;
 
   /// Puts [text] on the clipboard and says so. Used by both the icon and the
   /// button below it, so there is one copy of what copying means.
@@ -34,7 +42,7 @@ class _InviteScreenState extends State<InviteScreen> {
     final theme = Theme.of(context);
     final text = AppText.of(context);
     final username = PrivioScope.of(context).username ?? 'privio_user';
-    final inviteUrl = 'https://privio.app/u/$username';
+    final inviteUrl = InviteScreen.linkFor(username);
     final deepLink = 'privio://u/$username';
 
     return Scaffold(

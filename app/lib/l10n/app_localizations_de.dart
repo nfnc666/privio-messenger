@@ -2361,6 +2361,9 @@ class AppTextDe extends AppText {
       'Verschlüsselt — nur deine Kontakte sehen es';
 
   @override
+  String get accountYourAddress => 'Deine Adresse';
+
+  @override
   String get accountUsername => 'Benutzername';
 
   @override
@@ -2435,9 +2438,6 @@ class AppTextDe extends AppText {
 
   @override
   String get accountId => 'Konto-ID';
-
-  @override
-  String get accountInviteRow => 'Einladungslink / QR-Code';
 
   @override
   String get accountLogOut => 'Abmelden';

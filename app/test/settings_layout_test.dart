@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:privio/core/app_state.dart';
 import 'package:privio/core/secure_store.dart';
 import 'package:privio/screens/account_screen.dart';
+import 'package:privio/screens/invite_screen.dart';
 import 'package:privio/screens/privacy_screen.dart';
 import 'package:privio/screens/settings_screen.dart';
 import 'package:privio/theme/accent.dart';
 import 'package:privio/theme/privio_colors.dart';
 import 'package:privio/theme/privio_theme.dart';
 import 'package:privio/widgets/settings_row.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'widget_test.dart' show quietServices, wrap;
 
@@ -85,6 +88,47 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
+  });
+
+  testWidgets('the address is on top of the account tab, with its link and its code',
+      (tester) async {
+    _tallScreen(tester);
+    final state = await _state();
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform,
+        (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map<Object?, Object?>)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.pumpWidget(wrap(const AccountScreen(), state));
+    await tester.pumpAndSettle();
+
+    // Under the picture and before everything else, as in the messengers
+    // built around privacy. It was small print under the name, and the way
+    // to the link and the code was the fifth row down.
+    final address = find.textContaining(RegExp(r'^@'));
+    expect(address, findsOneWidget, reason: 'the address once, on its card');
+    final username = tester.widget<Text>(address).data!.substring(1);
+    expect(_y(tester, 'YOUR ADDRESS'), lessThan(_y(tester, 'Settings')));
+    expect(tester.getTopLeft(address).dy, lessThan(_y(tester, 'Settings')));
+    expect(find.byIcon(Icons.qr_code_rounded), findsOneWidget,
+        reason: 'the code is reached from the card, not from a row as well');
+
+    // The link, not the bare name: the link is what opens Privio on the other
+    // phone. And the same link the invite screen hands out.
+    await tester.tap(find.text('Copy link'));
+    await tester.pumpAndSettle();
+    expect(copied, [InviteScreen.linkFor(username)]);
+    expect(find.text('Invite link copied'), findsOneWidget);
+
+    await tester.tap(find.text('QR Code'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InviteScreen), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget, reason: 'it opens on the code it named');
   });
 
   testWidgets("a row's icon sits on a tile of the accent, and a disabled one is grey",

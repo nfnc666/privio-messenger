@@ -147,11 +147,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
                 const SizedBox(height: PrivioSpacing.md),
                 // The display name is the name; the @username is the
-                // address. Drawing the username twice — as both — was what
-                // made them look like one thing.
+                // address, and it has its own card below. Drawing the
+                // username twice — as both — was what made them look like
+                // one thing.
                 Text(names.label.isEmpty ? username : names.label,
                     style: theme.textTheme.titleLarge),
-                Text('@$username', style: theme.textTheme.bodySmall),
                 const SizedBox(height: PrivioSpacing.xs),
                 Text(
                   ownAvatar == null
@@ -166,7 +166,9 @@ class _AccountScreenState extends State<AccountScreen> {
               ],
             ),
           ),
-          const SizedBox(height: PrivioSpacing.xxl),
+          const SizedBox(height: PrivioSpacing.xl),
+          _AddressCard(username: username),
+          const SizedBox(height: PrivioSpacing.lg),
           SettingsSection(
             children: [
               // First under the profile, where somebody looking for an option
@@ -191,16 +193,10 @@ class _AccountScreenState extends State<AccountScreen> {
                 // `ConversationController.savedId`.
                 onTap: () => unawaited(_openSaved(context)),
               ),
-              // Backup is in Settings, with the account it protects. It was
-              // here as well, and one option in two places is two places to
-              // wonder which is the real one.
-              SettingsRow(
-                icon: Icons.qr_code_rounded,
-                label: text.accountInviteRow,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const InviteScreen()),
-                ),
-              ),
+              // Backup is in Settings, with the account it protects, and the
+              // invite link and QR code are on the address card above. Both
+              // were rows here as well, and one option in two places is two
+              // places to wonder which is the real one.
             ],
           ),
           SettingsSection(
@@ -381,6 +377,88 @@ class _AccountScreenState extends State<AccountScreen> {
             child: Text(AppText.of(dialogContext).accountLogOut),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Where somebody reaches you, at the top of the tab: the address, the link
+/// to it, and the code to scan.
+///
+/// The messengers built around privacy put it there, under the picture,
+/// because it is the one thing on this tab somebody comes back for. Here it was
+/// small print under the name and, separately, the fifth row down, "Invite
+/// link / QR code". It is the username and nothing else — no phone number, no
+/// email — so showing it large gives away nothing the link would not.
+///
+/// "Copy link" copies the invite link, not the bare name: the link is what
+/// opens Privio on the other phone. There is no share button, because a share
+/// sheet is a platform plugin this app does not carry; the clipboard is what
+/// it can actually do.
+class _AddressCard extends StatelessWidget {
+  const _AddressCard({required this.username});
+
+  final String username;
+
+  Future<void> _copyLink(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: InviteScreen.linkFor(username)));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppText.of(context).inviteCopied)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = AppText.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: PrivioSpacing.gutter),
+      child: Container(
+        padding: const EdgeInsets.all(PrivioSpacing.lg),
+        decoration: const BoxDecoration(
+          color: PrivioColors.surface,
+          borderRadius: BorderRadius.all(PrivioRadius.card),
+        ),
+        child: Column(
+          children: [
+            Text(
+              text.accountYourAddress.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 0.8),
+            ),
+            const SizedBox(height: PrivioSpacing.xs),
+            Text(
+              '@$username',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(color: context.accents.accent),
+            ),
+            const SizedBox(height: PrivioSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => unawaited(_copyLink(context)),
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    label: Text(text.inviteCopyLink),
+                  ),
+                ),
+                const SizedBox(width: PrivioSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const InviteScreen(showQr: true),
+                      ),
+                    ),
+                    icon: const Icon(Icons.qr_code_rounded, size: 18),
+                    label: Text(text.inviteTabQr),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

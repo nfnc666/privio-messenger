@@ -4015,6 +4015,12 @@ abstract class AppText {
   /// **'Encrypted — only your contacts can see it'**
   String get accountPictureEncrypted;
 
+  /// No description provided for @accountYourAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Your address'**
+  String get accountYourAddress;
+
   /// No description provided for @accountUsername.
   ///
   /// In en, this message translates to:
@@ -4158,12 +4164,6 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Account ID'**
   String get accountId;
-
-  /// No description provided for @accountInviteRow.
-  ///
-  /// In en, this message translates to:
-  /// **'Invite link / QR code'**
-  String get accountInviteRow;
 
   /// No description provided for @accountLogOut.
   ///

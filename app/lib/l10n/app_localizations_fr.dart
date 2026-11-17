@@ -2367,6 +2367,9 @@ class AppTextFr extends AppText {
       'Chiffrée — seuls vos contacts peuvent la voir';
 
   @override
+  String get accountYourAddress => 'Votre adresse';
+
+  @override
   String get accountUsername => 'Nom d\'utilisateur';
 
   @override
@@ -2441,9 +2444,6 @@ class AppTextFr extends AppText {
 
   @override
   String get accountId => 'Identifiant du compte';
-
-  @override
-  String get accountInviteRow => 'Lien d\'invitation / code QR';
 
   @override
   String get accountLogOut => 'Se déconnecter';
