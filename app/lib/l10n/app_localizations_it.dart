@@ -1973,6 +1973,11 @@ class AppTextIt extends AppText {
   }
 
   @override
+  String bubbleDisappearsIn(String time) {
+    return 'Scompare tra $time';
+  }
+
+  @override
   String get chatSafetyNumberChanged => 'Numero di sicurezza cambiato';
 
   @override

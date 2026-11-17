@@ -863,6 +863,15 @@
       }
     }
   },
+  "bubbleDisappearsIn": "Disappears in {time}",
+  "@bubbleDisappearsIn": {
+    "description": "Read out for the countdown beside a message under a disappearing timer. {time} is a duration such as \"2 hours\".",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "chatSafetyNumberChanged": "Safety number changed",
   "chatEncrypted": "End-to-end encrypted",
   "chatEncryptedVerified": "End-to-end encrypted · verified",

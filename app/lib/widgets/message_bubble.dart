@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
@@ -11,6 +13,7 @@ import '../theme/accent.dart';
 import '../theme/motion.dart';
 import '../theme/privio_colors.dart';
 import 'custom_emoji_text.dart';
+import 'disappearing_timer_sheet.dart';
 import 'photo_viewer.dart';
 import 'sticker_tile.dart';
 import 'voice_bubble.dart';
@@ -265,11 +268,7 @@ class MessageBubble extends StatelessWidget {
                 ),
                 if (message.expiresAt != null) ...[
                   const SizedBox(width: 4),
-                  const Icon(
-                    Icons.timer_outlined,
-                    size: 12,
-                    color: PrivioColors.textTertiary,
-                  ),
+                  _ExpiryCountdown(expiresAt: message.expiresAt!),
                 ],
                 if (mine) ...[
                   const SizedBox(width: 4),
@@ -309,6 +308,66 @@ class MessageBubble extends StatelessWidget {
 
   static String _formatTime(DateTime time) =>
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+}
+
+/// How long a message under a disappearing timer has left, beside the time it
+/// was sent: a small clock and "2 h".
+///
+/// It used to be the clock alone. A reader could see that a message would go,
+/// not when — and when is the thing somebody deciding what to say next, or
+/// whether to save a detail before it goes, needs to know.
+///
+/// Waits exactly as long as the label stays the same, then redraws: once an
+/// hour while hours are left, once a second only in the last minute. Nothing
+/// is sent anywhere; the expiry was agreed inside the sealed message, and this
+/// only reads it against the device's own clock.
+class _ExpiryCountdown extends StatefulWidget {
+  const _ExpiryCountdown({required this.expiresAt});
+
+  final DateTime expiresAt;
+
+  @override
+  State<_ExpiryCountdown> createState() => _ExpiryCountdownState();
+}
+
+class _ExpiryCountdownState extends State<_ExpiryCountdown> {
+  Timer? _next;
+
+  @override
+  void dispose() {
+    _next?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = AppText.of(context);
+    final left = DisappearingTimerSheet.remaining(
+      text,
+      widget.expiresAt.difference(clock.now()),
+    );
+    _next?.cancel();
+    final changesIn = left.changesIn;
+    _next = changesIn == null
+        ? null
+        : Timer(changesIn, () {
+            if (mounted) setState(() {});
+          });
+
+    final style = Theme.of(context).textTheme.labelSmall;
+    return Semantics(
+      label: text.bubbleDisappearsIn(describeDuration(text, left.exact)),
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, size: 12, color: style?.color ?? PrivioColors.textTertiary),
+          const SizedBox(width: 2),
+          Text(left.label, style: style),
+        ],
+      ),
+    );
+  }
 }
 
 /// Renders an attachment: images inline once decrypted, everything else as a

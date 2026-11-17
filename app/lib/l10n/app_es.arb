@@ -540,6 +540,7 @@
   "timerBadgeHours": "{count} h",
   "timerBadgeMinutes": "{count} min",
   "timerBadgeSeconds": "{count} s",
+  "bubbleDisappearsIn": "Desaparece en {time}",
   "chatSafetyNumberChanged": "El número de seguridad ha cambiado",
   "chatEncrypted": "Cifrado de extremo a extremo",
   "chatEncryptedVerified": "Cifrado de extremo a extremo · verificado",

@@ -64,6 +64,17 @@ accent colour and wears the effective duration beside it: `30s`, `1m`, `5m`,
 The chooser is reachable from that button, from the chat's overflow menu and
 from the group info screen. One widget, so the wording cannot drift.
 
+Every message under a timer says how long it has left, beside the time it was
+sent: a small clock and `24h`, `42m`, `25s`, in the same short words as the
+button. It was the clock alone, which said that a message would go but not
+when. The number is rounded **up** — a message is gone by the time its label
+said, or before it, never after — and hours run on to 48 rather than turning
+into `2d` at a little over a day. The bubble redraws only when the number
+changes: once an hour while hours are left, once a second in the last minute.
+It reads the expiry already agreed inside the sealed message against the
+device's own clock; nothing is asked of the server. Read aloud it is a sentence,
+*"Disappears in 3 hours"*.
+
 It offers **Use general setting**, with the current effective value under it,
 above the nine options. The tick marks the state the chat is actually in: a
 chat following an account default of one hour ticks *Use general setting*, not
@@ -188,11 +199,13 @@ to every member one message at a time.
 
 ## What is covered by tests
 
-Automated, in `app/test/disappearing_test.dart`,
+Automated, in `app/test/disappearing_test.dart`, `app/test/expiry_countdown_test.dart`,
 `app/test/messaging_service_test.dart`, `server/test/disappearing.test.ts` and
 `server/test/storage.test.ts`:
 
 - the exact list of durations, the ceiling, and the badge strings
+- the countdown on each bubble: rounded up and never an hour over, hours up to
+  48, the moment it next changes, and the bubble redrawing when time passes
 - a new chat following the account, and saying so rather than reading as "Off"
 - "Off" surviving an account default appearing afterwards
 - a hand-set chat untouched by *Apply to existing chats* until it is included

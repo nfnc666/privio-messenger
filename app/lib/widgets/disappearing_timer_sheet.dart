@@ -59,6 +59,39 @@ abstract final class DisappearingTimerSheet {
     return text.timerBadgeSeconds(timer.inSeconds);
   }
 
+  /// What a message under a timer wears beside its time: how long it has
+  /// left, in the same short words as [badge] — and when that changes.
+  ///
+  /// Rounded up, never down. A label that said less than is left would have a
+  /// message outlive what it showed; rounded up, the message is gone by the
+  /// time the label said, or before it. Hours go on to 48 rather than turning
+  /// into days at 24, so a little over a day reads "25 h" and not "2 d".
+  ///
+  /// [changesIn] is how long until the label reads differently, so the bubble
+  /// can wait exactly that long rather than ticking every second for a day.
+  /// Null once nothing is left: the message is about to be swept away, and
+  /// there is nothing further to count down to.
+  static ({String label, Duration exact, Duration? changesIn}) remaining(
+    AppText text,
+    Duration left,
+  ) {
+    if (left <= Duration.zero) {
+      return (label: text.timerBadgeSeconds(0), exact: Duration.zero, changesIn: null);
+    }
+    final (Duration unit, String Function(int) word) = switch (left) {
+      <= const Duration(minutes: 1) => (const Duration(seconds: 1), text.timerBadgeSeconds),
+      <= const Duration(hours: 1) => (const Duration(minutes: 1), text.timerBadgeMinutes),
+      <= const Duration(hours: 48) => (const Duration(hours: 1), text.timerBadgeHours),
+      _ => (const Duration(days: 1), text.timerBadgeDays),
+    };
+    final count = (left.inMicroseconds + unit.inMicroseconds - 1) ~/ unit.inMicroseconds;
+    return (
+      label: word(count),
+      exact: unit * count,
+      changesIn: left - unit * (count - 1),
+    );
+  }
+
   /// Asks for the account-wide default.
   ///
   /// The same options as a chat, minus "use the general setting" — which here

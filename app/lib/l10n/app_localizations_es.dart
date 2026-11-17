@@ -1966,6 +1966,11 @@ class AppTextEs extends AppText {
   }
 
   @override
+  String bubbleDisappearsIn(String time) {
+    return 'Desaparece en $time';
+  }
+
+  @override
   String get chatSafetyNumberChanged => 'El número de seguridad ha cambiado';
 
   @override

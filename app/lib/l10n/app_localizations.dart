@@ -3343,6 +3343,12 @@ abstract class AppText {
   /// **'{count}s'**
   String timerBadgeSeconds(int count);
 
+  /// Read out for the countdown beside a message under a disappearing timer. {time} is a duration such as "2 hours".
+  ///
+  /// In en, this message translates to:
+  /// **'Disappears in {time}'**
+  String bubbleDisappearsIn(String time);
+
   /// No description provided for @chatSafetyNumberChanged.
   ///
   /// In en, this message translates to:
