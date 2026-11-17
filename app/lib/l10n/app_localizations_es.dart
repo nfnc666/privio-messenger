@@ -211,6 +211,15 @@ class AppTextEs extends AppText {
   String get settingsTitle => 'Ajustes';
 
   @override
+  String get settingsGroupSecurity => 'Seguridad y cuenta';
+
+  @override
+  String get settingsGroupChats => 'Chats y multimedia';
+
+  @override
+  String get settingsGroupLook => 'Apariencia e idioma';
+
+  @override
   String get settingsAppearance => 'Apariencia';
 
   @override
@@ -2316,6 +2325,9 @@ class AppTextEs extends AppText {
 
   @override
   String get navAccount => 'Cuenta';
+
+  @override
+  String get accountProfileCaption => 'Perfil';
 
   @override
   String get splashTagline => 'Mensajería segura';

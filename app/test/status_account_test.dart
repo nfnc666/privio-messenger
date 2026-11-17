@@ -154,6 +154,9 @@ void main() {
     await tester.pumpWidget(_accountOver(state));
     await _settle(tester);
 
+    // Below the settings rows now, so off the bottom of a small test screen.
+    await tester.ensureVisible(find.text('Status'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Status'));
     await tester.pumpAndSettle();
 
@@ -172,6 +175,9 @@ void main() {
     await _settle(tester);
     expect(find.text('Not set'), findsOneWidget);
 
+    // Below the settings rows now, so off the bottom of a small test screen.
+    await tester.ensureVisible(find.text('Status'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Status'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'On a break');

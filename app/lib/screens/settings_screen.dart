@@ -37,11 +37,15 @@ class SettingsScreen extends StatelessWidget {
         leading: const PrivioBackButton(),
         title: Text(text.settingsTitle),
       ),
+      // Grouped by what somebody comes here to do, each group named, rather
+      // than one list of twelve rows in the order they were built. Backup sits
+      // with the account it protects; the proxy and the disguise with the
+      // other things that decide who can see what.
       body: ListView(
         padding: const EdgeInsets.only(bottom: PrivioSpacing.xxxl),
         children: [
-          const SizedBox(height: PrivioSpacing.sm),
           SettingsSection(
+            caption: text.settingsGroupSecurity,
             children: [
               // An "Account" row used to open here and do nothing. Settings is
               // reached *from* the Account tab, so a row leading back to it is
@@ -52,46 +56,21 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => open(const PrivacyScreen()),
               ),
               SettingsRow(
-                icon: Icons.notifications_none_rounded,
-                label: text.settingsNotifications,
-                onTap: () => open(const NotificationsScreen()),
-              ),
-              SettingsRow(
-                icon: Icons.data_usage_rounded,
-                label: text.settingsStorage,
-                onTap: () => open(const StorageScreen()),
-              ),
-              if (ProxyController.supported)
-                SettingsRow(icon: Icons.lan_outlined, label: text.proxyTitle,
-                  onTap: () => open(const ProxyScreen())),
-              SettingsRow(
                 icon: Icons.devices_outlined,
                 label: text.settingsDevices,
                 onTap: () => open(const DevicesScreen()),
-              ),
-              SettingsRow(
-                icon: Icons.palette_outlined,
-                label: text.settingsAppearance,
-                onTap: () => open(const AppearanceScreen()),
-              ),
-              SettingsRow(
-                icon: Icons.emoji_emotions_outlined,
-                label: text.settingsStickers,
-                onTap: () => open(const StickersScreen()),
-              ),
-              SettingsRow(
-                icon: Icons.translate_rounded,
-                label: text.languageName,
-                // The endonym, so the row says what it will switch to in the
-                // word somebody would recognise.
-                value: state.locale.language.endonym,
-                onTap: () => open(const LanguageScreen()),
               ),
               SettingsRow(
                 icon: Icons.cloud_upload_outlined,
                 label: text.settingsBackup,
                 onTap: () => open(const BackupScreen()),
               ),
+              if (ProxyController.supported)
+                SettingsRow(
+                  icon: Icons.lan_outlined,
+                  label: text.proxyTitle,
+                  onTap: () => open(const ProxyScreen()),
+                ),
               // Not on iOS, where the app's name cannot be changed and the
               // disguise would name itself. A row leading to an explanation of
               // why there is nothing here is still a row about a feature this
@@ -103,6 +82,49 @@ class SettingsScreen extends StatelessWidget {
                   value: state.disguise?.label,
                   onTap: () => open(const DisguiseScreen()),
                 ),
+            ],
+          ),
+          SettingsSection(
+            caption: text.settingsGroupChats,
+            children: [
+              SettingsRow(
+                icon: Icons.notifications_none_rounded,
+                label: text.settingsNotifications,
+                onTap: () => open(const NotificationsScreen()),
+              ),
+              SettingsRow(
+                icon: Icons.data_usage_rounded,
+                label: text.settingsStorage,
+                onTap: () => open(const StorageScreen()),
+              ),
+              SettingsRow(
+                icon: Icons.emoji_emotions_outlined,
+                label: text.settingsStickers,
+                onTap: () => open(const StickersScreen()),
+              ),
+            ],
+          ),
+          SettingsSection(
+            caption: text.settingsGroupLook,
+            children: [
+              SettingsRow(
+                icon: Icons.palette_outlined,
+                label: text.settingsAppearance,
+                onTap: () => open(const AppearanceScreen()),
+              ),
+              SettingsRow(
+                icon: Icons.translate_rounded,
+                label: text.languageName,
+                // The endonym, so the row says what it will switch to in the
+                // word somebody would recognise.
+                value: state.locale.language.endonym,
+                onTap: () => open(const LanguageScreen()),
+              ),
+            ],
+          ),
+          const SizedBox(height: PrivioSpacing.xl),
+          SettingsSection(
+            children: [
               // Only where there is something to activate. A self-hosted
               // server says it requires no license, and this row goes away.
               if (state.license.isOffered)

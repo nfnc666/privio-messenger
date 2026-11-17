@@ -13,7 +13,6 @@ import '../theme/privio_colors.dart';
 import '../widgets/avatar.dart';
 import '../widgets/settings_row.dart';
 import '../widgets/status_sheet.dart';
-import 'backup_screen.dart';
 import 'profile_edit_screen.dart';
 import 'account_phone_screen.dart';
 import 'chat_screen.dart';
@@ -97,19 +96,10 @@ class _AccountScreenState extends State<AccountScreen> {
     final ownAvatar = PrivioScope.of(context).conversations.ownAvatar;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(text.navAccount),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            ),
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: text.settingsTitle,
-          ),
-          const SizedBox(width: PrivioSpacing.xs),
-        ],
-      ),
+      // Settings is a row below the profile now, not a gear in this bar:
+      // a small icon in a corner was where most of the app's options were
+      // hiding, and nothing on the screen said they were there.
+      appBar: AppBar(title: Text(text.navAccount)),
       body: ListView(
         children: [
           const SizedBox(height: PrivioSpacing.lg),
@@ -179,6 +169,43 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: PrivioSpacing.xxl),
           SettingsSection(
             children: [
+              // First under the profile, where somebody looking for an option
+              // looks: privacy, notifications, devices, backup and the rest
+              // are all one tap from here.
+              SettingsRow(
+                icon: Icons.settings_outlined,
+                label: text.settingsTitle,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+                ),
+              ),
+              // Two rows that used to show invented numbers — "1.2 GB / 5 GB"
+              // and "Security Level: High" — are gone rather than kept as
+              // decoration. A figure nobody measured is worse than no figure,
+              // and this one sat on a screen about trust.
+              SettingsRow(
+                icon: Icons.bookmark_border_rounded,
+                label: text.savedAccountRow,
+                // The same conversation the chat list opens, by the same id —
+                // so the two ways in cannot become two areas. See
+                // `ConversationController.savedId`.
+                onTap: () => unawaited(_openSaved(context)),
+              ),
+              // Backup is in Settings, with the account it protects. It was
+              // here as well, and one option in two places is two places to
+              // wonder which is the real one.
+              SettingsRow(
+                icon: Icons.qr_code_rounded,
+                label: text.accountInviteRow,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const InviteScreen()),
+                ),
+              ),
+            ],
+          ),
+          SettingsSection(
+            caption: text.accountProfileCaption,
+            children: [
               SettingsRow(
                 icon: Icons.badge_outlined,
                 label: text.profileEditDisplayName,
@@ -240,37 +267,6 @@ class _AccountScreenState extends State<AccountScreen> {
                 label: text.phoneFieldLabel,
                 subtitle: text.accountPhoneNote,
                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AccountPhoneScreen())),
-              ),
-            ],
-          ),
-          const SizedBox(height: PrivioSpacing.lg),
-          SettingsSection(
-            children: [
-              // Two rows that used to show invented numbers — "1.2 GB / 5 GB"
-              // and "Security Level: High" — are gone rather than kept as
-              // decoration. A figure nobody measured is worse than no figure,
-              // and this one sat on a screen about trust.
-              SettingsRow(
-                icon: Icons.bookmark_border_rounded,
-                label: text.savedAccountRow,
-                // The same conversation the chat list opens, by the same id —
-                // so the two ways in cannot become two areas. See
-                // `ConversationController.savedId`.
-                onTap: () => unawaited(_openSaved(context)),
-              ),
-              SettingsRow(
-                icon: Icons.backup_outlined,
-                label: text.settingsBackup,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const BackupScreen()),
-                ),
-              ),
-              SettingsRow(
-                icon: Icons.qr_code_rounded,
-                label: text.accountInviteRow,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const InviteScreen()),
-                ),
               ),
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/accent.dart';
 import '../theme/privio_colors.dart';
 
 /// One row inside a [SettingsSection]: icon, label, optional value, chevron.
@@ -20,9 +21,9 @@ class SettingsRow extends StatelessWidget {
   final String label;
   final IconData? icon;
 
-  /// When set, the icon sits in a filled rounded tile of this colour rather
-  /// than loose in the row. The channel screens use it; the rest of settings
-  /// does not, so it stays opt-in.
+  /// When set, the icon's tile is filled with this colour and the icon is
+  /// white. The channel screens use it; every other row's tile is a quiet
+  /// shade of the accent.
   final Color? iconTint;
 
   /// A second line under the label, for a row whose meaning needs one.
@@ -68,7 +69,23 @@ class SettingsRow extends StatelessWidget {
                   child: Icon(icon, size: 18, color: Colors.white),
                 )
               else
-                Icon(icon, size: 20, color: PrivioColors.textSecondary),
+                // Every other row's icon sits on a quiet tile of the chosen
+                // accent. Loose grey icons down a long list read as one grey
+                // column; a tile per row gives the eye something to land on
+                // while it looks for the one it wants.
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: enabled ? context.accents.surface : PrivioColors.surfaceHigh,
+                    borderRadius: BorderRadius.circular(PrivioSpacing.sm),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: enabled ? context.accents.accent : PrivioColors.textTertiary,
+                  ),
+                ),
               const SizedBox(width: PrivioSpacing.md),
             ],
             Expanded(
@@ -97,11 +114,14 @@ class SettingsRow extends StatelessWidget {
               ),
             ),
             if (value != null)
-              // Flexible, and at most two fifths of the row. Unbounded, a long
-              // value took the whole width and pressed the label into a column
-              // one letter wide — a channel description did exactly that on a
-              // phone with large text.
-              Flexible(
+              // Two fifths of the row. Unbounded, a long value took the whole
+              // width and pressed the label into a column one letter wide — a
+              // channel description did exactly that on a phone with large
+              // text. And all of the two fifths, not up to them: a short value
+              // in a loose box left the rest of its share empty after the
+              // chevron, so a row with a value had its chevron further left
+              // than the row above it without one.
+              Expanded(
                 flex: 2,
                 child: Padding(
                   padding: const EdgeInsets.only(left: PrivioSpacing.sm),

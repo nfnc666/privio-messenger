@@ -439,8 +439,10 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
 
       final row = find.text('Private chats');
-      // Built below the fold already, so scrolling "until visible" stops at
-      // once; this scrolls until it can be tapped.
+      // Further down since the screen was regrouped — under Access, after the
+      // messaging rows — so not built yet on a small test screen: scroll to it
+      // first, then until it can be tapped.
+      await tester.scrollUntilVisible(row, 200);
       await tester.ensureVisible(row);
       await tester.pumpAndSettle();
       await tester.tap(row);

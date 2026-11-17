@@ -210,6 +210,15 @@ class AppTextDe extends AppText {
   String get settingsTitle => 'Einstellungen';
 
   @override
+  String get settingsGroupSecurity => 'Sicherheit & Konto';
+
+  @override
+  String get settingsGroupChats => 'Chats & Medien';
+
+  @override
+  String get settingsGroupLook => 'Darstellung & Sprache';
+
+  @override
   String get settingsAppearance => 'Darstellung';
 
   @override
@@ -2313,6 +2322,9 @@ class AppTextDe extends AppText {
 
   @override
   String get navAccount => 'Konto';
+
+  @override
+  String get accountProfileCaption => 'Profil';
 
   @override
   String get splashTagline => 'Sicherer Messenger';

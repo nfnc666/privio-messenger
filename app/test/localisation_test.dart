@@ -205,6 +205,9 @@ void main() {
     addTearDown(state.dispose);
     await tester.pumpWidget(_wrap(const SettingsScreen(), state));
 
+    // Under "Look & language", below the security and chat groups: further
+    // down than the bottom of a small test screen.
+    await tester.scrollUntilVisible(find.text('Language'), 200);
     expect(find.text('English'), findsOneWidget);
     await tester.tap(find.text('Language'));
     await tester.pumpAndSettle();

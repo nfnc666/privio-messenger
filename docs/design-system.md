@@ -243,9 +243,27 @@ is gone rather than offering a choice that does not exist.
   inside an `accentSurface` bubble.
 - **PIN entry:** four dots, a 3×4 keypad on `surface` circles, and a fingerprint
   affordance directly under the pad.
-- **Settings rows:** leading icon in `textSecondary`, label in body, trailing
-  chevron in `textTertiary`, grouped on `surface` cards with 12px radius.
-  Destructive rows drop the icon and colour the label `danger`.
+- **Settings rows:** leading icon in the accent on a 30px tile of the accent's
+  `surface` shade (8px radius), label in body, value right-aligned in the last
+  two fifths of the row, trailing chevron in `textTertiary` — at the same place
+  in every row, with a value or without. Grouped on `surface` cards with 12px
+  radius; the card is a `Material`, so a row's tap ripple shows. A disabled row
+  greys its tile. Destructive rows drop the icon and colour the label `danger`.
+  Every row in a list has an icon, or none does.
+- **Settings structure:** the Account tab shows the profile, then a visible
+  *Settings* row (no gear in the corner), *Saved* and the invite, then the
+  profile details under a *Profile* caption, then sign-out and delete.
+  Settings is grouped and captioned: *Security & account* (privacy & security,
+  devices, backup, proxy, disguise), *Chats & media* (notifications, data and
+  storage, stickers), *Look & language* (appearance, language), then licence
+  and About. Each option appears once. Privacy & security groups *who can see*
+  (last seen, status, phone, blocked users), *messaging* (receipts, typing,
+  disappearing, location), *access* (screen lock, two-factor, duress code,
+  private chats, screen shield, security activity), *identity* and *calls*.
+  `test/settings_layout_test.dart` holds this order.
+- **Actions never wear a tab's icon.** An app-bar button that looks like one of
+  the five tabs reads as a way to that tab. Distribution lists use the
+  outgoing-mail icon, not the Channels megaphone.
 - **Toggles:** accent track when on, `surfaceHigh` when off.
 - **Calculator disguise:** two skins. The iPhone-style one uses circular keys
   with `calculatorOperator` on the right column against true black; the

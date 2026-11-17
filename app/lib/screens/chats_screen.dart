@@ -413,7 +413,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const DistributionListsScreen()),
                 ),
-                icon: const Icon(Icons.campaign_outlined),
+                // Not the megaphone: that is the Channels tab, one row below
+                // on the same screen, and one picture meaning two things is a
+                // picture that means neither. A list sends one text out to
+                // several people, each in their own chat.
+                icon: const Icon(Icons.forward_to_inbox_outlined),
                 tooltip: text.listsTitle,
               ),
               IconButton(

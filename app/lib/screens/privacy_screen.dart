@@ -169,19 +169,32 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               // photo is already encrypted to the people you have written to,
               // so there is no separate audience to choose.
               SettingsRow(
+                icon: Icons.schedule_rounded,
                 label: text.privacyLastSeen,
                 value: _lastSeenLabel(text, security.lastSeen),
                 onTap: () => _chooseLastSeen(security),
               ),
               SettingsRow(
+                icon: Icons.mood_rounded,
                 label: text.privacyProfileStatus,
                 value: _profileStatusLabel(text, security.profileStatus),
                 onTap: () => _chooseProfileStatus(security),
               ),
               SettingsRow(
+                icon: Icons.contacts_outlined,
                 label: text.privacyPhoneSection,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const PhoneContactsScreen()),
+                ),
+              ),
+              // With the others about who reaches you, rather than in the
+              // middle of the locks and codes where it used to be.
+              SettingsRow(
+                icon: Icons.block_rounded,
+                label: text.privacyBlockedUsers,
+                value: security.blocked?.length.toString(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
                 ),
               ),
             ],
@@ -190,6 +203,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             caption: text.privacyMessaging,
             children: [
               SettingsRow(
+                icon: Icons.done_all_rounded,
                 label: text.privacyReadReceipts,
                 trailing: Switch(
                   value: conversations.readReceiptsEnabled,
@@ -197,6 +211,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
+                icon: Icons.keyboard_outlined,
                 label: text.privacyTypingIndicators,
                 trailing: Switch(
                   value: conversations.typingIndicatorsEnabled,
@@ -207,6 +222,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               // account-wide default now, and it opens the screen that sets
               // it — including what applying it to existing chats would do.
               SettingsRow(
+                icon: Icons.timer_outlined,
                 label: text.disappearingSettingsRow,
                 value: DisappearingTimerSheet.label(
                   text,
@@ -216,6 +232,18 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                   MaterialPageRoute<void>(
                     builder: (_) => const DisappearingSettingsScreen(),
                   ),
+                ),
+              ),
+              // What can be sent in a chat, so with the messages — it sat
+              // among the locks and codes before, where nobody looks for it.
+              SettingsRow(
+                icon: Icons.location_on_outlined,
+                label: text.privacyShareLocation,
+                subtitle: text.privacyShareLocationNote,
+                trailing: Switch(
+                  key: const ValueKey('share-location'),
+                  value: conversations.shareLocation,
+                  onChanged: (value) => unawaited(conversations.setShareLocation(value)),
                 ),
               ),
             ],
@@ -234,6 +262,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             caption: text.privacyAccess,
             children: [
               SettingsRow(
+                icon: Icons.screen_lock_portrait_outlined,
                 label: text.privacyScreenLock,
                 value: state.screenLockSet ? text.privacyPin : text.commonOff,
                 onTap: () => Navigator.of(context).push(
@@ -241,6 +270,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
+                icon: Icons.verified_user_outlined,
                 label: text.privacyTwoFactor,
                 // Null until the server has answered. Better a row with no
                 // value for a moment than one that guesses.
@@ -254,6 +284,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
+                icon: Icons.emergency_outlined,
                 label: text.privacyDuressCode,
                 value: switch (security.twoFactorEnabled) {
                   // The same read answers both, so the same null means "not
@@ -266,15 +297,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                 ),
               ),
               SettingsRow(
-                label: text.privacyShareLocation,
-                subtitle: text.privacyShareLocationNote,
-                trailing: Switch(
-                  key: const ValueKey('share-location'),
-                  value: conversations.shareLocation,
-                  onChanged: (value) => unawaited(conversations.setShareLocation(value)),
-                ),
-              ),
-              SettingsRow(
+                icon: Icons.lock_person_outlined,
                 label: text.privacyPrivateChats,
                 value: conversations.hasPrivateChatsCode ? text.privacySet : text.commonOff,
                 onTap: () => Navigator.of(context).push(
@@ -283,6 +306,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ),
               _ScreenShieldRow(controller: state.screenShield),
               SettingsRow(
+                icon: Icons.history_rounded,
                 label: text.privacySecurityActivity,
                 // The count is of the two kinds worth noticing, not of every
                 // line: a row reading "47" next to "Security activity" says
@@ -293,19 +317,13 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                   MaterialPageRoute<void>(builder: (_) => const SecurityActivityScreen()),
                 ),
               ),
-              SettingsRow(
-                label: text.privacyBlockedUsers,
-                value: security.blocked?.length.toString(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const BlockedUsersScreen()),
-                ),
-              ),
             ],
           ),
           SettingsSection(
             caption: text.privacyIdentity,
             children: [
               SettingsRow(
+                icon: Icons.key_outlined,
                 label: text.privacyBlockOnKeyChange,
                 subtitle: text.privacyBlockOnKeyChangeNote,
                 trailing: Switch(
@@ -321,6 +339,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             caption: text.privacyCalls,
             children: [
               SettingsRow(
+                icon: Icons.phone_locked_outlined,
                 label: text.securityVerifiedCallsOnly,
                 trailing: Switch(
                   key: const ValueKey('verified-calls-only'),

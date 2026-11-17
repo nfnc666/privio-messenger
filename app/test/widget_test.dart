@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:privio/screens/about_screen.dart';
 import 'package:privio/screens/chats_screen.dart';
 import 'package:privio/screens/invite_screen.dart';
+import 'package:privio/screens/nav_shell.dart';
 import 'package:privio/screens/settings_screen.dart';
 import 'package:privio/screens/storage_screen.dart';
 import 'package:privio/services/messaging_service.dart';
@@ -211,6 +212,18 @@ void main() {
     expect(find.byIcon(Icons.group_add_outlined), findsOneWidget);
     expect(find.byIcon(Icons.edit_square), findsOneWidget);
     expect(find.byTooltip('Distribution lists'), findsOneWidget);
+
+    // None of them wears a tab's icon. The lists had the megaphone, which is
+    // also the Channels tab right under it: one picture for two places.
+    for (final destination in NavShell.destinations) {
+      for (final icon in [destination.icon, destination.activeIcon]) {
+        expect(
+          find.descendant(of: find.byType(AppBar), matching: find.byIcon(icon)),
+          findsNothing,
+          reason: 'an action that looks like the ${destination.icon} tab',
+        );
+      }
+    }
 
     // Exactly those three buttons in the bar, which is what says the link
     // button left no invisible tap target behind — an icon can be hidden while

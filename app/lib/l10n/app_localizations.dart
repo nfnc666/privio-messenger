@@ -475,6 +475,24 @@ abstract class AppText {
   /// **'Settings'**
   String get settingsTitle;
 
+  /// No description provided for @settingsGroupSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security & account'**
+  String get settingsGroupSecurity;
+
+  /// No description provided for @settingsGroupChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Chats & media'**
+  String get settingsGroupChats;
+
+  /// No description provided for @settingsGroupLook.
+  ///
+  /// In en, this message translates to:
+  /// **'Look & language'**
+  String get settingsGroupLook;
+
   /// No description provided for @settingsAppearance.
   ///
   /// In en, this message translates to:
@@ -3936,6 +3954,12 @@ abstract class AppText {
   /// In en, this message translates to:
   /// **'Account'**
   String get navAccount;
+
+  /// No description provided for @accountProfileCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get accountProfileCaption;
 
   /// No description provided for @splashTagline.
   ///
